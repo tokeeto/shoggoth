@@ -1,0 +1,157 @@
+{
+  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Chaos.jp2",
+  "name_region": {
+    "x": 28,
+    "y": 90,
+    "width": 319,
+    "height": 75
+  },
+  "name_alignment": "center, top",
+  "name_tightness": 0.2,
+  "ahlcg_difficulty_region": {
+    "x": 129,
+    "y": 127,
+    "width": 114,
+    "height": 14
+  },
+  "ahlcg_difficulty_alignment": "center, top",
+  "header_region": {
+    "x": 35,
+    "y": 135,
+    "width": 300,
+    "height": 305
+  },
+  "header_alignment": "center, top",
+  "body_region": {
+    "x": 95,
+    "y": 156,
+    "width": 240,
+    "height": 305
+  },
+  "body_alignment": "left, middle",
+  "bodyicon_region": {
+    "x": 44,
+    "y": 148,
+    "width": 47,
+    "height": 47
+  },
+  "body_tightness": 0.5,
+  "ahlcg_storychaos_body_alignment": "left, top",
+  "ahlcg_storychaosfull_body_alignment": "left, top",
+  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "encounter_portrait_pany": 0,
+  "encounter_portrait_clip_region": {
+    "x": 171,
+    "y": 57,
+    "width": 32,
+    "height": 32
+  },
+  "returnencounter_portrait_clip_region": {
+    "x": 169,
+    "y": 54,
+    "width": 35,
+    "height": 35
+  },
+  "ahlcg_chaosstory_encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "ahlcg_chaosstory_encounter_portrait_pany": 0,
+  "ahlcg_chaosstory_encounter_portrait_clip_region": {
+    "x": 173,
+    "y": 59,
+    "width": 28,
+    "height": 28
+  },
+  "ahlcg_chaosstory_returnencounter_portrait_clip_region": {
+    "x": 169,
+    "y": 54,
+    "width": 35,
+    "height": 35
+  },
+  "ahlcg_storychaos_encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "ahlcg_storychaos_encounter_portrait_pany": 0,
+  "ahlcg_storychaos_encounter_portrait_clip_region": {
+    "x": 173,
+    "y": 59,
+    "width": 28,
+    "height": 28
+  },
+  "ahlcg_storychaos_returnencounter_portrait_clip_region": {
+    "x": 169,
+    "y": 54,
+    "width": 35,
+    "height": 35
+  },
+  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "collection_portrait_pany": 0,
+  "defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 509,
+    "width": 13,
+    "height": 13
+  },
+  "collection_portrait_clip_region": {
+    "x": 320,
+    "y": 509,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_chaosstory_collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "ahlcg_chaosstory_collection_portrait_pany": 0,
+  "ahlcg_chaosstory_defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 509,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_chaosstory_collection_portrait_clip_region": {
+    "x": 320,
+    "y": 509,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_storychaos_collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "ahlcg_storychaos_collection_portrait_pany": 0,
+  "ahlcg_storychaos_defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 509,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_storychaos_collection_portrait_clip_region": {
+    "x": 320,
+    "y": 509,
+    "width": 13,
+    "height": 13
+  },
+  "encounternumber_region": {
+    "x": 276,
+    "y": 512,
+    "width": 45,
+    "height": 10
+  },
+  "collectionnumber_region": {
+    "x": 333,
+    "y": 512,
+    "width": 21,
+    "height": 10
+  },
+  "copyright_region": {
+    "x": 19,
+    "y": 512,
+    "width": 102,
+    "height": 10
+  },
+  "copyright_alignment": "left, middle",
+  "trackerbox_region": {
+    "x": 32,
+    "y": 371,
+    "width": 306,
+    "height": 92
+  },
+  "trackername_region": {
+    "x": 44,
+    "y": 375,
+    "width": 280,
+    "height": 20
+  },
+  "trackername_alignment": "center, middle"
+}

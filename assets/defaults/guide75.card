@@ -1,0 +1,94 @@
+{
+  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Guide75Empty.jp2",
+  "name_region": {
+    "x": 340,
+    "y": 283,
+    "width": 445,
+    "height": 42
+  },
+  "header_alignment": "center",
+  "label_region": {
+    "x": 470,
+    "y": 243,
+    "width": 184,
+    "height": 28
+  },
+  "body_region": {
+    "x": 65,
+    "y": 65,
+    "width": 995,
+    "height": 995
+  },
+  "bodylefttitle_region": {
+    "x": 80,
+    "y": 378,
+    "width": 475,
+    "height": 687
+  },
+  "bodyrighttitle_region": {
+    "x": 580,
+    "y": 378,
+    "width": 475,
+    "height": 687
+  },
+  "bodyleftempty_region": {
+    "x": 80,
+    "y": 65,
+    "width": 475,
+    "height": 995
+  },
+  "bodyrightempty_region": {
+    "x": 580,
+    "y": 65,
+    "width": 475,
+    "height": 995
+  },
+  "body_alignment": "left, top",
+  "body_tightness": 0.85,
+  "bodysection_tightness": 1.0,
+  "bodyname_region": {
+    "x": 56,
+    "y": 83,
+    "width": 268,
+    "height": 390
+  },
+  "bodyresolution_region": {
+    "x": 56,
+    "y": 98,
+    "width": 268,
+    "height": 375
+  },
+  "resbullet_style": "FOREGROUND: #492925",
+  "sabullet_style": "FOREGROUND: #3d534e",
+  "pageodd_region": {
+    "x": 546,
+    "y": 1075,
+    "width": 30,
+    "height": 32
+  },
+  "pageeven_region": {
+    "x": 548,
+    "y": 1075,
+    "width": 30,
+    "height": 32
+  },
+  "page_alignment": "center, middle",
+  "portrait1_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "portrait1_portrait_panx": 0,
+  "portrait1_portrait_pany": 0,
+  "portrait1_portrait_clip_region": {
+    "x": 65,
+    "y": 65,
+    "width": 995,
+    "height": 995
+  },
+  "portrait2_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "portrait2_portrait_panx": 0,
+  "portrait2_portrait_pany": 0,
+  "portrait2_portrait_clip_region": {
+    "x": 65,
+    "y": 65,
+    "width": 995,
+    "height": 995
+  }
+}

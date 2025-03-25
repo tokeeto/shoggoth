@@ -1,0 +1,199 @@
+{
+  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Enemy.jp2",
+  "ahlcg_enemyback_default_template": "ArkhamHorrorLCG/templates/AHLCG-EncounterBack.jp2",
+  "name_region": {
+    "x": 62,
+    "y": 5,
+    "width": 252,
+    "height": 27
+  },
+  "subtitletext_region": {
+    "x": 40,
+    "y": 32,
+    "width": 293,
+    "height": 20
+  },
+  "label_region": {
+    "x": 157,
+    "y": 308,
+    "width": 61,
+    "height": 14
+  },
+  "body_region": {
+    "x": 20,
+    "y": 104,
+    "width": 338,
+    "height": 165
+  },
+  "portrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "portrait_portrait_pany": 0,
+  "portrait_portrait_clip_region": {
+    "x": 0,
+    "y": 241,
+    "width": 375,
+    "height": 284
+  },
+  "backportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "backportrait_portrait_pany": 0,
+  "backportrait_portrait_clip_region": {
+    "x": 0,
+    "y": 241,
+    "width": 375,
+    "height": 284
+  },
+  "encounterportrait_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "encounterportrait_portrait_pany": 0,
+  "encounter_portrait_clip_region": {
+    "x": 174,
+    "y": 274,
+    "width": 28,
+    "height": 28
+  },
+  "defaultencounter_portrait_clip_region": {
+    "x": 174,
+    "y": 274,
+    "width": 28,
+    "height": 28
+  },
+  "returnencounter_portrait_clip_region": {
+    "x": 169,
+    "y": 270,
+    "width": 37,
+    "height": 33
+  },
+  "defaultreturnencounter_portrait_clip_region": {
+    "x": 169,
+    "y": 270,
+    "width": 37,
+    "height": 33
+  },
+  "collectionportrait_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "collectionportrait_portrait_pany": 0,
+  "collection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "attack_region": {
+    "x": 106,
+    "y": 51,
+    "width": 26,
+    "height": 27
+  },
+  "attackperinv_region": {
+    "x": 102,
+    "y": 51,
+    "width": 24,
+    "height": 27
+  },
+  "attackperinvicon_region": {
+    "x": 121,
+    "y": 56,
+    "width": 14,
+    "height": 14
+  },
+  "evade_region": {
+    "x": 246,
+    "y": 51,
+    "width": 26,
+    "height": 27
+  },
+  "evadeperinv_region": {
+    "x": 242,
+    "y": 51,
+    "width": 24,
+    "height": 27
+  },
+  "evadeperinvicon_region": {
+    "x": 261,
+    "y": 56,
+    "width": 14,
+    "height": 14
+  },
+  "health_region": {
+    "x": 168,
+    "y": 45,
+    "width": 40,
+    "height": 35
+  },
+  "healthperinv_region": {
+    "x": 169,
+    "y": 45,
+    "width": 27,
+    "height": 35
+  },
+  "healthperinvicon_region": {
+    "x": 190,
+    "y": 52,
+    "width": 17,
+    "height": 17
+  },
+  "damage1_region": {
+    "x": 132,
+    "y": 284,
+    "width": 19,
+    "height": 23
+  },
+  "damage2_region": {
+    "x": 109,
+    "y": 277,
+    "width": 19,
+    "height": 23
+  },
+  "damage3_region": {
+    "x": 86,
+    "y": 268,
+    "width": 19,
+    "height": 23
+  },
+  "damage4_region": {
+    "x": 65,
+    "y": 256,
+    "width": 19,
+    "height": 23
+  },
+  "damage5_region": {
+    "x": 45,
+    "y": 242,
+    "width": 19,
+    "height": 23
+  },
+  "horror1_region": {
+    "x": 221,
+    "y": 284,
+    "width": 27,
+    "height": 24
+  },
+  "horror2_region": {
+    "x": 244,
+    "y": 277,
+    "width": 27,
+    "height": 24
+  },
+  "horror3_region": {
+    "x": 267,
+    "y": 268,
+    "width": 27,
+    "height": 24
+  },
+  "horror4_region": {
+    "x": 288,
+    "y": 255,
+    "width": 27,
+    "height": 24
+  },
+  "horror5_region": {
+    "x": 308,
+    "y": 241,
+    "width": 27,
+    "height": 24
+  },
+  "dash_tint": "38.0, 0.14, 1.0"
+}

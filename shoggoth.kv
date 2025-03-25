@@ -1,0 +1,401 @@
+<CardPreview>:
+    padding: '10dp'
+    TabbedPanel:
+        background_color: 0,0,0,0
+        do_default_tab: False
+
+        TabbedPanelItem:
+            text: 'Front'
+            Image:
+                id: front_preview
+                size_hint: None, None
+                size: '375dp', '524dp'  # Standard card size
+
+        TabbedPanelItem:
+            text: 'Back'
+            Image:
+                id: back_preview
+                size_hint: None, None
+                size: '375dp', '524dp'  # Standard card size
+                canvas:
+                    Color:
+                        rgb: (1, 1, 1)
+                    Rectangle:
+                        texture: self.texture
+                        size: self.width, self.height
+                        pos: self.x, self.y
+
+<FileChooserPopup@Popup>:
+    title: 'Select Project Folder'
+    size_hint: 0.9, 0.9
+
+    BoxLayout:
+        orientation: 'vertical'
+
+        FileChooserListView:
+            id: chooser
+            dirselect: False
+            filters: ['*']
+            path: '/home/toke/Documents/'
+
+        BoxLayout:
+            size_hint_y: None
+            height: '48dp'
+
+            Button:
+                text: 'Cancel'
+                on_release: root.dismiss()
+
+            Button:
+                text: 'Select'
+                on_release: root.select()
+#:kivy 2.0.0
+#:import os os
+
+<TreeViewLabel>:
+    full_path: ''
+    color: 0.3, 0.3, 0.3, 1
+    font_size: '14sp'
+
+<TreeViewButton>
+    on_release: root.select()
+    background_color: 0,0,0,0
+    color_selected: 0,0,0,.3
+
+<ShogothRoot>:
+    orientation: 'vertical'
+    canvas:
+        Rectangle:
+            source: '/home/toke/Downloads/wooden-floor-background.jpg'
+            #source: '/home/toke/Downloads/dark_paper_background.jpg'
+            size: self.size
+            pos: self.pos
+
+    BoxLayout:
+        size_hint_y: None
+        height: '48dp'
+        padding: '5dp'
+        spacing: '5dp'
+
+        Button:
+            text: 'Open Project'
+            size_hint_x: None
+            width: '120dp'
+            on_release: app.open_project_dialog()
+
+        Label:
+            text: 'Project: ' + (os.path.basename(app.project_path) if app.project_path else 'None')
+            size_hint_x: 1
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+
+    BoxLayout:
+        orientation: 'horizontal'
+
+        # File Browser Panel (left)
+        Splitter:
+            sizable_from: 'right'
+            size_hint_x: None
+            width: 350
+
+            FileBrowser:
+                id: file_browser
+
+        # Editor Panel (middle)
+        BoxLayout:
+            id: editor_container
+
+        # Card Preview Panel (right)
+        Splitter:
+            sizable_from: 'left'
+            size_hint_x: None
+            min_size: 400
+
+            CardPreview:
+                id: card_preview
+
+    # Status bar
+    Label:
+        id: status_bar
+        text: app.status_message
+        size_hint_y: None
+        height: '24dp'
+        text_size: self.size
+        halign: 'left'
+        padding: '10dp', 0
+        canvas.before:
+            Color:
+                rgba: 0,0,0,.3
+            Rectangle:
+                size: self.size
+                pos: self.pos
+
+<FileBrowser>:
+    tree: tree
+    orientation: 'vertical'
+    canvas:
+        Color:
+            rgba: 1,1,1,.4
+        Rectangle:
+            source: None
+            size: self.size
+            pos: self.pos
+        Color:
+            rgba: 1,1,1,1
+
+
+    Label:
+        text: 'Files'
+        size_hint_y: None
+        height: '30dp'
+        font_size: '16sp'
+        bold: True
+
+    ScrollView:
+        do_scroll_x: False
+
+        TreeView:
+            id: tree
+            hide_root: True
+            size_hint_y: None
+
+<FileField@BoxLayout>:
+    orientation: 'horizontal'
+    text: ''
+    path: ''
+    size_hint_y: None
+    height: 30
+
+    Label:
+        size_hint_x: None
+        width: 100
+        text: root.text
+    TextInput:
+        text: root.path
+    Button:
+        size_hint_x: None
+        width: 40
+        text: '📁'
+        on_press: root.show_file_selector()
+
+<NewEncounterPopup>:
+    name: name
+    error: error
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            id: error
+            text: ''
+        TextInput:
+            id: name
+        Button:
+            text: 'Create'
+            on_release: root.create()
+
+<ProjectEditor>:
+    orientation: 'vertical'
+    TextEditLine:
+        text: 'Name'
+        field: root.project.get('name', '')
+    FileField:
+        text: 'Icon'
+        path: root.project.get('icon', '')
+    Button:
+        text: 'Add Encounter set'
+        on_release: root.show_new_encounter_popup()
+    Button:
+        text: 'Add Player Card'
+        on_release: root.show_new_play_popup()
+    Button:
+        text: 'Delete'
+        on_release: root.show_confirm_delete()
+
+
+<EncounterEditor>:
+    orientation: 'vertical'
+    TextEditLine:
+        text: 'Name'
+        field: root.encounter.get('name', '')
+    TextEditLine:
+        text: 'Icon'
+        field: root.encounter.get('icon', '')
+    Button:
+        text: 'Add new card'
+    Button:
+        text: 'Delete set'
+    Button:
+        text: 'Something else'
+
+<CardEditor>:
+    front_editor_container: front_editor_container
+    back_editor_container: back_editor_container
+    orientation: 'vertical'
+    padding: '10dp'
+    spacing: '5dp'
+
+    TabbedPanel:
+        do_default_tab: False
+        background_color: 0,0,0,0
+        TabbedPanelItem:
+            text: 'Basic'
+            ScrollView:
+                BoxLayout:
+                    orientation: 'vertical'
+
+                    TextEditLine:
+                        text: 'collection_icon'
+                        field: root.card.data.get('collection_icon', '')
+                    TextEditLine:
+                        text: 'collection_number'
+                        field: root.card.data.get('collection_number', '')
+                    TextEditLine:
+                        text: 'encounter_set'
+                        field: root.card.data.get('encounter_set', '')
+                    TextEditLine:
+                        text: 'encounter_number'
+                        field: root.card.data.get('encounter_number', '')
+
+        TabbedPanelItem:
+            text: 'Front'
+            id: front_editor_container
+        TabbedPanelItem:
+            text: 'Back'
+            id: back_editor_container
+
+<TextEditLine@BoxLayout>:
+    orientation: 'horizontal'
+    text: ''
+    field: ''
+    object: None
+    size_hint_y: None
+    height: 30
+    Label:
+        size_hint_x: None
+        width: 150
+        text: root.text
+    TextInput:
+        text: root.object.get(root.field) if root.object else 'No object'
+        on_text: root.object.set(root.field, self.text)
+
+<TextEditArea@BoxLayout>:
+    orientation: 'horizontal'
+    text: ''
+    field: ''
+    object: None
+    size_hint_y: None
+    height: 100
+    Label:
+        size_hint_x: None
+        width: 200
+        text: root.text
+    TextInput:
+        text: root.object.get(root.field) if root.object else 'No object'
+        multiline: True
+        size_hint_y: None
+        height: 100
+        on_text: root.object.set(root.field, self.text)
+
+<FaceEditor>:
+    orientation: 'vertical'
+    TextEditLine:
+        text: 'Type'
+        object: root.face
+        field: 'type'
+
+<AssetEditor>:
+    ScrollView:
+        BoxLayout:
+            orientation: 'vertical'
+            spacing: 5
+
+            TextEditLine:
+                text: 'Name'
+                object: root.face
+                field: 'name'
+
+            TextEditLine:
+                text: 'Subtitle'
+                field: 'subtitle'
+                object: root.face
+
+            GridLayout:
+                cols: 2
+                TextEditLine:
+                    text: 'Class'
+                    field: 'class'
+                    object: root.face
+
+                TextEditLine:
+                    text: 'Icons'
+                    field: 'icons'
+                    object: root.face
+
+                TextEditLine:
+                    text: 'Cost'
+                    field: 'cost'
+                    object: root.face
+
+                TextEditLine:
+                    text: 'Slots'
+                    field: 'slots'
+                    object: root.face
+
+                Widget:
+
+                TextEditLine:
+                    text: 'Stamina'
+                    field: 'stamina'
+                    object: root.face
+
+                TextEditLine:
+                    text: 'Sanity'
+                    field: 'sanity'
+                    object: root.face
+
+                TextEditLine:
+                    text: 'Class'
+                    field: 'class'
+                    object: root.face
+
+            TextEditLine:
+                text: 'Image'
+                field: 'portrait'
+                object: root.face
+
+            GridLayout:
+                cols: 2
+                TextEditLine:
+                    text: 'Pan X'
+                    field: 'portrait_pan_x'
+                    object: root.face
+
+                TextEditLine:
+                    text: 'Pan Y'
+                    field: 'portrait_pan_y'
+                    object: root.face
+
+            TextEditLine:
+                text: 'Zoom'
+                field: 'portrait_zoom'
+                object: root.face
+
+            TextEditLine:
+                text: 'Traits'
+                field: 'traits'
+                object: root.face
+
+            TextEditArea:
+                text: 'Text'
+                field: 'rule_text'
+                object: root.face
+
+            TextEditArea:
+                text: 'Flavor'
+                field: 'flavor_text'
+                object: root.face
+
+            TextEditLine:
+                text: 'Victory'
+                field: 'victory_text'
+                object: root.face

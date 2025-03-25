@@ -1,0 +1,44 @@
+{
+  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Story.jp2",
+  "ahlcg_customizableback_default_template": "ArkhamHorrorLCG/templates/AHLCG-CustomizableBack.jp2",
+  "name_region": {
+    "x": 34,
+    "y": 33,
+    "width": 310,
+    "height": 34
+  },
+  "label_region": {
+    "x": 155,
+    "y": 509,
+    "width": 65,
+    "height": 14
+  },
+  "label_alignment": "center, middle",
+  "body_region": {
+    "x": 32,
+    "y": 99,
+    "width": 316,
+    "height": 387
+  },
+  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "collection_portrait_pany": 0,
+  "defaultcollection_portrait_clip_region": {
+    "x": 277,
+    "y": 492,
+    "width": 13,
+    "height": 13
+  },
+  "collection_portrait_clip_region": {
+    "x": 277,
+    "y": 492,
+    "width": 13,
+    "height": 13
+  },
+  "copyright_region": {
+    "x": 225,
+    "y": 495,
+    "width": 116,
+    "height": 10
+  },
+  "copyright_alignment": "right, middle"
+}

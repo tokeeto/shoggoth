@@ -1,0 +1,123 @@
+{
+  "default_template": "templates/Event-G.jp2",
+  "back_default_template": "templates/PlayerBack.jp2",
+  "name_region": {
+    "x": 40,
+    "y": 304,
+    "width": 297,
+    "height": 29
+  },
+  "subtype_region": {
+    "x": 86,
+    "y": 333,
+    "width": 203,
+    "height": 15
+  },
+  "label_region": {
+    "x": 21,
+    "y": 62,
+    "width": 36,
+    "height": 14
+  },
+  "level_region": {
+    "x": 14,
+    "y": 35,
+    "width": 49,
+    "height": 23
+  },
+  "body_region": {
+    "x": 44,
+    "y": 348,
+    "width": 288,
+    "height": 158
+  },
+  "portrait_portrait_template": "default-portraits/DefaultTexture.jp2",
+  "portrait_portrait_pany": 0,
+  "portrait_portrait_clip_region": {
+    "x": 0,
+    "y": 0,
+    "width": 375,
+    "height": 288
+  },
+  "collection_portrait_template": "images/empty1x1.png",
+  "collection_portrait_pany": 0,
+  "collection_portrait_clip_region": {
+    "x": 319,
+    "y": 508,
+    "width": 13,
+    "height": 13
+  },
+  "defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 508,
+    "width": 13,
+    "height": 13
+  },
+  "classsymbol21_region": {
+    "x": 144,
+    "y": 256,
+    "width": 49,
+    "height": 49
+  },
+  "classsymbol22_region": {
+    "x": 187,
+    "y": 256,
+    "width": 49,
+    "height": 49
+  },
+  "classsymbol31_region": {
+    "x": 123,
+    "y": 256,
+    "width": 49,
+    "height": 49
+  },
+  "classsymbol32_region": {
+    "x": 166,
+    "y": 256,
+    "width": 49,
+    "height": 49
+  },
+  "classsymbol33_region": {
+    "x": 209,
+    "y": 256,
+    "width": 49,
+    "height": 49
+  },
+  "basicweaknessevent_region": {
+    "x": 162,
+    "y": 247,
+    "width": 54,
+    "height": 53
+  },
+  "basicweaknessicon_region": {
+    "x": 173,
+    "y": 258,
+    "width": 30,
+    "height": 30
+  },
+  "weaknessbody_region": {
+    "x": 44,
+    "y": 352,
+    "width": 288,
+    "height": 143
+  },
+  "dash_tint": "0.0, 0.0, 1.0",
+  "encounter_overlay_region": {
+    "x": 165,
+    "y": 250,
+    "width": 50,
+    "height": 50
+  },
+  "encounter_portrait_clip_region": {
+    "x": 177,
+    "y": 259,
+    "width": 27,
+    "height": 27
+  },
+  "returnencounter_portrait_clip_region": {
+    "x": 177,
+    "y": 259,
+    "width": 27,
+    "height": 27
+  }
+}

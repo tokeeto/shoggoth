@@ -1,0 +1,94 @@
+{
+  "ahlcg_guidea4_default_template": "ArkhamHorrorLCG/templates/AHLCG-GuideA4Empty.jp2",
+  "ahlcg_guidea4_name_region": {
+    "x": 375,
+    "y": 312,
+    "width": 490,
+    "height": 46
+  },
+  "ahlcg_guidea4_header_alignment": "center",
+  "ahlcg_guidea4_label_region": {
+    "x": 415,
+    "y": 268,
+    "width": 408,
+    "height": 36
+  },
+  "ahlcg_guidea4_body_region": {
+    "x": 70,
+    "y": 65,
+    "width": 1094,
+    "height": 1624
+  },
+  "ahlcg_guidea4_bodylefttitle_region": {
+    "x": 70,
+    "y": 417,
+    "width": 537,
+    "height": 1277
+  },
+  "ahlcg_guidea4_bodyrighttitle_region": {
+    "x": 630,
+    "y": 417,
+    "width": 537,
+    "height": 1277
+  },
+  "ahlcg_guidea4_bodyleftempty_region": {
+    "x": 70,
+    "y": 65,
+    "width": 537,
+    "height": 1624
+  },
+  "ahlcg_guidea4_bodyrightempty_region": {
+    "x": 630,
+    "y": 65,
+    "width": 537,
+    "height": 1624
+  },
+  "ahlcg_guidea4_body_alignment": "left, top",
+  "ahlcg_guidea4_body_tightness": 1.0,
+  "ahlcg_guidea4_bodysection_tightness": 1.0,
+  "ahlcg_guidea4_bodyname_region": {
+    "x": 56,
+    "y": 83,
+    "width": 268,
+    "height": 390
+  },
+  "ahlcg_guidea4_bodyresolution_region": {
+    "x": 56,
+    "y": 98,
+    "width": 268,
+    "height": 375
+  },
+  "ahlcg_guidea4_resbullet_style": "FOREGROUND: #492925",
+  "ahlcg_guidea4_sabullet_style": "FOREGROUND: #3d534e",
+  "ahlcg_guidea4_pageodd_region": {
+    "x": 604,
+    "y": 1704,
+    "width": 30,
+    "height": 32
+  },
+  "ahlcg_guidea4_pageeven_region": {
+    "x": 606,
+    "y": 1704,
+    "width": 30,
+    "height": 32
+  },
+  "ahlcg_guidea4_page_alignment": "center, middle",
+  "ahlcg_guidea4_portrait1_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_guidea4_portrait1_portrait_panx": 0,
+  "ahlcg_guidea4_portrait1_portrait_pany": 0,
+  "ahlcg_guidea4_portrait1_portrait_clip_region": {
+    "x": 65,
+    "y": 65,
+    "width": 1110,
+    "height": 1624
+  },
+  "ahlcg_guidea4_portrait2_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_guidea4_portrait2_portrait_panx": 0,
+  "ahlcg_guidea4_portrait2_portrait_pany": 0,
+  "ahlcg_guidea4_portrait2_portrait_clip_region": {
+    "x": 65,
+    "y": 65,
+    "width": 1110,
+    "height": 1624
+  }
+}

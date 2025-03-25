@@ -1,0 +1,365 @@
+{
+  "ahlcg_enemylocation_default_template": "ArkhamHorrorLCG/templates/AHLCG-EnemyLocation.jp2",
+  "ahlcg_enemylocationback_default_template": "ArkhamHorrorLCG/templates/AHLCG-Location.jp2",
+  "ahlcg_enemylocation_name_region": {
+    "x": 65,
+    "y": 4,
+    "width": 242,
+    "height": 29
+  },
+  "ahlcg_enemylocation_label_region": {
+    "x": 157,
+    "y": 308,
+    "width": 61,
+    "height": 14
+  },
+  "ahlcg_enemylocation_subtitletext_region": {
+    "x": 95,
+    "y": 36,
+    "width": 191,
+    "height": 21
+  },
+  "ahlcg_enemylocationback_name_region": {
+    "x": 65,
+    "y": 4,
+    "width": 242,
+    "height": 29
+  },
+  "ahlcg_enemylocationback_label_region": {
+    "x": 138,
+    "y": 278,
+    "width": 100,
+    "height": 14
+  },
+  "ahlcg_enemylocationback_subtitletext_region": {
+    "x": 95,
+    "y": 36,
+    "width": 191,
+    "height": 21
+  },
+  "ahlcg_enemylocation_encounteroverlay_region": {
+    "x": 163,
+    "y": 234,
+    "width": 50,
+    "height": 50
+  },
+  "ahlcg_enemylocationback_encounteroverlay_region": {
+    "x": 163,
+    "y": 234,
+    "width": 50,
+    "height": 50
+  },
+  "ahlcg_enemylocation_body_region": {
+    "x": 20,
+    "y": 358,
+    "width": 336,
+    "height": 143
+  },
+  "ahlcg_enemylocationback_body_region": {
+    "x": 20,
+    "y": 300,
+    "width": 336,
+    "height": 143
+  },
+  "ahlcg_enemylocation_portrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_enemylocation_portrait_portrait_pany": 0,
+  "ahlcg_enemylocation_portrait_portrait_clip_region": {
+    "x": 0,
+    "y": 42,
+    "width": 375,
+    "height": 325
+  },
+  "ahlcg_enemylocationback_backportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_enemylocationback_backportrait_portrait_pany": 0,
+  "ahlcg_enemylocationback_backportrait_portrait_clip_region": {
+    "x": 0,
+    "y": 42,
+    "width": 375,
+    "height": 275
+  },
+  "ahlcg_enemylocation_backportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_enemylocation_backportrait_portrait_pany": 0,
+  "ahlcg_enemylocation_backportrait_portrait_clip_region": {
+    "x": 0,
+    "y": 42,
+    "width": 375,
+    "height": 275
+  },
+  "ahlcg_enemylocation_encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "ahlcg_enemylocation_encounter_portrait_pany": 0,
+  "ahlcg_enemylocation_defaultencounter_portrait_clip_region": {
+    "x": 174,
+    "y": 304,
+    "width": 28,
+    "height": 28
+  },
+  "ahlcg_enemylocation_encounter_portrait_clip_region": {
+    "x": 174,
+    "y": 304,
+    "width": 28,
+    "height": 28
+  },
+  "ahlcg_enemylocation_returnencounter_portrait_clip_region": {
+    "x": 170,
+    "y": 391,
+    "width": 37,
+    "height": 34
+  },
+  "ahlcg_enemylocationback_encounter_portrait_clip_region": {
+    "x": 174,
+    "y": 245,
+    "width": 28,
+    "height": 28
+  },
+  "ahlcg_enemylocationback_returnencounter_portrait_clip_region": {
+    "x": 170,
+    "y": 241,
+    "width": 37,
+    "height": 34
+  },
+  "ahlcg_enemylocation_collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "ahlcg_enemylocation_collection_portrait_pany": 0,
+  "ahlcg_enemylocation_defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_enemylocation_collection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_enemylocationback_defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_enemylocationback_collection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_enemylocationicon_region": {
+    "x": 14,
+    "y": 6,
+    "width": 36,
+    "height": 35
+  },
+  "ahlcg_connection1icon_region": {
+    "x": 67,
+    "y": 467,
+    "width": 35,
+    "height": 35
+  },
+  "ahlcg_connection2icon_region": {
+    "x": 108,
+    "y": 459,
+    "width": 35,
+    "height": 35
+  },
+  "ahlcg_connection3icon_region": {
+    "x": 150,
+    "y": 456,
+    "width": 34,
+    "height": 34
+  },
+  "ahlcg_connection4icon_region": {
+    "x": 191,
+    "y": 456,
+    "width": 34,
+    "height": 34
+  },
+  "ahlcg_connection5icon_region": {
+    "x": 232,
+    "y": 459,
+    "width": 35,
+    "height": 35
+  },
+  "ahlcg_connection6icon_region": {
+    "x": 273,
+    "y": 467,
+    "width": 35,
+    "height": 35
+  },
+  "ahlcg_enemylocation_shroud_region": {
+    "x": 0,
+    "y": 310,
+    "width": 49,
+    "height": 50
+  },
+  "ahlcg_enemylocation_shroudperinv_region": {
+    "x": 0,
+    "y": 310,
+    "width": 49,
+    "height": 49
+  },
+  "ahlcg_enemylocation_shroudperinvicon_region": {
+    "x": 27,
+    "y": 310,
+    "width": 29,
+    "height": 49
+  },
+  "ahlcg_enemylocation_clues_region": {
+    "x": 318,
+    "y": 310,
+    "width": 49,
+    "height": 50
+  },
+  "ahlcg_enemylocation_cluesperinv_region": {
+    "x": 311,
+    "y": 310,
+    "width": 49,
+    "height": 49
+  },
+  "ahlcg_enemylocation_cluesperinvicon_region": {
+    "x": 338,
+    "y": 310,
+    "width": 29,
+    "height": 49
+  },
+  "ahlcg_enemylocation_victory_region": {
+    "x": 262,
+    "y": 458,
+    "width": 104,
+    "height": 42
+  },
+  "ahlcg_enemylocation_victory_alignment": "right, bottom",
+  "ahlcg_enemylocation_victory_tightness": 0.7,
+  "ahlcg_baseicon_region": {
+    "x": 9,
+    "y": 1,
+    "width": 47,
+    "height": 46
+  },
+  "ahlcg_enemylocation_copyright_region": {
+    "x": 143,
+    "y": 513,
+    "width": 86,
+    "height": 10
+  },
+  "ahlcg_enemylocationback_copyright_region": {
+    "x": 128,
+    "y": 513,
+    "width": 86,
+    "height": 10
+  },
+  "ahlcg_enemylocation_dash_tint": "38.0, 0.14, 1.0",
+  "ahlcg_enemylocation_attack_region": {
+    "x": 100,
+    "y": 51,
+    "width": 26,
+    "height": 27
+  },
+  "ahlcg_enemylocation_attackperinv_region": {
+    "x": 96,
+    "y": 51,
+    "width": 24,
+    "height": 27
+  },
+  "ahlcg_enemylocation_attackperinvicon_region": {
+    "x": 115,
+    "y": 56,
+    "width": 14,
+    "height": 14
+  },
+  "ahlcg_enemylocation_evade_region": {
+    "x": 246,
+    "y": 51,
+    "width": 26,
+    "height": 27
+  },
+  "ahlcg_enemylocation_evadeperinv_region": {
+    "x": 242,
+    "y": 51,
+    "width": 24,
+    "height": 27
+  },
+  "ahlcg_enemylocation_evadeperinvicon_region": {
+    "x": 261,
+    "y": 56,
+    "width": 14,
+    "height": 14
+  },
+  "ahlcg_enemylocation_health_region": {
+    "x": 168,
+    "y": 45,
+    "width": 40,
+    "height": 35
+  },
+  "ahlcg_enemylocation_healthperinv_region": {
+    "x": 169,
+    "y": 45,
+    "width": 27,
+    "height": 35
+  },
+  "ahlcg_enemylocation_healthperinvicon_region": {
+    "x": 190,
+    "y": 52,
+    "width": 17,
+    "height": 17
+  },
+  "ahlcg_enemylocation_damage1_region": {
+    "x": 93,
+    "y": 335,
+    "width": 19,
+    "height": 23
+  },
+  "ahlcg_enemylocation_damage2_region": {
+    "x": 73,
+    "y": 341,
+    "width": 19,
+    "height": 23
+  },
+  "ahlcg_enemylocation_damage3_region": {
+    "x": 53,
+    "y": 347,
+    "width": 19,
+    "height": 23
+  },
+  "ahlcg_enemylocation_damage4_region": {
+    "x": 33,
+    "y": 355,
+    "width": 19,
+    "height": 23
+  },
+  "ahlcg_enemylocation_damage5_region": {
+    "x": 13,
+    "y": 365,
+    "width": 19,
+    "height": 23
+  },
+  "ahlcg_enemylocation_horror1_region": {
+    "x": 253,
+    "y": 335,
+    "width": 27,
+    "height": 24
+  },
+  "ahlcg_enemylocation_horror2_region": {
+    "x": 275,
+    "y": 341,
+    "width": 27,
+    "height": 24
+  },
+  "ahlcg_enemylocation_horror3_region": {
+    "x": 297,
+    "y": 347,
+    "width": 27,
+    "height": 24
+  },
+  "ahlcg_enemylocation_horror4_region": {
+    "x": 319,
+    "y": 355,
+    "width": 27,
+    "height": 24
+  },
+  "ahlcg_enemylocation_horror5_region": {
+    "x": 342,
+    "y": 365,
+    "width": 27,
+    "height": 24
+  }
+}

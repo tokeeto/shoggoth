@@ -1,0 +1,84 @@
+{
+  "ahlcg_agendaportrait_default_template": "ArkhamHorrorLCG/templates/AHLCG-AgendaPortrait.jp2",
+  "ahlcg_agendaportrait_name_region": {
+    "x": 87,
+    "y": 249,
+    "width": 330,
+    "height": 28
+  },
+  "ahlcg_agendaportrait_body_region": {
+    "x": 19,
+    "y": 283,
+    "width": 493,
+    "height": 64
+  },
+  "ahlcg_agendaportrait_body_alignment": "left, middle",
+  "ahlcg_agendaportrait_backportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_agendaportrait_backportrait_portrait_pany": 0,
+  "ahlcg_agendaportrait_backportrait_portrait_clip_region": {
+    "x": 0,
+    "y": 0,
+    "width": 525,
+    "height": 375
+  },
+  "ahlcg_agendaportrait_encounter_portrait_clip_region": {
+    "x": 33,
+    "y": 235,
+    "width": 38,
+    "height": 38
+  },
+  "ahlcg_agendaportrait_returnencounter_portrait_clip_region": {
+    "x": 29,
+    "y": 231,
+    "width": 45,
+    "height": 45
+  },
+  "ahlcg_agendaportrait_defaultencounter_portrait_clip_region": {
+    "x": 33,
+    "y": 235,
+    "width": 38,
+    "height": 38
+  },
+  "ahlcg_agendaportrait_defaultreturnencounter_portrait_clip_region": {
+    "x": 29,
+    "y": 231,
+    "width": 45,
+    "height": 45
+  },
+  "ahlcg_agendaportrait_collection_portrait_clip_region": {
+    "x": 471,
+    "y": 358,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_agendaportrait_defaultcollection_portrait_clip_region": {
+    "x": 471,
+    "y": 358,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_agendaportrait_encounternumber_region": {
+    "x": 402,
+    "y": 361,
+    "width": 55,
+    "height": 10
+  },
+  "ahlcg_agendaportrait_collectionnumber_region": {
+    "x": 472,
+    "y": 361,
+    "width": 37,
+    "height": 10
+  },
+  "ahlcg_agendaportrait_artist_region": {
+    "x": 14,
+    "y": 361,
+    "width": 129,
+    "height": 10
+  },
+  "ahlcg_agendaportrait_copyright_region": {
+    "x": 208,
+    "y": 361,
+    "width": 80,
+    "height": 10
+  }
+}

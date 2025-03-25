@@ -1,0 +1,11 @@
+{
+  "ahlcg_backportrait_default_template": "ArkhamHorrorLCG/templates/AHLCG-Scenario.jp2",
+  "ahlcg_backportrait_backportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_backportrait_backportrait_portrait_pany": 0,
+  "ahlcg_backportrait_backportrait_portrait_clip_region": {
+    "x": 0,
+    "y": 0,
+    "width": 375,
+    "height": 525
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "ahlcg_guideletter_default_template": "ArkhamHorrorLCG/templates/AHLCG-GuideLetterEmpty.jp2",
+  "ahlcg_guideletter_name_region": {
+    "x": 392,
+    "y": 276,
+    "width": 490,
+    "height": 46
+  },
+  "ahlcg_guideletter_header_alignment": "center",
+  "ahlcg_guideletter_label_region": {
+    "x": 447,
+    "y": 316,
+    "width": 382,
+    "height": 37
+  },
+  "ahlcg_guideletter_body_region": {
+    "x": 70,
+    "y": 80,
+    "width": 1129,
+    "height": 1520
+  },
+  "ahlcg_guideletter_bodylefttitle_region": {
+    "x": 82,
+    "y": 417,
+    "width": 537,
+    "height": 1173
+  },
+  "ahlcg_guideletter_bodyrighttitle_region": {
+    "x": 653,
+    "y": 417,
+    "width": 537,
+    "height": 1173
+  },
+  "ahlcg_guideletter_bodyleftempty_region": {
+    "x": 82,
+    "y": 80,
+    "width": 537,
+    "height": 1520
+  },
+  "ahlcg_guideletter_bodyrightempty_region": {
+    "x": 653,
+    "y": 80,
+    "width": 537,
+    "height": 1520
+  },
+  "ahlcg_guideletter_body_alignment": "left, top",
+  "ahlcg_guideletter_body_tightness": 1.0,
+  "ahlcg_guideletter_bodysection_tightness": 1.0,
+  "ahlcg_guideletter_bodyname_region": {
+    "x": 73,
+    "y": 83,
+    "width": 268,
+    "height": 390
+  },
+  "ahlcg_guideletter_bodyresolution_region": {
+    "x": 73,
+    "y": 98,
+    "width": 268,
+    "height": 375
+  },
+  "ahlcg_guideletter_resbullet_style": "FOREGROUND: #492925",
+  "ahlcg_guideletter_sabullet_style": "FOREGROUND: #3d534e",
+  "ahlcg_guideletter_pageodd_region": {
+    "x": 621,
+    "y": 1600,
+    "width": 30,
+    "height": 32
+  },
+  "ahlcg_guideletter_pageeven_region": {
+    "x": 623,
+    "y": 1600,
+    "width": 30,
+    "height": 32
+  },
+  "ahlcg_guideletter_page_alignment": "center, middle",
+  "ahlcg_guideletter_portrait1_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_guideletter_portrait1_portrait_panx": 0,
+  "ahlcg_guideletter_portrait1_portrait_pany": 0,
+  "ahlcg_guideletter_portrait1_portrait_clip_region": {
+    "x": 65,
+    "y": 65,
+    "width": 1110,
+    "height": 1520
+  },
+  "ahlcg_guideletter_portrait2_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_guideletter_portrait2_portrait_panx": 0,
+  "ahlcg_guideletter_portrait2_portrait_pany": 0,
+  "ahlcg_guideletter_portrait2_portrait_clip_region": {
+    "x": 65,
+    "y": 65,
+    "width": 1110,
+    "height": 1520
+  }
+}

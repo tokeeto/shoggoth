@@ -1,0 +1,42 @@
+{
+  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Divider.jp2",
+  "ahlcg_dividerback_default_template": "ArkhamHorrorLCG/templates/AHLCG-Divider.jp2",
+  "name_region": {
+    "x": 123,
+    "y": 20,
+    "width": 286,
+    "height": 25
+  },
+  "ahlcg_dividerback_name_region": {
+    "x": 28,
+    "y": 90,
+    "width": 307,
+    "height": 30
+  },
+  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "encounter_portrait_pany": 0,
+  "encounter_portrait_clip_region": {
+    "x": 476,
+    "y": 13,
+    "width": 38,
+    "height": 38
+  },
+  "returnencounter_portrait_clip_region": {
+    "x": 474,
+    "y": 10,
+    "width": 43,
+    "height": 43
+  },
+  "watermark_portrait_clip_region": {
+    "x": 87,
+    "y": 53,
+    "width": 366,
+    "height": 366
+  },
+  "returnwatermark_portrait_clip_region": {
+    "x": 87,
+    "y": 53,
+    "width": 366,
+    "height": 366
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "ahlcg_treacherylocation_default_template": "ArkhamHorrorLCG/templates/AHLCG-TreacheryLocation.jp2",
+  "ahlcg_treacherylocationback_default_template": "ArkhamHorrorLCG/templates/AHLCG-EncounterBack.jp2",
+  "ahlcg_treacherylocationstoryback_default_template": "ArkhamHorrorLCG/templates/AHLCG-PlayerBack.jp2",
+  "ahlcg_treacherylocation_name_region": {
+    "x": 39,
+    "y": 307,
+    "width": 299,
+    "height": 29
+  },
+  "ahlcg_treacherylocation_label_region": {
+    "x": 137,
+    "y": 286,
+    "width": 104,
+    "height": 14
+  },
+  "ahlcg_treacherylocation_body_region": {
+    "x": 30,
+    "y": 340,
+    "width": 318,
+    "height": 160
+  },
+  "ahlcg_treacherylocation_portrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_treacherylocation_portrait_portrait_pany": 0,
+  "ahlcg_treacherylocation_portrait_portrait_clip_region": {
+    "x": 17,
+    "y": 0,
+    "width": 344,
+    "height": 298
+  },
+  "ahlcg_treacherylocation_backportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_treacherylocation_backportrait_portrait_pany": 0,
+  "ahlcg_treacherylocation_backportrait_portrait_clip_region": {
+    "x": 17,
+    "y": 0,
+    "width": 344,
+    "height": 298
+  },
+  "ahlcg_treacherylocation_encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "ahlcg_treacherylocation_encounter_portrait_pany": 0,
+  "ahlcg_treacherylocation_encounter_portrait_clip_region": {
+    "x": 175,
+    "y": 254,
+    "width": 28,
+    "height": 28
+  },
+  "ahlcg_treacherylocation_returnencounter_portrait_clip_region": {
+    "x": 171,
+    "y": 250,
+    "width": 36,
+    "height": 33
+  },
+  "ahlcg_treacherylocation_collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "ahlcg_treacherylocation_collection_portrait_pany": 0,
+  "ahlcg_treacherylocation_defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_treacherylocation_collection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "ahlcg_treacherylocation_shroud_region": {
+    "x": 14,
+    "y": 271,
+    "width": 49,
+    "height": 50
+  },
+  "ahlcg_treacherylocation_shroudperinv_region": {
+    "x": 8,
+    "y": 271,
+    "width": 49,
+    "height": 49
+  },
+  "ahlcg_treacherylocation_shroudperinvicon_region": {
+    "x": 35,
+    "y": 270,
+    "width": 29,
+    "height": 49
+  },
+  "ahlcg_treacherylocation_clues_region": {
+    "x": 313,
+    "y": 271,
+    "width": 49,
+    "height": 50
+  },
+  "ahlcg_treacherylocation_cluesperinv_region": {
+    "x": 306,
+    "y": 271,
+    "width": 49,
+    "height": 49
+  },
+  "ahlcg_treacherylocation_cluesperinvicon_region": {
+    "x": 333,
+    "y": 270,
+    "width": 29,
+    "height": 49
+  }
+}

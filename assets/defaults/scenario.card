@@ -1,0 +1,112 @@
+{
+  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Scenario.jp2",
+  "back_default_template": "ArkhamHorrorLCG/templates/AHLCG-Scenario.jp2",
+  "name_region": {
+    "x": 51,
+    "y": 43,
+    "width": 270,
+    "height": 43
+  },
+  "name_tightness": 2.0,
+  "back_name_region": {
+    "x": 51,
+    "y": 50,
+    "width": 270,
+    "height": 29
+  },
+  "header_region": {
+    "x": 105,
+    "y": 53,
+    "width": 170,
+    "height": 35
+  },
+  "header_alignment": "center",
+  "body_region": {
+    "x": 60,
+    "y": 52,
+    "width": 260,
+    "height": 423
+  },
+  "body_alignment": "left, top",
+  "bodyname_region": {
+    "x": 60,
+    "y": 89,
+    "width": 260,
+    "height": 388
+  },
+  "bodyresolution_region": {
+    "x": 60,
+    "y": 102,
+    "width": 260,
+    "height": 373
+  },
+  "portrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "portrait_portrait_pany": 0,
+  "portrait_portrait_clip_region": {
+    "x": 0,
+    "y": 0,
+    "width": 375,
+    "height": 525
+  },
+  "backportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "backportrait_portrait_pany": 0,
+  "backportrait_portrait_clip_region": {
+    "x": 0,
+    "y": 0,
+    "width": 375,
+    "height": 525
+  },
+  "pageodd_region": {
+    "x": 179,
+    "y": 479,
+    "width": 20,
+    "height": 32
+  },
+  "pageeven_region": {
+    "x": 179,
+    "y": 479,
+    "width": 20,
+    "height": 32
+  },
+  "page_alignment": "center, middle",
+  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "encounter_portrait_pany": 0,
+  "encounter_portrait_clip_region": {
+    "x": 308,
+    "y": 27,
+    "width": 36,
+    "height": 36
+  },
+  "defaultencounter_portrait_clip_region": {
+    "x": 308,
+    "y": 27,
+    "width": 36,
+    "height": 36
+  },
+  "returnencounter_portrait_clip_region": {
+    "x": 302,
+    "y": 23,
+    "width": 49,
+    "height": 48
+  },
+  "defaultreturnencounter_portrait_clip_region": {
+    "x": 301,
+    "y": 20,
+    "width": 49,
+    "height": 48
+  },
+  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "collection_portrait_pany": 0,
+  "defaultcollection_portrait_clip_region": {
+    "x": 277,
+    "y": 492,
+    "width": 13,
+    "height": 13
+  },
+  "collection_portrait_clip_region": {
+    "x": 277,
+    "y": 492,
+    "width": 13,
+    "height": 13
+  }
+}

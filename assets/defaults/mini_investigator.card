@@ -1,0 +1,28 @@
+{
+  "ahlcg_miniinvestigator_default_template": "ArkhamHorrorLCG/templates/AHLCG-MiniInvestigator.jp2",
+  "ahlcg_miniinvestigatorback_default_template": "ArkhamHorrorLCG/templates/AHLCG-MiniInvestigator.jp2",
+  "ahlcg_miniinvestigator_portrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_miniinvestigator_portrait_portrait_pany": 0,
+  "ahlcg_miniinvestigator_portrait_portrait_panx": 0,
+  "ahlcg_miniinvestigator_portrait_portrait_clip_region": {
+    "x": 0,
+    "y": 0,
+    "width": 244,
+    "height": 375
+  },
+  "ahlcg_miniinvestigator_greyscaleportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
+  "ahlcg_miniinvestigator_greyscaleportrait_portrait_pany": 0,
+  "ahlcg_miniinvestigator_greyscaleportrait_portrait_panx": 0,
+  "ahlcg_miniinvestigator_greyscaleportrait_portrait_clip_region": {
+    "x": 0,
+    "y": 0,
+    "width": 244,
+    "height": 375
+  },
+  "ahlcg_miniinvestigator_artist_region": {
+    "x": 0,
+    "y": 363,
+    "width": 244,
+    "height": 10
+  }
+}

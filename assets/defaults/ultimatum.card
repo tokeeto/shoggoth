@@ -1,0 +1,109 @@
+{
+  "default_template": "ArkhamHorrorLCG/templates/ultimatums/Ultimatum-Common.png",
+  "default_dpi": 290,
+  "ahlcg_ultimatumback_default_template": "ArkhamHorrorLCG/templates/ultimatums/Ultimatum-Back.png",
+  "name_region": {
+    "x": 150,
+    "y": 134,
+    "width": 742,
+    "height": 60
+  },
+  "namewithsubtitle_region": {
+    "x": 190,
+    "y": 104,
+    "width": 642,
+    "height": 60
+  },
+  "name_alignment": "center, bottom",
+  "name_tightness": 0.2,
+  "body_region": {
+    "x": 134,
+    "y": 1060,
+    "width": 750,
+    "height": 320
+  },
+  "body_alignment": "center, middle",
+  "body_tightness": 0.5,
+  "subtitle_region": {
+    "x": 190,
+    "y": 210,
+    "width": 642,
+    "height": 30
+  },
+  "subtitle_alignment": "center, bottom",
+  "trait_region": {
+    "x": 350,
+    "y": 980,
+    "width": 325,
+    "height": 50
+  },
+  "trait_alignment": "center, top",
+  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "encounter_portrait_pany": 0,
+  "encounter_portrait_clip_region": {
+    "x": 750,
+    "y": 1400,
+    "width": 65,
+    "height": 65
+  },
+  "returnencounter_portrait_clip_region": {
+    "x": 750,
+    "y": 1400,
+    "width": 65,
+    "height": 65
+  },
+  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "collection_portrait_pany": 0,
+  "defaultcollection_portrait_clip_region": {
+    "x": 750,
+    "y": 1400,
+    "width": 13,
+    "height": 13
+  },
+  "collection_portrait_clip_region": {
+    "x": 750,
+    "y": 1400,
+    "width": 13,
+    "height": 13
+  },
+  "portrait_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "portrait_portrait_pany": 0,
+  "portrait_portrait_clip_region": {
+    "x": 0,
+    "y": 230,
+    "width": 1100,
+    "height": 1024
+  },
+  "text_region": {
+    "x": 100,
+    "y": 156,
+    "width": 800,
+    "height": 305
+  },
+  "text_alignment": "center, middle",
+  "encounternumber_region": {
+    "x": 800,
+    "y": 1400,
+    "width": 45,
+    "height": 12
+  },
+  "collectionnumber_region": {
+    "x": 800,
+    "y": 1400,
+    "width": 45,
+    "height": 12
+  },
+  "copyright_region": {
+    "x": 434,
+    "y": 1400,
+    "width": 150,
+    "height": 12
+  },
+  "artist_region": {
+    "x": 132,
+    "y": 1400,
+    "width": 200,
+    "height": 12
+  },
+  "copyright_alignment": "left, bottom"
+}

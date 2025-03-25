@@ -1,0 +1,138 @@
+{
+  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Story.jp2",
+  "ahlcg_storyback_default_template": "ArkhamHorrorLCG/templates/AHLCG-AssetStory.jp2",
+  "name_region": {
+    "x": 38,
+    "y": 24,
+    "width": 254,
+    "height": 44
+  },
+  "label_region": {
+    "x": 138,
+    "y": 508,
+    "width": 100,
+    "height": 14
+  },
+  "label_alignment": "center, middle",
+  "story_region": {
+    "x": 51,
+    "y": 107,
+    "width": 290,
+    "height": 385
+  },
+  "story_alignment": "left",
+  "story_tightness": 0.6,
+  "body_region": {
+    "x": 36,
+    "y": 107,
+    "width": 305,
+    "height": 385
+  },
+  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "encounter_portrait_pany": 0,
+  "encounter_portrait_clip_region": {
+    "x": 308,
+    "y": 27,
+    "width": 36,
+    "height": 36
+  },
+  "defaultencounter_portrait_clip_region": {
+    "x": 308,
+    "y": 27,
+    "width": 36,
+    "height": 36
+  },
+  "returnencounter_portrait_clip_region": {
+    "x": 302,
+    "y": 23,
+    "width": 49,
+    "height": 48
+  },
+  "defaultreturnencounter_portrait_clip_region": {
+    "x": 301,
+    "y": 20,
+    "width": 49,
+    "height": 48
+  },
+  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "collection_portrait_pany": 0,
+  "defaultcollection_portrait_clip_region": {
+    "x": 277,
+    "y": 492,
+    "width": 13,
+    "height": 13
+  },
+  "collection_portrait_clip_region": {
+    "x": 277,
+    "y": 492,
+    "width": 13,
+    "height": 13
+  },
+  "trackerbox_region": {
+    "x": 34,
+    "y": 393,
+    "width": 306,
+    "height": 90
+  },
+  "trackername_region": {
+    "x": 46,
+    "y": 397,
+    "width": 280,
+    "height": 20
+  },
+  "trackername_alignment": "center, middle",
+  "encounternumber_region": {
+    "x": 204,
+    "y": 495,
+    "width": 55,
+    "height": 10
+  },
+  "collectionnumber_region": {
+    "x": 269,
+    "y": 495,
+    "width": 37,
+    "height": 10
+  },
+  "copyright_region": {
+    "x": 70,
+    "y": 495,
+    "width": 86,
+    "height": 10
+  },
+  "copyright_alignment": "left, middle",
+  "dash_tint": "38.0, 0.14, 1.0",
+  "ahlcg_storychaos_header_region": {
+    "x": 35,
+    "y": 135,
+    "width": 300,
+    "height": 305
+  },
+  "ahlcg_storychaos_body_region": {
+    "x": 36,
+    "y": 130,
+    "width": 305,
+    "height": 338
+  },
+  "ahlcg_storychaos_story_region": {
+    "x": 51,
+    "y": 130,
+    "width": 290,
+    "height": 338
+  },
+  "ahlcg_storychaosfull_body_region": {
+    "x": 36,
+    "y": 72,
+    "width": 305,
+    "height": 396
+  },
+  "ahlcg_storychaosfull_story_region": {
+    "x": 51,
+    "y": 72,
+    "width": 290,
+    "height": 396
+  },
+  "ahlcg_storychaos_header_alignment": "left",
+  "ahlcg_storychaos_header_tightness": 0.6,
+  "ahlcg_storychaosfull_header_alignment": "left",
+  "ahlcg_storychaosfull_header_tightness": 0.6
+}
