@@ -193,6 +193,20 @@
             text: 'Create'
             on_release: root.create()
 
+<NewCardPopup>:
+    name: name
+    error: error
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            id: error
+            text: ''
+        TextInput:
+            id: name
+        Button:
+            text: 'Create'
+            on_release: root.create()
+
 <ProjectEditor>:
     orientation: 'vertical'
     TextEditLine:
@@ -222,6 +236,7 @@
         field: root.encounter.get('icon', '')
     Button:
         text: 'Add new card'
+        on_release: root.new_card()
     Button:
         text: 'Delete set'
     Button:
@@ -298,10 +313,21 @@
 
 <FaceEditor>:
     orientation: 'vertical'
+    spacing: 2
+    raw_text: raw_text
+
     TextEditLine:
         text: 'Type'
         object: root.face
         field: 'type'
+    TextInput:
+        id: raw_text
+        text: str(root.face.data) if root.face else 'No face'
+        multiline: True
+        size_hint_y: None
+        height: 200
+        on_text: root.update_data()
+
 
 <AssetEditor>:
     ScrollView:

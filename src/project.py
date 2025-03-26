@@ -17,6 +17,7 @@ class Project:
     def __init__(self, file_path, data):
         self.file_path = file_path
         self.data = data
+        self.icon = data.get('icon', '')
 
     def __getitem__(self, key):
         return self.data[key]
@@ -27,7 +28,7 @@ class Project:
     @property
     def encounter_sets(self):
         for e in self.data['encounter_sets']:
-            yield EncounterSet(e)
+            yield EncounterSet(e, expansion=self)
 
     @staticmethod
     def load(file_path):

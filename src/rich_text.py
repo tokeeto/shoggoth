@@ -20,7 +20,13 @@ class RichTextRenderer:
             '<bi>': {'start': True, 'font': 'bolditalic'},
             '</bi>': {'start': False, 'font': 'bolditalic'},
             '<icon>': {'start': True, 'font': 'icon'},
-            '</icon>': {'start': False, 'font': 'icon'}
+            '</icon>': {'start': False, 'font': 'icon'},
+            '<center>': {'start': True, 'align': 'center'},
+            '</center>': {'start': False, 'align': 'center'},
+            '<left>': {'start': True, 'align': 'left'},
+            '</left>': {'start': False, 'align': 'left'},
+            '<right>': {'start': True, 'align': 'right'},
+            '</right>': {'start': False, 'align': 'right'},
         }
 
         # Define font-based icon tags and their corresponding characters
@@ -170,14 +176,24 @@ class RichTextRenderer:
             format_match = False
             for tag, info in self.formatting_tags.items():
                 if text[current_pos:].startswith(tag):
-                    tokens.append({
-                        'type': 'format',
-                        'value': info['font'],
-                        'start': info['start']
-                    })
-                    current_pos += len(tag)
-                    format_match = True
-                    break
+                    if 'font' in info:
+                        tokens.append({
+                            'type': 'format',
+                            'value': info['font'],
+                            'start': info['start']
+                        })
+                        current_pos += len(tag)
+                        format_match = True
+                        break
+                    elif 'align' in info:
+                        tokens.append({
+                            'type': 'align',
+                            'value': info['align'],
+                            'start': info['start']
+                        })
+                        current_pos += len(tag)
+                        format_match = True
+                        break
 
             if format_match:
                 continue
@@ -322,10 +338,12 @@ class RichTextRenderer:
         # Current formatting state
         current_font = font
         font_stack = []  # Stack to track nested font changes
+        current_alignment = self.alignment
+        alignment_stack = []
 
         # Word wrapping data
         current_line = []
-        line_height = int(font_size * 1.2)  # Line height with spacing
+        line_height = int(font_size * 1.3)  # Line height with spacing
         current_line_width = 0
 
         # Keep track of whether we're going to overflow
@@ -376,9 +394,9 @@ class RichTextRenderer:
             """Calculate starting X position based on alignment"""
             line_width = get_line_width(line)
 
-            if self.alignment == 'center':
+            if current_alignment == 'center':
                 return x + (max_width - line_width) // 2
-            elif self.alignment == 'right':
+            elif current_alignment == 'right':
                 return x + max_width - line_width
             else:  # left alignment
                 return x
@@ -422,6 +440,7 @@ class RichTextRenderer:
                         icon_y = y_pos - (icon.height - font_size) // 2
                         image.paste(icon, (x_pos, icon_y), icon)
                         x_pos += icon.width
+
         # Process each token to create lines
         for i, token in enumerate(tokens):
             if token['type'] == 'format':
@@ -438,6 +457,21 @@ class RichTextRenderer:
                         current_font = 'regular'
 
                 # Add format change to current line (it has no width impact)
+                current_line.append(token)
+
+            elif token['type'] == 'align':
+                token['width'] = 0
+                # Update current alignment
+                if token['start']:
+                    alignment_stack.append(current_alignment)
+                    current_alignment = token['value']
+                else:
+                    if font_stack:
+                        current_alignment = alignment_stack.pop()
+                    else:
+                        current_alignment = self.alignment
+
+                # Add alignment change to current line (it has no width impact)
                 current_line.append(token)
 
             elif token['type'] == 'newline':
@@ -468,7 +502,7 @@ class RichTextRenderer:
                         render_line(current_line, y)
 
                         # Move to next line
-                        y += line_height
+                        y += font_size
                         current_line = []
                         current_line_width = 0
 
@@ -501,7 +535,7 @@ class RichTextRenderer:
 
                     # Render current line and move to next
                     render_line(current_line, y)
-                    y += line_height
+                    y += font_size
 
                     # Check if we've exceeded the region height
                     if y + line_height > region['y'] + max_height:

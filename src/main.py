@@ -77,7 +77,7 @@ class FileBrowser(BoxLayout):
             for encounter_set in file.encounter_sets:
                 e_node = self.tree.add_node(TreeViewButton(text=encounter_set.name, element=encounter_set, element_type='encounter'), p_node)
                 for card in encounter_set.cards:
-                    c_node = self.tree.add_node(TreeViewButton(text=card.front.get('name'), element=card, element_type='card'), e_node)
+                    c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), e_node)
 
     def on_tree_select(self, instance, node):
         if hasattr(node, 'full_path') and node.full_path.endswith('.json'):
@@ -196,8 +196,11 @@ class ShoggothApp(App):
         self.scheduled_redraw = Clock.schedule_once(self._update_card_preview, 0.3)
 
     def _update_card_preview(self, *args, **kwargs):
-        front_image, back_image = self.card_renderer.get_card_textures(self.current_card)
-        self.root.ids.card_preview.set_card_images(front_image, back_image)
+        try:
+            front_image, back_image = self.card_renderer.get_card_textures(self.current_card)
+            self.root.ids.card_preview.set_card_images(front_image, back_image)
+        except Exception as e:
+            self.status_message = str(e)
 
     def refresh_tree(self):
         self.root.ids.file_browser.refresh()

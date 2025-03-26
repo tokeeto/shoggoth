@@ -1,5 +1,5 @@
 from time import time
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from kivy.graphics.texture import Texture
 import os
 import json
@@ -61,23 +61,94 @@ class CardRenderer:
 
     def render_card_side(self, card, side):
         """Render one side of a card"""
-        if not self.cache.get('base_image', None):
-            # Create blank image
-            card_image = Image.new('RGBA', (self.CARD_WIDTH, self.CARD_HEIGHT), (255, 255, 255, 255))
-            self.render_illustration(card_image, side)
-            self.render_template(card_image, side)
-            self.cache['base_image'] = card_image
+        #if not self.cache.get('base_image', None):
+        # Create blank image
+        card_image = Image.new('RGBA', (self.CARD_WIDTH, self.CARD_HEIGHT), (255, 255, 255, 255))
+        self.render_illustration(card_image, side)
+        self.render_template(card_image, side)
+        #self.cache['base_image'] = card_image
 
-        card_image = self.cache['base_image'].copy()
-        self.render_name(card_image, side)
-        self.render_cost(card_image, side)
-        self.render_traits(card_image, side)
-        self.render_rule_text(card_image, side)
-        self.render_level(card_image, side)
-        self.render_label(card_image, side)
-        self.render_flavor_text(card_image, side)
+        #card_image = self.cache['base_image'].copy()
+        for func in [
+            self.render_name,
+            self.render_cost,
+            self.render_traits,
+            self.render_rule_text,
+            self.render_level,
+            self.render_label,
+            self.render_enemy_stats,
+            self.render_encounter_icon,
+            self.render_expansion_icon,
+        ]:
+            try:
+                func(card_image, side)
+            except Exception as e:
+                print(f'{func} failed: {e}')
 
         return card_image
+
+    def render_expansion_icon(self, card_image, side):
+        """Render the encounter icon """
+        region = side.get('collection_portrait_clip_region')
+        print(f'region is {region=}')
+        print(f'icon is {side.card.expansion.icon}')
+        icon = Image.open(side.card.expansion.icon, formats=['png', 'jpg']).convert('RGBA')
+        icon = icon.resize((region['width'], region['height']))
+        # invert
+        alpha = icon.getchannel('A')
+        icon = icon.convert('RGB')
+        icon = ImageOps.invert(icon)
+        icon.putalpha(alpha)
+        card_image.paste(icon, (region['x'], region['y']), icon)
+
+    def render_encounter_icon(self, card_image, side):
+        """Render the encounter icon """
+        if not side.card.encounter.icon:
+            raise Exception("No encounter icon")
+        region = side.get('encounter_portrait_clip_region', None)
+        if not region:
+            raise Exception("Encounter icon region not defined")
+        icon = Image.open(side.card.encounter.icon).convert("RGBA")
+        icon = icon.resize((region['width'], region['height']))
+        card_image.paste(icon, (region['x'], region['y']), icon)
+
+    def render_enemy_stats(self, card_image, side):
+        """Render enemy stats: Health, evade, combat, damage, horror. """
+        attack = side.get('attack', None)
+        if attack != None:
+            region = side['attack_region']
+            self.rich_text.render_text(card_image, attack, region, alignment='center', font="cost", outline=2, outline_fill='black', fill='white')
+
+        evade = side.get('evade', None)
+        if evade != None:
+            region = side['evade_region']
+            self.rich_text.render_text(card_image, evade, region, alignment='center', font="cost", outline=2, outline_fill='black', fill='white')
+
+        health = side.get('health', None)
+        if health != None:
+            region = side['health_region']
+            self.rich_text.render_text(card_image, health, region, alignment='center', font="cost", outline=2, outline_fill='black', fill='white')
+
+        damage = int(side.get('damage', '0'))
+        if damage > 5:
+            print('damage more than 5 - cannot render, reducing to 5')
+            damage = 5
+        damage_icon_path = os.path.join(self.overlays_path, "damage.jp2")
+        damage_icon = Image.open(damage_icon_path).convert("RGBA")
+        for i in range(damage):
+            region = side[f'damage{i+1}_region']
+            card_image.paste(damage_icon, (region['x'], region['y']), damage_icon)
+
+        horror = int(side.get('horror', '0'))
+        if horror > 5:
+            print('horror more than 5 - cannot render, reducing to 5')
+            horror = 5
+        horror_icon_path = os.path.join(self.overlays_path, "horror.jp2")
+        horror_icon = Image.open(horror_icon_path).convert("RGBA")
+        for i in range(horror):
+            region = side[f'horror{i+1}_region']
+            card_image.paste(horror_icon, (region['x'], region['y']), horror_icon)
+
 
     def render_label(self, card_image, side):
         """Render the card name"""
@@ -174,6 +245,11 @@ class CardRenderer:
 
         text_region = side['body_region']
 
+        flavor_text = side.get('flavor_text', '')
+        if flavor_text:
+            rule_text += '\n'
+            rule_text += f'<center><i>{flavor_text}</i>'
+
         # Get text polygon if available
         #text_polygon = self.get_setting('body_polygon', card_data, side, defaults)
 
@@ -249,42 +325,6 @@ class CardRenderer:
             alignment=alignment
         )
 
-    def render_encounter_icon(self, card_image, side):
-        """Render the encounter set icon"""
-        # Get encounter icon path
-        encounter_icon_path = self.get_setting('encounter_icon', card_data, side, defaults)
-        if not encounter_icon_path or not os.path.exists(encounter_icon_path):
-            return
-
-        # Get encounter region
-        encounter_region = self.get_setting('encounter_region', card_data, side, defaults,
-                                           {'x': 340, 'y': 25, 'width': 30, 'height': 30})
-
-        try:
-            encounter_icon = Image.open(encounter_icon_path).convert("RGBA")
-            encounter_icon = encounter_icon.resize((encounter_region['width'], encounter_region['height']))
-            card_image.paste(encounter_icon, (encounter_region['x'], encounter_region['y']), encounter_icon)
-        except Exception as e:
-            print(f"Error rendering encounter icon: {str(e)}")
-
-    def render_expansion_icon(self, card_image, card_data, side, defaults):
-        """Render the expansion icon"""
-        # Get expansion icon path
-        expansion_icon_path = self.get_setting('expansion_icon', card_data, side, defaults)
-        if not expansion_icon_path or not os.path.exists(expansion_icon_path):
-            return
-
-        # Get collection region
-        collection_region = self.get_setting('collection_region', card_data, side, defaults,
-                                           {'x': 340, 'y': 490, 'width': 20, 'height': 20})
-
-        try:
-            expansion_icon = Image.open(expansion_icon_path).convert("RGBA")
-            expansion_icon = expansion_icon.resize((collection_region['width'], collection_region['height']))
-            card_image.paste(expansion_icon, (collection_region['x'], collection_region['y']), expansion_icon)
-        except Exception as e:
-            print(f"Error rendering expansion icon: {str(e)}")
-
     def render_class_symbols(self, card_image, card_data, side, defaults):
         """Render class symbols for multiclass cards"""
         # Get classes
@@ -341,39 +381,6 @@ class CardRenderer:
                 card_image.paste(symbol, (symbol_region['x'], symbol_region['y']), symbol)
             except Exception as e:
                 print(f"Error rendering class symbol: {str(e)}")
-
-    def render_enemy_stats(self, card_image, card_data, side, defaults):
-        """Render enemy card statistics"""
-        # Get stats
-        health = self.get_setting('health', card_data, side, defaults, 1)
-        fight = self.get_setting('fight', card_data, side, defaults, 1)
-        evade = self.get_setting('evade', card_data, side, defaults, 1)
-        damage = self.get_setting('damage', card_data, side, defaults, 1)
-        horror = self.get_setting('horror', card_data, side, defaults, 1)
-
-        # Load font
-        try:
-            stats_font = ImageFont.truetype(os.path.join(self.assets_path, 'fonts', 'Arkhamic.ttf'), 24)
-        except IOError:
-            stats_font = ImageFont.load_default()
-
-        draw = ImageDraw.Draw(card_image)
-
-        # Stat positions (these would come from defaults ideally)
-        positions = {
-            'health': {'x': 330, 'y': 120},
-            'fight': {'x': 330, 'y': 160},
-            'evade': {'x': 330, 'y': 200},
-            'damage': {'x': 330, 'y': 240},
-            'horror': {'x': 330, 'y': 280},
-        }
-
-        # Draw stats
-        draw.text((positions['health']['x'], positions['health']['y']), str(health), fill=(255, 255, 255), font=stats_font)
-        draw.text((positions['fight']['x'], positions['fight']['y']), str(fight), fill=(255, 255, 255), font=stats_font)
-        draw.text((positions['evade']['x'], positions['evade']['y']), str(evade), fill=(255, 255, 255), font=stats_font)
-        draw.text((positions['damage']['x'], positions['damage']['y']), str(damage), fill=(0, 0, 0), font=stats_font)
-        draw.text((positions['horror']['x'], positions['horror']['y']), str(horror), fill=(0, 0, 0), font=stats_font)
 
     def render_location_stats(self, card_image, card_data, side, defaults):
         """Render location card statistics"""

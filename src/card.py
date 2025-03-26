@@ -9,17 +9,26 @@ from kivy.event import EventDispatcher
 defaults_root = 'assets/defaults'
 
 class Face:
-    def __init__(self, data):
+    def __init__(self, data, card=None, encounter=None, expansion=None):
         self.data = data
+        self.card = card
+        self.encounter = encounter
+        self.expansion = expansion
+        self._fallback = None
 
     @property
     def fallback(self):
+        if self._fallback != None:
+            return self._fallback
+
         defaults_file = f'{self.data["type"]}.card'
         defaults_path = os.path.join(defaults_root, defaults_file)
 
         try:
             with open(defaults_path, 'r') as f:
-                return json.load(f)
+                self._fallback = json.load(f)
+                print(f'loaded fallback from {defaults_path}:', self._fallback)
+            return self._fallback
         except Exception as e:
             print(f'Error in defaults found for face type: {self.data["type"]}\n', e)
             return {}
@@ -30,11 +39,15 @@ class Face:
         return self.fallback[key]
 
     def get(self, key, default=''):
+        print(f'asking for {key}, {self.card=}, {self.card.expansion=}')
         if key in self.data:
+            print(f'found in self: {self.data[key]}')
             return str(self.data[key])
         if key in self.fallback:
+            print(f'found in fallback: {self.fallback[key]}')
             return str(self.fallback[key])
         else:
+            print(f'not found, returning: {default}')
             return default
 
     def set(self, key, value):
@@ -46,16 +59,19 @@ class Face:
 class Card(EventDispatcher):
     """Class to represent the card object and file structure"""
 
-    def __init__(self, data):
+    def __init__(self, data, encounter=None, expansion=None):
         super().__init__()
         self.app = None
         self.data = data
+        self.name = data['name']
+        self.encounter = encounter
+        self.expansion = expansion
 
         front_defaults = self.load_default(self.data['front'])
         back_defaults = self.load_default(self.data['back'])
 
-        self.front = Face(self.data['front'])
-        self.back = Face(self.data['back'])
+        self.front = Face(self.data['front'], card=self)
+        self.back = Face(self.data['back'], card=self)
         self.app = App.get_running_app()
 
     @staticmethod
@@ -104,3 +120,15 @@ class Card(EventDispatcher):
         except Exception as e:
             print(e)
             raise
+
+    @staticmethod
+    def new(name):
+        return Card({
+            'name': name,
+            'front': {
+                'type': 'asset'
+            },
+            'back': {
+                'type': 'player'
+            }
+        })
