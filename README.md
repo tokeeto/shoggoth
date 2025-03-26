@@ -1,6 +1,8 @@
 # Shoggoth
 ## Card creation software for Arkham Horror: The Card Game
 
+Status: Under development. Neither stable nor functional yet.
+
 Shoggoth is ultimately just a piece of software that puts images and text on top of each other.
 However, features a sensible "fallback" system that makes it easy to define new cards in very few rules.
 
