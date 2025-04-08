@@ -1,0 +1,27 @@
+<ViewerRoot@BoxLayout>:
+    orientation: 'vertical'
+    spacing: '10dp'
+
+    BoxLayout:
+        orientation: 'horizontal'
+
+        # Front of card
+        BoxLayout:
+            orientation: 'vertical'
+            Image:
+                id: front_preview
+            Label:
+                size_hint_y: None
+                height: 20
+                text: 'Front'
+
+        # Back of card
+        BoxLayout:
+            orientation: 'vertical'
+
+            Image:
+                id: back_preview
+            Label:
+                size_hint_y: None
+                height: 20
+                text: 'Back'

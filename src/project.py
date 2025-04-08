@@ -19,6 +19,9 @@ class Project:
         self.data = data
         self.icon = data.get('icon', '')
 
+    def __eq__(self, other):
+        return self.data == other.data
+
     def __getitem__(self, key):
         return self.data[key]
 
@@ -29,6 +32,16 @@ class Project:
     def encounter_sets(self):
         for e in self.data['encounter_sets']:
             yield EncounterSet(e, expansion=self)
+
+    def get_all_cards(self):
+        result = []
+        for e in self.encounter_sets:
+            for c in e.cards:
+                result.append(c)
+        if 'cards' in self.data:
+            for c in self.data['cards']:
+                result.append(Card(c, expansion=self))
+        return result
 
     @staticmethod
     def load(file_path):

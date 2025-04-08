@@ -16,6 +16,9 @@ class Face:
         self.expansion = expansion
         self._fallback = None
 
+    def __eq__(self, other):
+        return self.data == other.data
+
     @property
     def fallback(self):
         if self._fallback != None:
@@ -39,20 +42,15 @@ class Face:
         return self.fallback[key]
 
     def get(self, key, default=''):
-        print(f'asking for {key}, {self.card=}, {self.card.expansion=}')
         if key in self.data:
-            print(f'found in self: {self.data[key]}')
-            return str(self.data[key])
+            return self.data[key]
         if key in self.fallback:
-            print(f'found in fallback: {self.fallback[key]}')
-            return str(self.fallback[key])
+            return self.fallback[key]
         else:
-            print(f'not found, returning: {default}')
             return default
 
     def set(self, key, value):
         self.data[key] = value
-        print('setting', key, value)
         App.get_running_app().update_card_preview()
 
 
@@ -73,6 +71,9 @@ class Card(EventDispatcher):
         self.front = Face(self.data['front'], card=self)
         self.back = Face(self.data['back'], card=self)
         self.app = App.get_running_app()
+
+    def __eq__(self, other):
+        return self.data == other.data
 
     @staticmethod
     def is_valid(data):
@@ -103,7 +104,6 @@ class Card(EventDispatcher):
         back_defaults = self.load_default(self.data['back'])
         self.back = CardDict(self.data['back'], back_defaults)
 
-
     def save(self):
         """Save card data to JSON file"""
         pass
@@ -112,7 +112,6 @@ class Card(EventDispatcher):
         """Load default values for a card type"""
         defaults_file = f'{side["type"]}.card'
         defaults_path = os.path.join(defaults_root, defaults_file)
-        print(f'{defaults_path=}')
 
         try:
             with open(defaults_path, 'r') as f:

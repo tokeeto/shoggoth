@@ -29,6 +29,12 @@ class RichTextRenderer:
             '</right>': {'start': False, 'align': 'right'},
         }
 
+        # Replacement tags - tags that render as different text when encountered
+        self.replacement_tags = {
+            '<name>': self.get_card_name,
+            '<for>': self.get_forced_template,
+        }
+
         # Define font-based icon tags and their corresponding characters
         self.font_icon_tags = {
             '<codex>': '#',
@@ -56,7 +62,7 @@ class RichTextRenderer:
             '<skull>': 'S',
             '<auto_fail>': 'T',
             '<curse>': 'U',
-            '<survivor>': 'S',
+            '<survivor>': 'V',
 
             '<agility>': 'a',
             '<bullet>': 'b',
@@ -123,8 +129,20 @@ class RichTextRenderer:
                 'path': "assets/fonts/Arkhamic.ttf",  # Special icon font
                 'scale': 2,
                 'fallback': None
+            },
+            'skill': {
+                'path': "assets/fonts/Bolton.ttf",  # Special icon font
+                'scale': 2,
+                'fallback': None
             }
         }
+
+    def get_card_name(self):
+        return self.card_renderer.current_card.name
+
+    def get_forced_template(self):
+        return '<b>Forced –</b>'
+
 
     def load_fonts(self, size):
         """Load all fonts at the specified size"""
@@ -169,6 +187,10 @@ class RichTextRenderer:
         """Parse rich text into tokens with preserved whitespace"""
         tokens = []
         current_pos = 0
+
+        # replacement tags
+        for tag, func in self.replacement_tags.items():
+            text = text.replace(tag, func())
 
         # Find all special tags or icons
         while current_pos < len(text):
@@ -349,6 +371,33 @@ class RichTextRenderer:
         # Keep track of whether we're going to overflow
         will_overflow = False
 
+        def polygon_width_at_y(target_y, polygon_points):
+            x_intersections = []
+
+            for i in range(len(polygon_points) - 1):
+                (x1, y1), (x2, y2) = polygon_points[i], polygon_points[i + 1]
+
+                # Skip horizontal edges or those that don't straddle target_y
+                if (y1 < target_y and y2 < target_y) or (y1 > target_y and y2 > target_y) or y1 == y2:
+                    continue
+
+                # Linear interpolation to find x at target_y
+                t = (target_y - y1) / (y2 - y1)
+                x_val = x1 + t * (x2 - x1)
+                x_intersections.append(x_val)
+
+            if not x_intersections:
+                return region['x'], region['x']+region['width']  # target_y is outside the vertical range of the polygon
+
+            left = min(x_intersections)
+            right = max(x_intersections)
+            return left, right
+
+        if polygon:
+            left, right = polygon_width_at_y(y, polygon)
+            max_width = right-left
+            x = left
+
         # Polygon check function (same as before)
         def is_point_in_polygon(point, polygon_points):
             """Check if a point is inside a polygon"""
@@ -390,9 +439,17 @@ class RichTextRenderer:
             """Calculate the total width of a line"""
             return sum(get_token_width(t) for t in line if t['type'] != 'format')
 
-        def get_line_start_x(line):
+        def get_line_start_x(line, y):
             """Calculate starting X position based on alignment"""
             line_width = get_line_width(line)
+            if polygon:
+                left, right = polygon_width_at_y(y, polygon)
+                if current_alignment == 'center':
+                    return left + ((right-left) - line_width) // 2
+                elif current_alignment == 'right':
+                    return left + (right-left) - line_width
+                else:
+                    return left
 
             if current_alignment == 'center':
                 return x + (max_width - line_width) // 2
@@ -403,19 +460,14 @@ class RichTextRenderer:
 
         def render_line(line, y_pos):
             """Render a line of tokens with proper alignment"""
+            x_pos = get_line_start_x(line, y_pos)
+
             if not line:
                 return
-
-            x_pos = get_line_start_x(line)
 
             for token in line:
                 if token['type'] == 'format':
                     continue  # Format tokens don't render
-
-                # Skip if outside polygon bounds
-                if polygon and not is_point_in_polygon((x_pos, y_pos), polygon):
-                    x_pos += token['width']
-                    continue
 
                 if token['type'] == 'text':
                     draw.text(
@@ -440,6 +492,7 @@ class RichTextRenderer:
                         icon_y = y_pos - (icon.height - font_size) // 2
                         image.paste(icon, (x_pos, icon_y), icon)
                         x_pos += icon.width
+
 
         # Process each token to create lines
         for i, token in enumerate(tokens):
@@ -481,6 +534,9 @@ class RichTextRenderer:
 
                 # Move to next line
                 y += line_height
+                if polygon:
+                    l,r = polygon_width_at_y(y, polygon)
+                    max_width = r-l
                 current_line = []
                 current_line_width = 0
 
@@ -503,6 +559,9 @@ class RichTextRenderer:
 
                         # Move to next line
                         y += font_size
+                        if polygon:
+                            l,r = polygon_width_at_y(y, polygon)
+                            max_width = r-l
                         current_line = []
                         current_line_width = 0
 
@@ -536,6 +595,9 @@ class RichTextRenderer:
                     # Render current line and move to next
                     render_line(current_line, y)
                     y += font_size
+                    if polygon:
+                        l,r = polygon_width_at_y(y, polygon)
+                        max_width = r-l
 
                     # Check if we've exceeded the region height
                     if y + line_height > region['y'] + max_height:

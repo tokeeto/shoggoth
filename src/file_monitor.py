@@ -17,7 +17,6 @@ class CardFileHandler(FileSystemEventHandler):
         """When a file is modified"""
         if event.is_directory:
             return
-        print('on_modified ', event)
 
         if not self.monitored_files or event.src_path in self.monitored_files:
             # Add a small delay to avoid multiple reload triggers

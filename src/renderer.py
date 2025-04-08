@@ -6,6 +6,7 @@ import json
 import re
 from io import BytesIO
 from rich_text import RichTextRenderer
+import numpy as np
 
 from kivy.uix.image import CoreImage
 
@@ -16,6 +17,8 @@ class CardRenderer:
     # Standard card dimensions
     CARD_WIDTH = 375
     CARD_HEIGHT = 524
+    #CARD_WIDTH = 750
+    #CARD_HEIGHT = 1048
 
     def __init__(self):
         # Base paths
@@ -27,8 +30,14 @@ class CardRenderer:
 
         self.cache = {}
 
+        # card faces that should render sideways
+        self.horizontal_cards = (
+            'investigator', 'investigator_back', 'act', 'agenda'
+        )
+
         # Initialize rich text renderer
-        self.rich_text = RichTextRenderer(self.assets_path)
+        self.rich_text = RichTextRenderer(self)
+
 
     def get_card_textures(self, card):
         """Render both sides of a card"""
@@ -56,19 +65,24 @@ class CardRenderer:
         buffer.seek(0)
 
         # Create texture
-        im = CoreImage(BytesIO(buffer.read()), ext='png')
+        im = CoreImage(buffer, ext='png')
         return im.texture
 
     def render_card_side(self, card, side):
         """Render one side of a card"""
-        #if not self.cache.get('base_image', None):
-        # Create blank image
-        card_image = Image.new('RGBA', (self.CARD_WIDTH, self.CARD_HEIGHT), (255, 255, 255, 255))
+        self.current_card = card
+        self.current_side = side
+
+        if side['type'] in self.horizontal_cards:
+            card_image = Image.new('RGBA', (self.CARD_HEIGHT, self.CARD_WIDTH), (255, 255, 255, 255))
+        else:
+            card_image = Image.new('RGBA', (self.CARD_WIDTH, self.CARD_HEIGHT), (255, 255, 255, 255))
+
         self.render_illustration(card_image, side)
         self.render_template(card_image, side)
-        #self.cache['base_image'] = card_image
+        if side['type'] in ('investigator'):
+            self.render_illustration(card_image, side)
 
-        #card_image = self.cache['base_image'].copy()
         for func in [
             self.render_name,
             self.render_cost,
@@ -79,21 +93,56 @@ class CardRenderer:
             self.render_enemy_stats,
             self.render_encounter_icon,
             self.render_expansion_icon,
+            self.render_subtitle,
+            self.render_investigator_stats,
+            self.render_health,
         ]:
             try:
                 func(card_image, side)
             except Exception as e:
-                print(f'{func} failed: {e}')
-
+                print(f'Failed: {e}')
         return card_image
+
+    def render_health(self, card_image, side):
+        for stat in ['stamina', 'sanity']:
+            value = side.get(stat)
+            region = side.get(f'{stat}_region')
+            if not region or not value:
+                continue
+
+            overlay_path = os.path.join(self.overlays_path, f"{stat}_base.jp2")
+            overlay_icon = Image.open(overlay_path).convert("RGBA")
+            card_image.paste(overlay_icon, (region['x'], region['y']-10), overlay_icon)
+
+            self.rich_text.render_text(card_image, value, region, alignment='center', font="skill", fill="white", outline_fill="#dd0000", outline=1)
+
+
+    def render_investigator_stats(self, card_image, side):
+        """Render the card cost"""
+        for stat in ['willpower', 'intellect', 'combat', 'agility']:
+            value = side.get(stat, 0)
+            region = side.get(f'{stat}_region')
+            if not region:
+                continue
+
+            self.rich_text.render_text(card_image, value, region, alignment='center', font="skill")
 
     def render_expansion_icon(self, card_image, side):
         """Render the encounter icon """
         region = side.get('collection_portrait_clip_region')
-        print(f'region is {region=}')
-        print(f'icon is {side.card.expansion.icon}')
+        if not region:
+            return
+
+        icon = side.card.expansion.icon
+        if not icon:
+            return
+
         icon = Image.open(side.card.expansion.icon, formats=['png', 'jpg']).convert('RGBA')
-        icon = icon.resize((region['width'], region['height']))
+        if icon.width > icon.height:
+            icon = icon.resize((region['width'], int(region['height']*(icon.height/icon.width))))
+        else:
+            icon = icon.resize((int(region['width']*(icon.width/icon.height)), region['height']))
+
         # invert
         alpha = icon.getchannel('A')
         icon = icon.convert('RGB')
@@ -149,6 +198,16 @@ class CardRenderer:
             region = side[f'horror{i+1}_region']
             card_image.paste(horror_icon, (region['x'], region['y']), horror_icon)
 
+    def render_subtitle(self, card_image, side):
+        """Render the subtitle"""
+        # Get name
+        text = side.get('subtitle', None)
+        if not text:
+            return
+
+        region = side['subtitle_region']
+
+        self.rich_text.render_text(card_image, text, region, alignment='center')
 
     def render_label(self, card_image, side):
         """Render the card name"""
@@ -159,12 +218,12 @@ class CardRenderer:
 
         region = side['label_region']
 
-        self.rich_text.render_text(card_image, label, region, alignment='center', font="title")
+        self.rich_text.render_text(card_image, f'<b>{label}</b>', region, alignment='center')
 
     def render_template(self, card_image, side):
         """Render a template image onto a card"""
         template_path = os.path.join(self.templates_path, f"{side['type']}.png")
-        if side['type'] in ('asset', 'event'):
+        if side['type'] in ('asset', 'event', 'investigator', 'investigator_back'):
             template_path = os.path.join(self.templates_path, f"{side['type']}_{side['class']}.png")
 
         try:
@@ -201,6 +260,10 @@ class CardRenderer:
             new_height = int(illustration.height * illustration_scale)
             illustration = illustration.resize((new_width, new_height))
 
+            rotation = side.get('illustration_rotation', 0)
+            if rotation:
+                illustration = illustration.rotate(rotation)
+
             # Apply panning
             pan_x = side.get('illustration_pan_x', 0)
             pan_y = side.get('illustration_pan_y', 0)
@@ -208,7 +271,7 @@ class CardRenderer:
             # Position and paste
             card_image.paste(
                 illustration,
-                (clip_region['x'] + pan_x, clip_region['y'] - pan_y),
+                (clip_region['x']+pan_x, clip_region['y']+pan_y),
                 illustration
             )
         except Exception as e:
@@ -251,7 +314,7 @@ class CardRenderer:
             rule_text += f'<center><i>{flavor_text}</i>'
 
         # Get text polygon if available
-        #text_polygon = self.get_setting('body_polygon', card_data, side, defaults)
+        text_polygon = side.get('body_polygon', None)
 
         # Get alignment
         #alignment = self.get_setting('body_alignment', card_data, side, defaults, 'left')
@@ -261,7 +324,7 @@ class CardRenderer:
             card_image,
             rule_text,
             text_region,
-            #text_polygon,
+            polygon=text_polygon,
             alignment='left'
         )
 
@@ -277,8 +340,14 @@ class CardRenderer:
         if cost == '-':
             icon_path = os.path.join(self.assets_path, 'numbers/AHLCG-Cost--.png')
             dash_icon = Image.open(icon_path).convert("RGBA")
-            template = dash_icon.resize((cost_region['width'], cost_region['height']))
-            card_image.paste(dash_icon, (cost_region['x']+5, cost_region['y']+5), dash_icon)
+            dash_2 = dash_icon.convert('HSV')
+            h, s, v = dash_2.split()
+            np_h = np.array(s, dtype=np.int8)
+            np_h = (np_h * 0)
+            h_shifted = Image.fromarray(np_h, 'L')
+            new_img = Image.merge('HSV', (h, h_shifted, v))
+            #new_img = new_img.resize((cost_region['width'], cost_region['height']))
+            card_image.paste(new_img, (cost_region['x']+5, cost_region['y']+5), dash_icon)
             return
 
         self.rich_text.render_text(card_image, cost, cost_region, alignment='center', font="cost", outline=2, outline_fill='black', fill='white')

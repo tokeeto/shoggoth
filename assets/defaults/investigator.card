@@ -1,205 +1,32 @@
 {
   "default_template": "ArkhamHorrorLCG/templates/AHLCG-Investigator-G.jp2",
-  "ahlcg_investigatorback_default_template": "ArkhamHorrorLCG/templates/AHLCG-InvestigatorBack-G.jp2",
   "name_region": {
     "x": 48,
-    "y": 11,
+    "y": 10,
     "width": 212,
     "height": 27
   },
-  "subtitletextg_region": {
+  "subtitle_region": {
     "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextgp_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextk_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextkp_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextr_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextrp_region": {
-    "x": 72,
-    "y": 38,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextm_region": {
-    "x": 72,
-    "y": 40,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextmp_region": {
-    "x": 72,
-    "y": 40,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextv_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextvp_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextn_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextw_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextt_region": {
-    "x": 72,
-    "y": 39,
+    "y": 42,
     "width": 175,
     "height": 20
   },
   "subtitle_alignment": "center, middle",
-  "ahlcg_investigatorback_name_region": {
-    "x": 248,
-    "y": 9,
-    "width": 246,
-    "height": 29
-  },
-  "ahlcg_investigatorback_subtitletextg_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextgp_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextk_region": {
-    "x": 299,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextkp_region": {
-    "x": 299,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextr_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextrp_region": {
-    "x": 298,
-    "y": 40,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextm_region": {
-    "x": 296,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextmp_region": {
-    "x": 296,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextv_region": {
-    "x": 294,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextvp_region": {
-    "x": 294,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextn_region": {
-    "x": 296,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextw_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextt_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitle_alignment": "center, middle",
+  "subtype_region": {"x": 307, "y": 75, "width": 200, "height": 20},
   "body_region": {
     "x": 307,
-    "y": 80,
+    "y": 95,
     "width": 200,
     "height": 218
   },
-  "ahlcg_investigatorback_body_region": {
-    "x": 30,
-    "y": 79,
-    "width": 470,
-    "height": 273
-  },
-  "transparentportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
-  "transparentportrait_portrait_pany": 0,
-  "transparentportrait_portrait_clip_region": {
+  "portrait_template": "",
+  "portrait_pany": 0,
+  "portrait_clip_region": {
     "x": 0,
     "y": 60,
-    "width": 278,
+    "width": 280,
     "height": 315
-  },
-  "ahlcg_investigatorback_portrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
-  "ahlcg_investigatorback_portrait_portrait_pany": 0,
-  "ahlcg_investigatorback_portrait_portrait_rotation": 354,
-  "ahlcg_investigatorback_portrait_portrait_scale": 0.65,
-  "ahlcg_investigatorback_portrait_portrait_clip_region": {
-    "x": 1,
-    "y": -2,
-    "width": 188,
-    "height": 206
   },
   "encounterportrait_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
   "encounterportrait_portrait_pany": 0,
@@ -227,32 +54,6 @@
     "width": 33,
     "height": 33
   },
-  "ahlcg_investigatorback_encounterportrait_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "ahlcg_investigatorback_encounterportrait_portrait_pany": 0,
-  "ahlcg_investigatorback_defaultencounter_portrait_clip_region": {
-    "x": 231,
-    "y": 15,
-    "width": 28,
-    "height": 28
-  },
-  "ahlcg_investigatorback_encounter_portrait_clip_region": {
-    "x": 231,
-    "y": 15,
-    "width": 28,
-    "height": 28
-  },
-  "ahlcg_investigatorback_defaultreturnencounter_portrait_clip_region": {
-    "x": 228,
-    "y": 11,
-    "width": 33,
-    "height": 33
-  },
-  "ahlcg_investigatorback_returnencounter_portrait_clip_region": {
-    "x": 228,
-    "y": 11,
-    "width": 33,
-    "height": 33
-  },
   "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
   "collection_portrait_pany": 0,
   "defaultcollection_portrait_clip_region": {
@@ -267,34 +68,34 @@
     "width": 13,
     "height": 13
   },
-  "ahlcg_willpower_region": {
+  "willpower_region": {
     "x": 291,
     "y": 19,
     "width": 16,
     "height": 22
   },
-  "ahlcg_intellect_region": {
+  "intellect_region": {
     "x": 351,
     "y": 19,
     "width": 16,
     "height": 22
   },
-  "ahlcg_combat_region": {
+  "combat_region": {
     "x": 412,
     "y": 19,
     "width": 16,
     "height": 22
   },
-  "ahlcg_agility_region": {
+  "agility_region": {
     "x": 473,
     "y": 19,
     "width": 16,
     "height": 22
   },
-  "ahlcg_skill_alignment": "center, middle",
+  "skill_alignment": "center, middle",
   "stamina_region": {
     "x": 366,
-    "y": 306,
+    "y": 312,
     "width": 31,
     "height": 40
   },

@@ -1,10 +1,26 @@
 from time import time
 from kivy.config import Config
 from kivy.uix.colorpicker import ListProperty
-
 from project import Project
-Config.set('graphics', 'width', '1700')
-Config.set('graphics', 'height', '900')
+from viewer import ViewerApp
+import sys
+
+# Parse command line arguments before Kivy initializes
+import argparse
+parser = argparse.ArgumentParser(description='Shoggoth Card Creator')
+parser.add_argument('-v', '--view', metavar='FILE', help='Open in viewer mode with specified file')
+args = parser.parse_args()
+
+# Set Kivy configuration
+if args.view:
+    # Viewer mode - smaller window
+    Config.set('graphics', 'width', '800')
+    Config.set('graphics', 'height', '600')
+else:
+    # Normal mode - larger window
+    Config.set('graphics', 'width', '1700')
+    Config.set('graphics', 'height', '900')
+
 Config.set('input', 'mouse', 'mouse,disable_multitouch')
 
 from kivy.app import App
@@ -335,4 +351,9 @@ class ShoggothApp(App):
             self.file_monitor.stop()
 
 if __name__ == '__main__':
-    ShoggothApp().run()
+    if args.view:
+        # Start in viewer mode
+        ViewerApp(args.view).run()
+    else:
+        # Start in normal mode
+        ShoggothApp().run()

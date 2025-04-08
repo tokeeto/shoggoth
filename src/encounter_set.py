@@ -10,6 +10,9 @@ class EncounterSet:
         self.get = data.get
         self.__getitem__ = self.data.__getitem__
 
+    def __eq__(self, other):
+        return self.data == other.data and self.expansion == other.expansion
+
     @property
     def cards(self):
         for c in self.data['cards']:
