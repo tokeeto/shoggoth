@@ -1,0 +1,21 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt pyinstaller
+      - run: pyinstaller main.py --add-data "assets:assets" --add-data"src/viewer:."
+      - uses: actions/upload-artifact@v3
+        with:
+          name: shoggoth-windows
+          path: dist/Shoggoth/
