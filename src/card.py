@@ -72,6 +72,12 @@ class Card(EventDispatcher):
         self.back = Face(self.data['back'], card=self)
         self.app = App.get_running_app()
 
+    @property
+    def code(self):
+        if self.encounter:
+            return f'{self.expansion.code}_{self.encounter.code}_{self.name}'
+        return f'{self.expansion.code}_{self.name}'
+
     def __eq__(self, other):
         return self.data == other.data
 
@@ -118,7 +124,7 @@ class Card(EventDispatcher):
                 return json.load(f)
         except Exception as e:
             print(e)
-            raise
+            return {}
 
     @staticmethod
     def new(name):

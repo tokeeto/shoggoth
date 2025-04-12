@@ -1,19 +1,18 @@
 {
-  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Story.jp2",
-  "ahlcg_customizableback_default_template": "ArkhamHorrorLCG/templates/AHLCG-CustomizableBack.jp2",
+  "name": "<name>",
   "name_region": {
     "x": 34,
     "y": 33,
     "width": 310,
     "height": 34
   },
+  "label": "UPGRADES",
   "label_region": {
     "x": 155,
     "y": 509,
     "width": 65,
     "height": 14
   },
-  "label_alignment": "center, middle",
   "body_region": {
     "x": 32,
     "y": 99,
@@ -22,12 +21,6 @@
   },
   "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
   "collection_portrait_pany": 0,
-  "defaultcollection_portrait_clip_region": {
-    "x": 277,
-    "y": 492,
-    "width": 13,
-    "height": 13
-  },
   "collection_portrait_clip_region": {
     "x": 277,
     "y": 492,

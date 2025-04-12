@@ -22,6 +22,7 @@ else:
     Config.set('graphics', 'height', '900')
 
 Config.set('input', 'mouse', 'mouse,disable_multitouch')
+Config.set('kivy', 'log_enable', '0')
 
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
@@ -38,6 +39,9 @@ from kivy.properties import ObjectProperty, StringProperty, BooleanProperty
 from kivy.clock import Clock
 from kivy.core.window import Window
 from editor import CardEditor, EncounterEditor, ProjectEditor
+
+from kivy.logger import Logger, LOG_LEVELS
+Logger.setLevel(LOG_LEVELS["critical"])
 
 import os
 import json
@@ -133,7 +137,7 @@ class FileChooserPopup(Popup):
 
 class ShoggothApp(App):
     """Main application class for Shoggoth Card Creator"""
-
+    icon = '/home/toke/Pictures/elder_sign_neon.png'
     project_path = StringProperty("")
     current_card_path = StringProperty("")
     status_message = StringProperty("Ready")
@@ -351,6 +355,9 @@ class ShoggothApp(App):
             self.file_monitor.stop()
 
 if __name__ == '__main__':
+    from kivy.logger import Logger, LOG_LEVELS
+    Logger.setLevel(LOG_LEVELS["critical"])
+
     if args.view:
         # Start in viewer mode
         ViewerApp(args.view).run()

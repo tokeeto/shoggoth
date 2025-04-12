@@ -33,6 +33,8 @@ class RichTextRenderer:
         self.replacement_tags = {
             '<name>': self.get_card_name,
             '<for>': self.get_forced_template,
+            '<rev>': self.get_revelation_template,
+            '<copy>': self.get_copy_field,
         }
 
         # Define font-based icon tags and their corresponding characters
@@ -143,6 +145,12 @@ class RichTextRenderer:
     def get_forced_template(self):
         return '<b>Forced –</b>'
 
+    def get_revelation_template(self):
+        return '<b>Revelation –</b>'
+
+    def get_copy_field(self):
+        print('getting copy field', self.card_renderer.current_field)
+        return self.card_renderer.current_opposite_side.get(self.card_renderer.current_field)
 
     def load_fonts(self, size):
         """Load all fonts at the specified size"""
@@ -190,7 +198,10 @@ class RichTextRenderer:
 
         # replacement tags
         for tag, func in self.replacement_tags.items():
+            if text == '<copy>':
+                print('replacing copy with', func())
             text = text.replace(tag, func())
+
 
         # Find all special tags or icons
         while current_pos < len(text):
@@ -481,8 +492,14 @@ class RichTextRenderer:
                     x_pos += token['width']
 
                 elif token['type'] == 'font_icon':
-                    draw.text((x_pos, y_pos), token['value'],
-                            fill=(0, 0, 0), font=fonts['icon'])
+                    draw.text(
+                        (x_pos, y_pos),
+                        token['value'],
+                        fill=fill,
+                        font=fonts['icon'],
+                        stroke_width=outline,
+                        stroke_fill=outline_fill,
+                    )
                     x_pos += token['width']
 
                 elif token['type'] == 'image_icon':

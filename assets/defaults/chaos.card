@@ -1,5 +1,5 @@
 {
-  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Chaos.jp2",
+  "name": "<name>",
   "name_region": {
     "x": 28,
     "y": 90,
@@ -7,14 +7,12 @@
     "height": 75
   },
   "name_alignment": "center, top",
-  "name_tightness": 0.2,
-  "ahlcg_difficulty_region": {
+  "difficulty_region": {
     "x": 129,
     "y": 127,
     "width": 114,
     "height": 14
   },
-  "ahlcg_difficulty_alignment": "center, top",
   "header_region": {
     "x": 35,
     "y": 135,
@@ -22,7 +20,7 @@
     "height": 305
   },
   "header_alignment": "center, top",
-  "body_region": {
+  "chaos_region": {
     "x": 95,
     "y": 156,
     "width": 240,
@@ -45,12 +43,6 @@
     "y": 57,
     "width": 32,
     "height": 32
-  },
-  "returnencounter_portrait_clip_region": {
-    "x": 169,
-    "y": 54,
-    "width": 35,
-    "height": 35
   },
   "ahlcg_chaosstory_encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
   "ahlcg_chaosstory_encounter_portrait_pany": 0,

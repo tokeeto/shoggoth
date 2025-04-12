@@ -18,6 +18,7 @@ class Project:
         self.file_path = file_path
         self.data = data
         self.icon = data.get('icon', '')
+        self.code = data.get('code', 'xx')
 
     def __eq__(self, other):
         return self.data == other.data

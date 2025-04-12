@@ -5,6 +5,7 @@ class EncounterSet:
     def __init__(self, data, expansion=None):
         self.name = data['name']
         self.icon = data['icon']
+        self.code = data.get('code', 'xx')
         self.data = data
         self.expansion = expansion
         self.get = data.get

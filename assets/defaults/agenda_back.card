@@ -1,0 +1,35 @@
+{
+  "name": "<name>",
+  "name_rotation": 90,
+  "name_region": {
+    "x": 22,
+    "y": 110,
+    "width": 47,
+    "height": 226
+  },
+  "name_alignment": "center, middle",
+  "story_region": {
+    "x": 126,
+    "y": 39,
+    "width": 355,
+    "height": 316
+  },
+  "body_region": {
+    "x": 110,
+    "y": 39,
+    "width": 370,
+    "height": 316
+  },
+  "encounter_portrait_clip_region": {
+    "x": 27,
+    "y": 57,
+    "width": 36,
+    "height": 36
+  },
+  "scenarioindex_region": {
+    "x": 24,
+    "y": 32,
+    "width": 41,
+    "height": 16
+  }
+}

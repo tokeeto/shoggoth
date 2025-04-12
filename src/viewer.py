@@ -1,4 +1,5 @@
 import os
+from time import time
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -20,7 +21,7 @@ class ViewerRoot(BoxLayout):
         Window.bind(on_key_down=self.on_keyboard)
 
     def on_keyboard(self, instance, keyboard, keycode, text, modifiers):
-        print('on keyboard', keycode)
+        print('on keyboard', keycode, modifiers)
         # Handle keyboard shortcuts
         if keycode == 27:  # Esc key
             App.get_running_app().stop()
@@ -31,11 +32,17 @@ class ViewerRoot(BoxLayout):
         if keycode == 79:  # right
             App.get_running_app().select_card(1)
             return True
+        if keycode == 8:
+            if modifiers == ['ctrl']:
+                f = App.get_running_app().export_all
+                Clock.schedule_once(lambda x: f())
+            else:
+                f = App.get_running_app().export_current
+                Clock.schedule_once(lambda x: f())
         return False
 
 class ViewerApp(App):
     """Application class for Viewer Mode"""
-
     file_path = StringProperty("")
     status_message = StringProperty("Ready")
 
@@ -45,6 +52,7 @@ class ViewerApp(App):
 
     def build(self):
         # Set window title and size
+        self.icon = '/home/toke/Documents/elder_sign_neon.png'
         self.title = f"Shoggoth Card Viewer - {os.path.basename(self.file_path)}"
         Window.size = (800, 600)
 
@@ -145,3 +153,22 @@ class ViewerApp(App):
         """Clean up when the application stops"""
         if self.file_monitor:
             self.file_monitor.stop()
+
+    def export_current(self):
+        export_folder = os.path.join(os.path.dirname(self.file_path), f'export_of_{os.path.basename(self.file_path).split(".")[1]}')
+        if not os.path.exists(export_folder):
+            os.mkdir(export_folder)
+        t = time()
+        card = self.cards[self.card_index]
+        self.card_renderer.export_card_images(card, export_folder)
+        print(f'Export of {card.name} cards done in {time()-t} seconds')
+
+
+    def export_all(self):
+        export_folder = os.path.join(os.path.dirname(self.file_path), f'export_of_{os.path.basename(self.file_path).split(".")[1]}')
+        if not os.path.exists(export_folder):
+            os.mkdir(export_folder)
+        t = time()
+        for card in self.cards:
+            self.card_renderer.export_card_images(card, export_folder)
+        print(f'Export of {len(self.cards)} cards done in {time()-t} seconds')

@@ -1,46 +1,19 @@
 {
+  "name": "<name>",
   "default_template": "ArkhamHorrorLCG/templates/AHLCG-Agenda.jp2",
-  "ahlcg_agendaback_default_template": "ArkhamHorrorLCG/templates/AHLCG-AgendaBack.jp2",
   "name_region": {
     "x": 255,
     "y": 55,
     "width": 250,
     "height": 44
   },
-  "ahlcg_agendaback_name_region": {
-    "x": 22,
-    "y": 110,
-    "width": 47,
-    "height": 226
-  },
-  "ahlcg_agendaback_name_alignment": "center, middle",
   "body_region": {
     "x": 250,
     "y": 100,
     "width": 264,
     "height": 237
   },
-  "ahlcg_agendaback_story_region": {
-    "x": 126,
-    "y": 39,
-    "width": 355,
-    "height": 316
-  },
-  "ahlcg_agendaback_body_region": {
-    "x": 110,
-    "y": 39,
-    "width": 370,
-    "height": 316
-  },
-  "portrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
-  "portrait_portrait_pany": 0,
-  "portrait_portrait_clip_region": {
-    "x": 0,
-    "y": 0,
-    "width": 305,
-    "height": 375
-  },
-  "defaultportrait_portrait_clip_region": {
+  "portrait_clip_region": {
     "x": 0,
     "y": 0,
     "width": 305,
@@ -54,45 +27,9 @@
     "width": 32,
     "height": 32
   },
-  "defaultencounter_portrait_clip_region": {
-    "x": 366,
-    "y": 23,
-    "width": 32,
-    "height": 32
-  },
-  "returnencounter_portrait_clip_region": {
-    "x": 364,
-    "y": 22,
-    "width": 35,
-    "height": 35
-  },
-  "defaultreturnencounter_portrait_clip_region": {
-    "x": 364,
-    "y": 22,
-    "width": 35,
-    "height": 35
-  },
-  "ahlcg_agendaback_encounter_portrait_clip_region": {
-    "x": 27,
-    "y": 57,
-    "width": 36,
-    "height": 36
-  },
-  "ahlcg_agendaback_returnencounter_portrait_clip_region": {
-    "x": 20,
-    "y": 50,
-    "width": 49,
-    "height": 48
-  },
   "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
   "collection_portrait_pany": 0,
   "collection_portrait_clip_region": {
-    "x": 476,
-    "y": 358,
-    "width": 13,
-    "height": 13
-  },
-  "defaultcollection_portrait_clip_region": {
     "x": 476,
     "y": 358,
     "width": 13,
@@ -116,29 +53,11 @@
     "width": 134,
     "height": 21
   },
-  "ahlcg_agendaback_backscenarioindex_region": {
-    "x": 24,
-    "y": 32,
-    "width": 41,
-    "height": 16
-  },
   "doom_region": {
     "x": 233,
-    "y": 291,
+    "y": 302,
     "width": 50,
-    "height": 49
-  },
-  "doomperinv_region": {
-    "x": 228,
-    "y": 291,
-    "width": 50,
-    "height": 49
-  },
-  "doomperinvicon_region": {
-    "x": 256,
-    "y": 290,
-    "width": 29,
-    "height": 49
+    "height": 50
   },
   "dash_tint": "38.0, 0.14, 1.0",
   "artist_region": {

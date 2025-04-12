@@ -1,0 +1,144 @@
+{
+  "name": "<name>",
+  "name_region": {
+    "x": 0,
+    "y": 2,
+    "width": 375,
+    "height": 29
+  },
+  "label": "LOCATION",
+  "label_region": {
+    "x": 138,
+    "y": 278,
+    "width": 100,
+    "height": 14
+  },
+  "subtitle_region": {
+    "x": 95,
+    "y": 36,
+    "width": 191,
+    "height": 21
+  },
+  "traits": "<copy>",
+  "subtype_region": {
+    "x": 20,
+    "y": 300,
+    "width": 336,
+    "height": 30
+  },
+  "encounter_overlay_region": {
+    "x": 163,
+    "y": 234,
+    "width": 50,
+    "height": 50
+  },
+  "encounter_overlay": "assets/overlays/location_encounter.png",
+  "body_region": {
+    "x": 20,
+    "y": 310,
+    "width": 336,
+    "height": 143
+  },
+  "portrait_clip_region": {
+    "x": 0,
+    "y": 42,
+    "width": 375,
+    "height": 275
+  },
+  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "encounter_portrait_pany": 0,
+  "encounter_portrait_clip_region": {
+    "x": 174,
+    "y": 245,
+    "width": 28,
+    "height": 28
+  },
+  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
+  "collection_portrait_pany": 0,
+  "defaultcollection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "collection_portrait_clip_region": {
+    "x": 320,
+    "y": 510,
+    "width": 13,
+    "height": 13
+  },
+  "connection_region": {
+    "x": 14,
+    "y": 6,
+    "width": 36,
+    "height": 35
+  },
+  "connection_1_region": {
+    "x": 67,
+    "y": 467,
+    "width": 35,
+    "height": 35
+  },
+  "connection_2_region": {
+    "x": 108,
+    "y": 459,
+    "width": 35,
+    "height": 35
+  },
+  "connection_3_region": {
+    "x": 150,
+    "y": 456,
+    "width": 34,
+    "height": 34
+  },
+  "connection_4_region": {
+    "x": 191,
+    "y": 456,
+    "width": 34,
+    "height": 34
+  },
+  "connection_5_region": {
+    "x": 232,
+    "y": 459,
+    "width": 35,
+    "height": 35
+  },
+  "connection_6_region": {
+    "x": 273,
+    "y": 467,
+    "width": 35,
+    "height": 35
+  },
+  "shroud_region": {
+    "x": 11,
+    "y": 251,
+    "width": 49,
+    "height": 50
+  },
+  "clues_region": {
+    "x": 318,
+    "y": 251,
+    "width": 49,
+    "height": 50
+  },
+  "victory_region": {
+    "x": 262,
+    "y": 418,
+    "width": 104,
+    "height": 42
+  },
+  "victory_alignment": "right, bottom",
+  "victory_tightness": 0.7,
+  "baseicon_region": {
+    "x": 9,
+    "y": 1,
+    "width": 47,
+    "height": 46
+  },
+  "copyright_region": {
+    "x": 143,
+    "y": 513,
+    "width": 86,
+    "height": 10
+  }
+}

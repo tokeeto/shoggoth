@@ -1,6 +1,5 @@
 {
-  "default_template": "templates/Event-G.jp2",
-  "back_default_template": "templates/PlayerBack.jp2",
+  "name": "<name>",
   "name_region": {
     "x": 40,
     "y": 304,
@@ -9,13 +8,14 @@
   },
   "subtype_region": {
     "x": 86,
-    "y": 333,
+    "y": 334,
     "width": 203,
     "height": 15
   },
+  "label": "EVENT",
   "label_region": {
     "x": 21,
-    "y": 62,
+    "y": 63,
     "width": 36,
     "height": 14
   },
@@ -27,28 +27,19 @@
   },
   "body_region": {
     "x": 44,
-    "y": 348,
+    "y": 350,
     "width": 288,
     "height": 158
   },
-  "portrait_portrait_template": "default-portraits/DefaultTexture.jp2",
-  "portrait_portrait_pany": 0,
-  "portrait_portrait_clip_region": {
+  "portrait_clip_region": {
     "x": 0,
     "y": 0,
     "width": 375,
     "height": 288
   },
   "collection_portrait_template": "images/empty1x1.png",
-  "collection_portrait_pany": 0,
   "collection_portrait_clip_region": {
     "x": 319,
-    "y": 508,
-    "width": 13,
-    "height": 13
-  },
-  "defaultcollection_portrait_clip_region": {
-    "x": 320,
     "y": 508,
     "width": 13,
     "height": 13
