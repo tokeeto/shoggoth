@@ -355,9 +355,6 @@ class ShoggothApp(App):
             self.file_monitor.stop()
 
 if __name__ == '__main__':
-    from kivy.logger import Logger, LOG_LEVELS
-    Logger.setLevel(LOG_LEVELS["critical"])
-
     if args.view:
         # Start in viewer mode
         ViewerApp(args.view).run()

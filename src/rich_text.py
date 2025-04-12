@@ -1,5 +1,5 @@
 from time import time
-from PIL import Image, ImageTk, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 import os
 
 class RichTextRenderer:
@@ -149,7 +149,6 @@ class RichTextRenderer:
         return '<b>Revelation –</b>'
 
     def get_copy_field(self):
-        print('getting copy field', self.card_renderer.current_field)
         return self.card_renderer.current_opposite_side.get(self.card_renderer.current_field)
 
     def load_fonts(self, size):
@@ -198,8 +197,6 @@ class RichTextRenderer:
 
         # replacement tags
         for tag, func in self.replacement_tags.items():
-            if text == '<copy>':
-                print('replacing copy with', func())
             text = text.replace(tag, func())
 
 

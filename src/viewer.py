@@ -13,7 +13,6 @@ from project import Project
 from renderer import CardRenderer
 import json
 
-
 class ViewerRoot(BoxLayout):
     """Root widget for the Viewer mode"""
     def __init__(self, **kwargs):
@@ -114,7 +113,8 @@ class ViewerApp(App):
     def render_card(self, card, file_path=None):
         # Update card preview
         front_image, back_image = self.card_renderer.get_card_textures(card)
-        self.root.ids.front_preview.texture = front_image
+        target = self.root.ids.front_preview
+        target.texture = front_image
         self.root.ids.back_preview.texture = back_image
 
         # Update status

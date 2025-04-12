@@ -8,7 +8,6 @@ from encounter_set import EncounterSet
 
 defaults_root = 'assets/defaults'
 
-
 class Project:
     """ Class to handle project files
 

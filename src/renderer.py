@@ -1,6 +1,7 @@
 from time import time
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from kivy.graphics.texture import Texture
+from kivy.core.image import Image as kivy_img
 import os
 import json
 import re
@@ -9,6 +10,10 @@ from rich_text import RichTextRenderer
 import numpy as np
 
 from kivy.uix.image import CoreImage
+
+import logging
+logging.getLogger('PIL').setLevel(logging.WARNING)
+logging.getLogger('pillow').setLevel(logging.WARNING)
 
 LOCATION_COLORS = {
     'Circle': 10,
@@ -96,7 +101,6 @@ class CardRenderer:
 
     def pil_to_texture(self, pil_image):
         """Convert PIL image to Kivy texture"""
-        # Convert PIL image to bytes
         buffer = BytesIO()
         pil_image.save(buffer, format='png')
         buffer.seek(0)

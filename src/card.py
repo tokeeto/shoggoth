@@ -30,10 +30,8 @@ class Face:
         try:
             with open(defaults_path, 'r') as f:
                 self._fallback = json.load(f)
-                print(f'loaded fallback from {defaults_path}:', self._fallback)
             return self._fallback
         except Exception as e:
-            print(f'Error in defaults found for face type: {self.data["type"]}\n', e)
             return {}
 
     def __getitem__(self, key):
