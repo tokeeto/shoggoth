@@ -14,7 +14,7 @@ jobs:
               with:
                   python-version: "3.11"
             - run: pip install -r requirements.txt pyinstaller
-            - run: pyinstaller main.py --add-data "assets:assets" --add-data"src/viewer.kv:."
+            - run: pyinstaller src/main.py --onedir --name=Shoggoth --add-data="assets:assets" --add-data="src/viewer.kv:."
             - uses: actions/upload-artifact@v4
               with:
                   name: shoggoth-windows
