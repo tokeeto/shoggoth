@@ -15,7 +15,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements.txt pyinstaller
       - run: pyinstaller main.py --add-data "assets:assets" --add-data"src/viewer:."
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: shoggoth-windows
           path: dist/Shoggoth/
