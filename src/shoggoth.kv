@@ -1,3 +1,81 @@
+#:kivy 2.0.0
+#:import os os
+#:import ui ui
+#:import Factory kivy.factory.Factory
+
+<TextInput>
+    write_tab: False
+
+<DropDownButton@Button>:
+    size_hint_y: None
+    height: 30
+
+<ClassSelectDropdown@DropDown>:
+    DropDownButton:
+        text: 'guardian'
+        on_release: root.select_value(self.text)
+    DropDownButton:
+        text: 'seeker'
+        on_release: root.select_value(self.text)
+    DropDownButton:
+        text: 'rogue'
+        on_release: root.select_value(self.text)
+    DropDownButton:
+        text: 'survivor'
+        on_release: root.select_value(self.text)
+    DropDownButton:
+        text: 'mystic'
+        on_release: root.select_value(self.text)
+
+<FileChooserPopup>:
+    filechooser: filechooser
+    title: 'Select file'
+    size_hint: .7, .7
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        FileChooserListView:
+            id: filechooser
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.dismiss()
+
+            Button:
+                text: "Load"
+                on_release: root.select(filechooser.path, filechooser.selection[0])
+
+<FileSavePopup>:
+    title: 'Save file'
+    text_input: text_input
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        FileChooserListView:
+            id: filechooser
+            on_selection: text_input.text = self.selection[0] or ''
+
+        TextInput:
+            id: text_input
+            size_hint_y: None
+            height: 30
+            multiline: False
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.dismiss()
+            Button:
+                text: "Save"
+                on_release: root.select(filechooser.path, text_input.text)
+
 <CardPreview>:
     padding: '10dp'
     TabbedPanel:
@@ -8,35 +86,80 @@
             text: 'Front'
             Image:
                 id: front_preview
-                size_hint: None, None
-                size: '375dp', '524dp'  # Standard card size
 
         TabbedPanelItem:
             text: 'Back'
             Image:
                 id: back_preview
-                size_hint: None, None
-                size: '375dp', '524dp'  # Standard card size
-                canvas:
-                    Color:
-                        rgb: (1, 1, 1)
-                    Rectangle:
-                        texture: self.texture
-                        size: self.width, self.height
-                        pos: self.x, self.y
 
-<FileChooserPopup@Popup>:
-    title: 'Select Project Folder'
-    size_hint: 0.9, 0.9
+
+<NewProjectPopup@Popup>:
+    title: 'New Project'
+    size_hint: 0.75, 0.75
+    file_name: file_name
 
     BoxLayout:
         orientation: 'vertical'
 
-        FileChooserListView:
-            id: chooser
-            dirselect: False
-            filters: ['*']
-            path: '/home/toke/Documents/'
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: '32dp'
+
+            Label:
+                size_hint_x: 0.2
+                text: 'abbreviation'
+            TextInput:
+                size_hint_x: 0.8
+                id: code
+                value: 'xxx'
+
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: '32dp'
+            Label:
+                size_hint_x: 0.2
+                text: 'name'
+            TextInput:
+                size_hint_x: 0.8
+                id: name
+                value: ''
+
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: '32dp'
+            Label:
+                size_hint_x: 0.2
+                text: 'Icon'
+            TextInput:
+                size_hint_x: 0.6
+                id: icon
+                value: ''
+                disabled: True
+            Button:
+                size_hint_x: 0.2
+                text: 'Select icon'
+                on_release: ui.show_file_select(icon)
+
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: '32dp'
+            Label:
+                size_hint_x: 0.2
+                text: 'File name'
+            TextInput:
+                size_hint_x: 0.6
+                id: file_name
+                size_hint_y: None
+                height: 30
+                disabled: True
+            Button:
+                size_hint_x: 0.2
+                text: 'Save location'
+                on_release: ui.show_file_save(file_name)
 
         BoxLayout:
             size_hint_y: None
@@ -48,9 +171,8 @@
 
             Button:
                 text: 'Select'
-                on_release: root.select()
-#:kivy 2.0.0
-#:import os os
+                on_release: root.save()
+
 
 <TreeViewLabel>:
     full_path: ''
@@ -66,8 +188,10 @@
     orientation: 'vertical'
     canvas:
         Rectangle:
-            source: '/home/toke/Downloads/wooden-floor-background.jpg'
-            #source: '/home/toke/Downloads/dark_paper_background.jpg'
+            #source: 'assets/wooden-floor-background.jpg'
+            #source: 'assets/stars2.png'
+            source: 'assets/parchment2.png'
+            #source: 'assets/dark_paper_background.jpg'
             size: self.size
             pos: self.pos
 
@@ -82,6 +206,18 @@
             size_hint_x: None
             width: '120dp'
             on_release: app.open_project_dialog()
+
+        Button:
+            text: 'New Project'
+            size_hint_x: None
+            width: '120dp'
+            on_release: app.new_project_dialog()
+
+        Button:
+            text: 'Save all'
+            size_hint_x: None
+            width: '120dp'
+            on_release: app.save_changes()
 
         Label:
             text: 'Project: ' + (os.path.basename(app.project_path) if app.project_path else 'None')
@@ -194,15 +330,22 @@
             on_release: root.create()
 
 <NewCardPopup>:
+    title: 'Name of card'
     name: name
     error: error
+    size_hint: None, None
+    width: 400
+    height: 180
     BoxLayout:
         orientation: 'vertical'
-        Label:
-            id: error
-            text: ''
         TextInput:
             id: name
+        Label:
+            size_hint_y: None
+            height: 24 if self.text else 0
+            color: 1,.1,.1
+            id: error
+            text: ''
         Button:
             text: 'Create'
             on_release: root.create()
@@ -259,26 +402,26 @@
                     orientation: 'vertical'
 
                     TextEditLine:
-                        text: 'collection_icon'
-                        field: root.card.data.get('collection_icon', '')
+                        text: 'Name'
+                        field: 'name'
+                        object: root.card.data
                     TextEditLine:
-                        text: 'collection_number'
-                        field: root.card.data.get('collection_number', '')
-                    TextEditLine:
-                        text: 'encounter_set'
-                        field: root.card.data.get('encounter_set', '')
-                    TextEditLine:
-                        text: 'encounter_number'
-                        field: root.card.data.get('encounter_number', '')
+                        text: 'Amount in set'
+                        field: 'amount'
+                        object: root.card.data
+
 
         TabbedPanelItem:
             text: 'Front'
-            id: front_editor_container
+            ScrollView:
+                id: front_editor_container
         TabbedPanelItem:
             text: 'Back'
-            id: back_editor_container
+            ScrollView:
+                id: back_editor_container
 
 <TextEditLine@BoxLayout>:
+    input: input
     orientation: 'horizontal'
     text: ''
     field: ''
@@ -290,7 +433,8 @@
         width: 150
         text: root.text
     TextInput:
-        text: root.object.get(root.field) if root.object else 'No object'
+        id: input
+        text: str(root.object.get(root.field)) if root.object else 'No object'
         on_text: root.object.set(root.field, self.text)
 
 <TextEditArea@BoxLayout>:
@@ -314,25 +458,18 @@
 <FaceEditor>:
     orientation: 'vertical'
     spacing: 2
-    raw_text: raw_text
 
     TextEditLine:
         text: 'Type'
         object: root.face
         field: 'type'
-    TextInput:
-        id: raw_text
-        text: str(root.face.data) if root.face else 'No face'
-        multiline: True
-        size_hint_y: None
-        height: 200
-        on_text: root.update_data()
 
-
-<AssetEditor>:
+<-AssetEditor>:
     ScrollView:
-        BoxLayout:
-            orientation: 'vertical'
+        GridLayout:
+            cols: 1
+            size_hint_y: None
+            height: self.minimum_height
             spacing: 5
 
             TextEditLine:
@@ -347,10 +484,16 @@
 
             GridLayout:
                 cols: 2
-                TextEditLine:
-                    text: 'Class'
-                    field: 'class'
-                    object: root.face
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: 5
+                BoxLayout:
+                    orientation: 'horizontal'
+                    Label:
+                        text: 'Class'
+                    Button:
+                        text: root.face.get('class', '')
+                        on_release: ui.show_class_select(self, lambda x: root.face.set('class',x))
 
                 TextEditLine:
                     text: 'Icons'
@@ -379,18 +522,23 @@
                     field: 'sanity'
                     object: root.face
 
-                TextEditLine:
-                    text: 'Class'
-                    field: 'class'
-                    object: root.face
-
             TextEditLine:
                 text: 'Image'
-                field: 'portrait'
+                id: illustration_path
+                field: 'illustration'
                 object: root.face
+
+            Button:
+                size_hint_y: None
+                height: 30
+                text: 'Img'
+                on_release: ui.show_file_select(illustration_path.input)
 
             GridLayout:
                 cols: 2
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: 5
                 TextEditLine:
                     text: 'Pan X'
                     field: 'portrait_pan_x'

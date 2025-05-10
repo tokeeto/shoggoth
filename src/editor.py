@@ -3,6 +3,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.properties import ObjectProperty, StringProperty, DictProperty
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.floatlayout import FloatLayout
 from card import Card
 
 
@@ -87,7 +88,7 @@ class CardEditor(BoxLayout):
         pass
 
 
-class FaceEditor(BoxLayout):
+class FaceEditor(FloatLayout):
     face = ObjectProperty()
 
     def __init__(self, *args, **kwargs):

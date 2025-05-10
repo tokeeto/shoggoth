@@ -4,10 +4,13 @@
 
     BoxLayout:
         orientation: 'horizontal'
+        id: master_container
 
         # Front of card
         BoxLayout:
             orientation: 'vertical'
+            id: front_container
+
             Image:
                 id: front_preview
             Label:
@@ -18,6 +21,7 @@
         # Back of card
         BoxLayout:
             orientation: 'vertical'
+            id: back_container
 
             Image:
                 id: back_preview

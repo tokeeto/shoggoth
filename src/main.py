@@ -1,30 +1,36 @@
 from time import time
+
+# set KIVY_NO_ARGS before kivy loads
+import os
+os.environ["KIVY_NO_ARGS"] = "1"
+
 from kivy.config import Config
 from kivy.uix.colorpicker import ListProperty
 from project import Project
 from viewer import ViewerApp
 import sys
 
-# Parse command line arguments before Kivy initializes
 import argparse
 parser = argparse.ArgumentParser(description='Shoggoth Card Creator')
 parser.add_argument('-v', '--view', metavar='FILE', help='Open in viewer mode with specified file')
 args = parser.parse_args()
 
 # Set Kivy configuration
-if args.view:
+#if args.view:
     # Viewer mode - smaller window
-    Config.set('graphics', 'width', '800')
-    Config.set('graphics', 'height', '600')
-else:
+    #Config.set('graphics', 'width', '800')
+    #Config.set('graphics', 'height', '600')
+    ##else:
     # Normal mode - larger window
-    Config.set('graphics', 'width', '1700')
-    Config.set('graphics', 'height', '900')
+    #Config.set('graphics', 'width', '1700')
+    #Config.set('graphics', 'height', '900')
 
 Config.set('input', 'mouse', 'mouse,disable_multitouch')
-Config.set('kivy', 'log_enable', '0')
+#Config.set('kivy', 'log_enable', '0')
+Config.set('kivy', 'window_icon', 'assets/elder_sign_neon.ico')
 
 from kivy.app import App
+import kivy_garden.contextmenu
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.splitter import Splitter
 from kivy.uix.treeview import TreeView, TreeViewLabel
@@ -41,7 +47,7 @@ from kivy.core.window import Window
 from editor import CardEditor, EncounterEditor, ProjectEditor
 
 from kivy.logger import Logger, LOG_LEVELS
-Logger.setLevel(LOG_LEVELS["critical"])
+Logger.setLevel(LOG_LEVELS["debug"])
 
 import os
 import json
@@ -52,7 +58,7 @@ from file_monitor import FileMonitor
 from card import Card
 
 from kivy.storage.jsonstore import JsonStore
-
+from ui import show_file_select
 
 class ShogothRoot(BoxLayout):
     """Root widget for the Shoggoth application"""
@@ -62,15 +68,27 @@ class ShogothRoot(BoxLayout):
         Window.bind(on_key_down=self.on_keyboard)
 
     def on_keyboard(self, instance, keyboard, keycode, text, modifiers):
+        print('on keyboard', keycode, modifiers)
         # Handle keyboard shortcuts
-        if 'ctrl' in modifiers:
-            if keycode == 115:  # 's' key
-                App.get_running_app().save_current_card()
+        if keycode == 22:  # S
+            if modifiers == ['ctrl']:
+                f = App.get_running_app().save_changes
+                Clock.schedule_once(lambda x: f())
                 return True
-            elif keycode == 111:  # 'o' key
-                App.get_running_app().open_project_dialog()
+        if keycode == 8:  # E
+            if modifiers == ['ctrl']:
+                f = App.get_running_app().export_all
+                Clock.schedule_once(lambda x: f())
                 return True
-
+            else:
+                f = App.get_running_app().export_current
+                Clock.schedule_once(lambda x: f())
+                return True
+        if keycode == 18:  # O
+            if modifiers == ['ctrl']:
+                f = App.get_running_app().open_project_dialog
+                Clock.schedule_once(lambda x: f())
+                return True
         return False
 
 class FileBrowser(BoxLayout):
@@ -98,6 +116,8 @@ class FileBrowser(BoxLayout):
                 e_node = self.tree.add_node(TreeViewButton(text=encounter_set.name, element=encounter_set, element_type='encounter'), p_node)
                 for card in encounter_set.cards:
                     c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), e_node)
+            for card in file.cards:
+                c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), p_node)
 
     def on_tree_select(self, instance, node):
         if hasattr(node, 'full_path') and node.full_path.endswith('.json'):
@@ -124,25 +144,34 @@ class CardPreview(BoxLayout):
         self.ids.front_preview.texture = front_image
         self.ids.back_preview.texture = back_image
 
-class FileChooserPopup(Popup):
-    """Popup for selecting files/folders"""
-    def __init__(self, on_selection):
-        super().__init__()
-        self.on_selection = on_selection
 
-    def select(self, *args):
-        selected = self.ids.chooser.selection
+class NewProjectPopup(Popup):
+    """Popup for selecting files/folders"""
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def save(self):
+        data = Project.new(
+            self.ids.name.text,
+            self.ids.code.text,
+            self.ids.icon.text,
+        )
+        with open(self.ids.file_name.text, 'w') as file:
+            json.dump(data, file)
+
         self.dismiss()
-        self.on_selection(selected)
+        App.get_running_app().add_project_file(self.ids.file_name.text)
+
 
 class ShoggothApp(App):
     """Main application class for Shoggoth Card Creator"""
-    icon = '/home/toke/Pictures/elder_sign_neon.png'
     project_path = StringProperty("")
     current_card_path = StringProperty("")
     status_message = StringProperty("Ready")
 
     def build(self):
+        self.icon = 'assets/elder_sign_neon.ico'
         # Initialize main components
         self.storage = JsonStore('shoggoth.json')
         self.root = ShogothRoot()
@@ -168,20 +197,25 @@ class ShoggothApp(App):
 
         return self.root
 
+
     def open_project_dialog(self):
         """Show file chooser dialog to select project folder"""
-        self.file_chooser = FileChooserPopup(
-            on_selection=self.add_project_file
+        show_file_select(None, callback=self.add_project_file)
+
+    def new_project_dialog(self):
+        """Show popup to create new project"""
+        creation_dialog = NewProjectPopup(
+            callback=self.add_project_file
         )
-        self.file_chooser.open()
+        creation_dialog.open()
 
     def add_project_file(self, path):
         """Set the project path and initialize monitoring"""
         if not path:
             return
 
-        self.root.ids.file_browser.files.append(Project.load(path[0]))
-        self.storage.put('session', projects=self.storage.get('session')['projects']+[path[0]] )
+        self.root.ids.file_browser.files.append(Project.load(path))
+        self.storage.put('session', projects=self.storage.get('session')['projects']+[path] )
 
         self.status_message = f"Project opened: {os.path.basename(self.project_path)}"
         self.root.ids.status_bar.text = self.status_message
@@ -189,6 +223,10 @@ class ShoggothApp(App):
     def on_file_changed(self, file_path):
         """Handle file changes outside the editor"""
         self.load_file(self.current_card_path)
+
+    def save_changes(self):
+        for project in self.root.ids.file_browser.files:
+            project.save()
 
     def show_project(self, project):
         self.root.ids.editor_container.clear_widgets()
@@ -357,7 +395,10 @@ class ShoggothApp(App):
 if __name__ == '__main__':
     if args.view:
         # Start in viewer mode
-        ViewerApp(args.view).run()
+        app = ViewerApp(args.view)
+        app.run()
     else:
         # Start in normal mode
-        ShoggothApp().run()
+        app = ShoggothApp()
+        app.run()
+    print(app.get_application_icon())

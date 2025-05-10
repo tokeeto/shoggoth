@@ -1,35 +1,15 @@
 {
   "name": "<name>",
-  "name_rotation": 90,
-  "name_region": {
-    "x": 22,
-    "y": 110,
-    "width": 47,
-    "height": 226
+  "name_rotation": 180,
+  "name_region": { "x": 44, "y": 220, "width": 94, "height": 452 },
+  "name_font": {
+    "font": "title",
+    "size": 45,
+    "alignment": "center",
+    "rotation": 180
   },
-  "name_alignment": "center, middle",
-  "story_region": {
-    "x": 126,
-    "y": 39,
-    "width": 355,
-    "height": 316
-  },
-  "body_region": {
-    "x": 110,
-    "y": 39,
-    "width": 370,
-    "height": 316
-  },
-  "encounter_portrait_clip_region": {
-    "x": 27,
-    "y": 57,
-    "width": 36,
-    "height": 36
-  },
-  "scenarioindex_region": {
-    "x": 24,
-    "y": 32,
-    "width": 41,
-    "height": 16
-  }
+  "story_region": { "x": 252, "y": 78, "width": 710, "height": 632 },
+  "body_region": { "x": 220, "y": 78, "width": 740, "height": 632 },
+  "encounter_portrait_clip_region": { "x": 54, "y": 114, "width": 72, "height": 72 },
+  "scenarioindex_region": { "x": 48, "y": 64, "width": 82, "height": 32 }
 }

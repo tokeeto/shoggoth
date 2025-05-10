@@ -25,3 +25,14 @@ class EncounterSet:
 
     def add_card(self, card):
         self.data['cards'].append(card.data)
+
+    def assign_card_numbers(self):
+        current_number = 1
+        for card in self.cards:
+            amount = card.data.get('amount', 2)
+            if amount > 1:
+                card.data['encounter_number'] = f'{current_number}-{current_number+amount-1}'
+            else:
+                card.data['encounter_number'] = f'{current_number}'
+            current_number += amount
+        self.data['card_amount'] = current_number-1

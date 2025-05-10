@@ -1,72 +1,71 @@
 {
-  "ahlcg_weaknesstreachery_default_template": "ArkhamHorrorLCG/templates/AHLCG-WeaknessTreachery.jp2",
-  "ahlcg_weaknesstreacheryback_default_template": "ArkhamHorrorLCG/templates/AHLCG-PlayerBack.jp2",
-  "ahlcg_weaknesstreachery_subtype_region": {
-    "x": 88,
-    "y": 335,
-    "width": 200,
-    "height": 17
+    "name": "<name>",
+    "name_region": { "x": 78, "y": 622, "width": 598, "height": 80 },
+    "name_font": {
+        "font": "title",
+        "size": 45,
+        "alignment": "center"
+    },
+
+  "label": "TREACHERY",
+  "label_region": {"x": 274, "y": 577, "width": 208, "height": 40},
+  "label_font": {
+    "font": "bold",
+    "size": 24,
+    "alignment": "center"
   },
-  "ahlcg_weaknesstreachery_body_region": {
-    "x": 29,
-    "y": 357,
-    "width": 318,
-    "height": 145
+
+  "subtitle": "WEAKNESS",
+  "subtitle_region": {"x": 274, "y": 679, "width": 208, "height": 40},
+  "subtitle_font": {
+    "font": "bold",
+    "size": 24,
+    "alignment": "center"
   },
-  "ahlcg_weaknesstreachery_portrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
-  "ahlcg_weaknesstreachery_portrait_portrait_pany": 0,
-  "ahlcg_weaknesstreachery_portrait_portrait_clip_region": {
-    "x": 17,
-    "y": 0,
-    "width": 344,
-    "height": 298
+
+  "text": "",
+  "text_region": { "x": 60, "y": 760, "width": 636, "height": 320 },
+  "text_font": {
+      "font": "regular",
+      "size": 34,
+      "color": "black",
+      "alignment": "left"
   },
-  "ahlcg_weaknesstreachery_backportrait_portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
-  "ahlcg_weaknesstreachery_backportrait_portrait_pany": 0,
-  "ahlcg_weaknesstreachery_backportrait_portrait_clip_region": {
-    "x": 17,
-    "y": 0,
-    "width": 344,
-    "height": 298
+
+  "traits_region": { "x": 60, "y": 720, "width": 636, "height": 50 },
+  "traits_font": {
+    "font": "bolditalic",
+    "size": 32,
+    "alignment": "center"
   },
-  "ahlcg_weaknesstreachery_encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "ahlcg_weaknesstreachery_encounter_portrait_pany": 0,
-  "ahlcg_weaknesstreachery_encounter_portrait_clip_region": {
-    "x": 175,
-    "y": 254,
-    "width": 28,
-    "height": 28
+
+  "illustration_region": { "x": 34, "y": 0, "width": 688, "height": 596 },
+  "encounter_portrait_clip_region": { "x": 350, "y": 508, "width": 56, "height": 56 },
+
+  "illustrator": "",
+  "illustrator_region": {"x": 42, "y": 1035, "width": 663, "height": 35},
+  "illustrator_font": {
+      "font": "bold",
+      "size": 20,
+      "color": "white",
+      "alignment": "left"
   },
-  "ahlcg_weaknesstreachery_returnencounter_portrait_clip_region": {
-    "x": 171,
-    "y": 250,
-    "width": 36,
-    "height": 33
+
+  "copyright": "",
+  "copyright_region": {"x": 42, "y": 1035, "width": 663, "height": 35},
+  "copyright_font": {
+      "font": "bold",
+      "size": 20,
+      "color": "white",
+      "alignment": "center"
   },
-  "ahlcg_weaknesstreachery_collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "ahlcg_weaknesstreachery_collection_portrait_pany": 0,
-  "ahlcg_weaknesstreachery_defaultcollection_portrait_clip_region": {
-    "x": 319,
-    "y": 510,
-    "width": 13,
-    "height": 13
-  },
-  "ahlcg_weaknesstreachery_collection_portrait_clip_region": {
-    "x": 319,
-    "y": 510,
-    "width": 13,
-    "height": 13
-  },
-  "ahlcg_weaknesstreachery_basicweakness_region": {
-    "x": 156,
-    "y": 243,
-    "width": 66,
-    "height": 41
-  },
-  "ahlcg_weaknesstreachery_basicweaknessicon_region": {
-    "x": 175,
-    "y": 253,
-    "width": 28,
-    "height": 28
+
+  "collection": "<exi> <exn>",
+  "collection_region": {"x": 42, "y": 1035, "width": 663, "height": 35},
+  "collection_font": {
+      "font": "bold",
+      "size": 20,
+      "color": "white",
+      "alignment": "right"
   }
 }

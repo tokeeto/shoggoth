@@ -2,4 +2,6 @@
 /venv/
 /shoggoth.json
 /build/
-/dist/
+/dist*
+*.sublime-project
+*.sublime-workspace

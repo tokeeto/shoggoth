@@ -1,6 +1,36 @@
 from time import time
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
 import os
+import numpy as np
+import re
+
+
+ImageDraw.fontmode = 'L'
+#ImageDraw.fontmode = "1"
+image_regex = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
+tag_value_pattern = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
+
+
+def parse_tag_attributes(tag_string):
+    # This regex finds key="value" pairs
+    return dict(re.findall(tag_value_pattern, tag_string))
+
+
+def recolor_icon(icon, color):
+    data = np.array(icon)
+    red, green, blue, alpha = data.T
+    black_areas = (red == 0) & (blue == 0) & (green == 0)
+    data[..., :-1][black_areas.T] = ImageColor.getcolor(color, "RGB") # Transpose back needed
+    return Image.fromarray(data)
+
+
+def invert_icon(icon):
+    alpha = icon.getchannel('A')
+    icon = icon.convert('RGB')
+    icon = ImageOps.invert(icon)
+    icon.putalpha(alpha)
+    return icon
+
 
 class RichTextRenderer:
     def __init__(self, card_renderer):
@@ -35,6 +65,11 @@ class RichTextRenderer:
             '<for>': self.get_forced_template,
             '<rev>': self.get_revelation_template,
             '<copy>': self.get_copy_field,
+            '<exi>': self.get_expansion_icon,
+            '<exn>': self.get_expansion_number,
+            '<esn>': self.get_set_number,
+            '<est>': self.get_set_total,
+            '<esi>': self.get_set_icon,
         }
 
         # Define font-based icon tags and their corresponding characters
@@ -84,15 +119,14 @@ class RichTextRenderer:
 
         # Define image-based icon tags and their corresponding image paths
         self.image_icon_tags = {
-            '<set core>': 'sets/core',
-            '<set dunwich>': 'sets/dunwich_legacy',
-            '<set carcosa>': 'sets/path_to_carcosa',
-            '<set forgotten>': 'sets/the_forgotten_age',
-            '<set circle>': 'sets/circle_undone',
-            '<set dream>': 'sets/dream_eaters',
-            '<set innsmouth>': 'sets/innsmouth_conspiracy',
-            '<set scarlet>': 'sets/scarlet_keys',
-            '<wild>': 'icons/wild'  # Some icons might be better as images
+            '<set core>': 'icons/AHLCG-CoreSet',
+            '<set dunwich>': 'icons/AHLCG-TheDunwichLegacy',
+            '<set carcosa>': 'icons/AHLCG-ThePathToCarcosa',
+            '<set forgotten>': 'icons/AHLCG-TheForgottenAge',
+            '<set circle>': 'icons/AHLCG-TheCircleUndone',
+            '<set dream>': 'icons/AHLCG-DreamEaters',
+            '<set innsmouth>': 'icons/AHLCG-TheInnsmouthConspiracy',
+            '<set scarlet>': 'icons/AHLCG-TheScarletKeys',
         }
 
         # Font configurations
@@ -118,23 +152,23 @@ class RichTextRenderer:
                 'fallback': None
             },
             'icon': {
-                'path': "assets/fonts/AHLCGSymbol.ttf",  # Special icon font
-                'scale': 0.8,
+                'path': "assets/fonts/AHLCGSymbol.otf",
+                'scale': 1,
                 'fallback': None
             },
             'cost': {
-                'path': "assets/fonts/Arkhamic.ttf",  # Special icon font
-                'scale': 2,
+                'path': "assets/fonts/Arkhamic.ttf",
+                'scale': 1,
                 'fallback': None
             },
             'title': {
-                'path': "assets/fonts/Arkhamic.ttf",  # Special icon font
-                'scale': 2,
+                'path': "assets/fonts/Arkhamic.ttf",
+                'scale': 1,
                 'fallback': None
             },
             'skill': {
-                'path': "assets/fonts/Bolton.ttf",  # Special icon font
-                'scale': 2,
+                'path': "assets/fonts/Bolton.ttf",
+                'scale': 1,
                 'fallback': None
             }
         }
@@ -151,21 +185,30 @@ class RichTextRenderer:
     def get_copy_field(self):
         return self.card_renderer.current_opposite_side.get(self.card_renderer.current_field)
 
+    def get_expansion_icon(self):
+        return f'<image src="{self.card_renderer.current_card.expansion.icon}">'
+
+    def get_expansion_number(self):
+        return str(self.card_renderer.current_card.expansion_number)
+
+    def get_set_number(self):
+        return str(self.card_renderer.current_card.encounter_number)
+
+    def get_set_total(self):
+        if not self.card_renderer.current_card.encounter:
+            return ''
+        return str(self.card_renderer.current_card.encounter.get('card_amount', '?'))
+
+    def get_set_icon(self):
+        if not self.card_renderer.current_card.encounter:
+            return ''
+        return f'<image src="{self.card_renderer.current_card.encounter.icon}">'
+
     def load_fonts(self, size):
         """Load all fonts at the specified size"""
         loaded_fonts = {}
         for font_type, font_info in self.fonts.items():
-            try:
-                loaded_fonts[font_type] = ImageFont.truetype(font_info['path'], size * font_info['scale'])
-            except IOError:
-                # Use fallback if specified, otherwise default
-                if font_info['fallback']:
-                    try:
-                        loaded_fonts[font_type] = ImageFont.truetype(font_info['fallback'], size)
-                    except IOError:
-                        loaded_fonts[font_type] = ImageFont.load_default()
-                else:
-                    loaded_fonts[font_type] = ImageFont.load_default()
+            loaded_fonts[font_type] = ImageFont.truetype(font_info['path'], size * font_info['scale'])
         return loaded_fonts
 
     def load_icon(self, icon_path, height):
@@ -173,11 +216,15 @@ class RichTextRenderer:
         if (icon_path, height) in self.icon_cache:
             return self.icon_cache[(icon_path, height)]
 
-        full_path = f"assets/{icon_path}.png"
-        if not os.path.exists(full_path):
-            return None
+        if os.path.exists(icon_path):
+            full_path = icon_path
+        else:
+            full_path = f"assets/{icon_path}.png"
+            if not os.path.exists(full_path):
+                return None
 
         try:
+            height *= 1
             icon = Image.open(full_path).convert("RGBA")
             # Maintain aspect ratio
             aspect_ratio = icon.width / icon.height
@@ -198,7 +245,6 @@ class RichTextRenderer:
         # replacement tags
         for tag, func in self.replacement_tags.items():
             text = text.replace(tag, func())
-
 
         # Find all special tags or icons
         while current_pos < len(text):
@@ -258,6 +304,20 @@ class RichTextRenderer:
             if image_icon_match:
                 continue
 
+            # image tag
+            if match := image_regex.match(text[current_pos:]):
+                tag = match[0]
+                attributes = parse_tag_attributes(tag)
+                print('found an image: ', tag, 'with attributes', attributes)
+                if 'src' in attributes:
+                    tokens.append({
+                        'type': 'image_icon',
+                        'value': attributes.get('src'),
+                    })
+                    print('appended an image icon')
+                current_pos += len(tag)
+                continue
+
             # Check for newlines
             if text[current_pos:].startswith('\n'):
                 tokens.append({
@@ -303,7 +363,7 @@ class RichTextRenderer:
 
         return tokens
 
-    def render_text(self, image, text, region, polygon=None, alignment='left', min_font_size=10, font=None, outline=0, outline_fill=None, fill='black'):
+    def render_text(self, image, text, region, polygon=None, alignment='left', font_size=16, min_font_size=10, font=None, outline=0, outline_fill=None, fill='#231f20'):
         """
         Render rich text with specified alignment and automatic font size reduction.
 
@@ -313,6 +373,7 @@ class RichTextRenderer:
             region: Dictionary with x, y, width, height of text region
             polygon: Optional list of points defining text boundary
             alignment: Text alignment - 'left', 'center', or 'right'
+            font_size: Initial font size
             min_font_size: Minimum font size when auto-reducing
             font: The initial font
         """
@@ -326,7 +387,7 @@ class RichTextRenderer:
         self.min_font_size = min_font_size
 
         # Try rendering with progressively smaller font sizes until it fits
-        current_size = 16  # Start with default size
+        current_size = font_size  # Start with default size
         best_size = None
 
         # Create a temporary image with same size to test text fitting
@@ -350,7 +411,7 @@ class RichTextRenderer:
 
             current_size -= 1
 
-    def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='black'):
+    def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20'):
         """
         Attempt to render text at the specified font size.
         Returns True if rendering succeeded, False if text doesn't fit.
@@ -373,7 +434,7 @@ class RichTextRenderer:
 
         # Word wrapping data
         current_line = []
-        line_height = int(font_size * 1.3)  # Line height with spacing
+        line_height = int(font_size * 1.34)  # Line height with spacing
         current_line_width = 0
 
         # Keep track of whether we're going to overflow
@@ -440,7 +501,7 @@ class RichTextRenderer:
                 return x
             elif token['type'] == 'image_icon':
                 icon = self.load_icon(token['value'], font_size)
-                return icon.width if icon else 0
+                return icon.width//1 if icon else 0
             return 0
 
         def get_line_width(line):
@@ -466,12 +527,18 @@ class RichTextRenderer:
             else:  # left alignment
                 return x
 
-        def render_line(line, y_pos):
+        def render_line(line, y_pos, run_on_line=True):
             """Render a line of tokens with proper alignment"""
             x_pos = get_line_start_x(line, y_pos)
 
             if not line:
                 return
+
+            # remove spaces on newlines, if exactly 1, and it's a
+            # continued line.
+            if run_on_line and line[0]['type'] == 'text':
+                if line[0]['value'] == ' ':
+                    line = line[1:]
 
             for token in line:
                 if token['type'] == 'format':
@@ -503,8 +570,9 @@ class RichTextRenderer:
                     icon = self.load_icon(token['value'], font_size)
                     if icon:
                         # Center the icon vertically with text
+                        icon = invert_icon(icon)
                         icon_y = y_pos - (icon.height - font_size) // 2
-                        image.paste(icon, (x_pos, icon_y), icon)
+                        image.paste(icon, (int(x_pos), int(icon_y)), icon)
                         x_pos += icon.width
 
 

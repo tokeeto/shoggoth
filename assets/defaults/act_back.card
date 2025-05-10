@@ -1,50 +1,20 @@
 {
   "name": "<name>",
-  "name_region": {
-    "x": 22,
-    "y": 110,
-    "width": 47,
-    "height": 226
+  "name_region": { "x": 44, "y": 220, "width": 94, "height": 452 },
+  "name_font": {
+    "rotation": 180,
+    "font": "title",
+    "size": 45,
+    "alignment": "center"
   },
-  "name_alignment": "center, middle",
-  "story_region": {
-    "x": 126,
-    "y": 39,
-    "width": 355,
-    "height": 316
-  },
-  "body_region": {
-    "x": 110,
-    "y": 39,
-    "width": 370,
-    "height": 316
-  },
-  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "encounter_portrait_pany": 0,
-  "encounter_portrait_clip_region": {
-    "x": 27,
-    "y": 57,
-    "width": 36,
-    "height": 36
-  },
-  "encounternumber_region": {
-    "x": 195,
-    "y": 361,
-    "width": 55,
-    "height": 10
-  },
-  "collectionnumber_region": {
-    "x": 266,
-    "y": 361,
-    "width": 37,
-    "height": 10
-  },
-  "scenarioindex_region": {
-    "x": 22,
-    "y": 33,
-    "width": 45,
-    "height": 16
-  },
-  "dash_tint": "38.0, 0.14, 1.0",
-  "name_rotation": 90
+  
+  "story_region": { "x": 252, "y": 78, "width": 710, "height": 632 },
+  
+  "body_region": { "x": 220, "y": 78, "width": 740, "height": 632 },
+  
+  "encounter_portrait_clip_region": { "x": 54, "y": 114, "width": 72, "height": 72 },
+  "encounternumber_region": { "x": 390, "y": 722, "width": 110, "height": 20 },
+  "collectionnumber_region": { "x": 532, "y": 722, "width": 74, "height": 20 },
+  
+  "scenarioindex_region": { "x": 44, "y": 66, "width": 90, "height": 32 }
 }

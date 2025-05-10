@@ -5,7 +5,7 @@ a = Analysis(
     ['src/main.py'],
     pathex=[],
     binaries=[],
-    datas=[('assets', 'assets'), ('src/viewer.kv', './')],
+    datas=[('assets', 'assets'), ('src/viewer.kv', './'), ('src/shoggoth.kv', './')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

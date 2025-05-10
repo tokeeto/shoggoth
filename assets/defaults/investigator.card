@@ -1,126 +1,93 @@
 {
-  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Investigator-G.jp2",
-  "name_region": {
-    "x": 48,
-    "y": 10,
-    "width": 212,
-    "height": 27
+  "name": "<unique><name>",
+  "name_region": { "x": 96, "y": 20, "width": 424, "height": 72 },
+  "name_font": {
+      "font": "title",
+      "size": 45,
+      "alignment": "center"
   },
-  "subtitle_region": {
-    "x": 72,
-    "y": 42,
-    "width": 175,
-    "height": 20
+  
+  "subtitle_region": { "x": 144, "y": 86, "width": 350, "height": 50 },
+  "subtitle_font": {
+    "font": "bold",
+    "alignment": "center",
+    "size": 28
   },
-  "subtitle_alignment": "center, middle",
-  "subtype_region": {"x": 307, "y": 75, "width": 200, "height": 20},
-  "body_region": {
-    "x": 307,
-    "y": 95,
-    "width": 200,
-    "height": 218
+
+  "text_region": { "x": 614, "y": 190, "width": 400, "height": 436 },
+  "text_font": {
+    "font": "regular",
+    "size": 32,
+    "alignment": "left"
+    },
+
+  "traits_region": {"x": 614, "y": 154, "width": 430, "height": 50},
+  "traits_font": {
+        "font": "bolditalic",
+        "size": 32,
+        "alignment": "center"
+    },
+  
+  "subtype_region": {"x": 614, "y": 150, "width": 400, "height": 40}, "body_region": { "x": 614, "y": 190, "width": 400, "height": 436 },
+  
+  "illustration_region": { "x": 0, "y": 120, "width": 560, "height": 630 },
+    
+  "willpower_region": { "x": 574, "y": 38, "width": 60, "height": 60 },
+  "willpower_font": { "font": "skill", "size": 45, "alignment": "center" },
+
+  "intellect_region": { "x": 693, "y": 38, "width": 60, "height": 60 },
+  "intellect_font": { "font": "skill", "size": 45, "alignment": "center" },
+  
+  "combat_region": { "x": 817, "y": 38, "width": 60, "height": 60 },
+  "combat_font": { "font": "skill", "size": 45, "alignment": "center" },
+  
+  "agility_region": { "x": 936, "y": 38, "width": 60, "height": 60 },
+  "agility_font": { "font": "skill", "size": 45, "alignment": "center" },
+    
+  "stamina_region": { "x": 732, "y": 624, "width": 60, "height": 80 },
+  "stamina_font": { 
+    "font": "skill", 
+    "size": 45, 
+    "color": "white",
+    "outline": 2,
+    "outline_color": "#cb270d",
+    "alignment": "center" 
   },
-  "portrait_template": "",
-  "portrait_pany": 0,
-  "portrait_clip_region": {
-    "x": 0,
-    "y": 60,
-    "width": 280,
-    "height": 315
+
+  "sanity_region": { "x": 828, "y": 624, "width": 100, "height": 80 },
+  "sanity_font": { 
+    "font": "skill", 
+    "size": 45, 
+    "color": "white",
+    "outline": 2,
+    "outline_color": "#1c2b48",
+    "alignment": "center" 
   },
-  "encounterportrait_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "encounterportrait_portrait_pany": 0,
-  "defaultencounter_portrait_clip_region": {
-    "x": 11,
-    "y": 12,
-    "width": 28,
-    "height": 28
+
+  "illustrator": "",
+  "illustrator_region": {"x": 576, "y": 726, "width": 461, "height": 35},
+  "illustrator_font": {
+      "font": "bold",
+      "size": 20,
+      "color": "white",
+      "alignment": "left"
   },
-  "encounter_portrait_clip_region": {
-    "x": 11,
-    "y": 12,
-    "width": 28,
-    "height": 28
+
+  "copyright": "",
+  "copyright_region": {"x": 576, "y": 726, "width": 461, "height": 35},
+  "copyright_font": {
+      "font": "bold",
+      "size": 20,
+      "color": "white",
+      "alignment": "center"
   },
-  "defaultreturnencounter_portrait_clip_region": {
-    "x": 8,
-    "y": 8,
-    "width": 33,
-    "height": 33
-  },
-  "returnencounter_portrait_clip_region": {
-    "x": 8,
-    "y": 8,
-    "width": 33,
-    "height": 33
-  },
-  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "collection_portrait_pany": 0,
-  "defaultcollection_portrait_clip_region": {
-    "x": 476,
-    "y": 360,
-    "width": 13,
-    "height": 13
-  },
-  "collection_portrait_clip_region": {
-    "x": 476,
-    "y": 360,
-    "width": 13,
-    "height": 13
-  },
-  "willpower_region": {
-    "x": 291,
-    "y": 19,
-    "width": 16,
-    "height": 22
-  },
-  "intellect_region": {
-    "x": 351,
-    "y": 19,
-    "width": 16,
-    "height": 22
-  },
-  "combat_region": {
-    "x": 412,
-    "y": 19,
-    "width": 16,
-    "height": 22
-  },
-  "agility_region": {
-    "x": 473,
-    "y": 19,
-    "width": 16,
-    "height": 22
-  },
-  "skill_alignment": "center, middle",
-  "stamina_region": {
-    "x": 366,
-    "y": 312,
-    "width": 31,
-    "height": 40
-  },
-  "sanity_region": {
-    "x": 414,
-    "y": 310,
-    "width": 43,
-    "height": 35
-  },
-  "artist_region": {
-    "x": 288,
-    "y": 363,
-    "width": 102,
-    "height": 10
-  },
-  "copyright_region": {
-    "x": 376,
-    "y": 363,
-    "width": 80,
-    "height": 10
-  },
-  "collectionnumber_region": {
-    "x": 472,
-    "y": 363,
-    "width": 37,
-    "height": 10
+
+  "collection": "<exi> <exn>",
+  "collection_region": {"x": 576, "y": 726, "width": 461, "height": 35},
+  "collection_font": {
+      "font": "bold",
+      "size": 20,
+      "color": "white",
+      "alignment": "right"
   }
 }

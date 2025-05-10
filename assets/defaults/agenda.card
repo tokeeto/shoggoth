@@ -1,75 +1,49 @@
 {
   "name": "<name>",
-  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Agenda.jp2",
-  "name_region": {
-    "x": 255,
-    "y": 55,
-    "width": 250,
-    "height": 44
+  "name_region": { "x": 510, "y": 110, "width": 500, "height": 88 },
+  "name_font": {
+    "font": "title",
+    "size": 45,
+    "alignment": "center"
   },
-  "body_region": {
-    "x": 250,
-    "y": 100,
-    "width": 264,
-    "height": 237
+
+  "text_region": { "x": 500, "y": 200, "width": 528, "height": 474 },
+  "text_font": {
+    "font": "regular",
+    "size": 34,
+    "alignment": "left"
   },
-  "portrait_clip_region": {
-    "x": 0,
-    "y": 0,
-    "width": 305,
-    "height": 375
-  },
-  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "encounter_portrait_pany": 0,
-  "encounter_portrait_clip_region": {
-    "x": 366,
-    "y": 23,
-    "width": 32,
-    "height": 32
-  },
-  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "collection_portrait_pany": 0,
-  "collection_portrait_clip_region": {
-    "x": 476,
-    "y": 358,
-    "width": 13,
-    "height": 13
-  },
-  "encounternumber_region": {
-    "x": 401,
-    "y": 361,
-    "width": 55,
-    "height": 10
-  },
-  "collectionnumber_region": {
-    "x": 472,
-    "y": 361,
-    "width": 37,
-    "height": 10
-  },
+
+  "illustration_region": { "x": 0, "y": 0, "width": 610, "height": 750 },
+  
+  "encounter_portrait_clip_region": { "x": 732, "y": 46, "width": 64, "height": 64 },
+  
   "scenarioindex_region": {
-    "x": 314,
-    "y": 8,
-    "width": 134,
-    "height": 21
+    "x": 628,
+    "y": 16,
+    "width": 268,
+    "height": 42
   },
-  "doom_region": {
-    "x": 233,
-    "y": 302,
-    "width": 50,
-    "height": 50
+  
+  "doom_region": { "x": 466, "y": 614, "width": 100, "height": 100 },
+  "doom_font": {
+    "font": "skill",
+    "size": 45,
+    "color": "white",
+    "outline": 2,
+    "outline_color": "#231f20",
+    "alignment": "center"
   },
-  "dash_tint": "38.0, 0.14, 1.0",
-  "artist_region": {
-    "x": 220,
-    "y": 363,
-    "width": 120,
-    "height": 10
-  },
-  "copyright_region": {
-    "x": 322,
-    "y": 363,
-    "width": 80,
-    "height": 10
-  }
+
+  "illustrator": "",
+  "illustrator_region": {"x": 506, "y": 715, "width": 531, "height": 35},
+  "illustrator_font": { "font": "bold", "size": 20, "color": "white", "alignment": "left" },
+
+  "copyright": "",
+  "copyright_region": {"x": 506, "y": 715, "width": 531, "height": 35},
+  "copyright_font": { "font": "bold", "size": 20, "color": "white", "alignment": "center" },
+
+  "collection": "<esn>/<est>        <exi> <exn>",
+  "collection_region": {"x": 506, "y": 715, "width": 531, "height": 35},
+  "collection_font": { "font": "bold", "size": 20, "color": "white", "alignment": "right" }
 }

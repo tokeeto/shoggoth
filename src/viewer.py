@@ -13,14 +13,40 @@ from project import Project
 from renderer import CardRenderer
 import json
 
+
 class ViewerRoot(BoxLayout):
     """Root widget for the Viewer mode"""
+    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         Window.bind(on_key_down=self.on_keyboard)
+        self.shown = 'both'
+        self._back_container = self.ids.back_container
+        self._front_container = self.ids.front_container
+
+    def toggle_shown(self, target='both'):
+        if target == 'front':
+            if not self._front_container.parent:
+                self.ids.master_container.add_widget(self._front_container)
+            if self._back_container.parent:
+                self.ids.master_container.remove_widget(self._back_container)
+            self.shown = 'front'
+        if target == 'back':
+            if not self._back_container.parent:
+                self.ids.master_container.add_widget(self._back_container)
+            if self._front_container.parent:
+                self.ids.master_container.remove_widget(self._front_container)
+            self.shown = 'back'
+        if target == 'both':
+            if not self._front_container.parent:
+                self.ids.master_container.add_widget(self._front_container)
+            if not self._back_container.parent:
+                self.ids.master_container.add_widget(self._back_container)
+            self.shown = 'both'
+
 
     def on_keyboard(self, instance, keyboard, keycode, text, modifiers):
-        print('on keyboard', keycode, modifiers)
+        print('on keyboard', keycode, modifiers, text)
         # Handle keyboard shortcuts
         if keycode == 27:  # Esc key
             App.get_running_app().stop()
@@ -30,6 +56,18 @@ class ViewerRoot(BoxLayout):
             return True
         if keycode == 79:  # right
             App.get_running_app().select_card(1)
+            return True
+        if text == 'n':  # right
+            App.get_running_app().number_cards()
+            return True
+        if text == 's' and 'ctrl' in modifiers:  # right
+            App.get_running_app().save_all()
+            return True
+        if text == 'f':  # right
+            if 'shift' in modifiers:
+                App.get_running_app().toggle_faces_shown()
+                return True
+            App.get_running_app().flip_card()
             return True
         if keycode == 8:
             if modifiers == ['ctrl']:
@@ -51,9 +89,8 @@ class ViewerApp(App):
 
     def build(self):
         # Set window title and size
-        self.icon = '/home/toke/Documents/elder_sign_neon.png'
-        self.title = f"Shoggoth Card Viewer - {os.path.basename(self.file_path)}"
-        Window.size = (800, 600)
+        self.icon = 'assets/elder_sign_neon.ico'
+        self.title = f"Shoggoth - {os.path.basename(self.file_path)}"
 
         # Initialize the root widget
         self.root = ViewerRoot()
@@ -121,6 +158,10 @@ class ViewerApp(App):
         if file_path:
             self.status_message = f"Loaded: {os.path.basename(file_path)} (Last modified: {os.path.getmtime(file_path)})"
 
+    def number_cards(self):
+        self.cards[self.card_index].expansion.assign_card_numbers()
+        self.status_message = f"Updated card numbers {time()}"
+
     def load_file(self, file_path):
         """Load a card from file and update the UI"""
         if not file_path or not os.path.exists(file_path):
@@ -149,6 +190,9 @@ class ViewerApp(App):
         except Exception as e:
             self.status_message = f"Error loading file: {str(e)}"
 
+    def save_all(self):
+        self.cards[self.card_index].expansion.save()
+
     def on_stop(self):
         """Clean up when the application stops"""
         if self.file_monitor:
@@ -163,7 +207,6 @@ class ViewerApp(App):
         self.card_renderer.export_card_images(card, export_folder)
         print(f'Export of {card.name} cards done in {time()-t} seconds')
 
-
     def export_all(self):
         export_folder = os.path.join(os.path.dirname(self.file_path), f'export_of_{os.path.basename(self.file_path).split(".")[1]}')
         if not os.path.exists(export_folder):
@@ -172,3 +215,14 @@ class ViewerApp(App):
         for card in self.cards:
             self.card_renderer.export_card_images(card, export_folder)
         print(f'Export of {len(self.cards)} cards done in {time()-t} seconds')
+
+    def toggle_faces_shown(self):
+        if self.root.shown == 'both':
+            self.root.toggle_shown('front')
+        else:
+            self.root.toggle_shown('both')
+        print(self.root.shown)
+
+    def flip_card(self):
+        self.root.toggle_shown('back' if self.root.shown == 'front' else 'front')
+        print(self.root.shown)

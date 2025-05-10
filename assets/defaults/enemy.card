@@ -1,160 +1,173 @@
 {
-  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Enemy.jp2",
-  "name_region": {"x": 62, "y": 5, "width": 252, "height": 27},
-  "subtitletext_region": {"x": 40,"y": 32,"width": 293,"height": 20},
-  "label_region": {"x": 156,"y": 308,"width": 61,"height": 18},
-  "label": "ENEMY",
-  "body_region": {"x": 50, "y": 128, "width": 338, "height": 165},
-  "subtype_region": {"x": 30, "y": 108,"width": 330,"height": 30},
-  "portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
-  "portrait_pany": 0,
-  "portrait_clip_region": {
-    "x": 0,
-    "y": 241,
-    "width": 375,
-    "height": 284
-  },
-  "encounter_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "encounter_portrait_pany": 0,
-  "encounter_portrait_clip_region": {
-    "x": 174,
-    "y": 274,
-    "width": 28,
-    "height": 28
-  },
-  "defaultencounter_portrait_clip_region": {
-    "x": 174,
-    "y": 274,
-    "width": 28,
-    "height": 28
-  },
-  "returnencounter_portrait_clip_region": {
-    "x": 169,
-    "y": 270,
-    "width": 37,
-    "height": 33
-  },
-  "collectionportrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "collectionportrait_pany": 0,
-  "collection_portrait_clip_region": {
-    "x": 320,
-    "y": 510,
-    "width": 13,
-    "height": 13
-  },
-  "attack_region": {
-    "x": 106,
-    "y": 56,
-    "width": 26,
-    "height": 27
-  },
-  "attackperinv_region": {
-    "x": 102,
-    "y": 51,
-    "width": 24,
-    "height": 27
-  },
-  "attackperinvicon_region": {
-    "x": 121,
-    "y": 56,
-    "width": 14,
-    "height": 14
-  },
-  "evade_region": {
-    "x": 246,
-    "y": 56,
-    "width": 26,
-    "height": 27
-  },
-  "evadeperinv_region": {
-    "x": 242,
-    "y": 51,
-    "width": 24,
-    "height": 27
-  },
-  "evadeperinvicon_region": {
-    "x": 261,
-    "y": 56,
-    "width": 14,
-    "height": 14
-  },
-  "health_region": {
-    "x": 163,
-    "y": 51,
-    "width": 50,
-    "height": 35
-  },
-  "healthperinv_region": {
-    "x": 169,
-    "y": 45,
-    "width": 27,
-    "height": 35
-  },
-  "healthperinvicon_region": {
-    "x": 190,
-    "y": 52,
-    "width": 17,
-    "height": 17
-  },
+    "name": "<name>",
+    "name_region": {"x": 124, "y": 10, "width": 504, "height": 100},
+    "name_font": {
+        "font": "title",
+        "size": 45,
+        "alignment": "center"
+    },
+
+    "subtitle": "",
+    "subtitle_region": {"x": 80, "y": 64, "width": 586, "height": 60},
+    "subtitle_font": {
+        "size": 24,
+        "outline_color": null,
+        "alignment": "center"
+    },
+
+    "label": "ENEMY",
+    "label_region": {"x": 312, "y": 616,"width": 122,"height": 50},
+    "label_font": {
+        "font": "regular",
+        "size": 24,
+        "alignment": "center"
+    },
+
+    "text": "",
+    "text_region": {"x": 100, "y": 256, "width": 676, "height": 330},
+    "text_font": {
+        "font": "regular",
+        "size": 34,
+        "alignment": "left"
+    },
+
+    "traits": "",
+    "traits_region": {"x": 60, "y": 216, "width": 660,"height": 60},
+    "traits_font": {
+        "font": "bolditalic",
+        "size": 32,
+        "alignment": "center"
+    },
+
+    "illustration_region": {
+        "x": 0,
+        "y": 482,
+        "width": 750,
+        "height": 568
+    },
+
+    "encounter_portrait_clip_region": {
+        "x": 348,
+        "y": 548,
+        "width": 56,
+        "height": 56
+    },
+
+    "attack_region": {"x": 216, "y": 118, "width": 52, "height": 90},
+    "attack_font": {
+        "font": "cost",
+        "size": 60,
+        "color": "white",
+        "alignment": "center",
+        "outline": 2,
+        "outline_color": "#231f20"
+    },
+
+    "evade_region": { "x": 492, "y": 118, "width": 52, "height": 90 },
+    "evade_font": {
+        "font": "cost",
+        "size": 60,
+        "color": "white",
+        "alignment": "center",
+        "outline": 2,
+        "outline_color": "#231f20"
+    },
+
+    "health_region": {"x": 326, "y": 112, "width": 100, "height": 90 },
+    "health_font": {
+        "font": "cost",
+        "size": 60,
+        "color": "white",
+        "alignment": "center",
+        "outline": 2,
+        "outline_color": "#231f20"
+    },
+
   "damage1_region": {
-    "x": 132,
-    "y": 284,
-    "width": 19,
-    "height": 23
+    "x": 264,
+    "y": 568,
+    "width": 38,
+    "height": 46
   },
   "damage2_region": {
-    "x": 109,
-    "y": 277,
-    "width": 19,
-    "height": 23
+    "x": 218,
+    "y": 554,
+    "width": 38,
+    "height": 46
   },
   "damage3_region": {
-    "x": 86,
-    "y": 268,
-    "width": 19,
-    "height": 23
+    "x": 172,
+    "y": 536,
+    "width": 38,
+    "height": 46
   },
   "damage4_region": {
-    "x": 65,
-    "y": 256,
-    "width": 19,
-    "height": 23
+    "x": 130,
+    "y": 512,
+    "width": 38,
+    "height": 46
   },
   "damage5_region": {
-    "x": 45,
-    "y": 242,
-    "width": 19,
-    "height": 23
+    "x": 90,
+    "y": 484,
+    "width": 38,
+    "height": 46
   },
   "horror1_region": {
-    "x": 221,
-    "y": 284,
-    "width": 27,
-    "height": 24
+    "x": 442,
+    "y": 568,
+    "width": 54,
+    "height": 48
   },
   "horror2_region": {
-    "x": 244,
-    "y": 277,
-    "width": 27,
-    "height": 24
+    "x": 488,
+    "y": 554,
+    "width": 54,
+    "height": 48
   },
   "horror3_region": {
-    "x": 267,
-    "y": 268,
-    "width": 27,
-    "height": 24
+    "x": 534,
+    "y": 536,
+    "width": 54,
+    "height": 48
   },
   "horror4_region": {
-    "x": 288,
-    "y": 255,
-    "width": 27,
-    "height": 24
+    "x": 576,
+    "y": 510,
+    "width": 54,
+    "height": 48
   },
   "horror5_region": {
-    "x": 308,
-    "y": 241,
-    "width": 27,
-    "height": 24
+    "x": 616,
+    "y": 482,
+    "width": 54,
+    "height": 48
   },
-  "dash_tint": "38.0, 0.14, 1.0"
+
+  "illustrator": "",
+    "illustrator_region": {"x": 42, "y": 1020, "width": 663, "height": 35},
+    "illustrator_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "left"
+    },
+
+    "copyright": "",
+    "copyright_region": {"x": 42, "y": 1020, "width": 663, "height": 35},
+    "copyright_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "center"
+    },
+
+    "collection": "<esn>/<est>        <exi> <exn>",
+    "collection_region": {"x": 42, "y": 1020, "width": 663, "height": 35},
+    "collection_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "right"
+    }
 }

@@ -1,186 +1,31 @@
 {
-  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Investigator-G.jp2",
-  "ahlcg_investigatorback_default_template": "ArkhamHorrorLCG/templates/AHLCG-InvestigatorBack-G.jp2",
-  "subtitletextg_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
+  "name": "<unique><name>",
+  "name_region": { "x": 496, "y": 23, "width": 492, "height": 70 },
+  "name_font": {
+    "font": "title",
+    "size": 45,
+    "alignment": "center"
   },
-  "subtitletextgp_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
+  
+  "subtitle": "<copy>",
+  "subtitle_region": { "x": 596, "y": 84, "width": 318, "height": 40},
+  "subtitle_font": {
+    "font": "bold",
+    "alignment": "center",
+    "size": 28
   },
-  "subtitletextk_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
+
+  "text_region": { "x": 60, "y": 150, "width": 940, "height": 546 },
+  "text_font": {
+    "font": "regular",
+    "size": 34,
+    "color": "black",
+    "alignment": "left"
   },
-  "subtitletextkp_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextr_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextrp_region": {
-    "x": 72,
-    "y": 38,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextm_region": {
-    "x": 72,
-    "y": 40,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextmp_region": {
-    "x": 72,
-    "y": 40,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextv_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextvp_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextn_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextw_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitletextt_region": {
-    "x": 72,
-    "y": 39,
-    "width": 175,
-    "height": 20
-  },
-  "subtitle_alignment": "center, middle",
-  "name_region": {
-    "x": 248,
-    "y": 9,
-    "width": 246,
-    "height": 29
-  },
-  "subtitle_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextgp_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextk_region": {
-    "x": 299,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextkp_region": {
-    "x": 299,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextr_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextrp_region": {
-    "x": 298,
-    "y": 40,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextm_region": {
-    "x": 296,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextmp_region": {
-    "x": 296,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextv_region": {
-    "x": 294,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextvp_region": {
-    "x": 294,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextn_region": {
-    "x": 296,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextw_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitletextt_region": {
-    "x": 298,
-    "y": 41,
-    "width": 159,
-    "height": 15
-  },
-  "ahlcg_investigatorback_subtitle_alignment": "center, middle",
-  "body_region": {
-    "x": 30,
-    "y": 85,
-    "width": 470,
-    "height": 273
-  },
-  "portrait_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
-  "illustration_pan_x": -15,
-  "illustration_rotation": -8,
-  "portrait_scale": 1,
-  "portrait_clip_region": {
-    "x": 0,
-    "y": 5,
-    "width": 206,
-    "height": 206
-  },
-  "ahlcg_skill_alignment": "center, middle",
-  "body_polygon": [[183, 75], [497, 75], [497, 352], [11, 352], [11, 263], [57, 235], [166, 230], [183, 75]]
+
+  "illustration_pan_x": -30,
+  "illustration_rotation": -16,
+  "illustration_region": { "x": 0, "y": 10, "width": 412, "height": 412 },
+  
+  "text_polygon": [[380, 150], [994, 150], [994, 704], [40, 704], [40, 526], [114, 470], [350, 460], [380, 150]]
 }

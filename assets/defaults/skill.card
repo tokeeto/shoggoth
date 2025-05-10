@@ -1,82 +1,93 @@
 {
   "name": "<name>",
-  "name_region": {
-    "x": 73,
-    "y": 16,
-    "width": 294,
-    "height": 29
+  "name_region": { "x": 146, "y": 38, "width": 588, "height": 80},
+  "name_font": {
+    "font": "title",
+    "size": 45,
+    "alignment": "left"
   },
-  "name_alignment": "left, middle",
+
   "label": "SKILL",
-  "label_region": {
-    "x": 21,
-    "y": 62,
-    "width": 38,
-    "height": 14
+  "label_region": { "x": 42, "y": 124, "width": 76, "height": 28 },
+  "label_font": {
+      "font": "bold",
+      "size": 24,
+      "color": "black",
+      "alignment": "center"
   },
-  "subtype_region": {
-    "x": 86,
-    "y": 348,
-    "width": 203,
-    "height": 15
+
+  "traits_region": { "x": 172, "y": 704, "width": 406, "height": 50 },
+  "traits_font": {
+      "font": "bolditalic",
+      "size": 32,
+      "alignment": "center"
   },
-  "subtype_alignment": "center, middle",
-  "level_region": {
-    "x": 14,
-    "y": 35,
-    "width": 49,
-    "height": 23
+  
+  "level_region": { "x": 28, "y": 70, "width": 98, "height": 46 },
+  "nolevel_region": { "x": 18, "y": 48, "width": 116, "height": 76 },
+  
+  "text_region": { "x": 74, "y": 742, "width": 602, "height": 290 },
+  "text_polygon": [[90, 720], [670, 720], [694, 810], [702, 884], [682, 980], [90, 980], [104, 896], [102, 836], [92, 762], [90, 720]],
+  "text_font": {
+        "font": "regular",
+        "size": 34,
+        "color": "black",
+        "outline": null,
+        "outline_color": null,
+        "alignment": "left",
+        "rotation": null
+    },
+  
+  "illustration_region": { "x": 28, "y": 80, "width": 696, "height": 596 },
+  "basicweaknessskill_region": { "x": 624, "y": 6, "width": 108, "height": 106 },
+  "basicweaknessicon_region": { "x": 648, "y": 26, "width": 60, "height": 60 },
+  "weaknessbody_region": { "x": 74, "y": 740, "width": 602, "height": 250 },
+
+  "sanity": null,
+  "stamina": null,
+  "stamina_region": { "x": 310, "y": 960, "width": 60, "height": 80 },    
+  "sanity_region": { "x": 420, "y": 960, "width": 90, "height": 80 },
+  "stamina_font": { 
+    "font": "skill", 
+    "size": 45, 
+    "color": "white",
+    "outline": 2,
+    "outline_color": "#cb270d",
+    "alignment": "center" 
   },
-  "nolevel_region": {
-    "x": 9,
-    "y": 24,
-    "width": 58,
-    "height": 38
+  "sanity_font": { 
+    "font": "skill", 
+    "size": 45, 
+    "color": "white",
+    "outline": 2,
+    "outline_color": "#1c2b48",
+    "alignment": "center" 
   },
-  "body_region": {
-    "x": 37,
-    "y": 371,
-    "width": 301,
-    "height": 145
-  },
-  "body_polygon": [[45, 360], [335, 360], [347, 405], [351, 442], [341, 490], [45, 490], [52, 448], [51, 418], [46, 381], [45, 360]],
-  "portrait_pany": 0,
-  "portrait_clip_region": {
-    "x": 14,
-    "y": 40,
-    "width": 348,
-    "height": 298
-  },
-  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "collection_portrait_pany": 0,
-  "defaultcollection_portrait_clip_region": {
-    "x": 319,
-    "y": 508,
-    "width": 13,
-    "height": 13
-  },
-  "collection_portrait_clip_region": {
-    "x": 319,
-    "y": 508,
-    "width": 13,
-    "height": 13
-  },
-  "basicweaknessskill_region": {
-    "x": 312,
-    "y": 3,
-    "width": 54,
-    "height": 53
-  },
-  "basicweaknessicon_region": {
-    "x": 324,
-    "y": 13,
-    "width": 30,
-    "height": 30
-  },
-  "weaknessbody_region": {
-    "x": 37,
-    "y": 370,
-    "width": 301,
-    "height": 125
-  }
+
+  "illustrator": "",
+    "illustrator_region": {"x": 42, "y": 1020, "width": 663, "height": 35},
+    "illustrator_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "left"
+    },
+
+    "copyright": "",
+    "copyright_region": {"x": 42, "y": 1020, "width": 663, "height": 35},
+    "copyright_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "center"
+    },
+
+    "collection": "<exi> <exn>",
+    "collection_region": {"x": 42, "y": 1020, "width": 663, "height": 35},
+    "collection_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "right"
+    }
 }

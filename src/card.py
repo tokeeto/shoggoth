@@ -71,10 +71,30 @@ class Card(EventDispatcher):
         self.app = App.get_running_app()
 
     @property
+    def expansion_number(self):
+        return self.data['expansion_number']
+
+    @expansion_number.setter
+    def expansion_number(self, value):
+        self.data['expansion_number'] = value
+
+    @property
+    def encounter_number(self):
+        if not self.encounter:
+            return None
+        return self.data['encounter_number']
+
+    @encounter_number.setter
+    def encounter_number(self, value):
+        if not self.encounter:
+            raise Exception("No encounter, can't set number.")
+        self.data['encounter_number'] = value
+
+    @property
     def code(self):
         if self.encounter:
             return f'{self.expansion.code}_{self.encounter.code}_{self.name}'
-        return f'{self.expansion.code}_{self.name}'
+        return f'{self.expansion.code}_{self.expansion_number}_{self.name}'
 
     def __eq__(self, other):
         return self.data == other.data

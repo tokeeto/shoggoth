@@ -1,150 +1,44 @@
 {
   "name": "<name>",
-  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Act.jp2",
-  "ahlcg_actback_default_template": "ArkhamHorrorLCG/templates/AHLCG-ActBack.jp2",
-  "name_region": {
-    "x": 9,
-    "y": 55,
-    "width": 250,
-    "height": 44
+  "name_region": { "x": 18, "y": 110, "width": 500, "height": 88 },
+  "name_font": {
+    "font": "title",
+    "size": 45,
+    "alignment": "center"
   },
-  "ahlcg_actback_name_region": {
-    "x": 22,
-    "y": 110,
-    "width": 47,
-    "height": 226
+
+  "text_region": { "x": 20, "y": 200, "width": 524, "height": 470 },
+  "text_font": {
+        "font": "regular",
+        "size": 34,
+        "alignment": "left"
+    },
+  
+  "illustration_region": { "x": 440, "y": 0, "width": 610, "height": 750 },
+  
+  "encounter_portrait_clip_region": { "x": 240, "y": 46, "width": 64, "height": 64 },
+  
+  "scenarioindex_region": { "x": 134, "y": 14, "width": 268, "height": 42 },
+  
+  "clues_region": { "x": 485, "y": 610, "width": 98, "height": 100 },
+  "clues_font": {
+    "font": "skill",
+    "size": 45,
+    "color": "white",
+    "outline": 2,
+    "outline_color": "#231f20",
+    "alignment": "center"
   },
-  "ahlcg_actback_name_alignment": "center, middle",
-  "body_region": {
-    "x": 10,
-    "y": 100,
-    "width": 262,
-    "height": 235
-  },
-  "ahlcg_actback_story_region": {
-    "x": 126,
-    "y": 39,
-    "width": 355,
-    "height": 316
-  },
-  "ahlcg_actback_body_region": {
-    "x": 110,
-    "y": 39,
-    "width": 370,
-    "height": 316
-  },
-  "illustration_template": "ArkhamHorrorLCG/default-portraits/DefaultTexture.jp2",
-  "portrait_clip_region": {
-    "x": 220,
-    "y": 0,
-    "width": 305,
-    "height": 375
-  },
-  "encounter_portrait_template": "",
-  "encounter_portrait_pany": 0,
-  "encounter_portrait_clip_region": {
-    "x": 120,
-    "y": 23,
-    "width": 32,
-    "height": 32
-  },
-  "defaultencounter_portrait_clip_region": {
-    "x": 120,
-    "y": 23,
-    "width": 32,
-    "height": 32
-  },
-  "returnencounter_portrait_clip_region": {
-    "x": 118,
-    "y": 22,
-    "width": 35,
-    "height": 35
-  },
-  "defaultreturnencounter_portrait_clip_region": {
-    "x": 118,
-    "y": 22,
-    "width": 35,
-    "height": 35
-  },
-  "ahlcg_actback_encounter_portrait_clip_region": {
-    "x": 27,
-    "y": 57,
-    "width": 36,
-    "height": 36
-  },
-  "ahlcg_actback_returnencounter_portrait_clip_region": {
-    "x": 20,
-    "y": 50,
-    "width": 49,
-    "height": 48
-  },
-  "collection_portrait_template": "ArkhamHorrorLCG/images/empty1x1.png",
-  "collection_portrait_pany": 0,
-  "collection_portrait_clip_region": {
-    "x": 270,
-    "y": 358,
-    "width": 13,
-    "height": 13
-  },
-  "defaultcollection_portrait_clip_region": {
-    "x": 270,
-    "y": 358,
-    "width": 13,
-    "height": 13
-  },
-  "encounternumber_region": {
-    "x": 195,
-    "y": 361,
-    "width": 55,
-    "height": 10
-  },
-  "collectionnumber_region": {
-    "x": 266,
-    "y": 361,
-    "width": 37,
-    "height": 10
-  },
-  "scenarioindex_region": {
-    "x": 67,
-    "y": 7,
-    "width": 134,
-    "height": 21
-  },
-  "ahlcg_actback_backscenarioindex_region": {
-    "x": 22,
-    "y": 33,
-    "width": 45,
-    "height": 16
-  },
-  "clues_region": {
-    "x": 240,
-    "y": 302,
-    "width": 49,
-    "height": 50
-  },
-  "cluesperinv_region": {
-    "x": 234,
-    "y": 290,
-    "width": 49,
-    "height": 49
-  },
-  "cluesperinvicon_region": {
-    "x": 261,
-    "y": 289,
-    "width": 29,
-    "height": 49
-  },
-  "dash_tint": "38.0, 0.14, 1.0",
-  "artist_region": {
-    "x": 11,
-    "y": 361,
-    "width": 129,
-    "height": 10
-  },
-  "copyright_region": {
-    "x": 125,
-    "y": 361,
-    "width": 80,
-    "height": 10
-  }
+  
+  "illustrator": "",
+  "illustrator_region": {"x": 42, "y": 720, "width": 531, "height": 35},
+  "illustrator_font": { "font": "bold", "size": 20, "color": "white", "alignment": "left" },
+
+  "copyright": "",
+  "copyright_region": {"x": 42, "y": 720, "width": 531, "height": 35},
+  "copyright_font": { "font": "bold", "size": 20, "color": "white", "alignment": "center" },
+
+  "collection": "<esn>/<est>        <exi> <exn>",
+  "collection_region": {"x": 42, "y": 720, "width": 531, "height": 35},
+  "collection_font": { "font": "bold", "size": 20, "color": "white", "alignment": "right" }
 }

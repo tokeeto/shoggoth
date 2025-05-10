@@ -1,80 +1,76 @@
 {
-  "default_template": "ArkhamHorrorLCG/templates/AHLCG-Asset-G.jp2",
-  "ahlcg_keyback_default_template": "ArkhamHorrorLCG/templates/AHLCG-Asset-G.jp2",
   "name": "<name>",
-  "name_region": {
-    "x": 65,
-    "y": 461,
-    "width": 238,
-    "height": 29
+  "name_region": { "x": 130, "y": 932, "width": 487, "height": 80 },
+  "name_font": {
+    "font": "title",
+    "size": 45,
+    "alignment": "center"
   },
-  "traits": "<copy>",
-  "subtype_region": {
-    "x": 83,
-    "y": 310,
-    "width": 203,
-    "height": 15
+  
+  "traits_region": { "x": 166, "y": 628, "width": 406, "height": 80 },
+  "traits_font": {
+      "font": "bolditalic",
+      "size": 32,
+      "outline": null,
+      "outline_color": null,
+      "alignment": "center",
+      "rotation": null
   },
+
   "label": "KEY",
-  "label_region": {
-    "x": 326,
-    "y": 52,
-    "width": 38,
-    "height": 14
+  "label_region": { "x": 652, "y": 104, "width": 76, "height": 28 },
+  "label_font": {
+    "font": "bold",
+    "size": 24,
+    "color": "black",
+    "alignment": "center"
   },
-  "subtitle_region": {
-    "x": 80,
-    "y": 495,
-    "width": 213,
-    "height": 22
-  },
-  "body_region": {
-    "x": 14,
-    "y": 325,
-    "width": 348,
-    "height": 140
-  },
-  "body_alignment": "left",
-  "portrait_clip_region": {
-    "x": 10,
-    "y": 20,
-    "width": 358,
-    "height": 258
-  },
-  "collection_portrait_clip_region": {
-    "x": 320,
-    "y": 512,
-    "width": 13,
-    "height": 13
-  },
-  "encounter_portrait_clip_region": {
-    "x": 330,
-    "y": 11,
-    "width": 30,
-    "height": 30
-  },
-  "artist_region": {
-    "x": 14,
-    "y": 516,
-    "width": 121,
-    "height": 10
-  },
-  "copyright_region": {
-    "x": 124,
-    "y": 516,
-    "width": 86,
-    "height": 10
-  },
-  "collectionnumber_region": {
-    "x": 318,
-    "y": 516,
-    "width": 37,
-    "height": 10
-  },
-  "encounternumber_region": {
-    "x": 247,
-    "y": 516,
-    "width": 55,
-    "height": 10
-  }
+  
+  "subtitle_region": { "x": 160, "y": 998, "width": 426, "height": 44 },
+  "subtitle_font": {
+        "font": "bold",
+        "size": 32,
+        "alignment": "center"
+    },
+  
+  "text_region": { "x": 28, "y": 660, "width": 696, "height": 280 },
+  "text_font": {
+        "font": "regular",
+        "size": 34,
+        "color": "black",
+        "outline": null,
+        "outline_color": null,
+        "alignment": "left",
+        "rotation": null
+    },
+  
+  "illustration_region": { "x": 20, "y": 40, "width": 716, "height": 516 },
+  "encounter_portrait_clip_region": { "x": 660, "y": 22, "width": 60, "height": 60 },
+
+  "illustrator": "",
+    "illustrator_region": {"x": 42, "y": 1035, "width": 663, "height": 35},
+    "illustrator_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "left"
+    },
+
+    "copyright": "",
+    "copyright_region": {"x": 42, "y": 1035, "width": 663, "height": 35},
+    "copyright_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "center"
+    },
+
+    "collection": "<esn>/<est>        <exi> <exn>",
+    "collection_region": {"x": 42, "y": 1035, "width": 663, "height": 35},
+    "collection_font": {
+        "font": "bold",
+        "size": 20,
+        "color": "white",
+        "alignment": "right"
+    }
 }

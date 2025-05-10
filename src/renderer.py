@@ -46,14 +46,35 @@ LOCATION_COLORS = {
 }
 
 
+class Region:
+    def __init__(self, data):
+        if not data:
+            data = {}
+        self.x = data.get('x', 0)
+        self.y = data.get('y', 0)
+        self.width = data.get('width', 0)
+        self.height = data.get('height', 0)
+
+    @property
+    def size(self):
+        return (self.width, self.height)
+
+    @property
+    def pos(self):
+        return (self.x, self.y)
+
+    def __bool__(self):
+        return bool(self.x + self.y + self.width + self.height)
+
+
 class CardRenderer:
     """Renders card images based on card data"""
 
     # Standard card dimensions
-    CARD_WIDTH = 375
-    CARD_HEIGHT = 524
-    #CARD_WIDTH = 750
-    #CARD_HEIGHT = 1048
+    #CARD_WIDTH = 375
+    #CARD_HEIGHT = 524
+    CARD_WIDTH = 747
+    CARD_HEIGHT = 1057
 
     def __init__(self):
         # Base paths
@@ -79,8 +100,11 @@ class CardRenderer:
         front, back = self.get_card_images(card)
 
         # Convert PIL images to Kivy textures
+        from time import time
+        t = time()
         front_texture = self.pil_to_texture(front)
         back_texture = self.pil_to_texture(back)
+        print(f'Time to texturize: {time()-t}')
 
         return front_texture, back_texture
 
@@ -96,30 +120,34 @@ class CardRenderer:
         front_image = self.render_card_side(card, card.front)
         back_image  = self.render_card_side(card, card.back)
 
-        front_image.save(os.path.join(folder, card.code + '_front.png'))
-        back_image.save(os.path.join(folder, card.code + '_back.png'))
+        front_image.save(os.path.join(folder, card.code + '_front.jpeg'), quality=95)
+        back_image.save(os.path.join(folder, card.code + '_back.jpeg'), quality=95)
 
     def pil_to_texture(self, pil_image):
         """Convert PIL image to Kivy texture"""
         buffer = BytesIO()
-        pil_image.save(buffer, format='png')
+        pil_image.save(buffer, format='jpeg', quality=50)
         buffer.seek(0)
 
         # Create texture
-        im = CoreImage(buffer, ext='png')
+        im = CoreImage(buffer, ext='jpeg')
         return im.texture
 
     def render_card_side(self, card, side):
         """Render one side of a card"""
+        from time import time
+
+        t = time()
+        print(f'start render card side')
         self.current_card = card
         self.current_side = side
         self.current_opposite_side = card.front if side == card.back else card.back
         self.current_field = None
 
         if side['type'] in self.horizontal_cards:
-            card_image = Image.new('RGBA', (self.CARD_HEIGHT, self.CARD_WIDTH), (255, 255, 255, 255))
+            card_image = Image.new('RGB', (self.CARD_HEIGHT, self.CARD_WIDTH), (255, 255, 255))
         else:
-            card_image = Image.new('RGBA', (self.CARD_WIDTH, self.CARD_HEIGHT), (255, 255, 255, 255))
+            card_image = Image.new('RGB', (self.CARD_WIDTH, self.CARD_HEIGHT), (255, 255, 255))
 
         self.render_illustration(card_image, side)
         self.render_template(card_image, side)
@@ -127,31 +155,87 @@ class CardRenderer:
             self.render_illustration(card_image, side)
 
         for func in [
-            self.render_name,
-            self.render_cost,
-            self.render_traits,
-            self.render_rule_text,
             self.render_level,
-            self.render_enemy_stats,
             self.render_encounter_icon,
             self.render_expansion_icon,
-            self.render_subtitle,
-            self.render_investigator_stats,
-            self.render_health,
             self.render_act_info,
-            self.render_clues,
-            self.render_doom,
-            self.render_shroud,
             self.render_icons,
-            self.render_label,
             self.render_connection_icons,
             self.render_tokens,
+            self.render_health,
+            self.render_text,
+            self.render_class_symbols,
+            self.render_enemy_stats,
+            self.render_slots,
         ]:
             try:
                 func(card_image, side)
             except Exception as e:
                 print(f'Failed: {e}')
+        print(f'end render card side: {time()-t}')
         return card_image
+
+    def render_text(self, card_image, side):
+        for field in ['cost', 'name', 'traits', 'text', 'subtitle', 'label', 'attack', 'evade', 'health', 'stamina', 'sanity', 'clues', 'doom', 'shroud', 'willpower', 'intellect', 'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty']:
+            value = side.get(field)
+            if not value:
+                continue
+
+            # Checkboxes - primarily for Customizable
+            if field == 'text':
+                cb_value = side.get('checkbox_entries')
+                if cb_value:
+                    lines = ''
+                    for slots, name, text in cb_value:
+                        lines += '\n' + '☐'*slots + f' <b>{name}.</b> {text}'
+                    value += lines
+
+            if field == 'text':
+                flavor = side.get('flavor_text', '')
+                if flavor:
+                    value += '\n'
+                    value += f'<center><i>{flavor}</i>'
+
+
+            try:
+                region = side[f'{field}_region']
+                font = side.get(f'{field}_font', {})
+                polygon = side.get(f'{field}_polygon', None)
+                if font.get('rotation'):
+                    alignment = font.get('alignment', 'left')
+                    temp_image = Image.new('RGBA', (region['height'], region['width']), (255, 255, 255, 0))
+                    self.rich_text.render_text(
+                        temp_image,
+                        value,
+                        {'x': 0, 'y': 0, 'height': region['width'], 'width': region['height']},
+                        font=font.get('font', 'regular'),
+                        font_size=font.get('size', 20),
+                        fill=font.get('color', '#231f20'),
+                        outline=font.get('outline'),
+                        outline_fill=font.get('outline_color'),
+                        alignment=font.get('alignment', 'left'),
+                        polygon=polygon,
+                    )
+                    temp_image = temp_image.rotate(-90, expand=True)
+                    card_image.paste(temp_image, (region['x']-10, region['y']), temp_image)
+                else:
+                    self.rich_text.render_text(
+                        card_image,
+                        value,
+                        region,
+                        font=font.get('font', 'regular'),
+                        font_size=font.get('size', 20),
+                        fill=font.get('color', '#231f20'),
+                        outline=font.get('outline'),
+                        outline_fill=font.get('outline_color'),
+                        alignment=font.get('alignment', 'left'),
+                        polygon=polygon,
+                    )
+            except Exception as e:
+                import traceback
+                print(f"Error rendering field: {field}\n {e}")
+                traceback.print_exc()
+                continue
 
     def render_tokens(self, card_image, side):
         value = side.get('tokens')
@@ -160,23 +244,59 @@ class CardRenderer:
 
         region = side['chaos_region']
         entry_height = region['height']//len(value)
+        font = side.get('chaos_font', {})
 
         for index, icon in enumerate(value):
             text = value[icon]
             text_region = {
-                'x': region['x']+47,
+                'x': region['x']+94,
                 'y': region['y']+(index*entry_height),
-                'width': region['width']-47,
+                'width': region['width']-94,
                 'height': entry_height,
             }
-            self.rich_text.render_text(card_image, text, text_region)
+            self.rich_text.render_text(
+                card_image,
+                text,
+                text_region,
+                font=font.get('font', 'regular'),
+                font_size=font.get('size', 20),
+                fill=font.get('color', '#231f20'),
+                outline=font.get('outline'),
+                outline_fill=font.get('outline_color'),
+                alignment=font.get('alignment', 'left')
+            )
 
 
             overlay_path = os.path.join(self.overlays_path, f"chaos_{icon}.png")
             overlay_icon = Image.open(overlay_path).convert("RGBA")
+            overlay_icon = overlay_icon.resize((overlay_icon.width*2, overlay_icon.height*2))
             card_image.paste(overlay_icon, (region['x'], region['y']+(index*entry_height)), overlay_icon)
 
     def render_connection_icons(self, card_image, side):
+        circle_path = os.path.join(self.assets_path, 'icons/AHLCG-LocationBase.png')
+        circle = Image.open(circle_path).convert("RGBA")
+
+        # own icon
+        value = side.get('connection')
+        if value:
+            # ready circle for coloring
+            region = side.get('connection_region')
+            _circle = circle.resize((region['width'], region['height']))
+            h, s, v = _circle.convert('HSV').split()
+            np_s = np.array(h, dtype=np.int8)
+
+            # grab and paint each icon
+            np_color = (np_s + LOCATION_COLORS.get(value, 0))
+            s_shifted = Image.fromarray(np_color, 'L')
+            new_img = Image.merge('HSV', (s_shifted, s, v))
+            card_image.paste(new_img, (region['x'], region['y']), _circle)
+
+            overlay_path = os.path.join(self.icons_path, f"AHLCG-Loc{value}.png")
+            overlay_icon = Image.open(overlay_path).convert("RGBA")
+            overlay_icon = overlay_icon.resize((region['width'], region['height']))
+            card_image.paste(overlay_icon, (region['x'], region['y']), overlay_icon)
+
+        # outgoing connections
         value = side.get('connections')
         if not value:
             return
@@ -184,6 +304,8 @@ class CardRenderer:
         # ready circle for coloring
         circle_path = os.path.join(self.assets_path, 'icons/AHLCG-LocationBase.png')
         circle = Image.open(circle_path).convert("RGBA")
+        size_region = side.get('connection_1_region')
+        circle = circle.resize((size_region['width'], size_region['height']))
         h, s, v = circle.convert('HSV').split()
         np_s = np.array(h, dtype=np.int8)
 
@@ -200,7 +322,8 @@ class CardRenderer:
 
             overlay_path = os.path.join(self.icons_path, f"AHLCG-Loc{icon}.png")
             overlay_icon = Image.open(overlay_path).convert("RGBA")
-            card_image.paste(overlay_icon, (region['x']+5, region['y']+5), overlay_icon)
+            overlay_icon = overlay_icon.resize((region['width'], region['height']))
+            card_image.paste(overlay_icon, (region['x'], region['y']), overlay_icon)
 
 
     def render_icons(self, card_image, side):
@@ -210,20 +333,13 @@ class CardRenderer:
 
         box_path = os.path.join(self.overlays_path, f"skill_box_{side['class']}.png")
         box_image = Image.open(box_path).convert("RGBA")
+        box_image = box_image.resize((109, 83))
         for index, icon in enumerate(value):
             overlay_path = os.path.join(self.overlays_path, f"skill_icon_{icon}.png")
             overlay_icon = Image.open(overlay_path).convert("RGBA")
-            card_image.paste(box_image, (0, index*42+80), box_image)
-            card_image.paste(overlay_icon, (10, index*42+88), overlay_icon)
-
-    def render_doom(self, card_image, side):
-        self.current_field = 'doom'
-        value = side.get('doom')
-        region = side.get('doom_region')
-        if not region or not value:
-            return
-
-        self.rich_text.render_text(card_image, value, region, alignment='center', font="skill", fill="white", outline=1, outline_fill="black")
+            overlay_icon = overlay_icon.resize((overlay_icon.width * 2, overlay_icon.height * 2))
+            card_image.paste(box_image, (0, index*84+165), box_image)
+            card_image.paste(overlay_icon, (25, index*84+181), overlay_icon)
 
     def render_act_info(self, card_image, side):
         self.current_field = 'index'
@@ -234,52 +350,21 @@ class CardRenderer:
 
         self.rich_text.render_text(card_image, value, region, alignment='center')
 
-    def render_shroud(self, card_image, side):
-        self.current_field = 'shroud'
-        value = side.get('shroud')
-        region = side.get('shroud_region')
-        if not region or not value:
-            return
-
-        self.rich_text.render_text(card_image, value, region, font="skill", alignment='center', fill='white', outline=1, outline_fill="black")
-
-    def render_clues(self, card_image, side):
-        self.current_field = 'clues'
-        value = side.get('clues')
-        region = side.get('clues_region')
-        if not region or not value:
-            return
-
-        self.rich_text.render_text(card_image, value, region, font="skill", alignment='center', fill="white", outline=1, outline_fill="black")
-
-
     def render_health(self, card_image, side):
+        """ Add health and sanity overlay, if needed. """
         for stat in ['stamina', 'sanity']:
             self.current_field = stat
             value = side.get(stat)
             region = side.get(f'{stat}_region')
-            if not region or not value:
+            if region is None or value is None:
                 continue
 
             overlay_path = os.path.join(self.overlays_path, f"{stat}_base.png")
             overlay_icon = Image.open(overlay_path).convert("RGBA")
-            card_image.paste(overlay_icon, (region['x'], region['y']-10), overlay_icon)
-
-            outline_fill = '#dd0000' if stat == 'stamina' else '#0000dd'
-
-            self.rich_text.render_text(card_image, value, region, alignment='center', font="skill", fill="white", outline_fill=outline_fill, outline=1)
-
-
-    def render_investigator_stats(self, card_image, side):
-        """Render the card cost"""
-        for stat in ['willpower', 'intellect', 'combat', 'agility']:
-            self.current_field = stat
-            value = side.get(stat, 0)
-            region = side.get(f'{stat}_region')
-            if not region:
-                continue
-
-            self.rich_text.render_text(card_image, value, region, alignment='center', font="skill")
+            overlay_icon = overlay_icon.resize((region['width'], region['height']))
+            center_x = region['x']
+            center_y = region['y'] - 15
+            card_image.paste(overlay_icon, (center_x, center_y), overlay_icon)
 
     def render_expansion_icon(self, card_image, side):
         """Render the encounter icon """
@@ -317,64 +402,45 @@ class CardRenderer:
         if overlay:
             overlay_image = Image.open(overlay).convert("RGBA")
             overlay_region = side.get('encounter_overlay_region')
+            overlay_image = overlay_image.resize((overlay_region['width'], overlay_region['height']))
             card_image.paste(overlay_image, (overlay_region['x'], overlay_region['y']), overlay_image)
 
         icon = Image.open(side.card.encounter.icon).convert("RGBA")
         icon = icon.resize((region['width'], region['height']))
         card_image.paste(icon, (region['x'], region['y']), icon)
 
+    def render_slots(self, card_image, side):
+        """Render the slot icons """
+        slots = side.get('slots')
+        slot = side.get('slot')
+        if not slots:
+            slots = [slot]
+        if not slots:
+            return
+
+        for index, slot in enumerate(slots):
+            print('render slots inner:', index, slot)
+            region = Region(side.get(f'slot_{index+1}_region', {}))
+            if not region:
+                continue
+
+            path = os.path.join(self.overlays_path, f'slot_{slot}.png')
+            slot_image = Image.open(path).convert("RGBA")
+            slot_image = slot_image.resize(region.size)
+            card_image.paste(slot_image, region.pos, slot_image)
+
     def render_enemy_stats(self, card_image, side):
-        """Render enemy stats: Health, evade, combat, damage, horror. """
-        for stat in ('attack', 'evade', 'health'):
-            self.current_field = stat
-            value = side.get(stat, None)
-            if value != None:
-                region = side[f'{stat}_region']
-                self.rich_text.render_text(card_image, stat, region, alignment='center', font="cost", outline=1, outline_fill='black', fill='white')
-
-        damage = int(side.get('damage', '0'))
-        if damage > 5:
-            print('damage more than 5 - cannot render, reducing to 5')
-            damage = 5
-        damage_icon_path = os.path.join(self.overlays_path, "damage.jp2")
-        damage_icon = Image.open(damage_icon_path).convert("RGBA")
-        for i in range(damage):
-            region = side[f'damage{i+1}_region']
-            card_image.paste(damage_icon, (region['x'], region['y']), damage_icon)
-
-        horror = int(side.get('horror', '0'))
-        if horror > 5:
-            print('horror more than 5 - cannot render, reducing to 5')
-            horror = 5
-        horror_icon_path = os.path.join(self.overlays_path, "horror.jp2")
-        horror_icon = Image.open(horror_icon_path).convert("RGBA")
-        for i in range(horror):
-            region = side[f'horror{i+1}_region']
-            card_image.paste(horror_icon, (region['x'], region['y']), horror_icon)
-
-    def render_subtitle(self, card_image, side):
-        """Render the subtitle"""
-        # Get name
-        self.current_field = 'subtitle'
-        text = side.get('subtitle', None)
-        if not text:
-            return
-
-        region = side['subtitle_region']
-
-        self.rich_text.render_text(card_image, text, region, alignment='center')
-
-    def render_label(self, card_image, side):
-        """Render the card name"""
-        # Get name
-        self.current_field = 'label'
-        label = side.get('label', None)
-        if not label:
-            return
-
-        region = side['label_region']
-
-        self.rich_text.render_text(card_image, f'<b>{label}</b>', region, alignment='center')
+        """Render Damage and horror."""
+        for token in ('damage', 'horror'):
+            value = int(side.get(token, '0'))
+            icon_path = os.path.join(self.overlays_path, f"{token}.png")
+            raw_icon = Image.open(icon_path).convert("RGBA")
+            for i in range(value):
+                region = side[f'{token}{i+1}_region']
+                if not region:
+                    continue
+                icon = raw_icon.resize((region['width'], region['height']))
+                card_image.paste(icon, (region['x'], region['y']), icon)
 
     def render_template(self, card_image, side):
         """Render a template image onto a card"""
@@ -384,7 +450,7 @@ class CardRenderer:
 
         try:
             template = Image.open(template_path).convert("RGBA")
-            #template = template.resize((self.CARD_WIDTH, self.CARD_HEIGHT))
+            template = template.resize((card_image.width, card_image.height))
             card_image.paste(template, (0, 0), template)
         except Exception as e:
             print(f"Error rendering template: {str(e)}")
@@ -401,7 +467,7 @@ class CardRenderer:
             illustration = Image.open(illustration_path, formats=['png', 'jpg', 'png']).convert("RGBA")
 
             # Get clip region
-            clip_region = side['portrait_clip_region']
+            clip_region = side['illustration_region']
 
             rotation = side.get('illustration_rotation', 0)
             if rotation:
@@ -432,33 +498,6 @@ class CardRenderer:
             )
         except Exception as e:
             print(f"Error rendering illustration: {str(e)}")
-
-    def render_name(self, card_image, side):
-        """Render the card name"""
-        # Get name
-        self.current_field = 'name'
-        name = side.get('name', None)
-        if not name:
-            return
-
-        region = side['name_region']
-        rotation = side.get('name_rotation')
-        if rotation:
-            temp_image = Image.new('RGBA', (region['height'], region['width']), (255, 255, 255, 0))
-            self.rich_text.render_text(temp_image, name, {'x': 0, 'y': 0, 'height': region['width'], 'width': region['height']}, alignment='left', font="title")
-            temp_image = temp_image.rotate(-90, expand=True)
-            card_image.paste(temp_image, (region['x']-10, region['y']), temp_image)
-        else:
-            self.rich_text.render_text(card_image, name, region, alignment='center', font="title")
-
-    def render_traits(self, card_image, side):
-        """Render the card subtype"""
-        self.current_field = 'traits'
-        subtype = side.get('traits', None)
-        if not subtype:
-            return
-        region = side['subtype_region']
-        self.rich_text.render_text(card_image, subtype, region, alignment='center', font="bolditalic")
 
     def render_rule_text(self, card_image, side):
         """Render the card rule text"""
@@ -520,104 +559,39 @@ class CardRenderer:
             card_image.paste(new_img, (cost_region['x']+5, cost_region['y']+5), dash_icon)
             return
 
-        self.rich_text.render_text(card_image, cost, cost_region, alignment='center', font="cost", outline=1, outline_fill='black', fill='white')
+        self.rich_text.render_text(card_image, cost, cost_region, alignment='center', font="cost", font_size=40, outline=1, outline_fill='black', fill='white')
 
     def render_level(self, card_image, side):
         """Render the card level"""
         # Get level
-        level = side.get('level', None)
-        if not level:
+        level = side.get('level')
+        region = Region(side.get('level_region'))
+        if not region:
             return
 
-        region = side['level_region']
+        if level is None or level == '':
+            level_icon_path = os.path.join(self.overlays_path, f"no_level.png")
+            level_icon = Image.open(level_icon_path).convert("RGBA")
+            level_icon = level_icon.resize((level_icon.width*2, level_icon.height*2))
+            card_image.paste(level_icon, (16, 7), level_icon)
+            return
 
         level_icon_path = os.path.join(self.overlays_path, f"level_{level}.png")
-        if not os.path.exists(level_icon_path):
-            return
+        level_icon = Image.open(level_icon_path).convert("RGBA")
+        level_icon = level_icon.resize((level_icon.width*2, level_icon.height*2))
+        card_image.paste(level_icon, region.pos, level_icon)
 
-        try:
-            level_icon = Image.open(level_icon_path).convert("RGBA")
-            level_icon = level_icon.resize((region['width'], region['height']))
-            card_image.paste(level_icon, (region['x'], region['y']), level_icon)
-        except Exception as e:
-            print(f"Error rendering level: {str(e)}")
-
-    def render_flavor_text(self, card_image, side):
-        self.current_field = 'flavor_text'
-        text = side.get('flavor_text', None)
-        if not text:
-            return
-
-        region = side['flavor_region']
-
-        # Get text polygon if available
-        #text_polygon = self.get_setting('body_polygon', card_data, side, defaults)
-
-        # Get alignment
-        alignment = side.get('flavor_alignment', 'center')
-
-        # Render using rich text renderer
-        self.rich_text.render_text(
-            card_image,
-            text,
-            region,
-            #text_polygon,
-            alignment=alignment
-        )
-
-    def render_class_symbols(self, card_image, card_data, side, defaults):
+    def render_class_symbols(self, card_image, side):
         """Render class symbols for multiclass cards"""
-        # Get classes
-        classes = self.get_setting('classes', card_data, side, defaults, [])
-        if not classes or len(classes) < 2:
-            # Single class or no class
+        classes = side.get('classes')
+        if not classes:
             return
-
-        # Class code mapping
-        class_codes = {
-            'guardian': 'G',
-            'seeker': 'K',
-            'mystic': 'M',
-            'rogue': 'R',
-            'survivor': 'V',
-            'weakness': 'W',
-            'neutral': 'N',
-            'story': 'N',
-        }
 
         # Render each class symbol
         for index, cls in enumerate(classes):
-            if cls not in class_codes:
-                continue
+            symbol_path = os.path.join(self.overlays_path, f"class_symbol_{cls}.png")
+            region = side.get(f"class_symbol_{index+1}_region")
 
-            class_code = class_codes[cls]
-            symbol_path = os.path.join(self.overlays_path, f"class_symbol_{class_code}.png")
-
-            if not os.path.exists(symbol_path):
-                continue
-
-            # Get symbol region key
-            symbol_region_key = f"class_symbol_{index+1}_region"
-            symbol_region = self.get_setting(symbol_region_key, card_data, side, defaults)
-
-            if not symbol_region:
-                # Default positions for up to 5 symbols
-                default_regions = [
-                    {'x': 300, 'y': 430, 'width': 20, 'height': 20},
-                    {'x': 325, 'y': 430, 'width': 20, 'height': 20},
-                    {'x': 350, 'y': 430, 'width': 20, 'height': 20},
-                    {'x': 300, 'y': 455, 'width': 20, 'height': 20},
-                    {'x': 325, 'y': 455, 'width': 20, 'height': 20}
-                ]
-
-                if index < len(default_regions):
-                    symbol_region = default_regions[index]
-                else:
-                    continue
-
-            try:
-                symbol = Image.open(symbol_path).convert("RGBA")
-                symbol = symbol.resize((symbol_region['width'], symbol_region['height']))
-                card_image.paste(symbol, (symbol_region['x'], symbol_region['y']), symbol)
-            except Exception as e:
-                print(f"Error rendering class symbol: {str(e)}")
+            symbol = Image.open(symbol_path).convert("RGBA")
+            symbol = symbol.resize((symbol.width*2, symbol.height*2))
+            card_image.paste(symbol, (region['x'], region['y']), symbol)

@@ -3,6 +3,9 @@ import time
 from threading import Thread
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+import logging
+logging.getLogger('watchdog').setLevel(logging.WARNING)
+
 
 class CardFileHandler(FileSystemEventHandler):
     """File system event handler for card files"""
