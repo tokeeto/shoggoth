@@ -60,6 +60,7 @@ from card import Card
 from kivy.storage.jsonstore import JsonStore
 from ui import show_file_select
 
+
 class ShogothRoot(BoxLayout):
     """Root widget for the Shoggoth application"""
 
@@ -68,28 +69,30 @@ class ShogothRoot(BoxLayout):
         Window.bind(on_key_down=self.on_keyboard)
 
     def on_keyboard(self, instance, keyboard, keycode, text, modifiers):
-        print('on keyboard', keycode, modifiers)
         # Handle keyboard shortcuts
-        if keycode == 22:  # S
-            if modifiers == ['ctrl']:
+        if 'ctrl' in modifiers:
+            if text == 's':
                 f = App.get_running_app().save_changes
                 Clock.schedule_once(lambda x: f())
                 return True
-        if keycode == 8:  # E
-            if modifiers == ['ctrl']:
-                f = App.get_running_app().export_all
-                Clock.schedule_once(lambda x: f())
+            if text == 'n':
+                App.get_running_app().number_cards()
                 return True
-            else:
-                f = App.get_running_app().export_current
-                Clock.schedule_once(lambda x: f())
-                return True
-        if keycode == 18:  # O
-            if modifiers == ['ctrl']:
+            if text == 'e':
+                if 'shift' in modifiers:
+                    f = App.get_running_app().export_all
+                    Clock.schedule_once(lambda x: f())
+                    return True
+                else:
+                    f = App.get_running_app().export_current
+                    Clock.schedule_once(lambda x: f())
+                    return True
+            if text == 'o':  # O
                 f = App.get_running_app().open_project_dialog
                 Clock.schedule_once(lambda x: f())
                 return True
         return False
+
 
 class FileBrowser(BoxLayout):
     """File browser widget showing project files"""
@@ -105,19 +108,58 @@ class FileBrowser(BoxLayout):
         for node in self.tree.root.nodes:
             self.tree.remove_node(node)
 
-        # Recursively add files and folders
+        # Recursively add files and folder
         self._add_nodes()
 
     def _add_nodes(self):
         # Add folder contents to tree
+
+        # groups:
+        # player cards
+        # - investigators
+        # - class
+        # story cards:
+        # - story
+        # - locations
+        # - encounter
         for file in self.files:
             p_node = self.tree.add_node(TreeViewButton(text=file['name'], element=file, element_type='project'))
+
+            if file.encounter_sets and file.cards:
+                campaign_node = self.tree.add_node(TreeViewButton(text='Campaign cards', element=None, element_type=''), p_node)
+                player_node = self.tree.add_node(TreeViewButton(text='Player cards', element=None, element_type=''), p_node)
+            else:
+                campaign_node = player_node = p_node
+
             for encounter_set in file.encounter_sets:
-                e_node = self.tree.add_node(TreeViewButton(text=encounter_set.name, element=encounter_set, element_type='encounter'), p_node)
+                e_node = self.tree.add_node(TreeViewButton(text=encounter_set.name, element=encounter_set, element_type='encounter'), campaign_node)
+                story_node = self.tree.add_node(TreeViewButton(text='Story', element=None, element_type=''), e_node)
+                location_node = self.tree.add_node(TreeViewButton(text='Locations', element=None, element_type=''), e_node)
+                encounter_node = self.tree.add_node(TreeViewButton(text='Encounter', element=None, element_type=''), e_node)
                 for card in encounter_set.cards:
-                    c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), e_node)
+                    if card.front.get('type') == 'location':
+                        target_node = location_node
+                    elif card.back.get('type') == 'encounter':
+                        target_node = encounter_node
+                    else:
+                        target_node = story_node
+                    c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
+
+            class_nodes = {}
+            for cls in ('investigators', 'seeker', 'rogue', 'guardian', 'mystic', 'survivor', 'neutral', 'other'):
+                class_nodes[cls] = self.tree.add_node(TreeViewButton(text=cls, element=None, element_type=''), player_node)
+
+            investigator_nodes = {}
+
             for card in file.cards:
-                c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), p_node)
+                if group := card.data.get('investigator', False):
+                    target_node = class_nodes.get('investigators')
+                    if not investigator_nodes.get(group):
+                        investigator_nodes[group] = self.tree.add_node(TreeViewButton(text=group, element=None, element_type=''), target_node)
+                    target_node = investigator_nodes[group]
+                else:
+                    target_node = class_nodes.get(card.front.get('class'), class_nodes['other'])
+                c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
 
     def on_tree_select(self, instance, node):
         if hasattr(node, 'full_path') and node.full_path.endswith('.json'):
@@ -223,6 +265,11 @@ class ShoggothApp(App):
     def on_file_changed(self, file_path):
         """Handle file changes outside the editor"""
         self.load_file(self.current_card_path)
+
+    def number_cards(self):
+        self.current_card.expansion.assign_card_numbers()
+        self.status_message = f"Updated card numbers"
+        self.update_card_preview()
 
     def save_changes(self):
         for project in self.root.ids.file_browser.files:

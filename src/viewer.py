@@ -69,7 +69,7 @@ class ViewerRoot(BoxLayout):
                 return True
             App.get_running_app().flip_card()
             return True
-        if keycode == 8:
+        if text == 'e':
             if modifiers == ['ctrl']:
                 f = App.get_running_app().export_all
                 Clock.schedule_once(lambda x: f())

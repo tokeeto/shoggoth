@@ -295,6 +295,7 @@
             id: tree
             hide_root: True
             size_hint_y: None
+            height: self.minimum_height
 
 <FileField@BoxLayout>:
     orientation: 'horizontal'
@@ -403,12 +404,13 @@
 
                     TextEditLine:
                         text: 'Name'
-                        field: 'name'
-                        object: root.card.data
+                        id: name
                     TextEditLine:
                         text: 'Amount in set'
-                        field: 'amount'
-                        object: root.card.data
+                        id: amount
+                    TextEditLine:
+                        text: 'Collection Number'
+                        id: collection_number
 
 
         TabbedPanelItem:
@@ -422,10 +424,8 @@
 
 <TextEditLine@BoxLayout>:
     input: input
-    orientation: 'horizontal'
     text: ''
-    field: ''
-    object: None
+    orientation: 'horizontal'
     size_hint_y: None
     height: 30
     Label:
@@ -434,14 +434,12 @@
         text: root.text
     TextInput:
         id: input
-        text: str(root.object.get(root.field)) if root.object else 'No object'
-        on_text: root.object.set(root.field, self.text)
+        text: ''
 
 <TextEditArea@BoxLayout>:
     orientation: 'horizontal'
+    input: input
     text: ''
-    field: ''
-    object: None
     size_hint_y: None
     height: 100
     Label:
@@ -449,11 +447,11 @@
         width: 200
         text: root.text
     TextInput:
-        text: root.object.get(root.field) if root.object else 'No object'
+        id: input
+        text: ''
         multiline: True
         size_hint_y: None
         height: 100
-        on_text: root.object.set(root.field, self.text)
 
 <FaceEditor>:
     orientation: 'vertical'
@@ -461,8 +459,13 @@
 
     TextEditLine:
         text: 'Type'
-        object: root.face
-        field: 'type'
+        id: type
+    TextEditLine:
+        text: 'Amount'
+        id: amount
+    TextEditLine:
+        text: 'Number'
+        id: collection_number
 
 <-AssetEditor>:
     ScrollView:
@@ -473,103 +476,57 @@
             spacing: 5
 
             TextEditLine:
-                text: 'Name'
-                object: root.face
-                field: 'name'
-
+                text: 'type'
+                id: type
             TextEditLine:
-                text: 'Subtitle'
-                field: 'subtitle'
-                object: root.face
+                text: 'name'
+                id: name
+            TextEditLine:
+                text: 'subtitle'
+                id: subtitle
 
             GridLayout:
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
                 spacing: 5
-                BoxLayout:
-                    orientation: 'horizontal'
-                    Label:
-                        text: 'Class'
-                    Button:
-                        text: root.face.get('class', '')
-                        on_release: ui.show_class_select(self, lambda x: root.face.set('class',x))
-
+                
                 TextEditLine:
-                    text: 'Icons'
-                    field: 'icons'
-                    object: root.face
-
+                    text: 'traits'
+                    id: traits
                 TextEditLine:
-                    text: 'Cost'
-                    field: 'cost'
-                    object: root.face
-
+                    text: 'class'
+                    id: card_class
                 TextEditLine:
-                    text: 'Slots'
-                    field: 'slots'
-                    object: root.face
-
-                Widget:
-
+                    text: 'classes'
+                    id: classes
                 TextEditLine:
-                    text: 'Stamina'
-                    field: 'stamina'
-                    object: root.face
-
+                    text: 'cost'
+                    id: cost
                 TextEditLine:
-                    text: 'Sanity'
-                    field: 'sanity'
-                    object: root.face
-
-            TextEditLine:
-                text: 'Image'
-                id: illustration_path
-                field: 'illustration'
-                object: root.face
-
-            Button:
-                size_hint_y: None
-                height: 30
-                text: 'Img'
-                on_release: ui.show_file_select(illustration_path.input)
-
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: 5
+                    text: 'level'
+                    id: level
                 TextEditLine:
-                    text: 'Pan X'
-                    field: 'portrait_pan_x'
-                    object: root.face
-
+                    text: 'stamina'
+                    id: stamina
                 TextEditLine:
-                    text: 'Pan Y'
-                    field: 'portrait_pan_y'
-                    object: root.face
-
-            TextEditLine:
-                text: 'Zoom'
-                field: 'portrait_zoom'
-                object: root.face
-
-            TextEditLine:
-                text: 'Traits'
-                field: 'traits'
-                object: root.face
-
-            TextEditArea:
-                text: 'Text'
-                field: 'rule_text'
-                object: root.face
-
-            TextEditArea:
-                text: 'Flavor'
-                field: 'flavor_text'
-                object: root.face
-
-            TextEditLine:
-                text: 'Victory'
-                field: 'victory_text'
-                object: root.face
+                    text: 'sanity'
+                    id: sanity
+                TextEditLine:
+                    text: 'text'
+                    id: text
+                TextEditLine:
+                    text: 'flavor_text'
+                    id: flavor_text
+                TextEditLine:
+                    text: 'illustration'
+                    id: illustration
+                TextEditLine:
+                    text: 'illustration_pan_y'
+                    id: illustration_pan_y
+                TextEditLine:
+                    text: 'illustration_pan_x'
+                    id: illustration_pan_x
+                TextEditLine:
+                    text: 'illustration_scale'
+                    id: illustration_scale

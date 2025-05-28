@@ -88,21 +88,85 @@ class CardEditor(BoxLayout):
         pass
 
 
+class CardField:
+    def __init__(self, widget, card_key, converter=str):
+        self.widget = widget
+        self.card_key = card_key
+        self.converter = converter
+        self._updating = False
+
+    def update_from_card(self, card_data):
+        self._updating = True
+        value = card_data.get(self.card_key, '')
+        self.widget.text = str(value) if value else ''
+        self._updating = False
+
+    def update_card(self, card_data, value):
+        if self._updating:
+            return False
+
+        try:
+            card_data.set(self.card_key, self.converter(value) if value else None)
+            return True
+        except ValueError:
+            return False
+
+
 class FaceEditor(FloatLayout):
     face = ObjectProperty()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields = []
+        self._setup_fields()
+        self.load_card(self.face)
 
-    def update_data(self, *args, **kwargs):
-        import ast
-        try:
-            self.face.data = ast.literal_eval(self.raw_text.text)
-        except:
-            pass
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.type.input, 'type'),
+            CardField(self.ids.amount.input, 'amount'),
+            CardField(self.ids.collection_number.input, 'collection_number'),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
+    def load_card(self, card_data):
+        for field in self.fields:
+            field.update_from_card(self.face)
+
+    def _on_field_changed(self, field, value):
+        field.update_card(self.face, value)
+
 
 class AssetEditor(FaceEditor):
-    pass
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.type.input, 'type'),
+            CardField(self.ids.name.input, 'name'),
+            CardField(self.ids.subtitle.input, 'subtitle'),
+            CardField(self.ids.traits.input, 'traits'),
+            CardField(self.ids.card_class.input, 'class'),
+            CardField(self.ids.classes.input, 'classes', list),
+            CardField(self.ids.cost.input, 'cost'),
+            CardField(self.ids.level.input, 'level'),
+            CardField(self.ids.stamina.input, 'stamina'),
+            CardField(self.ids.sanity.input, 'sanity'),
+            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.flavor_text.input, 'flavor_text'),
+            CardField(self.ids.illustration.input, 'illustration'),
+            CardField(self.ids.illustration_pan_y.input, 'illustration_pan_y', int),
+            CardField(self.ids.illustration_pan_x.input, 'illustration_pan_x', int),
+            CardField(self.ids.illustration_scale.input, 'illustration_scale', float),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 class EventEditor(FaceEditor):
     pass

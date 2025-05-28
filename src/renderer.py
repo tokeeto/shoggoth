@@ -15,34 +15,36 @@ import logging
 logging.getLogger('PIL').setLevel(logging.WARNING)
 logging.getLogger('pillow').setLevel(logging.WARNING)
 
+# HSL values for each connection icon
 LOCATION_COLORS = {
-    'Circle': 10,
-    'CircleAlt': 10,
-    'Clover': 50,
-    'Cross': 10,
-    'CrossAlt': 10,
-    'Diamond': 10,
-    'DiamondAlt': 10,
-    'DoubleSlash': 10,
-    'DoubleSlashAlt': 10,
-    'Heart': 120,
-    'HeartAlt': 10,
-    'Hourglass': 10,
-    'HourglassAlt': 10,
-    'Moon': 10,
-    'MoonAlt': -40,
-    'Quote': 10,
-    'Slash': 10,
-    'SlashAlt': 10,
-    'Spade': 10,
-    'Square': 10,
-    'SquareAlt': 10,
-    'Star': 10,
-    'StarAlt': 10,
-    'T': 10,
-    'TAlt': 10,
-    'Triangle': 10,
-    'TriangleAlt': 10,
+    "Circle": (50, 0.71, 0.78),
+    "Square": (-2, 0.73, 0.63),
+    "Triangle": (-150, 0.41, 0.35),
+    "Cross": (8, 0.65, 0.31),
+    "Diamond": (98, 0.51, 0.53),
+    "Slash": (40, 0.54, 0.46),
+    "T": (-123, 0.39, 0.24),
+    "Hourglass": (-20, 0.55, 0.30),
+    "Moon": (-25, 0.51, 0.51),
+    "DoubleSlash": (131, 0.34, 0.24),
+    "Heart": (24, 0.72, 0.73),
+    "Star": (-71, 0.36, 0.23),
+    "Quote": (23, 0.64, 0.47),
+    "Clover": (123, 0.23, 0.44),
+    "Spade": (-26, 0.66, 0.72),
+
+    "TriangleAlt": (50, 0.81, 0.88),
+    "CrossAlt": (-2, 0.83, 0.73),
+    "DiamondAlt": (-150, 0.51, 0.45),
+    "SlashAlt": (8, 0.75, 0.51),
+    "TAlt": (98, 0.61, 0.63),
+    "HourglassAlt": (40, 0.64, 0.56),
+    "MoonAlt": (-123, 0.49, 0.34),
+    "DoubleSlashAlt": (-20, 0.65, 0.40),
+    "HeartAlt": (-25, 0.61, 0.61),
+    "StarAlt": (131, 0.44, 0.34),
+    "CircleAlt": (24, 0.82, 0.83),
+    "SquareAlt": (-71, 0.46, 0.33),
 }
 
 
@@ -62,6 +64,10 @@ class Region:
     @property
     def pos(self):
         return (self.x, self.y)
+
+    @property
+    def center(self):
+        return {'x': self.x + self.width // 2, 'y': self.y + self.height // 2}
 
     def __bool__(self):
         return bool(self.x + self.y + self.width + self.height)
@@ -278,22 +284,25 @@ class CardRenderer:
 
         # own icon
         value = side.get('connection')
-        if value:
+        if value and value != "None":
             # ready circle for coloring
             region = side.get('connection_region')
             _circle = circle.resize((region['width'], region['height']))
             h, s, v = _circle.convert('HSV').split()
-            np_s = np.array(h, dtype=np.int8)
+            np_h = np.array(h, dtype=np.uint8) + LOCATION_COLORS.get(value)[0] % 256
+            np_s = np.array(s, dtype=np.uint8) + LOCATION_COLORS.get(value)[1] % 256
+            np_v = np.array(v, dtype=np.uint8) + LOCATION_COLORS.get(value)[2] % 256
 
             # grab and paint each icon
-            np_color = (np_s + LOCATION_COLORS.get(value, 0))
-            s_shifted = Image.fromarray(np_color, 'L')
-            new_img = Image.merge('HSV', (s_shifted, s, v))
+            h_shifted = Image.fromarray(np_h, 'L')
+            s_shifted = Image.fromarray(np_s, 'L')
+            v_shifted = Image.fromarray(np_v, 'L')
+            new_img = Image.merge('HSV', (h_shifted, s_shifted, v_shifted))
             card_image.paste(new_img, (region['x'], region['y']), _circle)
 
             overlay_path = os.path.join(self.icons_path, f"AHLCG-Loc{value}.png")
             overlay_icon = Image.open(overlay_path).convert("RGBA")
-            overlay_icon = overlay_icon.resize((region['width'], region['height']))
+            overlay_icon = overlay_icon.resize((overlay_icon.width*2, overlay_icon.height*2))
             card_image.paste(overlay_icon, (region['x'], region['y']), overlay_icon)
 
         # outgoing connections
@@ -307,23 +316,30 @@ class CardRenderer:
         size_region = side.get('connection_1_region')
         circle = circle.resize((size_region['width'], size_region['height']))
         h, s, v = circle.convert('HSV').split()
-        np_s = np.array(h, dtype=np.int8)
 
         # grab and paint each icon
         for index, icon in enumerate(value):
-            if not icon:
+            if not icon or icon == "None":
                 continue
-            region = side.get(f'connection_{index+1}_region')
+            region = Region(side.get(f'connection_{index+1}_region'))
 
-            np_color = (np_s + LOCATION_COLORS.get(icon, 0))
-            s_shifted = Image.fromarray(np_color, 'L')
-            new_img = Image.merge('HSV', (s_shifted, s, v))
-            card_image.paste(new_img, (region['x'], region['y']), circle)
+            np_h = np.array(h, dtype=np.uint8) + LOCATION_COLORS.get(icon)[0] % 256
+            np_s = np.array(s, dtype=np.uint8) * LOCATION_COLORS.get(icon)[1]
+            np_v = np.array(v, dtype=np.uint8) * LOCATION_COLORS.get(icon)[2]
+            h_shifted = Image.fromarray(np_h, 'L')
+            s_shifted = Image.fromarray(np_s, 'L')
+            v_shifted = Image.fromarray(np_v, 'L')
+            new_img = Image.merge('HSV', (h_shifted, s_shifted, v_shifted))
+            card_image.paste(new_img, (region.x, region.y), circle)
 
             overlay_path = os.path.join(self.icons_path, f"AHLCG-Loc{icon}.png")
             overlay_icon = Image.open(overlay_path).convert("RGBA")
-            overlay_icon = overlay_icon.resize((region['width'], region['height']))
-            card_image.paste(overlay_icon, (region['x'], region['y']), overlay_icon)
+            overlay_icon = overlay_icon.resize((overlay_icon.width*2, overlay_icon.height*2))
+            card_image.paste(
+                overlay_icon,
+                (region.center['x'] - overlay_icon.width//2, region.center['y']-overlay_icon.height//2),
+                overlay_icon
+            )
 
 
     def render_icons(self, card_image, side):
