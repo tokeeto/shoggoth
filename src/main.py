@@ -40,9 +40,9 @@ from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.popup import Popup
-from kivy.uix.image import Image
+from kivy.uix.image import Image, CoreImage
 from kivy.properties import ObjectProperty, StringProperty, BooleanProperty
-from kivy.clock import Clock
+from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from editor import CardEditor, EncounterEditor, ProjectEditor
 
@@ -51,6 +51,7 @@ Logger.setLevel(LOG_LEVELS["debug"])
 
 import os
 import json
+import threading
 from pathlib import Path
 
 from renderer import CardRenderer
@@ -289,6 +290,17 @@ class ShoggothApp(App):
         self.root.ids.editor_container.add_widget(CardEditor(card=card))
         self.update_card_preview()
 
+    @mainthread
+    def update_texture(self, texture, container):
+        #tex = self.card_renderer.pil_to_texture(texture)
+        img = Image(size_hint_y=None, height=300)
+        container.add_widget(img)
+        img.texture = CoreImage(texture, ext='jpeg').texture
+
+    def render_thumbnail(self, card, container):
+        texture = self.card_renderer.get_thumbnail(card)
+        Clock.schedule_once(lambda x:self.update_texture(texture, container), 1)
+
     def update_card_data(self, face, field, value):
         print('update current card', face, field, value)
         if face.get(field, None) != value:
@@ -443,9 +455,8 @@ if __name__ == '__main__':
     if args.view:
         # Start in viewer mode
         app = ViewerApp(args.view)
-        app.run()
     else:
         # Start in normal mode
         app = ShoggothApp()
-        app.run()
+    app.run()
     print(app.get_application_icon())

@@ -354,21 +354,37 @@
 <ProjectEditor>:
     orientation: 'vertical'
     TextEditLine:
+        size_hint_y: None
+        height: 28
         text: 'Name'
         field: root.project.get('name', '')
     FileField:
+        size_hint_y: None
+        height: 28
         text: 'Icon'
         path: root.project.get('icon', '')
     Button:
+        size_hint_y: None
+        height: 28
         text: 'Add Encounter set'
         on_release: root.show_new_encounter_popup()
     Button:
+        size_hint_y: None
+        height: 28
         text: 'Add Player Card'
         on_release: root.show_new_play_popup()
     Button:
+        size_hint_y: None
+        height: 28
         text: 'Delete'
         on_release: root.show_confirm_delete()
-
+    ScrollView:
+        size_hint: 1, 1
+        GridLayout:
+            size_hint_y: None
+            height: self.minimum_height
+            cols: 3
+            id: thumbnail_grid
 
 <EncounterEditor>:
     orientation: 'vertical'
@@ -460,12 +476,6 @@
     TextEditLine:
         text: 'Type'
         id: type
-    TextEditLine:
-        text: 'Amount'
-        id: amount
-    TextEditLine:
-        text: 'Number'
-        id: collection_number
 
 <-AssetEditor>:
     ScrollView:
@@ -490,7 +500,7 @@
                 size_hint_y: None
                 height: self.minimum_height
                 spacing: 5
-                
+
                 TextEditLine:
                     text: 'traits'
                     id: traits
@@ -512,15 +522,17 @@
                 TextEditLine:
                     text: 'sanity'
                     id: sanity
-                TextEditLine:
-                    text: 'text'
-                    id: text
-                TextEditLine:
-                    text: 'flavor_text'
-                    id: flavor_text
-                TextEditLine:
-                    text: 'illustration'
-                    id: illustration
+            TextEditArea:
+                text: 'text'
+                id: text
+            TextEditLine:
+                text: 'flavor_text'
+                id: flavor_text
+            TextEditLine:
+                text: 'illustration'
+                id: illustration
+            BoxLayout:
+                orientation: "horizontal"
                 TextEditLine:
                     text: 'illustration_pan_y'
                     id: illustration_pan_y

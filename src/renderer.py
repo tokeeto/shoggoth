@@ -100,6 +100,14 @@ class CardRenderer:
         # Initialize rich text renderer
         self.rich_text = RichTextRenderer(self)
 
+    def get_thumbnail(self, card):
+        """ Renders a low res version of the front of a card """
+        image = self.render_card_side(card, card.front, size=1)
+        image = image.resize((int(image.width*.5), int(image.height*.5)))
+        buffer = BytesIO()
+        image.save(buffer, format='jpeg', quality=50)
+        buffer.seek(0)
+        return buffer
 
     def get_card_textures(self, card):
         """Render both sides of a card"""
@@ -139,7 +147,7 @@ class CardRenderer:
         im = CoreImage(buffer, ext='jpeg')
         return im.texture
 
-    def render_card_side(self, card, side):
+    def render_card_side(self, card, side, size=1):
         """Render one side of a card"""
         from time import time
 
@@ -150,10 +158,12 @@ class CardRenderer:
         self.current_opposite_side = card.front if side == card.back else card.back
         self.current_field = None
 
+        height, width = int(self.CARD_HEIGHT*size), int(self.CARD_WIDTH*size)
+
         if side['type'] in self.horizontal_cards:
-            card_image = Image.new('RGB', (self.CARD_HEIGHT, self.CARD_WIDTH), (255, 255, 255))
+            card_image = Image.new('RGB', (height, width), (255, 255, 255))
         else:
-            card_image = Image.new('RGB', (self.CARD_WIDTH, self.CARD_HEIGHT), (255, 255, 255))
+            card_image = Image.new('RGB', (width, height), (255, 255, 255))
 
         self.render_illustration(card_image, side)
         self.render_template(card_image, side)

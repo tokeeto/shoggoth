@@ -1,10 +1,13 @@
 from kivy.app import App
+from kivy.clock import Clock, mainthread
 from kivy.uix.boxlayout import BoxLayout
 from kivy.properties import ObjectProperty, StringProperty, DictProperty
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.image import Image
 from card import Card
+import threading
 
 
 class NewCardPopup(Popup):
@@ -45,6 +48,15 @@ class ProjectEditor(BoxLayout):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        threading.Thread(target=self.show_thumbnails).start()
+
+    def show_thumbnails(self):
+        try:
+            app = App.get_running_app()
+            for index, card in enumerate(self.project.get_all_cards()):
+                app.render_thumbnail(card, self.ids.thumbnail_grid)
+        except Exception as e:
+           print("failure in on_project", self.project, e)
 
     def callback(self, *args, **kwargs):
         print(args, kwargs)
@@ -125,8 +137,6 @@ class FaceEditor(FloatLayout):
         # Register all your fields
         self.fields = [
             CardField(self.ids.type.input, 'type'),
-            CardField(self.ids.amount.input, 'amount'),
-            CardField(self.ids.collection_number.input, 'collection_number'),
         ]
 
         # Bind each field
@@ -141,26 +151,42 @@ class FaceEditor(FloatLayout):
         field.update_card(self.face, value)
 
 
+def base_fields(editor):
+    return [
+        CardField(editor.ids.type.input, 'type'),
+        CardField(editor.ids.name.input, 'name'),
+        CardField(editor.ids.subtitle.input, 'subtitle'),
+        CardField(editor.ids.traits.input, 'traits'),
+    ]
+
+
+def illustration_fields(editor):
+    return [
+        CardField(editor.ids.illustration.input, 'illustration'),
+        CardField(editor.ids.illustration_pan_y.input, 'illustration_pan_y', int),
+        CardField(editor.ids.illustration_pan_x.input, 'illustration_pan_x', int),
+        CardField(editor.ids.illustration_scale.input, 'illustration_scale', float),
+    ]
+
+def player_card_fields(editor):
+    return [
+        CardField(editor.ids.card_class.input, 'class'),
+        CardField(editor.ids.classes.input, 'classes', list),
+        CardField(editor.ids.cost.input, 'cost'),
+        CardField(editor.ids.level.input, 'level'),
+    ]
+
 class AssetEditor(FaceEditor):
     def _setup_fields(self):
         # Register all your fields
         self.fields = [
-            CardField(self.ids.type.input, 'type'),
-            CardField(self.ids.name.input, 'name'),
-            CardField(self.ids.subtitle.input, 'subtitle'),
-            CardField(self.ids.traits.input, 'traits'),
-            CardField(self.ids.card_class.input, 'class'),
-            CardField(self.ids.classes.input, 'classes', list),
-            CardField(self.ids.cost.input, 'cost'),
-            CardField(self.ids.level.input, 'level'),
+            *base_fields(self),
+            *player_card_fields(self),
             CardField(self.ids.stamina.input, 'stamina'),
             CardField(self.ids.sanity.input, 'sanity'),
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
-            CardField(self.ids.illustration.input, 'illustration'),
-            CardField(self.ids.illustration_pan_y.input, 'illustration_pan_y', int),
-            CardField(self.ids.illustration_pan_x.input, 'illustration_pan_x', int),
-            CardField(self.ids.illustration_scale.input, 'illustration_scale', float),
+            *illustration_fields(self),
         ]
 
         # Bind each field
@@ -169,26 +195,121 @@ class AssetEditor(FaceEditor):
 
 
 class EventEditor(FaceEditor):
-    pass
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            *base_fields(self),
+            *player_card_fields(self),
+            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.flavor_text.input, 'flavor_text'),
+            *illustration_fields(self),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 class SkillEditor(FaceEditor):
-    pass
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            *base_fields(self),
+            *player_card_fields(self),
+            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.flavor_text.input, 'flavor_text'),
+            *illustration_fields(self),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 class InvestigatorEditor(FaceEditor):
-    pass
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            *base_fields(self),
+            CardField(self.ids.card_class.input, 'class'),
+            CardField(self.ids.classes.input, 'classes', list),
+            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.flavor_text.input, 'flavor_text'),
+
+            CardField(self.ids.agility.input, 'agility'),
+            CardField(self.ids.combat.input, 'combat'),
+            CardField(self.ids.willpower.input, 'willpower'),
+            CardField(self.ids.intellect.input, 'intellect'),
+
+            CardField(self.ids.health.input, 'health'),
+            CardField(self.ids.sanity.input, 'sanity'),
+            *illustration_fields(self),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 class InvestigatorBackEditor(FaceEditor):
-    pass
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            *base_fields(self),
+            CardField(self.ids.card_class.input, 'class'),
+            CardField(self.ids.classes.input, 'classes', list),
+            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.flavor_text.input, 'flavor_text'),
+
+            *illustration_fields(self),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 class LocationEditor(FaceEditor):
-    pass
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            *base_fields(self),
+            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.flavor_text.input, 'flavor_text'),
+            CardField(self.ids.connection.input, 'connection'),
+            CardField(self.ids.connections.input, 'connections', list),
+            *illustration_fields(self)
+        ]
 
-class TreaceryEditor(FaceEditor):
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
+
+class TreacheryEditor(FaceEditor):
     pass
 
 class EnemyEditor(FaceEditor):
-    pass
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            *base_fields(self),
+            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.flavor_text.input, 'flavor_text'),
 
+            CardField(self.ids.attack.input, 'attack'),
+            CardField(self.ids.health.input, 'health'),
+            CardField(self.ids.evade.input, 'evade'),
+
+            CardField(self.ids.damage.input, 'damage'),
+            CardField(self.ids.horror.input, 'horror'),
+
+            *illustration_fields(self)
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
 
 
 # maps face types to editors
@@ -199,6 +320,6 @@ MAPPING = {
     'investigator': InvestigatorEditor,
     'investigator_back': InvestigatorBackEditor,
     'location': LocationEditor,
-    'treacery': TreaceryEditor,
+    'treachery': TreacheryEditor,
     'enemy': EnemyEditor,
 }
