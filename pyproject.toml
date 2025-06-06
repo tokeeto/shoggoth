@@ -1,0 +1,39 @@
+[project]
+name = "shoggoth"
+version = "0.0.6"
+authors = [{ name = "Toke Ivø", email = "toke.ivo@gmail.com" }]
+description = "A card creator for Arkham Horror: The Card Game"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+dependencies = [
+    "kivy >= 2.3.1",
+    "pillow >= 11.0.0",
+    "watchdog >= 6.0.0",
+    "numpy >= 2.2.4",
+    "kivy-garden==0.1.5",
+    "kivy-garden.contextmenu == 0.1.0.dev1",
+    "platformdirs>=4.3.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/tokeeto/shoggoth"
+Issues = "https://github.com/tokeeto/shoggoth/issues"
+
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["shoggoth/"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[project.scripts]
+shoggoth = "shoggoth.tool:run"

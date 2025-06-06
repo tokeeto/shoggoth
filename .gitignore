@@ -5,3 +5,4 @@
 /dist*
 *.sublime-project
 *.sublime-workspace
+uv.lock
