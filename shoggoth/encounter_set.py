@@ -1,3 +1,4 @@
+from uuid import uuid4
 from shoggoth.card import Card
 
 
@@ -9,6 +10,7 @@ class EncounterSet:
         self.data = data
         self.expansion = expansion
         self.get = data.get
+        self.id = data.get('id', uuid4())
         self.__getitem__ = self.data.__getitem__
 
     def __eq__(self, other):

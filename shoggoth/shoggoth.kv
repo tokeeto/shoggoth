@@ -5,10 +5,12 @@
 
 <TextInput>
     write_tab: False
+    font_size: '16dp'
+    height: '32dp'
 
 <DropDownButton@Button>:
     size_hint_y: None
-    height: 30
+    height: '30dp'
 
 <ClassSelectDropdown@DropDown>:
     DropDownButton:
@@ -86,12 +88,32 @@
             text: 'Front'
             Image:
                 id: front_preview
+                color: [0,0,0,0] if not self.texture else [1,1,1,1]
 
         TabbedPanelItem:
             text: 'Back'
             Image:
                 id: back_preview
+                color: [0,0,0,0] if not self.texture else [1,1,1,1]
 
+<AboutPopup@Popup>:
+    title: 'About Shoggoth'
+    size_hint: 0.75, 0.75
+
+    BoxLayout:
+        orientation: 'vertical'
+
+        Label:
+            text: 'Created by Toke Ivø.\nYou can support the development of Shoggoth by <a href="https://github.com/tokeeto/shoggoth">contribution</a>, <a href="https://www.patreon.com/tokeeto">donation</a>, or <a href="https://ko-fi.com/tokeeto">tips</a>.'
+            max_width: '400dp'
+            multiline: True
+            markup: True
+        Label:
+            text: 'Various images by the Mythos Busters community.'
+            multiline: True
+        Label:
+            text: 'Special thanks to Coldtoes, felice, Chr1Z and MickeyTheQ.'
+            multiline: True
 
 <NewProjectPopup@Popup>:
     title: 'New Project'
@@ -173,6 +195,37 @@
                 text: 'Select'
                 on_release: root.save()
 
+<GotoEntryListItem>:
+    orientation: 'horizontal'
+    size_hint_y: None
+    height: '32dp'
+    size_hint_x: 1
+    on_release: root.callback(root.entry)
+    Label:
+        text: root.entry.name
+    Label:
+        text: root.entry.type
+    Label:
+        text: root.entry.id
+
+<GotoPopup@Popup>
+    title: 'Go to line'
+    size_hint: None, None
+    size: '700dp', '700dp'
+    BoxLayout:
+        orientation: 'vertical'
+        TextInput:
+            id: input
+            hint_text: 'Card name'
+            size_hint_y: None
+            height: '32dp'
+        ScrollView:
+            size_hint: 1, 1
+            BoxLayout:
+                orientation: 'vertical'
+                id: list
+                size_hint_y: None
+                height: self.minimum_height
 
 <TreeViewLabel>:
     full_path: ''
@@ -180,12 +233,43 @@
     font_size: '14dp'
 
 <TreeViewButton>
-    on_release: root.select()
     background_color: 0,0,0,0
     color_selected: 0,0,0,.3
 
+<TopMenu@AppMenu>:
+    top: root.parent.height
+    cancel_handler_widget: root.parent
+    AppMenuTextItem:
+        text: 'File'
+        ContextMenu:
+            width: '200dp'
+            ContextMenuTextItem:
+                text: 'Open Project'
+                on_release: app.open_project_dialog()
+            ContextMenuTextItem:
+                text: 'New Project'
+                on_release: app.new_project_dialog()
+            ContextMenuTextItem:
+                text: 'Save (Ctrl+S)'
+                on_release: app.save_changes()
+            ContextMenuTextItem:
+                text: 'Save as (Ctrl+Shift+S)'
+                on_release: app.save_changes()
+            ContextMenuTextItem:
+                text: 'New Card'
+                on_release: app.new_project_dialog()
+    AppMenuTextItem:
+        text: 'Help'
+        ContextMenu:
+            width: '200dp'
+            ContextMenuTextItem:
+                text: 'About'
+                on_release: app.show_about_dialog()
+    AppMenuTextItem:
+        text: 'Project: ' + (app.current_project.get('name') if app.current_project else 'None')
+
+
 <ShoggothRoot>:
-    orientation: 'vertical'
     canvas:
         Rectangle:
             source: root.bg_path
@@ -193,38 +277,9 @@
             pos: self.pos
 
     BoxLayout:
-        size_hint_y: None
-        height: '48dp'
-        padding: '5dp'
-        spacing: '5dp'
-
-        Button:
-            text: 'Open Project'
-            size_hint_x: None
-            width: '120dp'
-            on_release: app.open_project_dialog()
-
-        Button:
-            text: 'New Project'
-            size_hint_x: None
-            width: '120dp'
-            on_release: app.new_project_dialog()
-
-        Button:
-            text: 'Save all'
-            size_hint_x: None
-            width: '120dp'
-            on_release: app.save_changes()
-
-        Label:
-            text: 'Project: ' + (os.path.basename(app.project_path) if app.project_path else 'None')
-            size_hint_x: 1
-            halign: 'left'
-            valign: 'middle'
-            text_size: self.size
-
-    BoxLayout:
         orientation: 'horizontal'
+        size_hint: 1,1
+        padding: [0,'26dp',0,'24dp']
 
         # File Browser Panel (left)
         Splitter:
@@ -247,9 +302,14 @@
 
             CardPreview:
                 id: card_preview
+    TopMenu:
+        id: top_menu
+        size_hint: 1, None
 
     # Status bar
     Label:
+        pos_hint: {'x': 0, 'bottom': 1}
+        size_hint: 1, None
         id: status_bar
         text: app.status_message
         size_hint_y: None
@@ -269,7 +329,7 @@
     orientation: 'vertical'
     canvas:
         Color:
-            rgba: 1,1,1,.4
+            rgba: 1,1,1,0
         Rectangle:
             source: None
             size: self.size
@@ -293,6 +353,7 @@
             hide_root: True
             size_hint_y: None
             height: self.minimum_height
+            on_selected_node: root.on_selected_node()
 
 <FileField@BoxLayout>:
     orientation: 'horizontal'
@@ -352,27 +413,27 @@
     orientation: 'vertical'
     TextEditLine:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Name'
         field: root.project.get('name', '')
     FileField:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Icon'
         path: root.project.get('icon', '')
     Button:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Add Encounter set'
         on_release: root.show_new_encounter_popup()
     Button:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Add Player Card'
         on_release: root.show_new_play_popup()
     Button:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Delete'
         on_release: root.show_confirm_delete()
     ScrollView:
@@ -387,26 +448,26 @@
     orientation: 'vertical'
     TextEditLine:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Name'
         field: root.encounter.get('name', '')
     TextEditLine:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Icon'
         field: root.encounter.get('icon', '')
     Button:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Add new card'
         on_release: root.new_card()
     Button:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Delete set'
     Button:
         size_hint_y: None
-        height: 28
+        height: '28dp'
         text: 'Something else'
     ScrollView:
         size_hint: 1, 1
@@ -457,10 +518,10 @@
     text: ''
     orientation: 'horizontal'
     size_hint_y: None
-    height: 30
+    height: '30dp'
     Label:
         size_hint_x: None
-        width: 150
+        width: '150dp'
         text: root.text
     TextInput:
         id: input
@@ -471,17 +532,17 @@
     input: input
     text: ''
     size_hint_y: None
-    height: 100
+    height: '140dp'
     Label:
         size_hint_x: None
-        width: 200
+        width: '150dp'
         text: root.text
     TextInput:
         id: input
         text: ''
         multiline: True
         size_hint_y: None
-        height: 100
+        height: '140dp'
 
 <FaceEditor>:
     orientation: 'vertical'
@@ -497,7 +558,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -513,7 +574,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -565,7 +626,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -581,7 +642,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -627,7 +688,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -643,7 +704,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -686,7 +747,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -702,7 +763,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -724,7 +785,7 @@
                 cols: 4
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'willpower'
@@ -769,7 +830,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -785,7 +846,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -825,7 +886,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -841,7 +902,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -887,7 +948,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -903,7 +964,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -943,7 +1004,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -959,7 +1020,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -1008,7 +1069,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -1024,7 +1085,7 @@
                 cols: 2
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: 5
+                spacing: '5dp'
 
                 TextEditLine:
                     text: 'traits'
@@ -1058,7 +1119,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -1101,7 +1162,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -1125,7 +1186,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -1168,7 +1229,7 @@
             cols: 1
             size_hint_y: None
             height: self.minimum_height
-            spacing: 5
+            spacing: '5dp'
 
             TextEditLine:
                 text: 'type'
@@ -1182,6 +1243,28 @@
             TextEditArea:
                 text: 'Story'
                 id: flavor_text
+            TextEditArea:
+                text: 'Text'
+                id: text
+
+
+<-ChaosEditor>:
+    ScrollView:
+        GridLayout:
+            cols: 1
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: '5dp'
+
+            TextEditLine:
+                text: 'type'
+                id: type
+            TextEditLine:
+                text: 'name'
+                id: name
+            TextEditLine:
+                text: 'difficulty'
+                id: difficulty
             TextEditArea:
                 text: 'Text'
                 id: text

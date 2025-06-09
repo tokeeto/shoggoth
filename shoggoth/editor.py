@@ -178,6 +178,7 @@ def illustration_fields(editor):
         CardField(editor.ids.illustration_scale.input, 'illustration_scale', float),
     ]
 
+
 def player_card_fields(editor):
     return [
         CardField(editor.ids.card_class.input, 'class'),
@@ -185,6 +186,7 @@ def player_card_fields(editor):
         CardField(editor.ids.cost.input, 'cost'),
         CardField(editor.ids.level.input, 'level'),
     ]
+
 
 class AssetEditor(FaceEditor):
     def _setup_fields(self):
@@ -351,6 +353,7 @@ class EnemyEditor(FaceEditor):
         for field in self.fields:
             field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
 
+
 class ActEditor(FaceEditor):
     def _setup_fields(self):
         # Register all your fields
@@ -367,6 +370,7 @@ class ActEditor(FaceEditor):
         # Bind each field
         for field in self.fields:
             field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 class ActBackEditor(FaceEditor):
     def _setup_fields(self):
@@ -401,6 +405,7 @@ class AgendaEditor(FaceEditor):
         for field in self.fields:
             field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
 
+
 class AgendaBackEditor(FaceEditor):
     def _setup_fields(self):
         # Register all your fields
@@ -410,6 +415,21 @@ class AgendaBackEditor(FaceEditor):
             CardField(self.ids.index.input, 'index'),
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
+
+class ChaosEditor(FaceEditor):
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.type.input, 'type'),
+            CardField(self.ids.name.input, 'name'),
+            CardField(self.ids.difficulty.input, 'difficulty'),
+            CardField(self.ids.text.input, 'text'),
         ]
 
         # Bind each field
@@ -433,4 +453,5 @@ MAPPING = {
     'act_back': ActBackEditor,
     'agenda': AgendaEditor,
     'agenda_back': AgendaBackEditor,
+    'chaos': ChaosEditor,
 }

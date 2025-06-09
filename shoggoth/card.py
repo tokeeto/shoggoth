@@ -1,5 +1,6 @@
 import os
 import json
+from uuid import uuid4
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -24,7 +25,7 @@ class Face:
         if self._fallback != None:
             return self._fallback
 
-        defaults_file = f'{self.data["type"]}.card'
+        defaults_file = f'{self.data["type"]}.json'
         defaults_path = defaults_dir / defaults_file
 
         try:
@@ -66,6 +67,9 @@ class Card:
         self.name = data['name']
         self.encounter = encounter
         self.expansion = expansion
+        if 'id' not in data:
+            data['id'] = str(uuid4())
+        self.id = data['id']
 
         self.front = Face(self.data['front'], card=self)
         self.back = Face(self.data['back'], card=self)

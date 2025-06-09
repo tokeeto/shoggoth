@@ -3,6 +3,7 @@ from platformdirs import PlatformDirs
 
 dirs = PlatformDirs("Shoggoth", "Shoggoth")
 root_dir = Path(dirs.user_data_dir)
+
 asset_dir = root_dir / "assets"
 defaults_dir = asset_dir / "defaults"
 font_dir = asset_dir / "fonts"

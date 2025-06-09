@@ -11,42 +11,9 @@ from shoggoth.rich_text import RichTextRenderer
 import numpy as np
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir
 
-
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('pillow').setLevel(logging.ERROR)
-
-# HSL values for each connection icon
-LOCATION_COLORS = {
-    "Circle": (50, 0.71, 0.78),
-    "Square": (-2, 0.73, 0.63),
-    "Triangle": (-150, 0.41, 0.35),
-    "Cross": (8, 0.65, 0.31),
-    "Diamond": (98, 0.51, 0.53),
-    "Slash": (40, 0.54, 0.46),
-    "T": (-123, 0.39, 0.24),
-    "Hourglass": (-20, 0.55, 0.30),
-    "Moon": (-25, 0.51, 0.51),
-    "DoubleSlash": (131, 0.34, 0.24),
-    "Heart": (24, 0.72, 0.73),
-    "Star": (-71, 0.36, 0.23),
-    "Quote": (23, 0.64, 0.47),
-    "Clover": (123, 0.23, 0.44),
-    "Spade": (-26, 0.66, 0.72),
-
-    "TriangleAlt": (50, 0.81, 0.88),
-    "CrossAlt": (-2, 0.83, 0.73),
-    "DiamondAlt": (-150, 0.51, 0.45),
-    "SlashAlt": (8, 0.75, 0.51),
-    "TAlt": (98, 0.61, 0.63),
-    "HourglassAlt": (40, 0.64, 0.56),
-    "MoonAlt": (-123, 0.49, 0.34),
-    "DoubleSlashAlt": (-20, 0.65, 0.40),
-    "HeartAlt": (-25, 0.61, 0.61),
-    "StarAlt": (131, 0.44, 0.34),
-    "CircleAlt": (24, 0.82, 0.83),
-    "SquareAlt": (-71, 0.46, 0.33),
-}
 
 
 class Region:
@@ -288,69 +255,29 @@ class CardRenderer:
             card_image.paste(overlay_icon, (region['x'], region['y']+(index*entry_height)), overlay_icon)
 
     def render_connection_icons(self, card_image, side):
-        circle_path = self.icons_path/'AHLCG-LocationBase.png'
-        circle = Image.open(circle_path).convert("RGBA")
-
         # own icon
         value = side.get('connection')
         if value and value != "None":
-            if value not in LOCATION_COLORS:
-                raise ValueError(f"Invalid location icon: {value}")
             # ready circle for coloring
             region = side.get('connection_region')
-            _circle = circle.resize((region['width'], region['height']))
-            h, s, v = _circle.convert('HSV').split()
-            np_h = np.array(h, dtype=np.uint8) + LOCATION_COLORS[value][0] % 256
-            np_s = np.array(s, dtype=np.uint8) + LOCATION_COLORS[value][1] % 256
-            np_v = np.array(v, dtype=np.uint8) + LOCATION_COLORS[value][2] % 256
-
-            # grab and paint each icon
-            h_shifted = Image.fromarray(np_h, 'L')
-            s_shifted = Image.fromarray(np_s, 'L')
-            v_shifted = Image.fromarray(np_v, 'L')
-            new_img = Image.merge('HSV', (h_shifted, s_shifted, v_shifted))
-            card_image.paste(new_img, (region['x'], region['y']), _circle)
-
-            overlay_path = self.icons_path/f"AHLCG-Loc{value}.png"
-            overlay_icon = Image.open(overlay_path).convert("RGBA")
-            overlay_icon = overlay_icon.resize((overlay_icon.width*2, overlay_icon.height*2))
-            card_image.paste(overlay_icon, (region['x'], region['y']), overlay_icon)
+            connection_image = Image.open(self.overlays_path/f"location_{value}.png").convert("RGBA")
+            connection_image = connection_image.resize((connection_image.width*2, connection_image.height*2))
+            card_image.paste(connection_image, (region['x'], region['y']), connection_image)
 
         # outgoing connections
         value = side.get('connections')
         if not value:
             return
 
-        # ready circle for coloring
-        circle_path = self.assets_path/'icons/AHLCG-LocationBase.png'
-        circle = Image.open(circle_path).convert("RGBA")
-        size_region = side.get('connection_1_region')
-        circle = circle.resize((size_region['width'], size_region['height']))
-        h, s, v = circle.convert('HSV').split()
-
         # grab and paint each icon
         for index, icon in enumerate(value):
-            if not icon or icon == "None" or icon not in LOCATION_COLORS:
+            if not icon or icon == "None":
                 continue
             region = Region(side.get(f'connection_{index+1}_region'))
 
-            np_h = np.array(h, dtype=np.uint8) + LOCATION_COLORS[icon][0] % 256
-            np_s = np.array(s, dtype=np.uint8) * LOCATION_COLORS[icon][1]
-            np_v = np.array(v, dtype=np.uint8) * LOCATION_COLORS[icon][2]
-            h_shifted = Image.fromarray(np_h, 'L')
-            s_shifted = Image.fromarray(np_s, 'L')
-            v_shifted = Image.fromarray(np_v, 'L')
-            new_img = Image.merge('HSV', (h_shifted, s_shifted, v_shifted))
-            card_image.paste(new_img, (region.x, region.y), circle)
-
-            overlay_path = self.icons_path/f"AHLCG-Loc{icon}.png"
-            overlay_icon = Image.open(overlay_path).convert("RGBA")
-            overlay_icon = overlay_icon.resize((overlay_icon.width*2, overlay_icon.height*2))
-            card_image.paste(
-                overlay_icon,
-                (region.center['x'] - overlay_icon.width//2, region.center['y']-overlay_icon.height//2),
-                overlay_icon
-            )
+            connection_image = Image.open(self.overlays_path/f"location_{icon}.png").convert("RGBA")
+            connection_image = connection_image.resize((connection_image.width*2, connection_image.height*2))
+            card_image.paste(connection_image, region.pos, connection_image)
 
 
     def render_icons(self, card_image, side):

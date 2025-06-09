@@ -1,5 +1,6 @@
 import os
 import json
+from uuid import uuid4
 
 from kivy.app import App
 from shoggoth.card import Card
@@ -29,7 +30,6 @@ class_order = {
     "neutral": 5,
     "multi": 6  # Multi-class cards are sorted last
 }
-print('ha')
 def sort_cards(cards):
     cards.sort(key=lambda card: (
         type_order.get(card.front['type'], type_order["other"]),
@@ -51,6 +51,7 @@ class Project:
         self.data = data
         self.icon = data.get('icon', '')
         self.code = data.get('code', 'xx')
+        self.id = data.get('id', uuid4())
 
     def __eq__(self, other):
         return self.data == other.data
@@ -60,6 +61,10 @@ class Project:
 
     def get(self, key, default=None):
         return self.data.get(key, default)
+
+    @property
+    def name(self):
+        return self.data['name']
 
     @property
     def cards(self):
