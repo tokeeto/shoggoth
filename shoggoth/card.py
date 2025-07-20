@@ -116,6 +116,7 @@ class Card:
     def new(name) -> Dict[str, Any]:
         return {
             'name': name,
+            'id': str(uuid4()),
             'front': {
                 'type': 'asset'
             },
@@ -123,3 +124,111 @@ class Card:
                 'type': 'player'
             }
         }
+
+# templates
+class TEMPLATES:
+    @classmethod
+    def get(cls, name):
+        return {
+            'investigator': cls.INVESTIGATOR(),
+            'asset': cls.ASSET(),
+            'event': cls.EVENT(),
+            'skill': cls.SKILL(),
+            'story': cls.STORY(),
+            'treachery': cls.TREACHERY(),
+            'enemy': cls.ENEMY(),
+            'location': cls.LOCATION(),
+            'act': cls.ACT(),
+            'agenda': cls.AGENDA(),
+            'scenario': cls.SCENARIO(),
+        }.get(name, cls.BASE())
+
+    @classmethod
+    def BASE(cls):
+        return {
+            'name': '',
+            'id': str(uuid4()),
+            'front': {
+                'type': ''
+            },
+            'back': {
+                'type': ''
+            }
+        }
+
+    @classmethod
+    def ASSET(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'asset'
+        card['back']['type'] = 'player'
+        return card
+
+    @classmethod
+    def INVESTIGATOR(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'investigator'
+        card['back']['type'] = 'investigator_back'
+        return card
+
+    @classmethod
+    def EVENT(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'event'
+        card['back']['type'] = 'player'
+        return card
+
+    @classmethod
+    def SKILL(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'skill'
+        card['back']['type'] = 'player'
+        return card
+
+    @classmethod
+    def ENEMY(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'enemy'
+        card['back']['type'] = 'encounter'
+        return card
+
+    @classmethod
+    def TREACHERY(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'treachery'
+        card['back']['type'] = 'encounter'
+        return card
+
+    @classmethod
+    def LOCATION(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'location'
+        card['back']['type'] = 'location_back'
+        return card
+
+    @classmethod
+    def ACT(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'act'
+        card['back']['type'] = 'act_back'
+        return card
+
+    @classmethod
+    def AGENDA(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'agenda'
+        card['back']['type'] = 'agenda_back'
+        return card
+
+    @classmethod
+    def SCENARIO(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'chaos'
+        card['back']['type'] = 'chaos_back'
+        return card
+
+    @classmethod
+    def STORY(cls):
+        card = cls.BASE()
+        card['front']['type'] = 'story'
+        card['back']['type'] = 'story_back'
+        return card

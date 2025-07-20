@@ -112,6 +112,7 @@ class RichTextRenderer:
             '<int>': 'i',
             '<resource>': 'm',
             '<action>': 'n',
+            '<open>': 'o',
             '<per>': 'p',
             '<reaction>': 'r',
             '<unique>': 'u',

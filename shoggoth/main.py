@@ -39,7 +39,7 @@ from shoggoth.files import defaults_dir, asset_dir
 
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import FileMonitor
-from shoggoth.card import Card
+from shoggoth.card import Card, TEMPLATES
 
 from kivy.storage.jsonstore import JsonStore
 from shoggoth.ui import show_file_select
@@ -190,6 +190,17 @@ class NewProjectPopup(Popup):
         self.dismiss()
         App.get_running_app().add_project_file(self.ids.file_name.text)
 
+class NewCardPopup(Popup):
+    name = StringProperty("")
+
+    """Popup for creating new cards"""
+    def __init__(self):
+        super().__init__()
+
+    def add(self, template, collection):
+        collection.add(TEMPLATES.get(template))
+        self.dismiss()
+
 class AboutPopup(Popup):
     """ Information about the application """
     pass
@@ -245,6 +256,7 @@ class GotoPopup(Popup):
             App.get_running_app().goto_set(entry.id)
         elif entry.type == 'project':
             App.get_running_app().goto_project(entry.id)
+        self.dismiss()
 
 class ShoggothApp(App):
     """Main application class for Shoggoth Card Creator"""
