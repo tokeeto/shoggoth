@@ -93,6 +93,14 @@ class Project:
             card.expansion_number = current_number
             current_number += 1
 
+    def add_card(self, card):
+        if not 'cards' in self.data:
+            self.data['cards'] = []
+        if type(card) == Card:
+            self.data['cards'].append(card.data)
+        else:
+            self.data['cards'].append(card)
+
     def get_all_cards(self):
         result = []
         for e in self.encounter_sets:

@@ -249,7 +249,7 @@ class RichTextRenderer:
 
         # replacement tags
         for tag, func in self.replacement_tags.items():
-            text = text.replace(tag, func())
+            text = text.replace(tag, (func() or tag))
 
         # Find all special tags or icons
         while current_pos < len(text):

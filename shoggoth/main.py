@@ -26,8 +26,9 @@ from kivy.uix.behaviors import ButtonBehavior, FocusBehavior, DragBehavior
 from kivy.properties import ObjectProperty, StringProperty, BooleanProperty, ListProperty
 from kivy.clock import Clock
 from kivy.core.window import Window
+from kivy.base import ExceptionHandler, ExceptionManager
 
-from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor
+from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup
 from shoggoth.project import Project
 
 from kivy.logger import Logger, LOG_LEVELS
@@ -57,12 +58,17 @@ class ShoggothRoot(FloatLayout):
             self.bg_path = str(bg_file)
         except Exception as e:
             print(f"Error loading background image: {e}")
+        ExceptionManager.add_handler(Wing())
 
     def on_keyboard(self, instance, keyboard, keycode, text, modifiers):
         # Handle keyboard shortcuts
         if 'ctrl' in modifiers:
             if text == 's':
                 f = App.get_running_app().save_changes
+                Clock.schedule_once(lambda x: f())
+                return True
+            if text == 'n':
+                f = App.get_running_app().open_new_card_dialog
                 Clock.schedule_once(lambda x: f())
                 return True
             if text == 'n':
@@ -77,7 +83,7 @@ class ShoggothRoot(FloatLayout):
                     f = App.get_running_app().export_current
                     Clock.schedule_once(lambda x: f())
                     return True
-            if text == 'o':  # O
+            if text == 'o':
                 f = App.get_running_app().open_project_dialog
                 Clock.schedule_once(lambda x: f())
                 return True
@@ -86,6 +92,23 @@ class ShoggothRoot(FloatLayout):
                 Clock.schedule_once(lambda x: f())
                 return True
         return False
+
+class Wing(ExceptionHandler):
+    """ Exception handle, that carries off
+        unhandled exceptions to a central location
+    """
+    def __init__(self):
+        super().__init__()
+
+    def handle_exception(self, exception):
+        import traceback
+        # Keyboard Interrupts should just kill the application.
+        if type(exception) == KeyboardInterrupt:
+            return ExceptionManager.RAISE
+        # Everything else, is expected to be unhandled exceptions that
+        # Should then pop up in front of the user
+        App.get_running_app().show_ok_dialog(f'Something unexpected happened. This is a last effort to show you what happened. Maybe Shoggoth will crash after this.\n\n{exception}\n\n{traceback.extract_stack()}')
+        return ExceptionManager.PASS
 
 
 class FileBrowser(BoxLayout):
@@ -107,6 +130,9 @@ class FileBrowser(BoxLayout):
             app.show_card(self.tree.selected_node.element)
 
     def refresh(self, *args):
+        opens = set()
+        for node in self.tree.iterate_open_nodes():
+            opens.add((node.level, node.text))
         print('clearing tree, project is now', self.project)
         # Clear tree
         for node in self.tree.root.nodes:
@@ -114,6 +140,9 @@ class FileBrowser(BoxLayout):
 
         # Recursively add files and folder
         self._add_nodes()
+        for node in self.tree.iterate_all_nodes():
+            if (node.level, node.text) in opens:
+                self.tree.toggle_node(node)
 
     def _add_nodes(self):
         # Add folder contents to tree
@@ -190,21 +219,14 @@ class NewProjectPopup(Popup):
         self.dismiss()
         App.get_running_app().add_project_file(self.ids.file_name.text)
 
-class NewCardPopup(Popup):
-    name = StringProperty("")
-
-    """Popup for creating new cards"""
-    def __init__(self):
-        super().__init__()
-
-    def add(self, template, collection):
-        collection.add(TEMPLATES.get(template))
-        self.dismiss()
-
 class AboutPopup(Popup):
     """ Information about the application """
     pass
 
+class OkPopup(Popup):
+    text = StringProperty("")
+    """ Shows a text string, with no interaction """
+    pass
 
 class GotoEntryListItem(ButtonBehavior, BoxLayout):
     entry = ObjectProperty()
@@ -330,9 +352,17 @@ class ShoggothApp(App):
         about_dialog = AboutPopup()
         about_dialog.open()
 
+    def show_ok_dialog(self, text):
+        dialog = OkPopup(text=text)
+        dialog.open()
+
     def open_project_dialog(self):
         """Show file chooser dialog to select project folder"""
         show_file_select(None, callback=self.add_project_file)
+
+    def open_new_card_dialog(self):
+        dialog = NewCardPopup()
+        dialog.open()
 
     def new_project_dialog(self):
         """Show popup to create new project"""
@@ -362,7 +392,7 @@ class ShoggothApp(App):
         self.update_card_preview()
 
     def save_changes(self):
-        self.project.save()
+        self.current_project.save()
 
     def show_project(self, project):
         self.root.ids.editor_container.clear_widgets()

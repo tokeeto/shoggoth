@@ -3,16 +3,99 @@
 #:import ui shoggoth.ui
 #:import Factory kivy.factory.Factory
 
-<TextInput>
+<TextInput>:
     write_tab: False
     font_size: '16dp'
+    size_hint_y: None
     height: '32dp'
 
 <DropDownButton@Button>:
     size_hint_y: None
     height: '30dp'
 
-<ClassSelectDropdown@DropDown>:
+<TemplateSelector>:
+    title: 'Select Template'
+    size_hint: .4,.4
+    ScrollView:
+        BoxLayout:
+            height: self.minimum_height
+            size_hint_y: None
+            orientation: 'vertical'
+            Label:
+                size_hint_y: None
+                height: '32dp'
+                text: 'Investigator'
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'investigator'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'asset'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'event'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'skill'
+                on_release: root.select(self.text)
+            Label:
+                size_hint_y: None
+                height: '32dp'
+                text: 'Story'
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'story'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'treachery'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'enemy'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'location'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'act'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'agenda'
+                on_release: root.select(self.text)
+            Button:
+                size_hint_y: None
+                height: '32dp'
+                text: 'scenario'
+                on_release: root.select(self.text)
+
+<SetSelector>:
+    title: 'Select Encounter Set'
+    size_hint: .4,.4
+    ScrollView:
+        BoxLayout:
+            height: self.minimum_height
+            size_hint_y: None
+            orientation: 'vertical'
+            id: option_container
+
+<ClassSelector>:
     DropDownButton:
         text: 'guardian'
         on_release: root.select_value(self.text)
@@ -28,6 +111,8 @@
     DropDownButton:
         text: 'mystic'
         on_release: root.select_value(self.text)
+
+
 
 <FileChooserPopup>:
     filechooser: filechooser
@@ -100,20 +185,11 @@
     title: 'About Shoggoth'
     size_hint: 0.75, 0.75
 
-    BoxLayout:
-        orientation: 'vertical'
-
-        Label:
-            text: 'Created by Toke Ivø.\nYou can support the development of Shoggoth by <a href="https://github.com/tokeeto/shoggoth">contribution</a>, <a href="https://www.patreon.com/tokeeto">donation</a>, or <a href="https://ko-fi.com/tokeeto">tips</a>.'
-            max_width: '400dp'
-            multiline: True
-            markup: True
-        Label:
-            text: 'Various images by the Mythos Busters community.'
-            multiline: True
-        Label:
-            text: 'Special thanks to Coldtoes, felice, Chr1Z and MickeyTheQ.'
-            multiline: True
+    Label:
+        text: 'Created by Toke Ivø.\nYou can support the development of Shoggoth by <a href="https://github.com/tokeeto/shoggoth">contribution</a>, <a href="https://www.patreon.com/tokeeto">donation</a>, or <a href="https://ko-fi.com/tokeeto">tips</a>.\n\nVarious images by the Mythos Busters community.\n\nSpecial thanks to Coldtoes, felice, Chr1Z and MickeyTheQ.'
+        text_size: self.width, None
+        size: self.texture_size
+        markup: True
 
 <NewProjectPopup@Popup>:
     title: 'New Project'
@@ -232,7 +308,7 @@
     color: .95, .95, .95, 1
     font_size: '14dp'
 
-<TreeViewButton>
+<TreeViewButton>:
     background_color: 0,0,0,0
     color_selected: 0,0,0,.3
 
@@ -375,37 +451,90 @@
         on_press: root.show_file_selector()
 
 <NewEncounterPopup>:
+    size_hint: .4,.4
+    title: 'Add new Encounter Set'
     name: name
     error: error
+    on_open: name.focus = True
     BoxLayout:
         orientation: 'vertical'
+        TextInput:
+            id: name
+            multiline: False
+            on_text_validate: root.create()
         Label:
             id: error
             text: ''
-        TextInput:
-            id: name
+            size_hint_y: None
+            height: '0dp'
+            on_text: self.height = '28dp'
         Button:
             text: 'Create'
             on_release: root.create()
 
-<NewCardPopup>:
-    title: 'Name of card'
-    name: name
-    error: error
-    size_hint: None, None
-    width: 400
-    height: 180
+<OkPopup>:
+    title: 'ERROR'
+    size_hint: .4, .6
     BoxLayout:
         orientation: 'vertical'
-        TextInput:
-            id: name
-        Label:
-            size_hint_y: None
-            height: 24 if self.text else 0
-            color: 1,.1,.1
-            id: error
-            text: ''
+        ScrollView:
+            Label:
+                size_hint_y: None
+                text: root.text
+                text_size: self.width, None
+                size: self.texture_size
+                markup: True
         Button:
+            text: 'Ok'
+            size_hint: None, None
+            size: '100dp', '28dp'
+            on_release: root.dismiss()
+
+<NewCardPopup>:
+    title: 'Add new card'
+    name: name
+    size_hint: .75, .75
+    on_open: name.focus = True
+    selected_template: 'asset'
+    selected_collection: None
+    BoxLayout:
+        orientation: 'vertical'
+        size_hint: 1,1
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '28dp'
+            Label:
+                text: 'Name'
+            TextInput:
+                id: name
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '28dp'
+            Label:
+                text: 'Template'
+            Label:
+                text: 'Asset'
+                id: template
+            Button:
+                text: 'Select Template'
+                on_release: ui.TemplateSelector(callback=root.set_template).open()
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '28dp'
+            Label:
+                text: 'Set'
+            Label:
+                text: 'Player card'
+                id: set_text
+            Button:
+                text: 'Select Set'
+                on_release: ui.SetSelector(callback=root.set_encounter_set).open()
+        Button:
+            size_hint_y: None
+            height: '28dp'
             text: 'Create'
             on_release: root.create()
 
@@ -545,12 +674,23 @@
         height: '140dp'
 
 <FaceEditor>:
-    orientation: 'vertical'
-    spacing: 2
+    BoxLayout:
+        id: layout
+        orientation: 'vertical'
+        spacing: '5dp'
 
-    TextEditLine:
-        text: 'Type'
-        id: type
+        TextEditLine:
+            text: 'Type'
+            id: type
+            Button:
+                text: 'Select type'
+                on_release: context_menu.show(*self.pos)
+    TypeSelectDropdown:
+        target: type
+        id: context_menu
+        visible: False
+        cancel_handler_widget: layout
+
 
 <-AssetEditor>:
     ScrollView:

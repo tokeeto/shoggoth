@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from kivy.graphics.texture import Texture
 from kivy.core.image import Image as kivy_img
 from kivy.uix.image import CoreImage
-import os
+import sys, os
 import json
 import re
 from io import BytesIO
@@ -154,7 +154,7 @@ class CardRenderer:
             try:
                 func(card_image, side)
             except Exception as e:
-                print(f'Failed: {e}')
+                print(f'Failed in {func}: {e}')
         print(f'end render card side: {time()-t}')
         return card_image
 
@@ -306,7 +306,7 @@ class CardRenderer:
 
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """
-        for stat in ['stamina', 'sanity']:
+        for stat in ['health', 'sanity']:
             self.current_field = stat
             value = side.get(stat)
             region = side.get(f'{stat}_region')
@@ -398,9 +398,17 @@ class CardRenderer:
 
     def render_template(self, card_image, side):
         """Render a template image onto a card"""
-        template_path = self.templates_path/f"{side['type']}.png"
-        if side['type'] in ('asset', 'event', 'skill', 'investigator', 'investigator_back'):
-            template_path = self.templates_path/f"{side['type']}_{side['class']}.png"
+        print('rendering template')
+        template_value = side['template']
+        print(f'rendering template {template_value}')
+        if '<class>' in side['template']:
+            print(f'rendering template, class replacement')
+            side_class = side.get('classes', ['guardian'])
+            card_class = side_class[0] if len(side_class) == 1 else 'multi'
+            print(f'rendering template, {card_class=}')
+            template_value = template_value.replace('<class>', card_class)
+            print(f'rendering template, {template_value=}')
+        template_path = self.templates_path / (template_value + '.png')
 
         try:
             template = Image.open(template_path).convert("RGBA")
@@ -537,8 +545,8 @@ class CardRenderer:
 
     def render_class_symbols(self, card_image, side):
         """Render class symbols for multiclass cards"""
-        classes = side.get('classes')
-        if not classes:
+        classes = side.get('classes', [])
+        if len(classes) < 2:
             return
 
         # Render each class symbol

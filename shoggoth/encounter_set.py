@@ -26,7 +26,10 @@ class EncounterSet:
         return 'cards' in data and 'name' in data and 'icon' in data
 
     def add_card(self, card):
-        self.data['cards'].append(card.data)
+        if type(card) == Card:
+            self.data['cards'].append(card.data)
+        else:
+            self.data['cards'].append(card)
 
     def assign_card_numbers(self):
         current_number = 1

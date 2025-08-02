@@ -25,14 +25,18 @@ class Face:
         if self._fallback != None:
             return self._fallback
 
-        defaults_file = f'{self.data["type"]}.json'
-        defaults_path = defaults_dir / defaults_file
+        if Path(self.data['type']).is_file():
+            defaults_path = self.data['type']
+        else:
+            defaults_file = f'{self.data["type"]}.json'
+            defaults_path = defaults_dir / defaults_file
 
         try:
             with defaults_path.open('r') as f:
                 self._fallback = json.load(f)
             return self._fallback
         except Exception as e:
+            print('exception when loading fallback:', e)
             return {}
 
     def __getitem__(self, key):
@@ -49,6 +53,8 @@ class Face:
             return default
 
     def set(self, key, value):
+        if key == 'type':
+            self._fallback = None
         self.data[key] = value
         App.get_running_app().update_card_preview()
 
@@ -77,7 +83,7 @@ class Card:
 
     @property
     def expansion_number(self):
-        return self.data['expansion_number']
+        return self.data.get('expansion_number', -1)
 
     @expansion_number.setter
     def expansion_number(self, value):
@@ -87,7 +93,7 @@ class Card:
     def encounter_number(self):
         if not self.encounter:
             return None
-        return self.data['encounter_number']
+        return self.data.get('encounter_number', -1)
 
     @encounter_number.setter
     def encounter_number(self, value):
