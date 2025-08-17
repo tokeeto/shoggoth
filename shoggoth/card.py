@@ -26,7 +26,7 @@ class Face:
             return self._fallback
 
         if Path(self.data['type']).is_file():
-            defaults_path = self.data['type']
+            defaults_path = Path(self.data['type'])
         else:
             defaults_file = f'{self.data["type"]}.json'
             defaults_path = defaults_dir / defaults_file
@@ -109,6 +109,18 @@ class Card:
 
     def __eq__(self, other):
         return self.data == other.data
+
+    def get_class(self):
+        back_classes = self.data['back'].get('classes')
+        classes = self.data['front'].get('classes', back_classes)
+        if not classes:
+            return None
+
+        if len(classes) > 1:
+            return 'multi'
+        else:
+            return classes[0]
+
 
     @staticmethod
     def is_valid(data):

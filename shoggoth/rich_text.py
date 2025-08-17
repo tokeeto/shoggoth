@@ -143,6 +143,11 @@ class RichTextRenderer:
                 'scale': 1,
                 'fallback': None
             },
+            'semibold': {
+                'path': font_dir / "Arno Pro" / "arnopro_semibold.ttf",
+                'scale': 1,
+                'fallback': None
+            },
             'italic': {
                 'path': font_dir / "Arno Pro" / "arnopro_italic.otf",
                 'scale': 1,
@@ -427,9 +432,9 @@ class RichTextRenderer:
         fonts = self.load_fonts(font_size)
 
         # Current position and state
-        x, y = region['x'], region['y']
-        max_width = region['width']
-        max_height = region['height']
+        x, y = region.x, region.y
+        max_width = region.width
+        max_height = region.height
 
         # Current formatting state
         current_font = font
@@ -463,7 +468,7 @@ class RichTextRenderer:
                 x_intersections.append(x_val)
 
             if not x_intersections:
-                return region['x'], region['x']+region['width']  # target_y is outside the vertical range of the polygon
+                return region.x, region.x+region.width  # target_y is outside the vertical range of the polygon
 
             left = min(x_intersections)
             right = max(x_intersections)
@@ -634,7 +639,7 @@ class RichTextRenderer:
                 current_line_width = 0
 
                 # Check if we've exceeded the region height
-                if y + line_height > region['y'] + max_height:
+                if y + line_height > region.y + max_height:
                     if not force:
                         return False  # Text doesn't fit
                     will_overflow = True
@@ -666,7 +671,7 @@ class RichTextRenderer:
                         current_line_width = 0
 
                         # Check if we've exceeded the region height
-                        if y + line_height > region['y'] + max_height:
+                        if y + line_height > region.y + max_height:
                             if not force:
                                 return False  # Text doesn't fit
                             will_overflow = True
@@ -701,7 +706,7 @@ class RichTextRenderer:
                         max_width = r-l
 
                     # Check if we've exceeded the region height
-                    if y + line_height > region['y'] + max_height:
+                    if y + line_height > region.y + max_height:
                         if not force:
                             return False  # Text doesn't fit
                         will_overflow = True
@@ -727,7 +732,7 @@ class RichTextRenderer:
             render_line(current_line, y)
 
             # Check if we ran out of vertical space
-            if y + line_height > region['y'] + max_height and not force:
+            if y + line_height > region.y + max_height and not force:
                 return False
 
         # If we get here and aren't forcing, the text fit successfully

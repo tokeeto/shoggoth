@@ -227,7 +227,6 @@ def illustration_fields(editor):
 def player_card_fields(editor):
     return [
         CardField(editor.ids.classes.input, 'classes', list_converter, list_deconverter),
-        CardField(editor.ids.cost.input, 'cost'),
         CardField(editor.ids.level.input, 'level'),
     ]
 
@@ -238,7 +237,8 @@ class AssetEditor(FaceEditor):
         self.fields = [
             *base_fields(self),
             *player_card_fields(self),
-            CardField(self.ids.stamina.input, 'stamina'),
+            CardField(self.ids.cost.input, 'cost'),
+            CardField(self.ids.health.input, 'health'),
             CardField(self.ids.sanity.input, 'sanity'),
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
@@ -256,6 +256,7 @@ class EventEditor(FaceEditor):
         self.fields = [
             *base_fields(self),
             *player_card_fields(self),
+            CardField(self.ids.cost.input, 'cost'),
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
             *illustration_fields(self),

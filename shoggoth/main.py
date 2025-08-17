@@ -102,12 +102,15 @@ class Wing(ExceptionHandler):
 
     def handle_exception(self, exception):
         import traceback
+        print("*** Exception handled by Wing ***")
+        print(exception)
+        print("*********************************")
         # Keyboard Interrupts should just kill the application.
         if type(exception) == KeyboardInterrupt:
             return ExceptionManager.RAISE
         # Everything else, is expected to be unhandled exceptions that
         # Should then pop up in front of the user
-        App.get_running_app().show_ok_dialog(f'Something unexpected happened. This is a last effort to show you what happened. Maybe Shoggoth will crash after this.\n\n{exception}\n\n{traceback.extract_stack()}')
+        App.get_running_app().show_ok_dialog(f'Something unexpected happened. This is a last effort to show you what happened. Maybe Shoggoth will crash after this.\n\n{exception}\n\n{traceback.format_exc(limit=-5)}')
         return ExceptionManager.PASS
 
 
@@ -181,7 +184,7 @@ class FileBrowser(BoxLayout):
                     investigator_nodes[group] = self.tree.add_node(TreeViewButton(text=group, element=None, element_type=''), target_node)
                 target_node = investigator_nodes[group]
             else:
-                target_node = class_nodes.get(card.front.get('class'), class_nodes['other'])
+                target_node = class_nodes.get(card.get_class(), class_nodes['other'])
             c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
 
     def on_tree_select(self, instance, node):
@@ -376,7 +379,10 @@ class ShoggothApp(App):
         if not path:
             return
 
-        self.root.ids.file_browser.project = Project.load(path)
+        project = Project.load(path)
+        self.root.ids.file_browser.project = project
+        self.current_project = project
+        self.current_card = None
         self.storage.put('session', project=path)
 
         self.status_message = f"Project opened: {self.current_project.get('name')}"

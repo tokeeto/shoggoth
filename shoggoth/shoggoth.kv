@@ -650,8 +650,11 @@
     height: '30dp'
     Label:
         size_hint_x: None
-        width: '150dp'
+        width: '110dp'
         text: root.text
+        halign: 'left'
+        valign: 'middle'
+        text_size: self.size
     TextInput:
         id: input
         text: ''
@@ -664,8 +667,11 @@
     height: '140dp'
     Label:
         size_hint_x: None
-        width: '150dp'
+        width: '110dp'
         text: root.text
+        halign: 'left'
+        valign: 'middle'
+        text_size: self.size
     TextInput:
         id: input
         text: ''
@@ -701,13 +707,13 @@
             spacing: '5dp'
 
             TextEditLine:
-                text: 'type'
+                text: 'Type'
                 id: type
             TextEditLine:
-                text: 'name'
+                text: 'Name'
                 id: name
             TextEditLine:
-                text: 'subtitle'
+                text: 'Subtitle'
                 id: subtitle
 
             GridLayout:
@@ -717,47 +723,44 @@
                 spacing: '5dp'
 
                 TextEditLine:
-                    text: 'traits'
+                    text: 'Traits'
                     id: traits
                 TextEditLine:
-                    text: 'class'
-                    id: card_class
-                TextEditLine:
-                    text: 'classes'
+                    text: 'Class'
                     id: classes
                 TextEditLine:
-                    text: 'cost'
+                    text: 'Cost'
                     id: cost
                 TextEditLine:
-                    text: 'level'
+                    text: 'Level'
                     id: level
                 TextEditLine:
-                    text: 'stamina'
-                    id: stamina
+                    text: 'Health'
+                    id: health
                 TextEditLine:
-                    text: 'sanity'
+                    text: 'Sanity'
                     id: sanity
             TextEditArea:
-                text: 'text'
+                text: 'Text'
                 id: text
             TextEditArea:
-                text: 'flavor_text'
+                text: 'Flavor'
                 id: flavor_text
             TextEditLine:
-                text: 'illustration'
+                text: 'Image path'
                 id: illustration
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-EventEditor>:
@@ -813,13 +816,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-SkillEditor>:
@@ -872,13 +875,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-InvestigatorEditor>:
@@ -955,13 +958,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-InvestigatorBackEditor>:
@@ -1011,13 +1014,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-LocationEditor>:
@@ -1073,13 +1076,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-LocationBackEditor>:
@@ -1129,13 +1132,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-EnemyEditor>:
@@ -1194,13 +1197,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-TreacheryEditor>:
@@ -1244,13 +1247,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-ActEditor>:
@@ -1287,13 +1290,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-ActBackEditor>:
@@ -1354,13 +1357,13 @@
                 size_hint_y: None
                 height: self.minimum_height
                 TextEditLine:
-                    text: 'illustration_pan_y'
+                    text: 'Pan Y'
                     id: illustration_pan_y
                 TextEditLine:
-                    text: 'illustration_pan_x'
+                    text: 'Pan X'
                     id: illustration_pan_x
                 TextEditLine:
-                    text: 'illustration_scale'
+                    text: 'Scale'
                     id: illustration_scale
 
 <-AgendaBackEditor>:
