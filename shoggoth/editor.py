@@ -159,12 +159,74 @@ class CardField:
             print('tried updating the card, it failed with', e)
             return False
 
+class WidgetLink():
+    def __init__(self, parent):
+        self.parent = parent
+
+    def bind(self, *args, **kwargs):
+        for widget in self.parent.widgets:
+            widget.bind(*args, **kwargs)
+
+class CardFieldComposite():
+    def __init__(self, widgets, card_key, converter, deconverter):
+        self.widgets = widgets
+        self.widget = WidgetLink(self)
+        self.card_key = card_key
+        self.converter = converter
+        self.deconverter = deconverter
+        self._updating = False
+
+    def update_from_card(self, card_data):
+        self._updating = True
+        value = card_data.get(self.card_key)
+        for index, output in enumerate(self.deconverter(value)):
+            self.widgets[index].text = output
+        self._updating = False
+
+    def update_card(self, card_data, _):
+        if self._updating:
+            return False
+
+        try:
+            value = [w.text for w in self.widgets]
+            card_data.set(self.card_key, self.converter(value) if value else None)
+            return True
+        except ValueError as e:
+            print('tried updating the card, it failed with', e)
+            return False
+
 def list_converter(string) -> list:
     result = [n.strip() for n in string.split(',')]
     return result
 
 def list_deconverter(value:list) -> str:
     result = ', '.join(value)
+    return result
+
+def chaos_entry_converter(value:list[str]) -> list:
+    result = []
+    # parse as pairs
+    for token, text in zip(value[::2], value[1::2]):
+        if "," in token:
+            result.append({
+                'token': [t.strip() for t in token.split(",")],
+                'text': text,
+            })
+        else:
+            result.append({'token': token.strip(), 'text': text})
+    return result
+
+def chaos_entry_deconverter(value:list[dict]) -> list[str]:
+    result = []
+    if not value:
+        return result
+
+    for entry in value:
+        if type(entry['token']) == list:
+            result.append(', '.join(entry['token']))
+        else:
+            result.append(entry['token'])
+        result.append(entry['text'])
     return result
 
 class FaceEditor(FloatLayout):
@@ -473,7 +535,15 @@ class ChaosEditor(FaceEditor):
             CardField(self.ids.type.input, 'type'),
             CardField(self.ids.name.input, 'name'),
             CardField(self.ids.difficulty.input, 'difficulty'),
-            CardField(self.ids.text.input, 'text'),
+            CardFieldComposite(
+                [
+                    self.ids.token1.input, self.ids.text1.input,
+                    self.ids.token2.input, self.ids.text2.input,
+                    self.ids.token3.input, self.ids.text3.input,
+                    self.ids.token4.input, self.ids.text4.input,
+                    self.ids.token5.input, self.ids.text5.input,
+                ],  'entries', chaos_entry_converter, chaos_entry_deconverter
+            ),
         ]
 
         # Bind each field
