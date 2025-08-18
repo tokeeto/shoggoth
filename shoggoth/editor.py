@@ -180,7 +180,7 @@ class CardFieldComposite():
         self._updating = True
         value = card_data.get(self.card_key)
         for index, output in enumerate(self.deconverter(value)):
-            self.widgets[index].text = output
+            self.widgets[index].text = str(output)
         self._updating = False
 
     def update_card(self, card_data, _):
@@ -228,6 +228,30 @@ def chaos_entry_deconverter(value:list[dict]) -> list[str]:
             result.append(entry['token'])
         result.append(entry['text'])
     return result
+
+def customizable_converter(value:list[str]) -> list[list]:
+    result = []
+    # parse as triplets
+    for boxes, name, text in zip(value[::3], value[1::3], value[2::3]):
+        if boxes or name or text:
+            result.append([
+                int(boxes) if boxes else 0,
+                name,
+                text,
+            ])
+    return result
+
+def customizable_deconverter(value:list[list]) -> list[str]:
+    result = []
+    if not value:
+        return result
+
+    for entry in value:
+        result.append(entry[0])
+        result.append(entry[1])
+        result.append(entry[2])
+    return result
+
 
 class FaceEditor(FloatLayout):
     face = ObjectProperty()
@@ -550,6 +574,33 @@ class ChaosEditor(FaceEditor):
         for field in self.fields:
             field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
 
+class CustomizableEditor(FaceEditor):
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.type.input, 'type'),
+            CardField(self.ids.name.input, 'name'),
+            CardField(self.ids.text.input, 'text'),
+            CardFieldComposite(
+                [
+                    self.ids.boxes1.input, self.ids.name1.input, self.ids.text1.input,
+                    self.ids.boxes2.input, self.ids.name2.input, self.ids.text2.input,
+                    self.ids.boxes3.input, self.ids.name3.input, self.ids.text3.input,
+                    self.ids.boxes4.input, self.ids.name4.input, self.ids.text4.input,
+                    self.ids.boxes5.input, self.ids.name5.input, self.ids.text5.input,
+                    self.ids.boxes6.input, self.ids.name6.input, self.ids.text6.input,
+                    self.ids.boxes7.input, self.ids.name7.input, self.ids.text7.input,
+                    self.ids.boxes8.input, self.ids.name8.input, self.ids.text8.input,
+                    self.ids.boxes9.input, self.ids.name9.input, self.ids.text9.input,
+                    self.ids.boxes10.input, self.ids.name10.input, self.ids.text10.input,
+                ],  'entries', customizable_converter, customizable_deconverter
+            ),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 # maps face types to editors
 MAPPING = {
@@ -568,4 +619,5 @@ MAPPING = {
     'agenda': AgendaEditor,
     'agenda_back': AgendaBackEditor,
     'chaos': ChaosEditor,
+    'customizable': CustomizableEditor,
 }

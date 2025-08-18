@@ -156,6 +156,7 @@ class CardRenderer:
             self.render_enemy_stats,
             self.render_slots,
             self.render_chaos,
+            self.render_customizable,
         ]:
             try:
                 func(card_image, side)
@@ -608,3 +609,37 @@ class CardRenderer:
                 outline_fill=font.get('outline_color'),
                 alignment=font.get('alignment', 'left'),
             )
+
+    def render_customizable(self, card_image, side):
+        """ Renders the scenario reference cards.
+
+            This could be handled in a lot of different ways,
+            but this allows for easy json formatting of the card.
+            It's essentially just a list of image and text.
+        """
+        if side['type'] != 'customizable':
+            return
+
+        entries = side.get('entries', [])
+        if not entries:
+            return
+
+        region = Region(side['text_region'])
+        font = side.get("text_font", {})
+        parsed_text = ""
+        for entry in entries:
+            parsed_text += '\n' + int(entry[0])*'☐'
+            parsed_text += f' <b>{entry[1]}.</b> '
+            parsed_text += entry[2]
+
+        self.rich_text.render_text(
+            card_image,
+            parsed_text,
+            region,
+            font=font.get('font', 'regular'),
+            font_size=font.get('size', 32),
+            fill=font.get('color', '#231f20'),
+            outline=font.get('outline'),
+            outline_fill=font.get('outline_color'),
+            alignment=font.get('alignment', 'left'),
+        )
