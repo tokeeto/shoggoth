@@ -196,7 +196,10 @@ class RichTextRenderer:
         return self.card_renderer.current_opposite_side.get(self.card_renderer.current_field)
 
     def get_expansion_icon(self):
-        return f'<image src="{self.card_renderer.current_card.expansion.icon}">'
+        if self.card_renderer.current_card.expansion.icon:
+            return f'<image src="{self.card_renderer.current_card.expansion.icon}">'
+        else:
+            return " "
 
     def get_expansion_number(self):
         return str(self.card_renderer.current_card.expansion_number)

@@ -8,6 +8,7 @@
     font_size: '16dp'
     size_hint_y: None
     height: '32dp'
+    multiline: False
 
 <BoxLayout>:
     spacing: '5dp'
@@ -148,8 +149,6 @@
     size_hint: .7, .7
     text_input: text_input
     BoxLayout:
-        size: root.size
-        pos: root.pos
         orientation: "vertical"
         FileChooserListView:
             id: filechooser
@@ -157,13 +156,10 @@
 
         TextInput:
             id: text_input
-            size_hint_y: None
-            height: 30
-            multiline: False
 
         BoxLayout:
             size_hint_y: None
-            height: 30
+            height: '32dp'
             Button:
                 text: "Cancel"
                 on_release: root.dismiss()
@@ -718,6 +714,9 @@
                 TextEditLine:
                     text: 'Sanity'
                     id: sanity
+                TextEditLine:
+                    text: 'Slots'
+                    id: slots
             TextEditArea:
                 text: 'Text'
                 id: text

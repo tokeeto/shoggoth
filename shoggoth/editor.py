@@ -33,6 +33,7 @@ class NewCardPopup(Popup):
         else:
             self.target.add_card(new_card)
         App.get_running_app().refresh_tree()
+        App.get_running_app().goto_card(new_card.id)
         self.dismiss()
 
     def set_template(self, value):
@@ -333,6 +334,7 @@ class AssetEditor(FaceEditor):
             CardField(self.ids.cost.input, 'cost'),
             CardField(self.ids.health.input, 'health'),
             CardField(self.ids.sanity.input, 'sanity'),
+            CardField(self.ids.slots.input, 'slots', list_converter, list_deconverter),
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
             *illustration_fields(self),
