@@ -334,7 +334,7 @@
                 text: 'Save (Ctrl+S)'
                 on_release: app.save_changes()
             ContextMenuTextItem:
-                text: 'New Card'
+                text: 'New Card (Ctrl+N)'
                 on_release: app.open_new_card_dialog()
     AppMenuTextItem:
         text: 'Help'
@@ -553,8 +553,8 @@
         path: root.project.get('icon', '')
     Button:
         size_hint_y: None
-        text: 'Delete'
-        on_release: root.show_confirm_delete()
+        text: 'Add Encounter set'
+        on_release: root.show_new_encounter_popup()
     ScrollView:
         size_hint: 1, 1
         GridLayout:
