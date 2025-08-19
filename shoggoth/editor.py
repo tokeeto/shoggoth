@@ -253,6 +253,13 @@ def customizable_deconverter(value:list[list]) -> list[str]:
     return result
 
 
+def investigator_back_converter(value:list) -> str:
+    return ""
+
+def investigator_back_deconverter(value:str) -> list[str]:
+    return ['1', '2']
+
+
 class FaceEditor(FloatLayout):
     face = ObjectProperty()
 
@@ -398,9 +405,17 @@ class InvestigatorBackEditor(FaceEditor):
         # Register all your fields
         self.fields = [
             *base_fields(self),
-            CardField(self.ids.card_class.input, 'class'),
-            CardField(self.ids.classes.input, 'classes', list),
-            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.subtitle.input, 'subtitle'),
+            CardField(self.ids.classes.input, 'classes', list_converter, list_deconverter),
+            CardFieldComposite(
+                [
+                    self.ids.heading1.input, self.ids.text1.input,
+                    self.ids.heading2.input, self.ids.text2.input,
+                    self.ids.heading3.input, self.ids.text3.input,
+                    self.ids.heading4.input, self.ids.text4.input,
+                    self.ids.heading5.input, self.ids.text5.input,
+                ], 'entries', investigator_back_converter, investigator_back_deconverter
+            ),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
 
             *illustration_fields(self),

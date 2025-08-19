@@ -9,6 +9,14 @@
     size_hint_y: None
     height: '32dp'
 
+<BoxLayout>:
+    spacing: '5dp'
+
+<Button>:
+    font_size: '16dp'
+    size_hint_y: None
+    height: '32dp'
+
 <DropDownButton@Button>:
     size_hint_y: None
     height: '30dp'
@@ -113,7 +121,6 @@
         on_release: root.select_value(self.text)
 
 
-
 <FileChooserPopup>:
     filechooser: filechooser
     title: 'Select file'
@@ -138,6 +145,7 @@
 
 <FileSavePopup>:
     title: 'Save file'
+    size_hint: .7, .7
     text_input: text_input
     BoxLayout:
         size: root.size
@@ -193,7 +201,7 @@
 
 <NewProjectPopup@Popup>:
     title: 'New Project'
-    size_hint: 0.75, 0.75
+    size_hint: 0.5, 0.5
     file_name: file_name
 
     BoxLayout:
@@ -210,7 +218,6 @@
             TextInput:
                 size_hint_x: 0.8
                 id: code
-                value: 'xxx'
 
         BoxLayout:
             orientation: "horizontal"
@@ -222,7 +229,6 @@
             TextInput:
                 size_hint_x: 0.8
                 id: name
-                value: ''
 
         BoxLayout:
             orientation: "horizontal"
@@ -252,11 +258,10 @@
                 size_hint_x: 0.6
                 id: file_name
                 size_hint_y: None
-                height: 30
                 disabled: True
             Button:
                 size_hint_x: 0.2
-                text: 'Save location'
+                text: 'Browse'
                 on_release: ui.show_file_save(file_name)
 
         BoxLayout:
@@ -268,7 +273,7 @@
                 on_release: root.dismiss()
 
             Button:
-                text: 'Select'
+                text: 'Create'
                 on_release: root.save()
 
 <GotoEntryListItem>:
@@ -329,11 +334,8 @@
                 text: 'Save (Ctrl+S)'
                 on_release: app.save_changes()
             ContextMenuTextItem:
-                text: 'Save as (Ctrl+Shift+S)'
-                on_release: app.save_changes()
-            ContextMenuTextItem:
                 text: 'New Card'
-                on_release: app.new_project_dialog()
+                on_release: app.open_new_card_dialog()
     AppMenuTextItem:
         text: 'Help'
         ContextMenu:
@@ -369,6 +371,7 @@
         # Editor Panel (middle)
         BoxLayout:
             id: editor_container
+            padding: ['5dp','10dp']
 
         # Card Preview Panel (right)
         Splitter:
@@ -515,7 +518,7 @@
             Label:
                 text: 'Template'
             Label:
-                text: 'Asset'
+                text: 'asset'
                 id: template
             Button:
                 text: 'Select Template'
@@ -542,27 +545,14 @@
     orientation: 'vertical'
     TextEditLine:
         size_hint_y: None
-        height: '28dp'
         text: 'Name'
         field: root.project.get('name', '')
     FileField:
         size_hint_y: None
-        height: '28dp'
         text: 'Icon'
         path: root.project.get('icon', '')
     Button:
         size_hint_y: None
-        height: '28dp'
-        text: 'Add Encounter set'
-        on_release: root.show_new_encounter_popup()
-    Button:
-        size_hint_y: None
-        height: '28dp'
-        text: 'Add Player Card'
-        on_release: root.show_new_play_popup()
-    Button:
-        size_hint_y: None
-        height: '28dp'
         text: 'Delete'
         on_release: root.show_confirm_delete()
     ScrollView:
@@ -577,27 +567,15 @@
     orientation: 'vertical'
     TextEditLine:
         size_hint_y: None
-        height: '28dp'
         text: 'Name'
         field: root.encounter.get('name', '')
     TextEditLine:
         size_hint_y: None
-        height: '28dp'
         text: 'Icon'
         field: root.encounter.get('icon', '')
     Button:
         size_hint_y: None
-        height: '28dp'
-        text: 'Add new card'
-        on_release: root.new_card()
-    Button:
-        size_hint_y: None
-        height: '28dp'
         text: 'Delete set'
-    Button:
-        size_hint_y: None
-        height: '28dp'
-        text: 'Something else'
     ScrollView:
         size_hint: 1, 1
         GridLayout:
