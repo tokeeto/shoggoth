@@ -1,5 +1,6 @@
 from time import time
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+import pillow_jxl
 from kivy.graphics.texture import Texture
 from kivy.core.image import Image as kivy_img
 from kivy.uix.image import CoreImage
@@ -12,6 +13,7 @@ import numpy as np
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir
 from pathlib import Path
 
+from kivy.logger import Logger
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('pillow').setLevel(logging.ERROR)
@@ -98,12 +100,13 @@ class CardRenderer:
 
         return front_image, back_image
 
-    def export_card_images(self, card, folder):
-        front_image = self.render_card_side(card, card.front)
-        back_image  = self.render_card_side(card, card.back)
-
-        front_image.save(os.path.join(folder, card.code + '_front.jpeg'), quality=95)
-        back_image.save(os.path.join(folder, card.code + '_back.jpeg'), quality=95)
+    def export_card_images(self, card, folder, force=False):
+        if force or card.front['type'] not in ('player', 'encounter'):
+            front_image = self.render_card_side(card, card.front)
+            front_image.save(os.path.join(folder, card.code + '_front.png'), quality=100, lossless=True)
+        if force or card.back['type'] not in ('player', 'encounter'):
+            back_image  = self.render_card_side(card, card.back)
+            back_image.save(os.path.join(folder, card.code + '_back.png'), quality=100, lossless=True)
 
     def pil_to_texture(self, pil_image):
         """Convert PIL image to Kivy texture"""
@@ -119,8 +122,6 @@ class CardRenderer:
         """Render one side of a card"""
         from time import time
 
-        t = time()
-        print(f'start render card side')
         self.current_card = card
         self.current_side = side
         self.current_opposite_side = card.front if side == card.back else card.back
@@ -161,8 +162,7 @@ class CardRenderer:
             try:
                 func(card_image, side)
             except Exception as e:
-                print(f'Failed in {func}: {e}')
-        print(f'end render card side: {time()-t}')
+                Logger.info(f'Failed in {func}: {e}')
         return card_image
 
     def render_text(self, card_image, side):

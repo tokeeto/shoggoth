@@ -121,52 +121,6 @@
         text: 'mystic'
         on_release: root.select_value(self.text)
 
-
-<FileChooserPopup>:
-    filechooser: filechooser
-    title: 'Select file'
-    size_hint: .7, .7
-    BoxLayout:
-        size: root.size
-        pos: root.pos
-        orientation: "vertical"
-        FileChooserListView:
-            id: filechooser
-
-        BoxLayout:
-            size_hint_y: None
-            height: 30
-            Button:
-                text: "Cancel"
-                on_release: root.dismiss()
-
-            Button:
-                text: "Load"
-                on_release: root.select(filechooser.path, filechooser.selection[0])
-
-<FileSavePopup>:
-    title: 'Save file'
-    size_hint: .7, .7
-    text_input: text_input
-    BoxLayout:
-        orientation: "vertical"
-        FileChooserListView:
-            id: filechooser
-            on_selection: text_input.text = self.selection[0] or ''
-
-        TextInput:
-            id: text_input
-
-        BoxLayout:
-            size_hint_y: None
-            height: '32dp'
-            Button:
-                text: "Cancel"
-                on_release: root.dismiss()
-            Button:
-                text: "Save"
-                on_release: root.select(filechooser.path, text_input.text)
-
 <CardPreview>:
     padding: '10dp'
     TabbedPanel:
@@ -187,13 +141,14 @@
 
 <AboutPopup@Popup>:
     title: 'About Shoggoth'
-    size_hint: 0.75, 0.75
+    size_hint: 0.5, 0.5
 
     Label:
-        text: 'Created by Toke Ivø.\nYou can support the development of Shoggoth by <a href="https://github.com/tokeeto/shoggoth">contribution</a>, <a href="https://www.patreon.com/tokeeto">donation</a>, or <a href="https://ko-fi.com/tokeeto">tips</a>.\n\nVarious images by the Mythos Busters community.\n\nSpecial thanks to Coldtoes, felice, Chr1Z and MickeyTheQ.'
+        text: ui.about_text
         text_size: self.width, None
         size: self.texture_size
         markup: True
+        on_ref_press: ui.goto_ref(args)
 
 <NewProjectPopup@Popup>:
     title: 'New Project'
@@ -241,7 +196,7 @@
             Button:
                 size_hint_x: 0.2
                 text: 'Select icon'
-                on_release: ui.show_file_select(icon)
+                on_release: icon.text = ui.open_image()
 
         BoxLayout:
             orientation: "horizontal"
@@ -258,7 +213,7 @@
             Button:
                 size_hint_x: 0.2
                 text: 'Browse'
-                on_release: ui.show_file_save(file_name)
+                on_release: file_name = ui.save_project_dialog()
 
         BoxLayout:
             size_hint_y: None
@@ -332,6 +287,23 @@
             ContextMenuTextItem:
                 text: 'New Card (Ctrl+N)'
                 on_release: app.open_new_card_dialog()
+            ContextMenuTextItem:
+                text: 'Gather images'
+                on_release: app.gather_images()
+            ContextMenuTextItem:
+                text: 'Gather images and update'
+                on_release: app.gather_images(update=True)
+            ContextMenuTextItem:
+                text: 'Export Current Card (Ctrl+E)'
+                on_release: app.export_current()
+            ContextMenuTextItem:
+                text: 'Export All Cards (Ctrl+Shift+E)'
+                on_release: app.export_all()
+            ContextMenuDivider:
+            ContextMenuTextItem:
+                text: 'Exit'
+                on_release: app.stop()
+
     AppMenuTextItem:
         text: 'Help'
         ContextMenu:
@@ -447,7 +419,7 @@
         size_hint_x: None
         width: 40
         text: '📁'
-        on_press: root.show_file_selector()
+        on_press: root.path = ui.open_file()
 
 <NewEncounterPopup>:
     size_hint: .4,.4
@@ -723,9 +695,18 @@
             TextEditArea:
                 text: 'Flavor'
                 id: flavor_text
-            TextEditLine:
-                text: 'Image path'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -785,9 +766,18 @@
             TextEditArea:
                 text: 'flavor_text'
                 id: flavor_text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -844,9 +834,18 @@
             TextEditArea:
                 text: 'flavor_text'
                 id: flavor_text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -927,9 +926,18 @@
                 text: 'sanity'
                 id: sanity
 
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -972,20 +980,59 @@
                     text: 'traits'
                     id: traits
                 TextEditLine:
-                    text: 'class'
-                    id: card_class
-                TextEditLine:
-                    text: 'classes'
+                    text: 'Class'
                     id: classes
+            TextEditLine:
+                text: 'Heading'
+                id: heading1
             TextEditArea:
-                text: 'text'
-                id: text
+                text: 'Text'
+                id: text1
+            TextEditLine:
+                text: 'Heading'
+                id: heading2
+            TextEditArea:
+                text: 'Text'
+                id: text2
+            TextEditLine:
+                text: 'Heading'
+                id: heading3
+            TextEditArea:
+                text: 'Text'
+                id: text3
+            TextEditLine:
+                text: 'Heading'
+                id: heading4
+            TextEditArea:
+                text: 'Text'
+                id: text4
+            TextEditLine:
+                text: 'Heading'
+                id: heading5
+            TextEditArea:
+                text: 'Text'
+                id: text5
+            TextEditLine:
+                text: 'Heading'
+                id: heading6
+            TextEditArea:
+                text: 'Text'
+                id: text6
             TextEditArea:
                 text: 'flavor_text'
                 id: flavor_text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -1045,9 +1092,18 @@
             TextEditArea:
                 text: 'flavor_text'
                 id: flavor_text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -1101,9 +1157,18 @@
             TextEditArea:
                 text: 'flavor_text'
                 id: flavor_text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -1166,9 +1231,18 @@
             TextEditArea:
                 text: 'flavor_text'
                 id: flavor_text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -1216,9 +1290,18 @@
             TextEditArea:
                 text: 'flavor_text'
                 id: flavor_text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -1259,9 +1342,18 @@
             TextEditArea:
                 text: 'Text'
                 id: text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None
@@ -1326,9 +1418,18 @@
             TextEditArea:
                 text: 'Text'
                 id: text
-            TextEditLine:
-                text: 'illustration'
-                id: illustration
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Image path'
+                    id: illustration
+                Button:
+                    size_hint_x: None
+                    width: '100dp'
+                    text: 'Browse'
+                    on_release: illustration.input.text = ui.open_image()
             BoxLayout:
                 orientation: "horizontal"
                 size_hint_y: None

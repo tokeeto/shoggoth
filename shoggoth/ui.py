@@ -6,7 +6,43 @@ from kivy.properties import ObjectProperty
 from kivy_garden.contextmenu import ContextMenu, ContextMenuTextItem
 import os
 from shoggoth import card
+import filedialpy
+from pathlib import Path
 
+
+about_text = """
+Created by Toke Ivø.
+
+You can support the development of Shoggoth by [u][ref=contrib]contribution[/ref][/u], [u][ref=patreon]donation[/ref][/u], or [u][ref=tip]tips[/ref][/u].
+
+Various images by the Mythos Busters community.
+
+Special thanks to Coldtoes, felice, Chr1Z and MickeyTheQ.
+"""
+
+
+def save_project_dialog():
+    """ Returns a file location """
+    return filedialpy.saveFile(
+        initial_dir=str(Path.home()),
+        initial_file="expansion.json",
+        title="Project file location",
+        filter=["*.json","*"],
+        confirm_overwrite=True,
+    )
+
+def open_image():
+    """ Returns a file location """
+    return filedialpy.openFile(
+        initial_dir=str(Path.home()),
+        filter=["*.png *.jpg *.jpeg", "*"],
+    )
+
+def open_file():
+    """ Returns a file location """
+    return filedialpy.openFile(
+        initial_dir=str(Path.home()),
+    )
 
 class FileChooserPopup(Popup):
     """Popup for selecting files/folders"""
@@ -46,6 +82,16 @@ class ClassSelectDropdown(DropDown):
 
     def select_value(self, value):
         self.callback(value)
+
+
+def goto_ref(value):
+    import webbrowser
+    url = {
+        'contrib': 'https://github.com/tokeeto/shoggoth',
+        'patreon': 'https://www.patreon.com/tokeeto',
+        'tip': 'https://ko-fi.com/tokeeto',
+    }[value[1]]
+    webbrowser.open_new_tab(url)
 
 class ValueSelectPopup(Popup):
     def __init__(self, callback, **kwargs):
@@ -116,12 +162,20 @@ class TypeSelectDropdown(ContextMenu):
 
 
 def show_file_select(target, callback=None):
-    pop = FileChooserPopup(target, callback=callback)
-    pop.open()
+    target = filedialpy.openFile(
+        initial_dir=str(Path.home()),
+        filter=['*.json', '*'],
+    )
+    if target:
+        callback(target)
 
 def show_file_save(target, callback=None):
-    pop = FileSavePopup(target, callback=callback)
-    pop.open()
+    target = filedialpy.saveFile(
+        initial_dir=str(Path.home()),
+        filter=['*.json', '*'],
+    )
+    if target:
+        callback(target)
 
 def show_class_select(parent, callback):
     dropdown = ClassSelectDropdown(callback=callback)

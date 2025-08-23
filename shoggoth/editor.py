@@ -169,12 +169,14 @@ class WidgetLink():
             widget.bind(*args, **kwargs)
 
 class CardFieldComposite():
-    def __init__(self, widgets, card_key, converter, deconverter):
+    def __init__(self, widgets, card_key, converter, deconverter, secondary_key="", secondary_converter=None):
         self.widgets = widgets
         self.widget = WidgetLink(self)
         self.card_key = card_key
         self.converter = converter
         self.deconverter = deconverter
+        self.secondary_key = secondary_key
+        self.secondary_converter = secondary_converter
         self._updating = False
 
     def update_from_card(self, card_data):
@@ -191,6 +193,8 @@ class CardFieldComposite():
         try:
             value = [w.text for w in self.widgets]
             card_data.set(self.card_key, self.converter(value) if value else None)
+            if self.secondary_key and self.secondary_converter:
+                card_data.set(self.secondary_key, self.secondary_converter(value) if value else None)
             return True
         except ValueError as e:
             print('tried updating the card, it failed with', e)
@@ -253,12 +257,28 @@ def customizable_deconverter(value:list[list]) -> list[str]:
         result.append(entry[2])
     return result
 
+def investigator_back_converter(value:list) -> list[str]:
+    result = []
+    # parse as pairs
+    for heading, text in zip(value[::2], value[1::2]):
+        if heading or text:
+            result.append([heading,text])
+    return result
 
-def investigator_back_converter(value:list) -> str:
-    return ""
+def investigator_back_second_converter(value:list) -> str:
+    result = ""
+    # parse as pairs
+    for heading, text in zip(value[::2], value[1::2]):
+        if heading or text:
+            result += f'{heading} {text}\n'
+    return result[0:-1]
 
-def investigator_back_deconverter(value:str) -> list[str]:
-    return ['1', '2']
+def investigator_back_deconverter(value:list[list[str]]) -> list[str]:
+    result = []
+    for entry in value:
+        result.append(entry[0])
+        result.append(entry[1])
+    return result
 
 
 class FaceEditor(FloatLayout):
@@ -416,7 +436,11 @@ class InvestigatorBackEditor(FaceEditor):
                     self.ids.heading3.input, self.ids.text3.input,
                     self.ids.heading4.input, self.ids.text4.input,
                     self.ids.heading5.input, self.ids.text5.input,
-                ], 'entries', investigator_back_converter, investigator_back_deconverter
+                ], 'entries',
+                investigator_back_converter,
+                investigator_back_deconverter,
+                secondary_key='text',
+                secondary_converter=investigator_back_second_converter,
             ),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
 

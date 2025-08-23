@@ -44,6 +44,9 @@ from shoggoth.card import Card, TEMPLATES
 
 from kivy.storage.jsonstore import JsonStore
 from shoggoth.ui import show_file_select
+from pathlib import Path
+import shutil
+import threading
 
 
 class ShoggothRoot(FloatLayout):
@@ -283,6 +286,7 @@ class GotoPopup(Popup):
             App.get_running_app().goto_project(entry.id)
         self.dismiss()
 
+
 class ShoggothApp(App):
     """Main application class for Shoggoth Card Creator"""
     current_card_id = StringProperty("")
@@ -309,13 +313,16 @@ class ShoggothApp(App):
         # build a session object if one doesn't exist
         if not self.storage.exists('session'):
             print('no defaults, creating new storage')
-            self.storage.put('session', project=None)
-            self.storage.put('session', last_id=None)
+            self.storage.put('session', project=None, last_id=None)
 
         # restore the existing session
         if 'project' in self.storage.get('session'):
             self.current_project = Project.load(self.storage.get('session')['project'])
             self.root.ids.file_browser.project = self.current_project
+
+        if 'last_id' in self.storage.get('session'):
+            id = self.storage.get('session')['last_id']
+            Clock.schedule_once(lambda x: self.goto_card(id), .5)
 
         return self.root
 
@@ -411,7 +418,11 @@ class ShoggothApp(App):
     def show_card(self, card):
         self.current_card = card
         self.current_card_id = card.id
+        self.storage.put('session', project=self.current_project.file_path, last_id=card.id)
         self.root.ids.editor_container.clear_widgets()
+
+        # TODO: Observe card specific files here.
+
         self.root.ids.editor_container.add_widget(CardEditor(card=card))
         self.update_card_preview()
 
@@ -445,8 +456,80 @@ class ShoggothApp(App):
 
     def refresh_tree(self):
         self.root.ids.file_browser.refresh()
-        self.root.ids.file_browser.refresh()
-        self.root.ids.file_browser.refresh()
+
+    def gather_images(self, output_folder=None, update=False):
+        """ Gathers all images on cards
+
+            All images are copied to the specified folder.
+            If :update: is True, card references are update
+            to point to the new output location.
+        """
+        print('gathering images', output_folder, update)
+
+        def copy_gathered_image(path, folder) -> str:
+            if not (folder / path.name).exists():
+                shutil.copy(path, folder)
+                return path.name
+
+            i = 0
+            new_name = f'{path.stem}_{i}{path.suffix}'
+            while (folder/new_name).exists():
+                i += 1
+                new_name = f'{path.stem}_{i}{path.suffix}'
+
+            shutil.copy(path, folder/new_name)
+            return new_name
+
+        parent_folder = Path(self.current_project.file_path).parent
+        if not output_folder:
+            output_folder = parent_folder / f'{self.current_project.name}_resources'
+            if not output_folder.is_dir():
+                os.mkdir(output_folder)
+        else:
+            output_folder = Path(output_folder)
+        relative_folder = output_folder.relative_to(parent_folder) or output_folder
+
+        # old path: new path
+        gathered = {}
+
+        # gather icon for project
+        icon_path = Path(self.current_project.icon)
+        if self.current_project.icon and icon_path.is_file():
+            new_name = copy_gathered_image(icon_path, output_folder)
+            gathered[icon_path] = str(relative_folder / new_name)
+            if update:
+                self.current_project.icon = gathered[icon_path]
+
+        # gather all icons for sets
+        for set in self.current_project.encounter_sets:
+            icon_path = Path(set.icon)
+            if not set.icon or not icon_path.is_file():
+                continue
+
+            if icon_path not in gathered:
+                new_name = copy_gathered_image(icon_path, output_folder)
+                gathered[icon_path] = str(relative_folder / new_name)
+            if update:
+                set.icon = gathered[icon_path]
+
+        # gather illustrations, templates and defaults for cards
+        for card in self.current_project.get_all_cards():
+            for side in ('front', 'back'):
+                for field in ('illustration', 'template', 'type'):
+                    try:
+                        img_path = Path(card.data[side][field])
+                        if not img_path.is_file():
+                            Logger.error(f'Path is not a file: {img_path}, on card: {card.name}')
+                            continue
+                        new_name = copy_gathered_image(img_path, output_folder)
+                        gathered[img_path] = str(relative_folder / new_name)
+                        if update:
+                            card.illustration_path = gathered[img_path]
+                    except KeyError as e:
+                        Logger.info(f'Field not found on card during gathering: {card.name}:{side}:{field}')
+                    except Exception as e:
+                        Logger.error(f'Something went wrong during gathering:', e)
+        print(gathered)
 
     def load_project(self, path):
         """ Adds a project to the project explorer """
@@ -464,32 +547,39 @@ class ShoggothApp(App):
             self.status_message = f"Error loading project: {str(e)}"
             self.root.ids.status_bar.text = self.status_message
 
-    def export_card(self, file_path=None):
-        """Export the current card as an image"""
-        if not self.card_data:
-            self.status_message = "No card loaded to export"
-            self.root.ids.status_bar.text = self.status_message
-            return
+    def export_current(self):
+        export_folder = os.path.join(
+            os.path.dirname(self.current_project.file_path),
+            f'export_of_{os.path.basename(self.current_project.file_path).split(".")[1]}'
+        )
+        os.makedirs(export_folder, exist_ok=True)
+        t = time()
+        self.card_renderer.export_card_images(self.current_card, export_folder)
+        print(f'Export of {self.current_card.name} done in {time()-t} seconds')
 
-        try:
-            # Generate file path if not provided
-            if not file_path:
-                basename = os.path.basename(self.current_card_path)
-                export_name = os.path.splitext(basename)[0] + ".png"
-                file_path = os.path.join(os.path.dirname(self.current_card_path), export_name)
+    def export_all(self):
+        export_folder = os.path.join(
+            os.path.dirname(self.current_project.file_path),
+            f'export_of_{os.path.basename(self.current_project.file_path).split(".")[1]}'
+        )
+        os.makedirs(export_folder, exist_ok=True)
+        cards = self.current_project.get_all_cards()
+        t = time()
 
-            # Get card images
-            front_image, _ = self.card_renderer.get_card_images(self.card_data)
+        # spawn threads to write card files
+        threads = []
+        for card in cards:
+            Logger.debug(f'added {card.name} to queue')
+            thread = threading.Thread(target=self.card_renderer.export_card_images, args=(card, export_folder))
+            threads.append(thread)
+            thread.start()
 
-            # Save to file
-            front_image.save(file_path, "PNG")
+        # wait for all threads to finish
+        for thread in threads:
+            thread.join()
 
-            self.status_message = f"Card exported to: {file_path}"
-            self.root.ids.status_bar.text = self.status_message
+        print(f'Export of {len(cards)} cards done in {time()-t} seconds')
 
-        except Exception as e:
-            self.status_message = f"Error exporting card: {str(e)}"
-            self.root.ids.status_bar.text = self.status_message
 
     def on_stop(self):
         """Clean up when the application stops"""
