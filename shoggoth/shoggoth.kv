@@ -22,6 +22,11 @@
     size_hint_y: None
     height: '30dp'
 
+<Thumbnail>:
+    size_hint_y: None
+    height: 300
+    on_release: app.goto_card(root.card_id)
+
 <TemplateSelector>:
     title: 'Select Template'
     size_hint: .4,.4
@@ -534,15 +539,19 @@
 <EncounterEditor>:
     orientation: 'vertical'
     TextEditLine:
-        size_hint_y: None
         text: 'Name'
-        field: root.encounter.get('name', '')
-    TextEditLine:
+        id: name
+    BoxLayout:
+        orientation: 'horizontal'
         size_hint_y: None
-        text: 'Icon'
-        field: root.encounter.get('icon', '')
+        height: '32dp'
+        TextEditLine:
+            text: 'Icon'
+            id: icon
+        Button:
+            text: 'Browse'
+            on_release: ui.browse_image(icon.input)
     Button:
-        size_hint_y: None
         text: 'Delete set'
     ScrollView:
         size_hint: 1, 1
@@ -577,6 +586,15 @@
                     TextEditLine:
                         text: 'Collection Number'
                         id: collection_number
+                    TextEditLine:
+                        text: 'Encounter Set Number'
+                        id: encounter_number
+                    TextEditLine:
+                        text: 'Investigator Link'
+                        id: collection
+                    TextEditLine:
+                        text: 'ID'
+                        id: card_id
 
 
         TabbedPanelItem:

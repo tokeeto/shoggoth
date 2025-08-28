@@ -1,6 +1,9 @@
+from kivy.uix.colorpicker import StringProperty
 from kivy.uix.popup import Popup
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
+from kivy.uix.image import Image
+from kivy.uix.behaviors import ButtonBehavior
 from kivy.app import App
 from kivy.properties import ObjectProperty
 from kivy_garden.contextmenu import ContextMenu, ContextMenuTextItem
@@ -8,6 +11,8 @@ import os
 from shoggoth import card
 import filedialpy
 from pathlib import Path
+from kivy.clock import Clock
+import threading
 
 
 about_text = """
@@ -31,6 +36,21 @@ def save_project_dialog():
         confirm_overwrite=True,
     )
 
+def async_open_image(target):
+    path = filedialpy.openFile(
+        initial_dir=str(Path.home()),
+        filter=["*.png *.jpg *.jpeg", "*"],
+    )
+    if not path:
+        return
+    def wrapper(*args, **kwargs):
+        target.text = path
+    Clock.schedule_once(wrapper)
+
+def browse_image(target):
+    thread = threading.Thread(target=async_open_image, args=(target,))
+    thread.start()
+
 def open_image():
     """ Returns a file location """
     return filedialpy.openFile(
@@ -43,6 +63,9 @@ def open_file():
     return filedialpy.openFile(
         initial_dir=str(Path.home()),
     )
+
+class Thumbnail(ButtonBehavior, Image):
+    card_id = StringProperty("")
 
 class FileChooserPopup(Popup):
     """Popup for selecting files/folders"""
@@ -92,6 +115,7 @@ def goto_ref(value):
         'tip': 'https://ko-fi.com/tokeeto',
     }[value[1]]
     webbrowser.open_new_tab(url)
+
 
 class ValueSelectPopup(Popup):
     def __init__(self, callback, **kwargs):

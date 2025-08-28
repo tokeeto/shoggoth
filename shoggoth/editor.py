@@ -89,24 +89,37 @@ class EncounterEditor(BoxLayout):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields = []
+        self._setup_fields()
+        self.load_card(self.encounter)
         threading.Thread(target=self.show_thumbnails).start()
+
+    def load_card(self, card_data):
+        for field in self.fields:
+            field.update_from_card(self.encounter)
+
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.name.input, 'name'),
+            CardField(self.ids.icon.input, 'icon'),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
+    def _on_field_changed(self, field, text):
+        field.update_card(self.encounter, text)
 
     def show_thumbnails(self):
         try:
             app = App.get_running_app()
             for index, card in enumerate(self.encounter.cards):
-                app.render_thumbnail(card, self.ids.thumbnail_grid)
+                threading.Thread(target=app.render_thumbnail, args=(card, self.ids.thumbnail_grid)).start()
+
         except Exception as e:
-           print("failure in on_project", self.project, e)
-
-    def callback(self, *args, **kwargs):
-        print(args, kwargs)
-
-    def new_card(self):
-        popup = NewCardPopup(
-            target=self.encounter,
-        )
-        popup.open()
+           print("failure in show_thumbnails", self.encounter, e)
 
 
 class CardEditor(BoxLayout):
@@ -121,6 +134,34 @@ class CardEditor(BoxLayout):
         self.front_editor_container.add_widget(self.front_editor)
         self.back_editor_container.add_widget(self.back_editor)
 
+        # Works a bit like a face editor, despite being core data only
+        self.fields = []
+        self._setup_fields()
+        self.load_card(self.card)
+
+    def load_card(self, card_data):
+        for field in self.fields:
+            print('loading card data for', field)
+            field.update_from_card(self.card)
+
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.name.input, 'name'),
+            CardField(self.ids.amount.input, 'amount'),
+            CardField(self.ids.collection_number.input, 'encounter_number'),
+            CardField(self.ids.encounter_number.input, 'expansion_number'),
+            CardField(self.ids.collection.input, 'investigator'),
+            CardField(self.ids.card_id.input, 'id'),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
+    def _on_field_changed(self, field, text):
+        field.update_card(self.card, text)
+
     def update_card_face_type(self, widget):
         if widget is self.front_editor:
             self.front_editor_container.remove_widget(self.front_editor)
@@ -130,9 +171,6 @@ class CardEditor(BoxLayout):
             self.back_editor_container.remove_widget(self.back_editor)
             self.back_editor = MAPPING.get(self.card.back.get('type'), FaceEditor)(face=self.card.back, type_change=self.update_card_face_type)
             self.back_editor_container.add_widget(self.back_editor)
-
-    def get_card_data(self):
-        pass
 
 
 class CardField:
@@ -282,9 +320,8 @@ def investigator_back_deconverter(value:list[list[str]]) -> list[str]:
 
 
 class FaceEditor(FloatLayout):
-    face = ObjectProperty()
-
-    def __init__(self, *args, type_change=None, **kwargs):
+    def __init__(self, *args, face={}, type_change=None, **kwargs):
+        self.face = face
         super().__init__(*args, **kwargs)
         self.fields = []
         self._setup_fields()
@@ -310,7 +347,7 @@ class FaceEditor(FloatLayout):
 
         # Bind each field
         for field in self.fields:
-            field.widget.fbind('on_text', self._on_field_changed, field)
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
 
     def load_card(self, card_data):
         for field in self.fields:

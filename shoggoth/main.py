@@ -13,13 +13,7 @@ from kivy.app import App
 import kivy_garden.contextmenu
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.splitter import Splitter
 from kivy.uix.treeview import TreeView, TreeViewLabel
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.textinput import TextInput
-from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.popup import Popup
 from kivy.uix.image import Image, CoreImage
 from kivy.uix.behaviors import ButtonBehavior, FocusBehavior, DragBehavior
@@ -43,7 +37,7 @@ from shoggoth.file_monitor import FileMonitor
 from shoggoth.card import Card, TEMPLATES
 
 from kivy.storage.jsonstore import JsonStore
-from shoggoth.ui import show_file_select
+from shoggoth.ui import show_file_select, Thumbnail
 from pathlib import Path
 import shutil
 import threading
@@ -423,18 +417,18 @@ class ShoggothApp(App):
 
         # TODO: Observe card specific files here.
 
-        self.root.ids.editor_container.add_widget(CardEditor(card=card))
+        self.root.ids.editor_container.add_widget(CardEditor(card=self.current_card))
         self.update_card_preview()
 
-    def update_texture(self, texture, container):
+    def update_texture(self, texture, container, card):
         #tex = self.card_renderer.pil_to_texture(texture)
-        img = Image(size_hint_y=None, height=300)
+        img = Thumbnail(card_id=card.id)
         container.add_widget(img)
         img.texture = CoreImage(texture, ext='jpeg').texture
 
     def render_thumbnail(self, card, container):
         texture = self.card_renderer.get_thumbnail(card)
-        Clock.schedule_once(lambda x:self.update_texture(texture, container), 1)
+        Clock.schedule_once(lambda x:self.update_texture(texture, container, card))
 
     def update_card_data(self, face, field, value):
         print('update current card', face, field, value)

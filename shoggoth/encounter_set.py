@@ -5,12 +5,11 @@ from shoggoth.card import Card
 class EncounterSet:
     def __init__(self, data, expansion=None):
         self.name = data['name']
-        self.icon = data['icon']
-        self.code = data.get('code', 'xx')
         self.data = data
         self.expansion = expansion
-        self.get = data.get
-        self.id = data.get('id', uuid4())
+        if 'id' not in self.data:
+            self.data['id'] = uuid4()
+        self.get = self.data.get
         self.__getitem__ = self.data.__getitem__
 
     def __eq__(self, other):
@@ -24,6 +23,14 @@ class EncounterSet:
     @staticmethod
     def is_valid(data):
         return 'cards' in data and 'name' in data and 'icon' in data
+
+    @property
+    def icon(self):
+        return self.data.get('icon', '')
+
+    @property
+    def id(self):
+        return self.data['id']
 
     def add_card(self, card):
         if type(card) == Card:
@@ -41,3 +48,6 @@ class EncounterSet:
                 card.data['encounter_number'] = f'{current_number}'
             current_number += amount
         self.data['card_amount'] = current_number-1
+
+    def set(self, key, value):
+        self.data[key] = value

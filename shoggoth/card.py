@@ -68,18 +68,26 @@ class Card:
         expansion,
         encounter=None,
     ):
-        self.app = None
         self.data = data
-        self.name = data['name']
         self.encounter = encounter
         self.expansion = expansion
         if 'id' not in data:
             data['id'] = str(uuid4())
-        self.id = data['id']
 
         self.front = Face(self.data['front'], card=self)
         self.back = Face(self.data['back'], card=self)
-        self.app = App.get_running_app()
+
+    @property
+    def name(self):
+        return self.data['name']
+
+    @property
+    def amount(self):
+        return self.data.get('amount', 1)
+
+    @property
+    def id(self):
+        return self.data['id']
 
     @property
     def expansion_number(self):
@@ -121,14 +129,15 @@ class Card:
         else:
             return classes[0]
 
+    def set(self, key, value):
+        self.data[key] = value
+
+    def get(self, key):
+        return self.data.get(key)
 
     @staticmethod
     def is_valid(data):
         return 'front' in data and 'back' in data
-
-    def save(self):
-        """Save card data to JSON file"""
-        pass
 
     @staticmethod
     def new(name) -> Dict[str, Any]:
@@ -166,6 +175,7 @@ class TEMPLATES:
         return {
             'name': '',
             'id': str(uuid4()),
+            'amount': 1,
             'front': {
                 'type': ''
             },
@@ -177,6 +187,7 @@ class TEMPLATES:
     @classmethod
     def ASSET(cls):
         card = cls.BASE()
+        card['amount'] = 2
         card['front']['type'] = 'asset'
         card['back']['type'] = 'player'
         return card
@@ -184,6 +195,7 @@ class TEMPLATES:
     @classmethod
     def INVESTIGATOR(cls):
         card = cls.BASE()
+        card['amount'] = 1
         card['front']['type'] = 'investigator'
         card['back']['type'] = 'investigator_back'
         return card
@@ -191,6 +203,7 @@ class TEMPLATES:
     @classmethod
     def EVENT(cls):
         card = cls.BASE()
+        card['amount'] = 2
         card['front']['type'] = 'event'
         card['back']['type'] = 'player'
         return card
@@ -198,6 +211,7 @@ class TEMPLATES:
     @classmethod
     def SKILL(cls):
         card = cls.BASE()
+        card['amount'] = 2
         card['front']['type'] = 'skill'
         card['back']['type'] = 'player'
         return card
@@ -205,6 +219,7 @@ class TEMPLATES:
     @classmethod
     def ENEMY(cls):
         card = cls.BASE()
+        card['amount'] = 3
         card['front']['type'] = 'enemy'
         card['back']['type'] = 'encounter'
         return card
@@ -212,6 +227,7 @@ class TEMPLATES:
     @classmethod
     def TREACHERY(cls):
         card = cls.BASE()
+        card['amount'] = 3
         card['front']['type'] = 'treachery'
         card['back']['type'] = 'encounter'
         return card
@@ -219,6 +235,7 @@ class TEMPLATES:
     @classmethod
     def LOCATION(cls):
         card = cls.BASE()
+        card['amount'] = 1
         card['front']['type'] = 'location'
         card['back']['type'] = 'location_back'
         return card
@@ -226,6 +243,7 @@ class TEMPLATES:
     @classmethod
     def ACT(cls):
         card = cls.BASE()
+        card['amount'] = 1
         card['front']['type'] = 'act'
         card['back']['type'] = 'act_back'
         return card
@@ -233,6 +251,7 @@ class TEMPLATES:
     @classmethod
     def AGENDA(cls):
         card = cls.BASE()
+        card['amount'] = 1
         card['front']['type'] = 'agenda'
         card['back']['type'] = 'agenda_back'
         return card
@@ -240,6 +259,7 @@ class TEMPLATES:
     @classmethod
     def SCENARIO(cls):
         card = cls.BASE()
+        card['amount'] = 1
         card['front']['type'] = 'chaos'
         card['back']['type'] = 'chaos_back'
         return card
@@ -247,6 +267,7 @@ class TEMPLATES:
     @classmethod
     def STORY(cls):
         card = cls.BASE()
+        card['amount'] = 1
         card['front']['type'] = 'story'
         card['back']['type'] = 'story_back'
         return card

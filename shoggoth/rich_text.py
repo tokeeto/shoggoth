@@ -61,16 +61,9 @@ class RichTextRenderer:
 
         # Replacement tags - tags that render as different text when encountered
         self.replacement_tags = {
-            '<name>': self.get_card_name,
             '<for>': self.get_forced_template,
             '<prey>': self.get_prey_template,
             '<rev>': self.get_revelation_template,
-            '<copy>': self.get_copy_field,
-            '<exi>': self.get_expansion_icon,
-            '<exn>': self.get_expansion_number,
-            '<esn>': self.get_set_number,
-            '<est>': self.get_set_total,
-            '<esi>': self.get_set_icon,
         }
 
         # Define font-based icon tags and their corresponding characters
@@ -396,9 +389,6 @@ class RichTextRenderer:
         # Parse the rich text
         tokens = self.parse_text(text)
 
-        self.alignment = alignment
-        self.min_font_size = min_font_size
-
         # Try rendering with progressively smaller font sizes until it fits
         current_size = font_size  # Start with default size
         best_size = None
@@ -415,7 +405,7 @@ class RichTextRenderer:
 
             # Try rendering at this size
             force = current_size == min_font_size
-            success = self._render_with_font_size(temp_image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill)
+            success = self._render_with_font_size(temp_image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
 
             if success:
                 best_size = current_size
@@ -424,7 +414,7 @@ class RichTextRenderer:
 
             current_size -= 1
 
-    def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20'):
+    def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20', alignment='left'):
         """
         Attempt to render text at the specified font size.
         Returns True if rendering succeeded, False if text doesn't fit.
@@ -442,7 +432,7 @@ class RichTextRenderer:
         # Current formatting state
         current_font = font
         font_stack = []  # Stack to track nested font changes
-        current_alignment = self.alignment
+        current_alignment = alignment
         current_indent = 0
         indent_current = False
         alignment_stack = []

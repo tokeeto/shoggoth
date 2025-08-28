@@ -118,6 +118,40 @@ class CardRenderer:
         im = CoreImage(buffer, ext='jpeg')
         return im.texture
 
+    def text_replacement(self, field, value, side):
+        """ handles advanced text replacement fields """
+        # <name>
+        value = value.replace('<name>', side.card.name)
+        # '<copy>': self.get_copy_field,
+        if side == side.card.front:
+            other_side = side.card.back
+        else:
+            other_side = side.card.front
+        value = value.replace('<copy>', other_side.get('field', '<copy>'))
+        #'<exi>': self.get_expansion_icon,
+        if side.card.expansion.icon:
+            value = value.replace(
+                '<exi>',
+                f'<image src="{side.card.expansion.icon}">'
+            )
+        else:
+            value = value.replace('<exi>', '')
+        #'<exn>': self.get_expansion_number,
+        value = value.replace('<exn>', str(side.card.expansion_number))
+        value = value.replace('<exn>', str(side.card.encounter_number))
+        if side.card.encounter and '<est>' in value:
+            value = value.replace('<est>', str(len(side.card.encounter.cards)))
+        else:
+            value = value.replace('<est>', '')
+        if side.card.encounter and side.card.encounter.icon:
+            value = value.replace(
+                '<esi>',
+                f'<image src="{side.card.encounter.icon}">'
+            )
+        else:
+            value = value.replace('<esi>', '')
+        return value
+
     def render_card_side(self, card, side, size=1):
         """Render one side of a card"""
         from time import time
@@ -172,9 +206,13 @@ class CardRenderer:
             'clues', 'doom', 'shroud', 'willpower', 'intellect',
             'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty'
         ]:
+            self.current_field = field
             value = side.get(field)
             if not value:
                 continue
+
+            # Replacements
+            value = self.text_replacement(field, value, side)
 
             # Checkboxes - primarily for Customizable
             if field == 'text':
@@ -321,7 +359,7 @@ class CardRenderer:
             self.current_field = stat
             value = side.get(stat)
             region = Region(side.get(f'{stat}_region'))
-            if region is None or value is None:
+            if region is None or value is None or not side.get('draw_health_overlay', True):
                 continue
 
             overlay_path = self.overlays_path/f"{stat}_base.png"
@@ -469,67 +507,6 @@ class CardRenderer:
         except Exception as e:
             print(f"Error rendering illustration: {str(e)}")
 
-    def render_rule_text(self, card_image, side):
-        """Render the card rule text"""
-        self.current_field = 'rule_text'
-        rule_text = side.get('rule_text', '')
-        if not rule_text:
-            return
-
-        text_region = Region(side['body_region'])
-
-        # Checkboxes - primarily for Customizable
-        value = side.get('checkbox_entries')
-        if value:
-            lines = ''
-            for slots, name, text in value:
-                lines += '\n' + '☐'*slots + f' <b>{name}.</b> {text}'
-            rule_text += lines
-
-        flavor_text = side.get('flavor_text', '')
-        if flavor_text:
-            rule_text += '\n'
-            rule_text += f'<center><i>{flavor_text}</i>'
-
-        # Get text polygon if available
-        text_polygon = side.get('body_polygon', None)
-
-        # Get alignment
-        #alignment = self.get_setting('body_alignment', card_data, side, defaults, 'left')
-
-        # Render using rich text renderer
-        self.rich_text.render_text(
-            card_image,
-            rule_text,
-            text_region,
-            polygon=text_polygon,
-            alignment='left'
-        )
-
-    def render_cost(self, card_image, side):
-        """Render the card cost"""
-        self.current_field = 'cost'
-        cost = side.get('cost', None)
-        if not cost:
-            return
-
-        cost_region = Region(side['cost_region'])
-
-        # Draw cost
-        if cost == '-':
-            icon_path = self.assets_path/'numbers/AHLCG-Cost--.png'
-            dash_icon = Image.open(icon_path).convert("RGBA")
-            dash_2 = dash_icon.convert('HSV')
-            h, s, v = dash_2.split()
-            np_h = np.array(s, dtype=np.int8)
-            np_h = (np_h * 0)
-            h_shifted = Image.fromarray(np_h, 'L')
-            new_img = Image.merge('HSV', (h, h_shifted, v))
-            #new_img = new_img.resize((cost_region.width, cost_region.height))
-            card_image.paste(new_img, (cost_region.x+5, cost_region.y+5), dash_icon)
-            return
-
-        self.rich_text.render_text(card_image, cost, cost_region, alignment='center', font="cost", font_size=40, outline=1, outline_fill='black', fill='white')
 
     def render_level(self, card_image, side):
         """Render the card level"""
