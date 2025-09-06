@@ -42,12 +42,20 @@ class Face:
     def __getitem__(self, key):
         if key in self.data:
             return self.data[key]
+
+        cls = self.get_class()
+        if f'{key}_{cls}' in self.fallback:
+            return self.fallback[f'{key}_{cls}']
         return self.fallback[key]
 
     def get(self, key, default=''):
         if key in self.data:
             return self.data[key]
-        if key in self.fallback:
+
+        cls = self.get_class()
+        if f'{key}_{cls}' in self.fallback:
+            return self.fallback[f'{key}_{cls}']
+        elif key in self.fallback:
             return self.fallback[key]
         else:
             return default
@@ -57,6 +65,14 @@ class Face:
             self._fallback = None
         self.data[key] = value
         App.get_running_app().update_card_preview()
+
+    def get_class(self):
+        cls = self.data.get('classes', [])
+        if not cls:
+            return None
+        if len(cls) == 1:
+            return cls[0]
+        return 'multi'
 
 
 class Card:
@@ -76,6 +92,9 @@ class Card:
 
         self.front = Face(self.data['front'], card=self)
         self.back = Face(self.data['back'], card=self)
+
+    def __str__(self):
+        return f'<Card "{self.name}">'
 
     @property
     def name(self):

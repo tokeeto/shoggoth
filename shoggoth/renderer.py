@@ -32,6 +32,9 @@ class Region:
             self.y += Region.bleed[1]
         self.width = data.get('width', 0)
         self.height = data.get('height', 0)
+        self.is_attached = data.get('is_attached', False)
+        self.attach_before = data.get('attach_before')
+        self.attach_after = data.get('attach_after')
 
     @property
     def size(self):
@@ -46,7 +49,7 @@ class Region:
         return {'x': self.x + self.width // 2, 'y': self.y + self.height // 2}
 
     def __bool__(self):
-        return self.width > 0 and self.height > 0
+        return self.width > 0 and self.height > 0 or self.is_attached
 
 
 class CardRenderer:
@@ -81,16 +84,18 @@ class CardRenderer:
 
     def get_card_textures(self, card):
         """Render both sides of a card"""
-        front, back = self.get_card_images(card)
+        front = self.render_card_side(card, card.front)
+        back = self.render_card_side(card, card.back)
 
-        # Convert PIL images to Kivy textures
-        from time import time
-        t = time()
-        front_texture = self.pil_to_texture(front)
-        back_texture = self.pil_to_texture(back)
-        print(f'Time to texturize: {time()-t}')
+        f_buffer = BytesIO()
+        front.save(f_buffer, format='jpeg', quality=50)
+        f_buffer.seek(0)
 
-        return front_texture, back_texture
+        b_buffer = BytesIO()
+        back.save(b_buffer, format='jpeg', quality=50)
+        b_buffer.seek(0)
+
+        return f_buffer, b_buffer
 
     def get_card_images(self, card):
         """Get raw PIL images for the card"""
@@ -127,7 +132,7 @@ class CardRenderer:
             other_side = side.card.back
         else:
             other_side = side.card.front
-        value = value.replace('<copy>', other_side.get('field', '<copy>'))
+        value = value.replace('<copy>', other_side.get(field, '<copy>'))
         #'<exi>': self.get_expansion_icon,
         if side.card.expansion.icon:
             value = value.replace(
@@ -138,9 +143,9 @@ class CardRenderer:
             value = value.replace('<exi>', '')
         #'<exn>': self.get_expansion_number,
         value = value.replace('<exn>', str(side.card.expansion_number))
-        value = value.replace('<exn>', str(side.card.encounter_number))
+        value = value.replace('<esn>', str(side.card.encounter_number))
         if side.card.encounter and '<est>' in value:
-            value = value.replace('<est>', str(len(side.card.encounter.cards)))
+            value = value.replace('<est>', str(side.card.encounter.total_cards))
         else:
             value = value.replace('<est>', '')
         if side.card.encounter and side.card.encounter.icon:
@@ -181,7 +186,6 @@ class CardRenderer:
             self.render_level,
             self.render_encounter_icon,
             self.render_expansion_icon,
-            self.render_act_info,
             self.render_icons,
             self.render_connection_icons,
             self.render_tokens,
@@ -201,7 +205,7 @@ class CardRenderer:
 
     def render_text(self, card_image, side):
         for field in [
-            'cost', 'name', 'traits', 'text', 'subtitle', 'label',
+            'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
             'attack', 'evade', 'health', 'stamina', 'sanity',
             'clues', 'doom', 'shroud', 'willpower', 'intellect',
             'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty'
@@ -210,11 +214,25 @@ class CardRenderer:
             value = side.get(field)
             if not value:
                 continue
-
-            # Replacements
-            value = self.text_replacement(field, value, side)
+            region = Region(side[f'{field}_region'])
+            if region.is_attached:
+                # this field is part of another block, and
+                # doesn't render on its own.
+                continue
 
             # Checkboxes - primarily for Customizable
+            if region.attach_before:
+                attachment = side.get(region.attach_before)
+                if attachment:
+                    format = side.get(f'{region.attach_before}_format', '{value}\n')
+                    value = format.format(value=attachment) + value
+
+            if region.attach_after:
+                attachment = side.get(region.attach_after)
+                if attachment:
+                    format = side.get(f'{region.attach_after}_format', '\n{value}')
+                    value = value + format.format(value=attachment)
+
             if field == 'text':
                 cb_value = side.get('checkbox_entries')
                 if cb_value:
@@ -223,23 +241,18 @@ class CardRenderer:
                         lines += '\n' + '☐'*slots + f' <b>{name}.</b> {text}'
                     value += lines
 
-            if field == 'text':
-                flavor = side.get('flavor_text', '')
-                if flavor:
-                    value += '\n'
-                    value += f'<center><i>{flavor}</i>'
+            # Replacements
+            value = self.text_replacement(field, value, side)
 
             try:
-                region = Region(side[f'{field}_region'])
                 font = side.get(f'{field}_font', {})
                 polygon = side.get(f'{field}_polygon', None)
                 if font.get('rotation'):
-                    alignment = font.get('alignment', 'left')
                     temp_image = Image.new('RGBA', (region.height, region.width), (255, 255, 255, 0))
                     self.rich_text.render_text(
                         temp_image,
                         value,
-                        {'x': 0, 'y': 0, 'height': region.width, 'width': region.height},
+                        Region({'x': 0, 'y': 0, 'height': region.width, 'width': region.height}),
                         font=font.get('font', 'regular'),
                         font_size=font.get('size', 20),
                         fill=font.get('color', '#231f20'),
@@ -264,9 +277,7 @@ class CardRenderer:
                         polygon=polygon,
                     )
             except Exception as e:
-                import traceback
                 print(f"Error rendering field: {field}\n {e}")
-                traceback.print_exc()
                 continue
 
     def render_tokens(self, card_image, side):
@@ -308,7 +319,7 @@ class CardRenderer:
         value = side.get('connection')
         if value and value != "None":
             # ready circle for coloring
-            region = side.get('connection_region')
+            region = Region(side.get('connection_region'))
             connection_image = Image.open(self.overlays_path/f"location_{value}.png").convert("RGBA")
             connection_image = connection_image.resize((connection_image.width*2, connection_image.height*2))
             card_image.paste(connection_image, (region.x, region.y), connection_image)
@@ -343,15 +354,6 @@ class CardRenderer:
             overlay_icon = overlay_icon.resize((overlay_icon.width * 2, overlay_icon.height * 2))
             card_image.paste(box_image, (0, index*84+165), box_image)
             card_image.paste(overlay_icon, (25, index*84+181), overlay_icon)
-
-    def render_act_info(self, card_image, side):
-        self.current_field = 'index'
-        value = side.get('index')
-        region = Region(side.get('scenarioindex_region'))
-        if not region or not value:
-            return
-
-        self.rich_text.render_text(card_image, value, region, alignment='center')
 
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """

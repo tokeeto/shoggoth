@@ -1,9 +1,8 @@
-import os
 import json
 from uuid import uuid4
 
 from kivy.app import App
-from shoggoth.card import Card
+from shoggoth.card import TEMPLATES, Card
 from shoggoth.encounter_set import EncounterSet
 
 type_order = {
@@ -16,7 +15,7 @@ type_order = {
     "key": 6,
     "treachery": 7,
     "enemy": 8,
-    "story": 9,
+    #"story": 9,
     "investigator": 10,
     "other": 11
 }
@@ -32,13 +31,12 @@ class_order = {
 }
 def sort_cards(cards):
     cards.sort(key=lambda card: (
-        type_order.get(card.front['type'], type_order["other"]),
-        card.front.get('agenda_index', -1),
-        card.front.get('act_index', -1),
-        class_order.get(card.front.get('class'), -1),
-        card.front.get('level', -1),
-        card.front.get('type', ''),
-        card.name,
+        str(type_order.get(card.front['type'], 15)),
+        str(card.front.get('agenda_index', 15)),
+        str(card.front.get('act_index', 15)),
+        str(class_order.get(card.get_class(), 15)),
+        str(card.front.get('level', 15)),
+        str(card.name),
     ))
 
 class Project:
@@ -68,14 +66,15 @@ class Project:
 
     @property
     def cards(self):
-        for card in self.data.get('cards', []):
-            yield Card(card, expansion=self)
+        c = [Card(card, expansion=self) for card in self.data.get('cards', [])]
+        sort_cards(c)
+        return c
 
     @property
     def encounter_sets(self):
         # order sets to always come out right
         self.data['encounter_sets'].sort(key=lambda x: (
-            x.get('order', '999'),
+            x.get('order', 999),
             x.get('name'),
         ))
 
@@ -109,6 +108,7 @@ class Project:
         if 'cards' in self.data:
             for c in self.data['cards']:
                 result.append(Card(c, expansion=self))
+        sort_cards(result)
         return result
 
     @staticmethod
@@ -144,6 +144,7 @@ class Project:
         }
         self.data['encounter_sets'].append(encounter_data)
         App.get_running_app().refresh_tree()
+        return EncounterSet(encounter_data, expansion=self)
 
     def remove_encounter_set(self, index):
         self.data['encounter_sets'].pop(index)
@@ -163,3 +164,162 @@ class Project:
             'encounter_sets': [],
             'cards': [],
         }
+
+    def add_investigator_set(self, name):
+        """ Creates a few cards usually needed for an investigator """
+        investigator = TEMPLATES.INVESTIGATOR()
+        investigator['name'] = name
+        investigator['investigator'] = name
+        signature = TEMPLATES.ASSET()
+        signature['name'] = 'signature'
+        signature['front']['text'] = f'{name} deck only.'
+        signature['investigator'] = name
+        weakness = TEMPLATES.BASE()
+        weakness['name'] = 'weakness'
+        weakness['front']['type'] = 'weakness_treachery'
+        weakness['back']['type'] = 'player'
+        weakness['investigator'] = name
+        self.add_card(investigator)
+        self.add_card(signature)
+        self.add_card(weakness)
+        App.get_running_app().refresh_tree()
+        App.get_running_app().goto_card(investigator['id'])
+
+    def create_scenario(self, name, order=None):
+        """ Creates an encounter set
+            including acts, agendas, and other
+            placeholder cards.
+        """
+        cards = []
+        for x in range(1,4):
+            act = TEMPLATES.ACT()
+            act['front']['index'] = f'{x}a'
+            act['back']['index'] = f'{x}b'
+            act['name'] = f'Act {x}'
+            cards.append(act)
+
+            agenda = TEMPLATES.AGENDA()
+            agenda['front']['index'] = f'{x}a'
+            agenda['back']['index'] = f'{x}b'
+            agenda['name'] = f'Agenda {x}'
+            cards.append(agenda)
+
+        for x in range(0,3):
+            enemy = TEMPLATES.ENEMY()
+            enemy['name'] = f'Enemy {x+1}'
+            enemy['amount'] = 3
+            cards.append(enemy)
+
+        for x in range(0, 7):
+            treachery = TEMPLATES.TREACHERY()
+            treachery['name'] = f'Treachery {x+1}'
+            treachery['amount'] = 3
+            cards.append(treachery)
+
+        for x in range(0, 8):
+            location = TEMPLATES.LOCATION()
+            location['name'] = f'Location {x+1} - minimum size'
+            location['amount'] = 1
+            cards.append(location)
+
+        for x in range(0, 4):
+            location = TEMPLATES.LOCATION()
+            location['name'] = f'Location {x+9} - medium size'
+            location['amount'] = 1
+            cards.append(location)
+
+        for x in range(0, 4):
+            location = TEMPLATES.LOCATION()
+            location['name'] = f'Location {x+13} - large size'
+            location['amount'] = 1
+            cards.append(location)
+
+        encounter_set = self.add_encounter_set(name)
+        if order:
+            encounter_set.data['order'] = order
+        for card in cards:
+            encounter_set.add_card(card)
+        App.get_running_app().refresh_tree()
+        App.get_running_app().goto_card(cards[0]['id'])
+
+    def create_campaign(self):
+        """ Creates 8 placeholder scenarios. """
+        scenario_names = [
+            'Introduction',
+            'The Call',
+            'Learning',
+            'Threshold',
+            'Acceptance',
+            'The Test',
+            'Revelation',
+            'Climax'
+        ]
+        for index, name in enumerate(scenario_names):
+            self.create_scenario(name, order=index+1)
+
+    def create_player_expansion(self):
+        """ Creates a set of placeholder cards
+            aligning with the usual distribution of cards
+            in an investigator expansion.
+
+            An investigator expansion usually has around:
+                ~130 unique cards in an expansion.
+                5 investigators
+                50 level 0
+                50 level 1-5
+                25 bound/other (10-15 signature cards for instance)
+
+            This method creates, for each class + neutral:
+                9 level 0 cards
+                9 level 1-5 cards
+                3 investigator related cards
+            for a total of 126 cards.
+        """
+
+        cards = []
+        for class_name in ('guardian', 'rogue', 'seeker', 'mystic', 'survivor', 'neutral'):
+            if class_name != 'neutral':
+                self.add_investigator_set(f'The {class_name.capitalize()}')
+            # Level 0 cards
+            for n in range(4):
+                asset = TEMPLATES.ASSET()
+                asset['front']['classes'] = [class_name]
+                asset['front']['level'] = 0
+                asset['name'] = f'{class_name} asset {n+1}'
+                cards.append(asset)
+            for n in range(3):
+                event = TEMPLATES.EVENT()
+                event['front']['classes'] = [class_name]
+                event['front']['level'] = 0
+                event['name'] = f'{class_name} event {n+1}'
+                cards.append(event)
+            for n in range(2):
+                skill = TEMPLATES.SKILL()
+                skill['front']['classes'] = [class_name]
+                skill['front']['level'] = 0
+                skill['name'] = f'{class_name} skill {n+1}'
+                cards.append(skill)
+
+            # Level 1-5 cards
+            for n in range(4):
+                asset = TEMPLATES.ASSET()
+                asset['front']['classes'] = [class_name]
+                asset['front']['level'] = n+2
+                asset['name'] = f'{class_name} xp asset {n+1}'
+                cards.append(asset)
+            for n in range(3):
+                event = TEMPLATES.EVENT()
+                event['front']['classes'] = [class_name]
+                event['front']['level'] = n+2
+                event['name'] = f'{class_name} xp event {n+1}'
+                cards.append(event)
+            for n in range(2):
+                skill = TEMPLATES.SKILL()
+                skill['front']['classes'] = [class_name]
+                skill['front']['level'] = n+1
+                skill['name'] = f'{class_name} xp skill {n+1}'
+                cards.append(skill)
+
+        for card in cards:
+            self.add_card(card)
+        App.get_running_app().refresh_tree()

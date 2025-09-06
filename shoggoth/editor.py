@@ -43,6 +43,29 @@ class NewCardPopup(Popup):
         self.target = value
         self.ids.set_text.text = value.name if value else 'Player card'
 
+    def create_investigator_set(self):
+        """ Creates a few cards usually needed for an investigator """
+        pass
+
+    def create_scenario(self):
+        """ Creates an encounter set
+            including acts, agendas, and other
+            placeholder cards.
+        """
+        pass
+
+    def create_campaign(self):
+        """ Creates 8 placeholder scenarios. """
+        pass
+
+    def create_player_expansion(self):
+        """ Creates a set of placeholder cards
+            aligning with the usual distribution of cards
+            in an investigator expansion.
+        """
+        pass
+
+
 class NewEncounterPopup(Popup):
     """Popup for creating new Encounter Set"""
     project = ObjectProperty()
@@ -148,7 +171,7 @@ class CardEditor(BoxLayout):
         # Register all your fields
         self.fields = [
             CardField(self.ids.name.input, 'name'),
-            CardField(self.ids.amount.input, 'amount'),
+            CardField(self.ids.amount.input, 'amount', int),
             CardField(self.ids.collection_number.input, 'encounter_number'),
             CardField(self.ids.encounter_number.input, 'expansion_number'),
             CardField(self.ids.collection.input, 'investigator'),
@@ -499,7 +522,7 @@ class LocationEditor(FaceEditor):
             CardField(self.ids.shroud.input, 'shroud'),
             CardField(self.ids.clues.input, 'clues'),
             CardField(self.ids.connection.input, 'connection'),
-            CardField(self.ids.connections.input, 'connections', list),
+            CardField(self.ids.connections.input, 'connections', list_converter, list_deconverter),
             *illustration_fields(self)
         ]
 
@@ -515,7 +538,7 @@ class LocationBackEditor(FaceEditor):
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
             CardField(self.ids.connection.input, 'connection'),
-            CardField(self.ids.connections.input, 'connections', list),
+            CardField(self.ids.connections.input, 'connections', list_converter, list_deconverter),
             *illustration_fields(self)
         ]
 

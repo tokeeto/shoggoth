@@ -1,16 +1,17 @@
+import os
+import json
+import shutil
+import threading
 from time import time
 
 from kivy.config import Config
-import sys
 
 Config.set('input', 'mouse', 'mouse,disable_multitouch')
 Config.set('kivy', 'log_enable', '0')
-#Config.set('kivy', 'window_icon', 'assets/elder_sign_neon.ico')
 Config.set('graphics', 'width', '1600')
 Config.set('graphics', 'height', '900')
 
 from kivy.app import App
-import kivy_garden.contextmenu
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.treeview import TreeView, TreeViewLabel
@@ -18,29 +19,25 @@ from kivy.uix.popup import Popup
 from kivy.uix.image import Image, CoreImage
 from kivy.uix.behaviors import ButtonBehavior, FocusBehavior, DragBehavior
 from kivy.properties import ObjectProperty, StringProperty, BooleanProperty, ListProperty
-from kivy.clock import Clock
+from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.base import ExceptionHandler, ExceptionManager
+from kivy.logger import Logger, LOG_LEVELS
 
 from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup
 from shoggoth.project import Project
-
-from kivy.logger import Logger, LOG_LEVELS
-Logger.setLevel(LOG_LEVELS["info"])
-
-import os
-import json
 from shoggoth.files import defaults_dir, asset_dir
-
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import FileMonitor
-from shoggoth.card import Card, TEMPLATES
 
 from kivy.storage.jsonstore import JsonStore
 from shoggoth.ui import show_file_select, Thumbnail
 from pathlib import Path
-import shutil
-import threading
+
+
+Logger.setLevel(LOG_LEVELS["info"])
+
+
 
 
 class ShoggothRoot(FloatLayout):
@@ -68,7 +65,7 @@ class ShoggothRoot(FloatLayout):
                 f = App.get_running_app().open_new_card_dialog
                 Clock.schedule_once(lambda x: f())
                 return True
-            if text == 'n':
+            if text == 'm':
                 App.get_running_app().number_cards()
                 return True
             if text == 'e':
@@ -316,7 +313,7 @@ class ShoggothApp(App):
 
         if 'last_id' in self.storage.get('session'):
             id = self.storage.get('session')['last_id']
-            Clock.schedule_once(lambda x: self.goto_card(id), .5)
+            Clock.schedule_once(lambda x: self.goto_card(id), 1)
 
         return self.root
 
@@ -391,7 +388,9 @@ class ShoggothApp(App):
 
     def on_file_changed(self, file_path):
         """Handle file changes outside the editor"""
-        self.load_file(self.current_card_path)
+        if self.current_card:
+            self.current_card.reload_fallback()
+            self.update_card_preview()
 
     def number_cards(self):
         self.current_card.expansion.assign_card_numbers()
@@ -421,7 +420,6 @@ class ShoggothApp(App):
         self.update_card_preview()
 
     def update_texture(self, texture, container, card):
-        #tex = self.card_renderer.pil_to_texture(texture)
         img = Thumbnail(card_id=card.id)
         container.add_widget(img)
         img.texture = CoreImage(texture, ext='jpeg').texture
@@ -436,17 +434,23 @@ class ShoggothApp(App):
             self.current_card.set(face, field, value)
 
     def update_card_preview(self):
-        print('update card preview', self.current_card)
-        if self.scheduled_redraw:
-            self.scheduled_redraw.cancel()
-        self.scheduled_redraw = Clock.schedule_once(self._update_card_preview, 0.3)
+        if not self.current_card:
+            return
+        t = threading.Thread(target=self._update_card_preview)
+        t.start()
 
     def _update_card_preview(self, *args, **kwargs):
         try:
             front_image, back_image = self.card_renderer.get_card_textures(self.current_card)
-            self.root.ids.card_preview.set_card_images(front_image, back_image)
+            self._update_card_preview_texture(front_image, back_image)
         except Exception as e:
             self.status_message = str(e)
+
+    @mainthread
+    def _update_card_preview_texture(self, front_image, back_image):
+        front_texture = CoreImage(front_image, ext='jpeg').texture
+        back_texture = CoreImage(back_image, ext='jpeg').texture
+        self.root.ids.card_preview.set_card_images(front_texture, back_texture)
 
     def refresh_tree(self):
         self.root.ids.file_browser.refresh()

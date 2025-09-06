@@ -8,12 +8,16 @@ class EncounterSet:
         self.data = data
         self.expansion = expansion
         if 'id' not in self.data:
-            self.data['id'] = uuid4()
+            self.data['id'] = str(uuid4())
         self.get = self.data.get
         self.__getitem__ = self.data.__getitem__
 
     def __eq__(self, other):
         return self.data == other.data and self.expansion == other.expansion
+
+    @property
+    def order(self):
+        return self.data.get('order')
 
     @property
     def cards(self):
@@ -38,10 +42,14 @@ class EncounterSet:
         else:
             self.data['cards'].append(card)
 
+    @property
+    def total_cards(self):
+        return sum([c.amount for c in self.cards])
+
     def assign_card_numbers(self):
         current_number = 1
         for card in self.cards:
-            amount = card.data.get('amount', 2)
+            amount = card.amount
             if amount > 1:
                 card.data['encounter_number'] = f'{current_number}-{current_number+amount-1}'
             else:

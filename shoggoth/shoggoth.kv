@@ -308,7 +308,6 @@
             ContextMenuTextItem:
                 text: 'Exit'
                 on_release: app.stop()
-
     AppMenuTextItem:
         text: 'Help'
         ContextMenu:
@@ -318,7 +317,19 @@
                 on_release: app.show_about_dialog()
     AppMenuTextItem:
         text: 'Project: ' + (app.current_project.get('name') if app.current_project else 'None')
-
+        ContextMenu:
+            ContextMenuTextItem:
+                text: 'Add Scenario template'
+                on_release: app.current_project.create_scenario('Placeholder')
+            ContextMenuTextItem:
+                text: 'Add Campaign template'
+                on_release: app.current_project.create_campaign()
+            ContextMenuTextItem:
+                text: 'Add Investigator template'
+                on_release: app.current_project.add_investigator_set('John Doe')
+            ContextMenuTextItem:
+                text: 'Add Investigator Expansion template'
+                on_release: app.current_project.create_player_expansion()
 
 <ShoggothRoot>:
     canvas:
@@ -475,44 +486,49 @@
     selected_collection: None
     BoxLayout:
         orientation: 'vertical'
-        size_hint: 1,1
+
+        # Single card
         BoxLayout:
-            orientation: 'horizontal'
-            size_hint_y: None
-            height: '28dp'
-            Label:
-                text: 'Name'
-            TextInput:
-                id: name
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint_y: None
-            height: '28dp'
-            Label:
-                text: 'Template'
-            Label:
-                text: 'asset'
-                id: template
+            orientation: 'vertical'
+            size_hint: 1,1
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: '28dp'
+                Label:
+                    text: 'Name'
+                TextInput:
+                    id: name
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: '28dp'
+                Label:
+                    text: 'Template'
+                Label:
+                    text: 'asset'
+                    id: template
+                Button:
+                    text: 'Select Template'
+                    on_release: ui.TemplateSelector(callback=root.set_template).open()
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: '28dp'
+                Label:
+                    text: 'Set'
+                Label:
+                    text: 'Player card'
+                    id: set_text
+                Button:
+                    text: 'Select Set'
+                    on_release: ui.SetSelector(callback=root.set_encounter_set).open()
             Button:
-                text: 'Select Template'
-                on_release: ui.TemplateSelector(callback=root.set_template).open()
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint_y: None
-            height: '28dp'
-            Label:
-                text: 'Set'
-            Label:
-                text: 'Player card'
-                id: set_text
-            Button:
-                text: 'Select Set'
-                on_release: ui.SetSelector(callback=root.set_encounter_set).open()
-        Button:
-            size_hint_y: None
-            height: '28dp'
-            text: 'Create'
-            on_release: root.create()
+                size_hint_y: None
+                height: '28dp'
+                text: 'Create'
+                on_release: root.create()
+
 
 <ProjectEditor>:
     orientation: 'vertical'
@@ -764,25 +780,22 @@
                 spacing: '5dp'
 
                 TextEditLine:
-                    text: 'traits'
+                    text: 'Traits'
                     id: traits
                 TextEditLine:
-                    text: 'class'
-                    id: card_class
-                TextEditLine:
-                    text: 'classes'
+                    text: 'Class'
                     id: classes
                 TextEditLine:
-                    text: 'cost'
+                    text: 'Cost'
                     id: cost
                 TextEditLine:
-                    text: 'level'
+                    text: 'Level'
                     id: level
             TextEditArea:
-                text: 'text'
+                text: 'Text'
                 id: text
             TextEditArea:
-                text: 'flavor_text'
+                text: 'Flavor text'
                 id: flavor_text
             BoxLayout:
                 orientation: 'horizontal'
