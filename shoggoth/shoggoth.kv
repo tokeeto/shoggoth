@@ -3,6 +3,7 @@
 #:import ui shoggoth.ui
 #:import Factory kivy.factory.Factory
 
+
 <TextInput>:
     write_tab: False
     font_size: '16dp'
@@ -126,6 +127,57 @@
         text: 'mystic'
         on_release: root.select_value(self.text)
 
+<StrangeEonsImporter@Popup>:
+    size_hint: .6, .3
+    BoxLayout:
+        orientation: 'vertical'
+        BoxLayout:
+            orientation: 'horizontal'
+            Label:
+                text: 'Path to Strange Eons jar file'
+            TextInput:
+                size_hint_x: 0.6
+                id: jar_path
+                size_hint_y: None
+            Button:
+                size_hint_x: 0.2
+                text: 'Browse'
+                on_release: ui.browse_file(target=jar_path)
+        BoxLayout:
+            orientation: 'horizontal'
+            Label:
+                text: 'SE Project'
+            TextInput:
+                size_hint_x: 0.6
+                id: se_path
+                size_hint_y: None
+            Button:
+                size_hint_x: 0.2
+                text: 'Browse'
+                on_release: ui.browse_folder(target=se_path)
+        BoxLayout:
+            orientation: 'horizontal'
+            Label:
+                text: 'Output'
+            TextInput:
+                size_hint_x: 0.6
+                id: new_path
+                size_hint_y: None
+            Button:
+                size_hint_x: 0.2
+                text: 'Browse'
+                on_release: ui.browse_folder(target=new_path)
+        Label:
+            text: "Once it starts, it will take a while (~30 seconds) with no response. Then Shoggoth will close. This is expected for now."
+        BoxLayout:
+            orientation: 'horizontal'
+            Button:
+                text: 'Cancel'
+                on_release: root.hide()
+            Button:
+                text: 'Convert'
+                on_release: root.submit()
+
 <CardPreview>:
     padding: '10dp'
     TabbedPanel:
@@ -134,15 +186,19 @@
 
         TabbedPanelItem:
             text: 'Front'
-            Image:
-                id: front_preview
-                color: [0,0,0,0] if not self.texture else [1,1,1,1]
+            RelativeLayout:
+                Zoom:
+                    Image:
+                        id: front_preview
+                        color: [1,1,1,0] if not self.texture else [1,1,1,1]
 
         TabbedPanelItem:
             text: 'Back'
-            Image:
-                id: back_preview
-                color: [0,0,0,0] if not self.texture else [1,1,1,1]
+            RelativeLayout:
+                Zoom:
+                    Image:
+                        id: back_preview
+                        color: [1,1,1,0] if not self.texture else [1,1,1,1]
 
 <AboutPopup@Popup>:
     title: 'About Shoggoth'
@@ -330,6 +386,12 @@
             ContextMenuTextItem:
                 text: 'Add Investigator Expansion template'
                 on_release: app.current_project.create_player_expansion()
+    AppMenuTextItem:
+        text: "Strange Eons"
+        ContextMenu:
+            ContextMenuTextItem:
+                text: 'Convert SE Project'
+                on_release: ui.StrangeEonsImporter().open()
 
 <ShoggothRoot>:
     canvas:
@@ -557,6 +619,9 @@
     TextEditLine:
         text: 'Name'
         id: name
+    TextEditLine:
+        text: 'Order'
+        id: order
     BoxLayout:
         orientation: 'horizontal'
         size_hint_y: None

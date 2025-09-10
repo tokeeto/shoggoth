@@ -10,6 +10,7 @@ Config.set('input', 'mouse', 'mouse,disable_multitouch')
 Config.set('kivy', 'log_enable', '0')
 Config.set('graphics', 'width', '1600')
 Config.set('graphics', 'height', '900')
+os.environ['KIVY_IMAGE'] = 'pil'
 
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
@@ -23,22 +24,22 @@ from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.base import ExceptionHandler, ExceptionManager
 from kivy.logger import Logger, LOG_LEVELS
+from kivy.graphics.transformation import Matrix
 
 from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup
 from shoggoth.project import Project
 from shoggoth.files import defaults_dir, asset_dir
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import FileMonitor
+from shoggoth.ui import GotoPopup, OkPopup
 
 from kivy.storage.jsonstore import JsonStore
 from shoggoth.ui import show_file_select, Thumbnail
 from pathlib import Path
+from kivy.core.clipboard import Clipboard
 
 
 Logger.setLevel(LOG_LEVELS["info"])
-
-
-
 
 class ShoggothRoot(FloatLayout):
     """Root widget for the Shoggoth application"""
@@ -171,7 +172,7 @@ class FileBrowser(BoxLayout):
 
         investigator_nodes = {}
 
-        for card in self.project.cards:
+        for card in self.project.player_cards:
             if group := card.data.get('investigator', False):
                 target_node = class_nodes.get('investigators')
                 if not investigator_nodes.get(group):
@@ -197,85 +198,17 @@ class CardPreview(BoxLayout):
         self.ids.front_preview.texture = front_image
         self.ids.back_preview.texture = back_image
 
-
-class NewProjectPopup(Popup):
-    """Popup for selecting files/folders"""
-    def __init__(self, callback):
-        super().__init__()
-        self.callback = callback
-
-    def save(self):
-        data = Project.new(
-            self.ids.name.text,
-            self.ids.code.text,
-            self.ids.icon.text,
-        )
-        with open(self.ids.file_name.text, 'w') as file:
-            json.dump(data, file)
-
-        self.dismiss()
-        App.get_running_app().add_project_file(self.ids.file_name.text)
-
-class AboutPopup(Popup):
-    """ Information about the application """
-    pass
-
-class OkPopup(Popup):
-    text = StringProperty("")
-    """ Shows a text string, with no interaction """
-    pass
-
-class GotoEntryListItem(ButtonBehavior, BoxLayout):
-    entry = ObjectProperty()
-    callback = ObjectProperty()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-class GotoEntry:
-    def __init__(self, item, type):
-        self.id = str(item.id)
-        self.type = type
-
-        if type == 'card':
-            if item.encounter:
-                self.name = f'{item.expansion.name}/{item.encounter.name}/{item.name}'
-            else:
-                self.name = f'{item.expansion.name}/{item.name}'
-        elif type == 'set':
-            self.name = f'{item.expansion.name}/{item.name}'
-        elif type == 'project':
-            self.name = f'{item.name}'
-
-class GotoPopup(Popup):
-    """Popup for selecting files/folders"""
-    def __init__(self):
-        super().__init__()
-        self.entries = []
-        self.shown_entries = []
-        self.get_all_entries()
-        self.ids.input.bind(text=self.filter_entries)
-
-    def get_all_entries(self):
-        self.entries = []
-        self.entries.extend([GotoEntry(entry, type='card') for entry in App.get_running_app().current_project.get_all_cards()])
-        self.entries.extend([GotoEntry(entry, type='set') for entry in App.get_running_app().current_project.encounter_sets])
-        self.entries.extend([GotoEntry(App.get_running_app().current_project, type='project')])
-
-    def filter_entries(self, instance, text):
-        self.shown_entries = [entry for entry in self.entries if text.lower() in entry.name.lower() or text.lower() in entry.id.lower()]
-        self.ids.list.clear_widgets()
-        for entry in self.shown_entries:
-            self.ids.list.add_widget(GotoEntryListItem(entry=entry, callback=self.go))
-
-    def go(self, entry):
-        if entry.type == 'card':
-            App.get_running_app().goto_card(entry.id)
-        elif entry.type == 'set':
-            App.get_running_app().goto_set(entry.id)
-        elif entry.type == 'project':
-            App.get_running_app().goto_project(entry.id)
-        self.dismiss()
+    def touch_scatter(self, touch, target):
+        if touch.is_mouse_scrolling:
+            factor = None
+            if touch.button == 'scrolldown':
+                if target.scale < target.scale_max:
+                    factor = 1.1
+            elif touch.button == 'scrollup':
+                if target.scale > target.scale_min:
+                    factor = 1 / 1.1
+            if factor is not None:
+                target.apply_transform(Matrix().scale(factor, factor, factor), anchor=touch.pos)
 
 
 class ShoggothApp(App):
@@ -307,13 +240,16 @@ class ShoggothApp(App):
             self.storage.put('session', project=None, last_id=None)
 
         # restore the existing session
-        if 'project' in self.storage.get('session'):
-            self.current_project = Project.load(self.storage.get('session')['project'])
-            self.root.ids.file_browser.project = self.current_project
+        try:
+            if 'project' in self.storage.get('session'):
+                self.current_project = Project.load(self.storage.get('session')['project'])
+                self.root.ids.file_browser.project = self.current_project
 
-        if 'last_id' in self.storage.get('session'):
-            id = self.storage.get('session')['last_id']
-            Clock.schedule_once(lambda x: self.goto_card(id), 1)
+            if 'last_id' in self.storage.get('session'):
+                id = self.storage.get('session')['last_id']
+                Clock.schedule_once(lambda x: self.goto_card(id), 1)
+        except:
+            pass
 
         return self.root
 
@@ -349,10 +285,6 @@ class ShoggothApp(App):
         goto_dialog.open()
         goto_dialog.ids.input.focus = True
 
-    def show_about_dialog(self):
-        about_dialog = AboutPopup()
-        about_dialog.open()
-
     def show_ok_dialog(self, text):
         dialog = OkPopup(text=text)
         dialog.open()
@@ -364,13 +296,6 @@ class ShoggothApp(App):
     def open_new_card_dialog(self):
         dialog = NewCardPopup()
         dialog.open()
-
-    def new_project_dialog(self):
-        """Show popup to create new project"""
-        creation_dialog = NewProjectPopup(
-            callback=self.add_project_file
-        )
-        creation_dialog.open()
 
     def add_project_file(self, path):
         """Set the project path and initialize monitoring"""
@@ -448,8 +373,8 @@ class ShoggothApp(App):
 
     @mainthread
     def _update_card_preview_texture(self, front_image, back_image):
-        front_texture = CoreImage(front_image, ext='jpeg').texture
-        back_texture = CoreImage(back_image, ext='jpeg').texture
+        front_texture = CoreImage(front_image, ext='webp').texture
+        back_texture = CoreImage(back_image, ext='webp').texture
         self.root.ids.card_preview.set_card_images(front_texture, back_texture)
 
     def refresh_tree(self):
@@ -522,7 +447,7 @@ class ShoggothApp(App):
                         new_name = copy_gathered_image(img_path, output_folder)
                         gathered[img_path] = str(relative_folder / new_name)
                         if update:
-                            card.illustration_path = gathered[img_path]
+                            card.data[side][field] = gathered[img_path]
                     except KeyError as e:
                         Logger.info(f'Field not found on card during gathering: {card.name}:{side}:{field}')
                     except Exception as e:

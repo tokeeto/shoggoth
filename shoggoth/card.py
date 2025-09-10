@@ -96,6 +96,11 @@ class Card:
     def __str__(self):
         return f'<Card "{self.name}">'
 
+    def reload_fallback(self):
+        """ Invalidates the fallback cache, forcing a reload of the file """
+        self.front._fallback = None
+        self.back._fallback = None
+
     @property
     def name(self):
         return self.data['name']

@@ -9,6 +9,7 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.image import Image
 from shoggoth.card import Card, TEMPLATES
 import threading
+from collections.abc import Callable
 
 
 class NewCardPopup(Popup):
@@ -126,6 +127,7 @@ class EncounterEditor(BoxLayout):
         self.fields = [
             CardField(self.ids.name.input, 'name'),
             CardField(self.ids.icon.input, 'icon'),
+            CardField(self.ids.order.input, 'order', int),
         ]
 
         # Bind each field
@@ -197,7 +199,7 @@ class CardEditor(BoxLayout):
 
 
 class CardField:
-    def __init__(self, widget, card_key, converter=str, deconverter=str):
+    def __init__(self, widget, card_key, converter:Callable=str, deconverter:Callable=str):
         self.widget = widget
         self.card_key = card_key
         self.converter = converter
@@ -356,10 +358,10 @@ class FaceEditor(FloatLayout):
     def type_changed(self, widget, text):
         """ Replaces the editor with another """
         new_editor = MAPPING.get(text, type(self))
-        if type(self) != new_editor:
+        if self.type_change and type(self) is not new_editor:
             try:
                 self.type_change(self)
-            except:
+            except:  # noqa: E722
                 pass # sometimes the events happen twice
 
     def _setup_fields(self):

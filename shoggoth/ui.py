@@ -4,15 +4,16 @@ from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.boxlayout import BoxLayout
 from kivy.app import App
 from kivy.properties import ObjectProperty
 from kivy_garden.contextmenu import ContextMenu, ContextMenuTextItem
 import os
-from shoggoth import card
 import filedialpy
 from pathlib import Path
 from kivy.clock import Clock
 import threading
+from kivy.uix.scatterlayout import ScatterLayout
 
 
 about_text = """
@@ -26,6 +27,27 @@ Special thanks to Coldtoes, felice, Chr1Z and MickeyTheQ.
 """
 
 
+class Zoom(ScatterLayout):
+    def on_touch_down(self, touch):
+        if not touch.is_mouse_scrolling:
+            return super().on_touch_down(touch)
+
+        if not self.collide_point(touch.x, touch.y):
+            return False
+
+        if touch.button == 'scrolldown':
+            ## zoom in
+            if self.scale < 10:
+                self.scale = self.scale * 1.1
+                return True
+        elif touch.button == 'scrollup':
+            ## zoom out
+            if self.scale > 1:
+                self.scale = self.scale * 0.8
+                return True
+        return False
+
+
 def save_project_dialog():
     """ Returns a file location """
     return filedialpy.saveFile(
@@ -36,67 +58,72 @@ def save_project_dialog():
         confirm_overwrite=True,
     )
 
-def async_open_image(target):
+def open_image(target=None):
     path = filedialpy.openFile(
         initial_dir=str(Path.home()),
-        filter=["*.png *.jpg *.jpeg", "*"],
+        filter=["*.png *.jpg *.jpeg *.webp *.jxl", "*"],
     )
     if not path:
         return
-    def wrapper(*args, **kwargs):
-        target.text = path
-    Clock.schedule_once(wrapper)
+    if target:
+        def wrapper(*args, **kwargs):
+            target.text = path
+        Clock.schedule_once(wrapper)
+    return path
 
-def browse_image(target):
-    thread = threading.Thread(target=async_open_image, args=(target,))
+def open_folder(target=None):
+    """ Returns a folder location """
+    path = filedialpy.openDir(
+        initial_dir=str(Path.home()),
+    )
+    if not path:
+        return
+    if target:
+        def wrapper(*args, **kwargs):
+            target.text = path
+        Clock.schedule_once(wrapper)
+    return path
+
+def open_file(target=None):
+    """ Returns a file location """
+    path = filedialpy.openFile(
+        initial_dir=str(Path.home()),
+    )
+    if not path:
+        return
+    if target:
+        def wrapper(*args, **kwargs):
+            target.text = path
+        Clock.schedule_once(wrapper)
+    return path
+
+
+def browse_file(target):
+    thread = threading.Thread(target=open_file, args=(target,))
     thread.start()
 
-def open_image():
-    """ Returns a file location """
-    return filedialpy.openFile(
-        initial_dir=str(Path.home()),
-        filter=["*.png *.jpg *.jpeg", "*"],
-    )
+def browse_image(target):
+    thread = threading.Thread(target=open_image, args=(target,))
+    thread.start()
 
-def open_file():
-    """ Returns a file location """
-    return filedialpy.openFile(
-        initial_dir=str(Path.home()),
-    )
+def browse_folder(target):
+    thread = threading.Thread(target=open_folder, args=(target,))
+    thread.start()
+
+
+class StrangeEonsImporter(Popup):
+    def submit(self):
+        from shoggoth import strange_eons
+
+        project_path = self.ids.se_path.text
+        jar_path = self.ids.jar_path.text
+        output_path = self.ids.new_path.text
+
+        threading.Thread(target=strange_eons.run_conversion, args=(jar_path, project_path, output_path)).start()
 
 class Thumbnail(ButtonBehavior, Image):
     card_id = StringProperty("")
 
-class FileChooserPopup(Popup):
-    """Popup for selecting files/folders"""
-    def __init__(self, field, callback=None):
-        super().__init__()
-        self.field = field
-        self.callback = callback
-        self.ids.filechooser.path = os.path.expanduser("~/Documents")
-
-    def select(self, path, file_name):
-        self.dismiss()
-        if self.callback:
-            self.callback(os.path.join(path, file_name))
-            return
-        self.field.text = os.path.join(path, file_name)
-
-
-class FileSavePopup(Popup):
-    """Popup for selecting files/folders"""
-    def __init__(self, field, callback=None):
-        super().__init__()
-        self.field = field
-        self.callback = callback
-        self.ids.filechooser.path = os.path.expanduser("~/Documents")
-
-    def select(self, path, file_name):
-        self.dismiss()
-        if self.callback:
-            self.callback(os.path.join(path, file_name))
-            return
-        self.field.text = os.path.join(path, file_name)
 
 class ClassSelectDropdown(DropDown):
     def __init__(self, callback):
@@ -184,6 +211,85 @@ class TypeSelectDropdown(ContextMenu):
                 )
             )
 
+
+class NewProjectPopup(Popup):
+    """Popup for selecting files/folders"""
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def save(self):
+        data = Project.new(
+            self.ids.name.text,
+            self.ids.code.text,
+            self.ids.icon.text,
+        )
+        with open(self.ids.file_name.text, 'w') as file:
+            json.dump(data, file)
+
+        self.dismiss()
+        App.get_running_app().add_project_file(self.ids.file_name.text)
+
+class AboutPopup(Popup):
+    """ Information about the application """
+    pass
+
+class OkPopup(Popup):
+    text = StringProperty("")
+    """ Shows a text string, with no interaction """
+    pass
+
+class GotoEntryListItem(ButtonBehavior, BoxLayout):
+    entry = ObjectProperty()
+    callback = ObjectProperty()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class GotoEntry:
+    def __init__(self, item, type):
+        self.id = str(item.id)
+        self.type = type
+
+        if type == 'card':
+            if item.encounter:
+                self.name = f'{item.expansion.name}/{item.encounter.name}/{item.name}'
+            else:
+                self.name = f'{item.expansion.name}/{item.name}'
+        elif type == 'set':
+            self.name = f'{item.expansion.name}/{item.name}'
+        elif type == 'project':
+            self.name = f'{item.name}'
+
+class GotoPopup(Popup):
+    """Popup for selecting files/folders"""
+    def __init__(self):
+        super().__init__()
+        self.entries = []
+        self.shown_entries = []
+        self.get_all_entries()
+        self.ids.input.bind(text=self.filter_entries)
+
+    def get_all_entries(self):
+        self.entries = []
+        self.entries.extend([GotoEntry(entry, type='card') for entry in App.get_running_app().current_project.get_all_cards()])
+        self.entries.extend([GotoEntry(entry, type='set') for entry in App.get_running_app().current_project.encounter_sets])
+        self.entries.extend([GotoEntry(App.get_running_app().current_project, type='project')])
+
+    def filter_entries(self, instance, text):
+        self.shown_entries = [entry for entry in self.entries if text.lower() in entry.name.lower() or text.lower() in entry.id.lower()]
+        self.ids.list.clear_widgets()
+        for entry in self.shown_entries:
+            self.ids.list.add_widget(GotoEntryListItem(entry=entry, callback=self.go))
+
+    def go(self, entry):
+        if entry.type == 'card':
+            App.get_running_app().goto_card(entry.id)
+        elif entry.type == 'set':
+            App.get_running_app().goto_set(entry.id)
+        elif entry.type == 'project':
+            App.get_running_app().goto_project(entry.id)
+        self.dismiss()
 
 def show_file_select(target, callback=None):
     target = filedialpy.openFile(

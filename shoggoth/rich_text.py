@@ -6,7 +6,6 @@ import re
 from shoggoth.files import font_dir, icon_dir, overlay_dir
 
 #ImageDraw.fontmode = 'L'
-ImageDraw.fontmode = "1"
 image_regex = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
 tag_value_pattern = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 
@@ -49,6 +48,8 @@ class RichTextRenderer:
             '</i>': {'start': False, 'font': 'italic'},
             '<bi>': {'start': True, 'font': 'bolditalic'},
             '</bi>': {'start': False, 'font': 'bolditalic'},
+            '<t>': {'start': True, 'font': 'bolditalic'},
+            '</t>': {'start': False, 'font': 'bolditalic'},
             '<icon>': {'start': True, 'font': 'icon'},
             '</icon>': {'start': False, 'font': 'icon'},
             '<center>': {'start': True, 'align': 'center'},
@@ -61,9 +62,17 @@ class RichTextRenderer:
 
         # Replacement tags - tags that render as different text when encountered
         self.replacement_tags = {
-            '<for>': self.get_forced_template,
-            '<prey>': self.get_prey_template,
-            '<rev>': self.get_revelation_template,
+            '<for>': '<b>Forced –</b>',
+            '<prey>': '<b>Prey –</b>',
+            '<rev>': '<b>Revelation –</b>',
+            '<spawn>': '<b>Spawn –</b>',
+            '<quote>': '‘',
+            '<dquote>': '“',
+            '<quoteend>': '’',
+            '<dquoteend>': '”',
+            '\'': '’',
+            '---': '—',
+            '--': '–',
         }
 
         # Define font-based icon tags and their corresponding characters
@@ -131,6 +140,11 @@ class RichTextRenderer:
                 'scale': 1,
                 'fallback': None
             },
+            'caption': {
+                'path': font_dir / "Arno Pro" / "arnopro_caption.otf",
+                'scale': 1,
+                'fallback': None
+            },
             'bold': {
                 'path': font_dir / "Arno Pro" / "arnopro_bold.otf",
                 'scale': 1,
@@ -173,48 +187,11 @@ class RichTextRenderer:
             }
         }
 
-    def get_card_name(self):
-        return self.card_renderer.current_card.name
-
-    def get_forced_template(self):
-        return '<b>Forced –</b>'
-
-    def get_prey_template(self):
-        return '<b>Prey –</b>'
-
-    def get_revelation_template(self):
-        return '<b>Revelation –</b>'
-
-    def get_copy_field(self):
-        return self.card_renderer.current_opposite_side.get(self.card_renderer.current_field)
-
-    def get_expansion_icon(self):
-        if self.card_renderer.current_card.expansion.icon:
-            return f'<image src="{self.card_renderer.current_card.expansion.icon}">'
-        else:
-            return " "
-
-    def get_expansion_number(self):
-        return str(self.card_renderer.current_card.expansion_number)
-
-    def get_set_number(self):
-        return str(self.card_renderer.current_card.encounter_number)
-
-    def get_set_total(self):
-        if not self.card_renderer.current_card.encounter:
-            return ''
-        return str(self.card_renderer.current_card.encounter.get('card_amount', '?'))
-
-    def get_set_icon(self):
-        if not self.card_renderer.current_card.encounter:
-            return ''
-        return f'<image src="{self.card_renderer.current_card.encounter.icon}">'
-
     def load_fonts(self, size):
         """Load all fonts at the specified size"""
         loaded_fonts = {}
         for font_type, font_info in self.fonts.items():
-            loaded_fonts[font_type] = ImageFont.truetype(font_info['path'], size * font_info['scale'])
+            loaded_fonts[font_type] = ImageFont.truetype(font_info['path'], size)
         return loaded_fonts
 
     def load_icon(self, icon_path, height):
@@ -249,8 +226,8 @@ class RichTextRenderer:
         current_pos = 0
 
         # replacement tags
-        for tag, func in self.replacement_tags.items():
-            text = text.replace(tag, (func() or tag))
+        for tag, new in self.replacement_tags.items():
+            text = text.replace(tag, new)
 
         # Find all special tags or icons
         while current_pos < len(text):
@@ -369,7 +346,7 @@ class RichTextRenderer:
 
         return tokens
 
-    def render_text(self, image, text, region, polygon=None, alignment='left', font_size=16, min_font_size=10, font=None, outline=0, outline_fill=None, fill='#231f20'):
+    def render_text(self, image, text, region, polygon=None, alignment='left', font_size=32, min_font_size=16, font=None, outline=0, outline_fill=None, fill='#231f20'):
         """
         Render rich text with specified alignment and automatic font size reduction.
 

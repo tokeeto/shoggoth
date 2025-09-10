@@ -1,0 +1,27 @@
+name: Build Windows Executable
+
+on:
+    push:
+        branches: ["main"]
+
+jobs:
+    build-windows:
+        runs-on: windows-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.11"
+            - name: Install uv
+              uses: astral-sh/setup-uv@v6
+            - name: Install the project
+              run: uv sync --locked --all-extras --dev
+            - name: Install pyinstaller
+              run: uvx install pyinstaller
+            - name: Compile
+              run: pyinstaller shoggoth/tool.py --onedir --name=Shoggoth --add-data="shoggoth/viewer.kv:. --add-data="shoggoth/shoggoth.kv:."
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: shoggoth-windows
+                  path: dist/Shoggoth/

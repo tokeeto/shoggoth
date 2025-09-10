@@ -1,6 +1,7 @@
 from time import time
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 import pillow_jxl
+from shoggoth import pillow_svg
 from kivy.graphics.texture import Texture
 from kivy.core.image import Image as kivy_img
 from kivy.uix.image import CoreImage
@@ -88,11 +89,11 @@ class CardRenderer:
         back = self.render_card_side(card, card.back)
 
         f_buffer = BytesIO()
-        front.save(f_buffer, format='jpeg', quality=50)
+        front.save(f_buffer, format='webp', quality=100)
         f_buffer.seek(0)
 
         b_buffer = BytesIO()
-        back.save(b_buffer, format='jpeg', quality=50)
+        back.save(b_buffer, format='webp', quality=100)
         b_buffer.seek(0)
 
         return f_buffer, b_buffer
@@ -108,10 +109,10 @@ class CardRenderer:
     def export_card_images(self, card, folder, force=False):
         if force or card.front['type'] not in ('player', 'encounter'):
             front_image = self.render_card_side(card, card.front)
-            front_image.save(os.path.join(folder, card.code + '_front.png'), quality=100, lossless=True)
+            front_image.save(os.path.join(folder, card.name + '_front.png'), quality=100, lossless=True)
         if force or card.back['type'] not in ('player', 'encounter'):
             back_image  = self.render_card_side(card, card.back)
-            back_image.save(os.path.join(folder, card.code + '_back.png'), quality=100, lossless=True)
+            back_image.save(os.path.join(folder, card.name + '_back.png'), quality=100, lossless=True)
 
     def pil_to_texture(self, pil_image):
         """Convert PIL image to Kivy texture"""
@@ -358,6 +359,8 @@ class CardRenderer:
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """
         for stat in ['health', 'sanity']:
+            if not side.get(f'draw_{stat}_overlay', True):
+                continue
             self.current_field = stat
             value = side.get(stat)
             region = Region(side.get(f'{stat}_region'))
@@ -436,11 +439,13 @@ class CardRenderer:
     def render_enemy_stats(self, card_image, side):
         """Render Damage and horror."""
         for token in ('damage', 'horror'):
-            value = int(side.get(token, '0'))
+            value = int(side.get(token, "0"))
+            if not value:
+                continue
             icon_path = self.overlays_path/f"{token}.png"
             raw_icon = Image.open(icon_path).convert("RGBA")
             for i in range(value):
-                region = side[f'{token}{i+1}_region']
+                region = Region(side[f'{token}{i+1}_region'])
                 if not region:
                     continue
                 icon = raw_icon.resize((region.width, region.height))
@@ -449,10 +454,13 @@ class CardRenderer:
     def render_template(self, card_image, side):
         """Render a template image onto a card"""
         template_value = side['template']
-        if '<class>' in side['template']:
+        if '<class>' in template_value:
             side_class = side.get('classes', ['guardian'])
             card_class = side_class[0] if len(side_class) == 1 else 'multi'
             template_value = template_value.replace('<class>', card_class)
+        if '<subtitle>' in template_value:
+            sub = side.get('subtitle', '')
+            template_value = template_value.replace('<subtitle>', '_subtitle' if sub else '')
         if Path(template_value).is_file():
             template_path = Path(template_value)
         else:

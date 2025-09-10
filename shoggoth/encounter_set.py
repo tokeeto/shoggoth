@@ -3,7 +3,7 @@ from shoggoth.card import Card
 
 
 class EncounterSet:
-    def __init__(self, data, expansion=None):
+    def __init__(self, data, expansion):
         self.name = data['name']
         self.data = data
         self.expansion = expansion
@@ -13,7 +13,7 @@ class EncounterSet:
         self.__getitem__ = self.data.__getitem__
 
     def __eq__(self, other):
-        return self.data == other.data and self.expansion == other.expansion
+        return self.id == other.id
 
     @property
     def order(self):
@@ -21,12 +21,13 @@ class EncounterSet:
 
     @property
     def cards(self):
-        for c in self.data['cards']:
-            yield Card(c, encounter=self, expansion=self.expansion)
+        for c in self.expansion.data['cards']:
+            if c.get('encounter_set') == self.id:
+                yield Card(c, encounter=self, expansion=self.expansion)
 
     @staticmethod
     def is_valid(data):
-        return 'cards' in data and 'name' in data and 'icon' in data
+        return 'name' in data and 'icon' in data
 
     @property
     def icon(self):

@@ -29,6 +29,7 @@ class_order = {
     "neutral": 5,
     "multi": 6  # Multi-class cards are sorted last
 }
+
 def sort_cards(cards):
     cards.sort(key=lambda card: (
         str(type_order.get(card.front['type'], 15)),
@@ -39,6 +40,7 @@ def sort_cards(cards):
         str(card.name),
     ))
 
+
 class Project:
     """ Class to handle project files
 
@@ -47,9 +49,13 @@ class Project:
     def __init__(self, file_path, data):
         self.file_path = file_path
         self.data = data
-        self.icon = data.get('icon', '')
-        self.code = data.get('code', 'xx')
-        self.id = data.get('id', uuid4())
+        if 'id' not in self.data:
+            self.data['id'] = str(uuid4())
+        self.id = data['id']
+
+    @property
+    def icon(self):
+        return self.data.get('icon', '')
 
     def __eq__(self, other):
         return self.data == other.data
@@ -67,6 +73,12 @@ class Project:
     @property
     def cards(self):
         c = [Card(card, expansion=self) for card in self.data.get('cards', [])]
+        sort_cards(c)
+        return c
+
+    @property
+    def player_cards(self):
+        c = [Card(card, expansion=self) for card in self.data['cards'] if 'encounter_set' not in card]
         sort_cards(c)
         return c
 
@@ -101,15 +113,7 @@ class Project:
             self.data['cards'].append(card)
 
     def get_all_cards(self):
-        result = []
-        for e in self.encounter_sets:
-            for c in e.cards:
-                result.append(c)
-        if 'cards' in self.data:
-            for c in self.data['cards']:
-                result.append(Card(c, expansion=self))
-        sort_cards(result)
-        return result
+        return self.cards
 
     @staticmethod
     def load(file_path):
