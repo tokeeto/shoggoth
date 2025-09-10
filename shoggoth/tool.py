@@ -28,7 +28,7 @@ def run():
     if not asset_dir.is_dir() or not version_is_up_to_date():
         print("Asset pack not found. Downloading assets...")
         # download assets
-        url = 'https://www.dropbox.com/scl/fi/pp70yhzu7saqhhnd7xtb0/assets.zip?rlkey=ln16n1glarlb2z46af52mu2rd&st=ei2gh4t3&dl=1'
+        url = 'https://www.dropbox.com/scl/fi/5vrrs0pm4picpn16obv1d/assets_18.zip?rlkey=hw70cnvfi6s5onyzqrglri9is&st=4cmxh4uw&dl=1'
         filehandle, _ = urllib.request.urlretrieve(url)
         with zipfile.ZipFile(filehandle, 'r') as file:
             file.extractall(root_dir)
