@@ -10,7 +10,7 @@ def version_is_up_to_date() -> bool:
     if not (asset_dir/'version.txt').exists():
         return False
     with (asset_dir/'version.txt').open('r') as f:
-        if not f.read().startswith('0.1.0'):
+        if not f.read().startswith('0.2.0'):
             return False
     return True
 

@@ -1,11 +1,9 @@
-import os
 import json
 from uuid import uuid4
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from kivy.app import App
-
+import shoggoth
 from shoggoth.files import defaults_dir
 
 
@@ -22,7 +20,7 @@ class Face:
 
     @property
     def fallback(self):
-        if self._fallback != None:
+        if self._fallback is not None:
             return self._fallback
 
         if Path(self.data['type']).is_file():
@@ -64,10 +62,10 @@ class Face:
         if key == 'type':
             self._fallback = None
         self.data[key] = value
-        App.get_running_app().update_card_preview()
+        shoggoth.app.update_card_preview()
 
     def get_class(self):
-        cls = self.data.get('classes', [])
+        cls = self.data.get('classes', ['guardian'])
         if not cls:
             return None
         if len(cls) == 1:
@@ -80,7 +78,7 @@ class Card:
 
     def __init__(
         self,
-        data:Dict[str, Any],
+        data: Dict[str, Any],
         expansion,
         encounter=None,
     ):
@@ -175,6 +173,7 @@ class Card:
                 'type': 'player'
             }
         }
+
 
 # templates
 class TEMPLATES:

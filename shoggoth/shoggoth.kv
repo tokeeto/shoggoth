@@ -28,6 +28,12 @@
     height: 300
     on_release: app.goto_card(root.card_id)
 
+<BoxContainer@GridLayout>:
+    cols: 1
+    size_hint_y: None
+    height: self.minimum_height
+    spacing: '5dp'
+
 <TemplateSelector>:
     title: 'Select Template'
     size_hint: .4,.4
@@ -257,7 +263,7 @@
             Button:
                 size_hint_x: 0.2
                 text: 'Select icon'
-                on_release: icon.text = ui.open_image()
+                on_release: ui.browse_image(icon)
 
         BoxLayout:
             orientation: "horizontal"
@@ -274,7 +280,7 @@
             Button:
                 size_hint_x: 0.2
                 text: 'Browse'
-                on_release: file_name = ui.save_project_dialog()
+                on_release: ui.save_project_file(file_name, name.text)
 
         BoxLayout:
             size_hint_y: None
@@ -341,7 +347,7 @@
                 on_release: app.open_project_dialog()
             ContextMenuTextItem:
                 text: 'New Project'
-                on_release: app.new_project_dialog()
+                on_release: ui.NewProjectPopup().open()
             ContextMenuTextItem:
                 text: 'Save (Ctrl+S)'
                 on_release: app.save_changes()
@@ -369,8 +375,11 @@
         ContextMenu:
             width: '200dp'
             ContextMenuTextItem:
+                text: 'Text options'
+                on_release: ui.OkPopup(text=app.card_renderer.rich_text.get_help_text()).open()
+            ContextMenuTextItem:
                 text: 'About'
-                on_release: app.show_about_dialog()
+                on_release: ui.AboutPopup().open()
     AppMenuTextItem:
         text: 'Project: ' + (app.current_project.get('name') if app.current_project else 'None')
         ContextMenu:
@@ -647,45 +656,102 @@
     back_editor_container: back_editor_container
     orientation: 'vertical'
     padding: '10dp'
-    spacing: '5dp'
+    size_hint: 1, 1
 
-    TabbedPanel:
-        do_default_tab: False
-        background_color: 0,0,0,0
-        TabbedPanelItem:
-            text: 'Basic'
-            ScrollView:
-                BoxLayout:
-                    orientation: 'vertical'
-
-                    TextEditLine:
-                        text: 'Name'
-                        id: name
-                    TextEditLine:
-                        text: 'Amount in set'
-                        id: amount
-                    TextEditLine:
-                        text: 'Collection Number'
-                        id: collection_number
-                    TextEditLine:
-                        text: 'Encounter Set Number'
-                        id: encounter_number
-                    TextEditLine:
-                        text: 'Investigator Link'
-                        id: collection
-                    TextEditLine:
-                        text: 'ID'
-                        id: card_id
-
-
-        TabbedPanelItem:
-            text: 'Front'
-            ScrollView:
+    ScrollView:
+        size_hint: 1, 1
+        GridLayout:
+            cols: 1
+            size_hint_y: None
+            height: self.minimum_height
+            padding: '5dp'
+            spacing: '5dp'
+            Label:
+                text: 'Basic'
+                font_size: '40dp'
+                height: '50dp'
+                size_hint_y: None
+                align: 'center'
+            TextEditLine:
+                text: 'Name'
+                id: name
+            TextEditLine:
+                text: 'Copyright'
+                id: copyright
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: self.minimum_height
+                TextEditLine:
+                    text: 'Amount in set'
+                    id: amount
+                TextEditLine:
+                    text: 'Collection #'
+                    id: collection_number
+                TextEditLine:
+                    text: 'Encounter Set #'
+                    id: encounter_number
+            TextEditLine:
+                text: 'Investigator Link'
+                id: collection
+            TextEditLine:
+                text: 'ID'
+                id: card_id
+            Label:
+                text: 'Front'
+                font_size: '40dp'
+                height: '50dp'
+                size_hint_y: None
+                align: 'center'
+            BoxContainer:
                 id: front_editor_container
-        TabbedPanelItem:
-            text: 'Back'
-            ScrollView:
+            Label:
+                text: 'Back'
+                font_size: '40dp'
+                height: '50dp'
+                size_hint_y: None
+                align: 'center'
+            BoxContainer:
                 id: back_editor_container
+
+<IllustrationSet@BoxLayout>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: self.minimum_height
+    spacing: 5
+    padding: 0
+    BoxLayout:
+        orientation: 'horizontal'
+        size_hint_y: None
+        height: self.minimum_height
+        TextEditLine:
+            text: 'Image Path'
+            id: path
+        Button:
+            size_hint_x: None
+            width: '100dp'
+            text: 'Browse'
+            on_release: ui.browse_image(path.input)
+    BoxLayout:
+        orientation: "horizontal"
+        size_hint_y: None
+        height: self.minimum_height
+        TextEditLine:
+            text: 'Pan Y'
+            id: pan_y
+        TextEditLine:
+            text: 'Pan X'
+            id: pan_x
+        TextEditLine:
+            text: 'Scale'
+            id: scale
+    BoxLayout:
+        orientation: "horizontal"
+        size_hint_y: None
+        height: self.minimum_height
+        TextEditLine:
+            text: 'Artist'
+            id: artist
 
 <TextEditLine@BoxLayout>:
     input: input
@@ -724,11 +790,15 @@
         size_hint_y: None
         height: '140dp'
 
-<FaceEditor>:
+<FaceEditor@BoxContainer>:
+
+<BaseEditor@FaceEditor>:
     BoxLayout:
         id: layout
         orientation: 'vertical'
         spacing: '5dp'
+        size_hint_y: None
+        height: self.minimum_height
 
         TextEditLine:
             text: 'Type'
@@ -736,1047 +806,724 @@
             Button:
                 text: 'Select type'
                 on_release: context_menu.show(*self.pos)
-    TypeSelectDropdown:
-        target: type
-        id: context_menu
-        visible: False
-        cancel_handler_widget: layout
 
+<AssetEditor@BoxContainer>:
+    TextEditLine:
+        text: 'Type'
+        id: type
+    TextEditLine:
+        text: 'Name'
+        id: name
+    TextEditLine:
+        text: 'Subtitle'
+        id: subtitle
 
-<-AssetEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-            TextEditLine:
-                text: 'Type'
-                id: type
-            TextEditLine:
-                text: 'Name'
-                id: name
-            TextEditLine:
-                text: 'Subtitle'
-                id: subtitle
+        TextEditLine:
+            text: 'Traits'
+            id: traits
+        TextEditLine:
+            text: 'Class'
+            id: classes
+        TextEditLine:
+            text: 'Cost'
+            id: cost
+        TextEditLine:
+            text: 'Level'
+            id: level
+        TextEditLine:
+            text: 'Icons'
+            id: icons
+        TextEditLine:
+            text: 'Health'
+            id: health
+        TextEditLine:
+            text: 'Sanity'
+            id: sanity
+        TextEditLine:
+            text: 'Slots'
+            id: slots
+    TextEditArea:
+        text: 'Text'
+        id: text
+    TextEditArea:
+        text: 'Flavor'
+        id: flavor_text
+    IllustrationSet:
+        id: illustration
 
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+<EventEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
 
-                TextEditLine:
-                    text: 'Traits'
-                    id: traits
-                TextEditLine:
-                    text: 'Class'
-                    id: classes
-                TextEditLine:
-                    text: 'Cost'
-                    id: cost
-                TextEditLine:
-                    text: 'Level'
-                    id: level
-                TextEditLine:
-                    text: 'Health'
-                    id: health
-                TextEditLine:
-                    text: 'Sanity'
-                    id: sanity
-                TextEditLine:
-                    text: 'Slots'
-                    id: slots
-            TextEditArea:
-                text: 'Text'
-                id: text
-            TextEditArea:
-                text: 'Flavor'
-                id: flavor_text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-<-EventEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
+        TextEditLine:
+            text: 'Traits'
+            id: traits
+        TextEditLine:
+            text: 'Class'
+            id: classes
+        TextEditLine:
+            text: 'Cost'
+            id: cost
+        TextEditLine:
+            text: 'Level'
+            id: level
+        TextEditLine:
+            text: 'Icons'
+            id: icons
+    TextEditArea:
+        text: 'Text'
+        id: text
+    TextEditArea:
+        text: 'Flavor text'
+        id: flavor_text
+    IllustrationSet:
+        id: illustration
+    BoxLayout:
+        orientation: "horizontal"
+        size_hint_y: None
+        height: self.minimum_height
+        TextEditLine:
+            text: 'Pan Y'
+            id: illustration_pan_y
+        TextEditLine:
+            text: 'Pan X'
+            id: illustration_pan_x
+        TextEditLine:
+            text: 'Scale'
+            id: illustration_scale
 
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'subtitle'
-                id: subtitle
+<SkillEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
 
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-                TextEditLine:
-                    text: 'Traits'
-                    id: traits
-                TextEditLine:
-                    text: 'Class'
-                    id: classes
-                TextEditLine:
-                    text: 'Cost'
-                    id: cost
-                TextEditLine:
-                    text: 'Level'
-                    id: level
-            TextEditArea:
-                text: 'Text'
-                id: text
-            TextEditArea:
-                text: 'Flavor text'
-                id: flavor_text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
+        TextEditLine:
+            text: 'traits'
+            id: traits
+        TextEditLine:
+            text: 'Class'
+            id: classes
+        TextEditLine:
+            text: 'level'
+            id: level
+        TextEditLine:
+            text: 'Icons'
+            id: icons
+    TextEditArea:
+        text: 'text'
+        id: text
+    TextEditArea:
+        text: 'flavor_text'
+        id: flavor_text
+    IllustrationSet:
+        id: illustration
+    BoxLayout:
+        orientation: "horizontal"
+        size_hint_y: None
+        height: self.minimum_height
+        TextEditLine:
+            text: 'Pan Y'
+            id: illustration_pan_y
+        TextEditLine:
+            text: 'Pan X'
+            id: illustration_pan_x
+        TextEditLine:
+            text: 'Scale'
+            id: illustration_scale
 
-<-SkillEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
+<InvestigatorEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
 
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'subtitle'
-                id: subtitle
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+        TextEditLine:
+            text: 'Traits'
+            id: traits
+        TextEditLine:
+            text: 'Class'
+            id: classes
+    TextEditArea:
+        text: 'text'
+        id: text
+    TextEditArea:
+        text: 'flavor_text'
+        id: flavor_text
 
-                TextEditLine:
-                    text: 'traits'
-                    id: traits
-                TextEditLine:
-                    text: 'class'
-                    id: card_class
-                TextEditLine:
-                    text: 'classes'
-                    id: classes
-                TextEditLine:
-                    text: 'level'
-                    id: level
-            TextEditArea:
-                text: 'text'
-                id: text
-            TextEditArea:
-                text: 'flavor_text'
-                id: flavor_text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
+    GridLayout:
+        cols: 4
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-<-InvestigatorEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
+        TextEditLine:
+            text: 'willpower'
+            id: willpower
+        TextEditLine:
+            text: 'intellect'
+            id: intellect
+        TextEditLine:
+            text: 'combat'
+            id: combat
+        TextEditLine:
+            text: 'agility'
+            id: agility
 
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'subtitle'
-                id: subtitle
+    TextEditLine:
+        text: 'health'
+        id: health
+    TextEditLine:
+        text: 'sanity'
+        id: sanity
 
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+    IllustrationSet:
+        id: illustration
+    BoxLayout:
+        orientation: "horizontal"
+        size_hint_y: None
+        height: self.minimum_height
+        TextEditLine:
+            text: 'Pan Y'
+            id: illustration_pan_y
+        TextEditLine:
+            text: 'Pan X'
+            id: illustration_pan_x
+        TextEditLine:
+            text: 'Scale'
+            id: illustration_scale
 
-                TextEditLine:
-                    text: 'traits'
-                    id: traits
-                TextEditLine:
-                    text: 'class'
-                    id: card_class
-                TextEditLine:
-                    text: 'classes'
-                    id: classes
-            TextEditArea:
-                text: 'text'
-                id: text
-            TextEditArea:
-                text: 'flavor_text'
-                id: flavor_text
+<InvestigatorBackEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
 
-            GridLayout:
-                cols: 4
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-                TextEditLine:
-                    text: 'willpower'
-                    id: willpower
-                TextEditLine:
-                    text: 'intellect'
-                    id: intellect
-                TextEditLine:
-                    text: 'combat'
-                    id: combat
-                TextEditLine:
-                    text: 'agility'
-                    id: agility
+        TextEditLine:
+            text: 'traits'
+            id: traits
+        TextEditLine:
+            text: 'Class'
+            id: classes
+    TextEditLine:
+        text: 'Heading'
+        id: heading1
+    TextEditArea:
+        text: 'Text'
+        id: text1
+    TextEditLine:
+        text: 'Heading'
+        id: heading2
+    TextEditArea:
+        text: 'Text'
+        id: text2
+    TextEditLine:
+        text: 'Heading'
+        id: heading3
+    TextEditArea:
+        text: 'Text'
+        id: text3
+    TextEditLine:
+        text: 'Heading'
+        id: heading4
+    TextEditArea:
+        text: 'Text'
+        id: text4
+    TextEditLine:
+        text: 'Heading'
+        id: heading5
+    TextEditArea:
+        text: 'Text'
+        id: text5
+    TextEditLine:
+        text: 'Heading'
+        id: heading6
+    TextEditArea:
+        text: 'Text'
+        id: text6
+    TextEditArea:
+        text: 'flavor_text'
+        id: flavor_text
+    IllustrationSet:
+        id: illustration
 
-            TextEditLine:
-                text: 'health'
-                id: health
-            TextEditLine:
-                text: 'sanity'
-                id: sanity
+<LocationEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
 
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-<-InvestigatorBackEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
+        TextEditLine:
+            text: 'traits'
+            id: traits
+        TextEditLine:
+            text: 'connection'
+            id: connection
+        TextEditLine:
+            text: 'connections'
+            id: connections
+        TextEditLine:
+            text: 'shroud'
+            id: shroud
+        TextEditLine:
+            text: 'clues'
+            id: clues
+    TextEditArea:
+        text: 'text'
+        id: text
+    TextEditArea:
+        text: 'flavor_text'
+        id: flavor_text
+    IllustrationSet:
+        id: illustration
 
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'subtitle'
-                id: subtitle
+<LocationBackEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
 
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-                TextEditLine:
-                    text: 'traits'
-                    id: traits
-                TextEditLine:
-                    text: 'Class'
-                    id: classes
-            TextEditLine:
-                text: 'Heading'
-                id: heading1
-            TextEditArea:
-                text: 'Text'
-                id: text1
-            TextEditLine:
-                text: 'Heading'
-                id: heading2
-            TextEditArea:
-                text: 'Text'
-                id: text2
-            TextEditLine:
-                text: 'Heading'
-                id: heading3
-            TextEditArea:
-                text: 'Text'
-                id: text3
-            TextEditLine:
-                text: 'Heading'
-                id: heading4
-            TextEditArea:
-                text: 'Text'
-                id: text4
-            TextEditLine:
-                text: 'Heading'
-                id: heading5
-            TextEditArea:
-                text: 'Text'
-                id: text5
-            TextEditLine:
-                text: 'Heading'
-                id: heading6
-            TextEditArea:
-                text: 'Text'
-                id: text6
-            TextEditArea:
-                text: 'flavor_text'
-                id: flavor_text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
+        TextEditLine:
+            text: 'traits'
+            id: traits
+        TextEditLine:
+            text: 'connection'
+            id: connection
+        TextEditLine:
+            text: 'connections'
+            id: connections
+    TextEditArea:
+        text: 'text'
+        id: text
+    TextEditArea:
+        text: 'flavor_text'
+        id: flavor_text
+    IllustrationSet:
+        id: illustration
 
-<-LocationEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
+<EnemyEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
 
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'subtitle'
-                id: subtitle
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+        TextEditLine:
+            text: 'traits'
+            id: traits
+        TextEditLine:
+            text: 'attack'
+            id: attack
+        TextEditLine:
+            text: 'health'
+            id: health
+        TextEditLine:
+            text: 'evade'
+            id: evade
+        TextEditLine:
+            text: 'damage'
+            id: damage
+        TextEditLine:
+            text: 'horror'
+            id: horror
+    TextEditArea:
+        text: 'text'
+        id: text
+    TextEditArea:
+        text: 'flavor_text'
+        id: flavor_text
+    IllustrationSet:
+        id: illustration
 
-                TextEditLine:
-                    text: 'traits'
-                    id: traits
-                TextEditLine:
-                    text: 'connection'
-                    id: connection
-                TextEditLine:
-                    text: 'connections'
-                    id: connections
-                TextEditLine:
-                    text: 'shroud'
-                    id: shroud
-                TextEditLine:
-                    text: 'clues'
-                    id: clues
-            TextEditArea:
-                text: 'text'
-                id: text
-            TextEditArea:
-                text: 'flavor_text'
-                id: flavor_text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
+<TreacheryEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
 
-<-LocationBackEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
 
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'subtitle'
-                id: subtitle
+        TextEditLine:
+            text: 'traits'
+            id: traits
+    TextEditArea:
+        text: 'text'
+        id: text
+    TextEditArea:
+        text: 'flavor_text'
+        id: flavor_text
+    IllustrationSet:
+        id: illustration
 
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+<ActEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'index'
+        id: index
+    TextEditLine:
+        text: 'Clues'
+        id: clues
+    TextEditArea:
+        text: 'Story'
+        id: flavor_text
+    TextEditArea:
+        text: 'Text'
+        id: text
+    IllustrationSet:
+        id: illustration
 
-                TextEditLine:
-                    text: 'traits'
-                    id: traits
-                TextEditLine:
-                    text: 'connection'
-                    id: connection
-                TextEditLine:
-                    text: 'connections'
-                    id: connections
-            TextEditArea:
-                text: 'text'
-                id: text
-            TextEditArea:
-                text: 'flavor_text'
-                id: flavor_text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
+<ActBackEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'index'
+        id: index
+    TextEditArea:
+        text: 'Story'
+        id: flavor_text
+    TextEditArea:
+        text: 'Text'
+        id: text
 
-<-EnemyEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
+<AgendaEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'index'
+        id: index
+    TextEditLine:
+        text: 'doom'
+        id: doom
+    TextEditArea:
+        text: 'Story'
+        id: flavor_text
+    TextEditArea:
+        text: 'Text'
+        id: text
+    IllustrationSet:
+        id: illustration
 
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'subtitle'
-                id: subtitle
+<AgendaBackEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'index'
+        id: index
+    TextEditArea:
+        text: 'Story'
+        id: flavor_text
+    TextEditArea:
+        text: 'Text'
+        id: text
 
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
+<ChaosEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'difficulty'
+        id: difficulty
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Token'
+            id: token1
+        TextEditLine:
+            text: 'Text'
+            id: text1
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Token'
+            id: token2
+        TextEditLine:
+            text: 'Text'
+            id: text2
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Token'
+            id: token3
+        TextEditLine:
+            text: 'Text'
+            id: text3
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Token'
+            id: token4
+        TextEditLine:
+            text: 'Text'
+            id: text4
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Token'
+            id: token5
+        TextEditLine:
+            text: 'Text'
+            id: text5
 
-                TextEditLine:
-                    text: 'traits'
-                    id: traits
-                TextEditLine:
-                    text: 'attack'
-                    id: attack
-                TextEditLine:
-                    text: 'health'
-                    id: health
-                TextEditLine:
-                    text: 'evade'
-                    id: evade
-                TextEditLine:
-                    text: 'damage'
-                    id: damage
-                TextEditLine:
-                    text: 'horror'
-                    id: horror
-            TextEditArea:
-                text: 'text'
-                id: text
-            TextEditArea:
-                text: 'flavor_text'
-                id: flavor_text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
-
-<-TreacheryEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
-
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'subtitle'
-                id: subtitle
-
-            GridLayout:
-                cols: 2
-                size_hint_y: None
-                height: self.minimum_height
-                spacing: '5dp'
-
-                TextEditLine:
-                    text: 'traits'
-                    id: traits
-            TextEditArea:
-                text: 'text'
-                id: text
-            TextEditArea:
-                text: 'flavor_text'
-                id: flavor_text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
-
-<-ActEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
-
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'index'
-                id: index
-            TextEditLine:
-                text: 'Clues'
-                id: clues
-            TextEditArea:
-                text: 'Story'
-                id: flavor_text
-            TextEditArea:
-                text: 'Text'
-                id: text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
-
-<-ActBackEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
-
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'index'
-                id: index
-            TextEditArea:
-                text: 'Story'
-                id: flavor_text
-            TextEditArea:
-                text: 'Text'
-                id: text
-
-<-AgendaEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
-
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'index'
-                id: index
-            TextEditLine:
-                text: 'doom'
-                id: doom
-            TextEditArea:
-                text: 'Story'
-                id: flavor_text
-            TextEditArea:
-                text: 'Text'
-                id: text
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Image path'
-                    id: illustration
-                Button:
-                    size_hint_x: None
-                    width: '100dp'
-                    text: 'Browse'
-                    on_release: illustration.input.text = ui.open_image()
-            BoxLayout:
-                orientation: "horizontal"
-                size_hint_y: None
-                height: self.minimum_height
-                TextEditLine:
-                    text: 'Pan Y'
-                    id: illustration_pan_y
-                TextEditLine:
-                    text: 'Pan X'
-                    id: illustration_pan_x
-                TextEditLine:
-                    text: 'Scale'
-                    id: illustration_scale
-
-<-AgendaBackEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
-
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'index'
-                id: index
-            TextEditArea:
-                text: 'Story'
-                id: flavor_text
-            TextEditArea:
-                text: 'Text'
-                id: text
-
-
-<-ChaosEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
-
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'difficulty'
-                id: difficulty
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Token'
-                    id: token1
-                TextEditLine:
-                    text: 'Text'
-                    id: text1
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Token'
-                    id: token2
-                TextEditLine:
-                    text: 'Text'
-                    id: text2
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Token'
-                    id: token3
-                TextEditLine:
-                    text: 'Text'
-                    id: text3
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Token'
-                    id: token4
-                TextEditLine:
-                    text: 'Text'
-                    id: text4
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Token'
-                    id: token5
-                TextEditLine:
-                    text: 'Text'
-                    id: text5
-
-<-CustomizableEditor>:
-    ScrollView:
-        GridLayout:
-            cols: 1
-            size_hint_y: None
-            height: self.minimum_height
-            spacing: '5dp'
-
-            TextEditLine:
-                text: 'type'
-                id: type
-            TextEditLine:
-                text: 'name'
-                id: name
-            TextEditLine:
-                text: 'Additional Text'
-                id: text
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes1
-                TextEditLine:
-                    text: 'Name'
-                    id: name1
-            TextEditArea:
-                text: 'Text'
-                id: text1
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes2
-                TextEditLine:
-                    text: 'Name'
-                    id: name2
-            TextEditArea:
-                text: 'Text'
-                id: text2
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes3
-                TextEditLine:
-                    text: 'Name'
-                    id: name3
-            TextEditArea:
-                text: 'Text'
-                id: text3
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes4
-                TextEditLine:
-                    text: 'Name'
-                    id: name4
-            TextEditArea:
-                text: 'Text'
-                id: text4
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes5
-                TextEditLine:
-                    text: 'Name'
-                    id: name5
-            TextEditArea:
-                text: 'Text'
-                id: text5
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes6
-                TextEditLine:
-                    text: 'Name'
-                    id: name6
-            TextEditArea:
-                text: 'Text'
-                id: text6
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes7
-                TextEditLine:
-                    text: 'Name'
-                    id: name7
-            TextEditArea:
-                text: 'Text'
-                id: text7
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes8
-                TextEditLine:
-                    text: 'Name'
-                    id: name8
-            TextEditArea:
-                text: 'Text'
-                id: text8
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes9
-                TextEditLine:
-                    text: 'Name'
-                    id: name9
-            TextEditArea:
-                text: 'Text'
-                id: text9
-            BoxLayout:
-                size_hint_y: None
-                height: self.minimum_height
-                orientation: "horizontal"
-                TextEditLine:
-                    text: 'Boxes'
-                    id: boxes10
-                TextEditLine:
-                    text: 'Name'
-                    id: name10
-            TextEditArea:
-                text: 'Text'
-                id: text10
+<CustomizableEditor@BoxContainer>:
+    TextEditLine:
+        text: 'type'
+        id: type
+    TextEditLine:
+        text: 'name'
+        id: name
+    TextEditLine:
+        text: 'Additional Text'
+        id: text
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes1
+        TextEditLine:
+            text: 'Name'
+            id: name1
+    TextEditArea:
+        text: 'Text'
+        id: text1
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes2
+        TextEditLine:
+            text: 'Name'
+            id: name2
+    TextEditArea:
+        text: 'Text'
+        id: text2
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes3
+        TextEditLine:
+            text: 'Name'
+            id: name3
+    TextEditArea:
+        text: 'Text'
+        id: text3
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes4
+        TextEditLine:
+            text: 'Name'
+            id: name4
+    TextEditArea:
+        text: 'Text'
+        id: text4
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes5
+        TextEditLine:
+            text: 'Name'
+            id: name5
+    TextEditArea:
+        text: 'Text'
+        id: text5
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes6
+        TextEditLine:
+            text: 'Name'
+            id: name6
+    TextEditArea:
+        text: 'Text'
+        id: text6
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes7
+        TextEditLine:
+            text: 'Name'
+            id: name7
+    TextEditArea:
+        text: 'Text'
+        id: text7
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes8
+        TextEditLine:
+            text: 'Name'
+            id: name8
+    TextEditArea:
+        text: 'Text'
+        id: text8
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes9
+        TextEditLine:
+            text: 'Name'
+            id: name9
+    TextEditArea:
+        text: 'Text'
+        id: text9
+    BoxLayout:
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: "horizontal"
+        TextEditLine:
+            text: 'Boxes'
+            id: boxes10
+        TextEditLine:
+            text: 'Name'
+            id: name10
+    TextEditArea:
+        text: 'Text'
+        id: text10

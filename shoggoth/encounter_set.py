@@ -33,12 +33,16 @@ class EncounterSet:
     def icon(self):
         return self.data.get('icon', '')
 
+    @icon.setter
+    def icon(self, value):
+        self.data['icon'] = value
+
     @property
     def id(self):
         return self.data['id']
 
     def add_card(self, card):
-        if type(card) == Card:
+        if isinstance(card, Card):
             self.data['cards'].append(card.data)
         else:
             self.data['cards'].append(card)

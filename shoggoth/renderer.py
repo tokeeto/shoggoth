@@ -346,7 +346,7 @@ class CardRenderer:
         if not value:
             return
 
-        box_path = self.overlays_path/f"skill_box_{side['class']}.png"
+        box_path = self.overlays_path/f"skill_box_{side.get_class()}.png"
         box_image = Image.open(box_path).convert("RGBA")
         box_image = box_image.resize((109, 83))
         for index, icon in enumerate(value):

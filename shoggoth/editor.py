@@ -1,20 +1,23 @@
-from argparse import Action
-from kivy.app import App
-from kivy.clock import Clock, mainthread
 from kivy.uix.boxlayout import BoxLayout
-from kivy.properties import ObjectProperty, StringProperty, DictProperty
+from kivy.uix.gridlayout import GridLayout
+from kivy.properties import ObjectProperty
 from kivy.uix.popup import Popup
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.image import Image
+from kivy.uix.textinput import TextInput
 from shoggoth.card import Card, TEMPLATES
 import threading
 from collections.abc import Callable
+import shoggoth
+
+
+class BoxContainer(GridLayout):
+    pass
 
 
 class NewCardPopup(Popup):
     """Popup for creating new card"""
     target = ObjectProperty(None, allownone=True)
+    name: TextInput
+    error: TextInput
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -26,15 +29,15 @@ class NewCardPopup(Popup):
 
         template = TEMPLATES.get(self.ids.template.text)
         template['name'] = self.name.text
-        project = App.get_running_app().current_project
+        project = shoggoth.app.current_project
         new_card = Card(data=template, expansion=project, encounter=self.target)
 
         if not self.target:
             project.add_card(new_card)
         else:
             self.target.add_card(new_card)
-        App.get_running_app().refresh_tree()
-        App.get_running_app().goto_card(new_card.id)
+        shoggoth.app.refresh_tree()
+        shoggoth.app.goto_card(new_card.id)
         self.dismiss()
 
     def set_template(self, value):
@@ -70,6 +73,8 @@ class NewCardPopup(Popup):
 class NewEncounterPopup(Popup):
     """Popup for creating new Encounter Set"""
     project = ObjectProperty()
+    name: TextInput
+    error: TextInput
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -77,10 +82,11 @@ class NewEncounterPopup(Popup):
     def create(self):
         if self.name.text:
             self.project.add_encounter_set(self.name.text)
-            App.get_running_app().refresh_tree()
+            shoggoth.app.refresh_tree()
             self.dismiss()
         else:
             self.error.text = 'You must choose a name for the encounter set.'
+
 
 class ProjectEditor(BoxLayout):
     """Widget for editing card data"""
@@ -92,9 +98,8 @@ class ProjectEditor(BoxLayout):
 
     def show_thumbnails(self):
         try:
-            app = App.get_running_app()
             for index, card in enumerate(self.project.get_all_cards()):
-                app.render_thumbnail(card, self.ids.thumbnail_grid)
+                shoggoth.app.render_thumbnail(card, self.ids.thumbnail_grid)
         except Exception as e:
            print("failure in on_project", self.project, e)
 
@@ -106,6 +111,7 @@ class ProjectEditor(BoxLayout):
             project=self.project,
         )
         popup.open()
+
 
 class EncounterEditor(BoxLayout):
     """Widget for editing card data"""
@@ -139,23 +145,23 @@ class EncounterEditor(BoxLayout):
 
     def show_thumbnails(self):
         try:
-            app = App.get_running_app()
             for index, card in enumerate(self.encounter.cards):
-                threading.Thread(target=app.render_thumbnail, args=(card, self.ids.thumbnail_grid)).start()
+                threading.Thread(target=shoggoth.app.render_thumbnail, args=(card, self.ids.thumbnail_grid)).start()
 
         except Exception as e:
-           print("failure in show_thumbnails", self.encounter, e)
+            print("failure in show_thumbnails", self.encounter, e)
 
 
 class CardEditor(BoxLayout):
     """Widget for editing card data"""
     card = ObjectProperty()
+    front_editor_container: BoxLayout
+    back_editor_container: BoxLayout
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.app = App.get_running_app()
-        self.front_editor = MAPPING.get(self.card.front.get('type'), FaceEditor)(face=self.card.front, type_change=self.update_card_face_type)
-        self.back_editor = MAPPING.get(self.card.back.get('type'), FaceEditor)(face=self.card.back, type_change=self.update_card_face_type)
+        self.front_editor = MAPPING.get(self.card.front.get('type'), BaseEditor)(face=self.card.front, type_change=self.update_card_face_type)
+        self.back_editor = MAPPING.get(self.card.back.get('type'), BaseEditor)(face=self.card.back, type_change=self.update_card_face_type)
         self.front_editor_container.add_widget(self.front_editor)
         self.back_editor_container.add_widget(self.back_editor)
 
@@ -173,6 +179,7 @@ class CardEditor(BoxLayout):
         # Register all your fields
         self.fields = [
             CardField(self.ids.name.input, 'name'),
+            CardField(self.ids.copyright.input, 'copyright'),
             CardField(self.ids.amount.input, 'amount', int),
             CardField(self.ids.collection_number.input, 'encounter_number'),
             CardField(self.ids.encounter_number.input, 'expansion_number'),
@@ -199,7 +206,7 @@ class CardEditor(BoxLayout):
 
 
 class CardField:
-    def __init__(self, widget, card_key, converter:Callable=str, deconverter:Callable=str):
+    def __init__(self, widget, card_key, converter: Callable = str, deconverter: Callable = str):
         self.widget = widget
         self.card_key = card_key
         self.converter = converter
@@ -223,6 +230,7 @@ class CardField:
             print('tried updating the card, it failed with', e)
             return False
 
+
 class WidgetLink():
     def __init__(self, parent):
         self.parent = parent
@@ -230,6 +238,7 @@ class WidgetLink():
     def bind(self, *args, **kwargs):
         for widget in self.parent.widgets:
             widget.bind(*args, **kwargs)
+
 
 class CardFieldComposite():
     def __init__(self, widgets, card_key, converter, deconverter, secondary_key="", secondary_converter=None):
@@ -263,13 +272,16 @@ class CardFieldComposite():
             print('tried updating the card, it failed with', e)
             return False
 
+
 def list_converter(string) -> list:
     result = [n.strip() for n in string.split(',')]
     return result
 
+
 def list_deconverter(value:list) -> str:
     result = ', '.join(value)
     return result
+
 
 def chaos_entry_converter(value:list[str]) -> list:
     result = []
@@ -284,13 +296,14 @@ def chaos_entry_converter(value:list[str]) -> list:
             result.append({'token': token.strip(), 'text': text})
     return result
 
+
 def chaos_entry_deconverter(value:list[dict]) -> list[str]:
     result = []
     if not value:
         return result
 
     for entry in value:
-        if type(entry['token']) == list:
+        if isinstance(entry['token'], list):
             result.append(', '.join(entry['token']))
         else:
             result.append(entry['token'])
@@ -344,7 +357,7 @@ def investigator_back_deconverter(value:list[list[str]]) -> list[str]:
     return result
 
 
-class FaceEditor(FloatLayout):
+class FaceEditor(BoxContainer):
     def __init__(self, *args, face={}, type_change=None, **kwargs):
         self.face = face
         super().__init__(*args, **kwargs)
@@ -357,8 +370,8 @@ class FaceEditor(FloatLayout):
 
     def type_changed(self, widget, text):
         """ Replaces the editor with another """
-        new_editor = MAPPING.get(text, type(self))
-        if self.type_change and type(self) is not new_editor:
+        new_editor = MAPPING.get(text)
+        if new_editor and self.type_change and type(self) is not new_editor:
             try:
                 self.type_change(self)
             except:  # noqa: E722
@@ -367,7 +380,6 @@ class FaceEditor(FloatLayout):
     def _setup_fields(self):
         # Register all your fields
         self.fields = [
-            CardField(self.ids.type.input, 'type'),
         ]
 
         # Bind each field
@@ -393,10 +405,11 @@ def base_fields(editor):
 
 def illustration_fields(editor):
     return [
-        CardField(editor.ids.illustration.input, 'illustration'),
-        CardField(editor.ids.illustration_pan_y.input, 'illustration_pan_y', int),
-        CardField(editor.ids.illustration_pan_x.input, 'illustration_pan_x', int),
-        CardField(editor.ids.illustration_scale.input, 'illustration_scale', float),
+        CardField(editor.ids.illustration.ids.path.input, 'illustration'),
+        CardField(editor.ids.illustration.ids.pan_y.input, 'illustration_pan_y', int),
+        CardField(editor.ids.illustration.ids.pan_x.input, 'illustration_pan_x', int),
+        CardField(editor.ids.illustration.ids.scale.input, 'illustration_scale', float),
+        CardField(editor.ids.illustration.ids.artist.input, 'illustrator'),
     ]
 
 
@@ -404,7 +417,21 @@ def player_card_fields(editor):
     return [
         CardField(editor.ids.classes.input, 'classes', list_converter, list_deconverter),
         CardField(editor.ids.level.input, 'level'),
+        CardField(editor.ids.icons.input, 'icons'),
     ]
+
+class BaseEditor(FaceEditor):
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.type.input, 'type'),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
+
 
 
 class AssetEditor(FaceEditor):
@@ -531,6 +558,7 @@ class LocationEditor(FaceEditor):
         # Bind each field
         for field in self.fields:
             field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 class LocationBackEditor(FaceEditor):
     def _setup_fields(self):
@@ -707,11 +735,15 @@ class CustomizableEditor(FaceEditor):
 
 # maps face types to editors
 MAPPING = {
+    'player': BaseEditor,
     'asset': AssetEditor,
     'event': EventEditor,
     'skill': SkillEditor,
+
     'investigator': InvestigatorEditor,
     'investigator_back': InvestigatorBackEditor,
+
+    'encounter': BaseEditor,
     'location': LocationEditor,
     'location_back': LocationBackEditor,
     'treachery': TreacheryEditor,

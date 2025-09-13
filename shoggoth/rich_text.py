@@ -187,6 +187,30 @@ class RichTextRenderer:
             }
         }
 
+    def get_help_text(self):
+        """ Returns a helpful text """
+        text = "Here's a list of special tags you can use in text:\n\n"
+        text += "Formatting tags:\n"
+        for tag, options in self.formatting_tags.items():
+            if options['start']:
+                text += f'{tag}{options.get("name") or options.get("align")}'
+            else:
+                text += f'{tag}\n'
+
+        text += "\nReplacement tags - for short hand writing:\n"
+        for tag, result in self.replacement_tags.items():
+            text += f"{tag} = {result}\n"
+
+        text += "\nIcon tags:\n"
+        for tag in self.font_icon_tags:
+            text += f"{tag}\n"
+
+        text += "\nAvailable fonts:\n"
+        for tag, options in self.fonts.items():
+            text += f"{tag}: {options['path']}\n"
+        return text
+
+
     def load_fonts(self, size):
         """Load all fonts at the specified size"""
         loaded_fonts = {}

@@ -1,7 +1,7 @@
 import json
 from uuid import uuid4
 
-from kivy.app import App
+import shoggoth
 from shoggoth.card import TEMPLATES, Card
 from shoggoth.encounter_set import EncounterSet
 
@@ -57,6 +57,10 @@ class Project:
     def icon(self):
         return self.data.get('icon', '')
 
+    @icon.setter
+    def icon(self, value):
+        self.data['icon'] = value
+
     def __eq__(self, other):
         return self.data == other.data
 
@@ -105,9 +109,9 @@ class Project:
             current_number += 1
 
     def add_card(self, card):
-        if not 'cards' in self.data:
+        if 'cards' not in self.data:
             self.data['cards'] = []
-        if type(card) == Card:
+        if isinstance(card, Card):
             self.data['cards'].append(card.data)
         else:
             self.data['cards'].append(card)
@@ -128,7 +132,7 @@ class Project:
         for entry in data["encounter_sets"]:
             try:
                 assert EncounterSet.is_valid(entry)
-            except AssertionError as e:
+            except AssertionError:
                 print('Entry failed assertion, project is invalid: ', entry)
                 raise Exception('Invalid project file.')
 
@@ -147,7 +151,7 @@ class Project:
             'cards': [],
         }
         self.data['encounter_sets'].append(encounter_data)
-        App.get_running_app().refresh_tree()
+        shoggoth.app.refresh_tree()
         return EncounterSet(encounter_data, expansion=self)
 
     def remove_encounter_set(self, index):
@@ -186,8 +190,8 @@ class Project:
         self.add_card(investigator)
         self.add_card(signature)
         self.add_card(weakness)
-        App.get_running_app().refresh_tree()
-        App.get_running_app().goto_card(investigator['id'])
+        shoggoth.app.refresh_tree()
+        shoggoth.app.goto_card(investigator['id'])
 
     def create_scenario(self, name, order=None):
         """ Creates an encounter set
@@ -243,8 +247,8 @@ class Project:
             encounter_set.data['order'] = order
         for card in cards:
             encounter_set.add_card(card)
-        App.get_running_app().refresh_tree()
-        App.get_running_app().goto_card(cards[0]['id'])
+        shoggoth.app.refresh_tree()
+        shoggoth.app.goto_card(cards[0]['id'])
 
     def create_campaign(self):
         """ Creates 8 placeholder scenarios. """
@@ -326,4 +330,4 @@ class Project:
 
         for card in cards:
             self.add_card(card)
-        App.get_running_app().refresh_tree()
+        shoggoth.app.refresh_tree()

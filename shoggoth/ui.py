@@ -5,15 +5,17 @@ from kivy.uix.button import Button
 from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
-from kivy.app import App
 from kivy.properties import ObjectProperty
 from kivy_garden.contextmenu import ContextMenu, ContextMenuTextItem
-import os
 import filedialpy
 from pathlib import Path
 from kivy.clock import Clock
 import threading
 from kivy.uix.scatterlayout import ScatterLayout
+from shoggoth.project import Project
+import json
+from shoggoth import app
+from collections.abc import Callable
 
 
 about_text = """
@@ -23,7 +25,7 @@ You can support the development of Shoggoth by [u][ref=contrib]contribution[/ref
 
 Various images by the Mythos Busters community.
 
-Special thanks to Coldtoes, felice, Chr1Z and MickeyTheQ.
+Special thanks to Coldtoes, felice, Chr1Z, MickeyTheQ and Morvael.
 """
 
 
@@ -48,15 +50,23 @@ class Zoom(ScatterLayout):
         return False
 
 
-def save_project_dialog():
+def _save_project_file(target=None, title="expansion.json"):
     """ Returns a file location """
-    return filedialpy.saveFile(
+    path = filedialpy.saveFile(
         initial_dir=str(Path.home()),
-        initial_file="expansion.json",
+        initial_file=title,
         title="Project file location",
         filter=["*.json","*"],
         confirm_overwrite=True,
     )
+    if not path:
+        return
+    if target:
+        def wrapper(*args, **kwargs):
+            target.text = path
+        Clock.schedule_once(wrapper)
+    return path
+
 
 def open_image(target=None):
     path = filedialpy.openFile(
@@ -97,6 +107,9 @@ def open_file(target=None):
         Clock.schedule_once(wrapper)
     return path
 
+def save_project_file(target, title=''):
+    thread = threading.Thread(target=_save_project_file, args=(target, f'{title}.json'))
+    thread.start()
 
 def browse_file(target):
     thread = threading.Thread(target=open_file, args=(target,))
@@ -173,7 +186,7 @@ class SetSelector(ValueSelectPopup):
                 height='32dp',
             )
         )
-        project = App.get_running_app().current_project
+        project = app.current_project
         for encounter in project.encounter_sets:
             def action(*args, encounter=encounter, **kwargs):
                 self.select(encounter)
@@ -214,10 +227,6 @@ class TypeSelectDropdown(ContextMenu):
 
 class NewProjectPopup(Popup):
     """Popup for selecting files/folders"""
-    def __init__(self, callback):
-        super().__init__()
-        self.callback = callback
-
     def save(self):
         data = Project.new(
             self.ids.name.text,
@@ -228,7 +237,7 @@ class NewProjectPopup(Popup):
             json.dump(data, file)
 
         self.dismiss()
-        App.get_running_app().add_project_file(self.ids.file_name.text)
+        app.add_project_file(self.ids.file_name.text)
 
 class AboutPopup(Popup):
     """ Information about the application """
@@ -272,9 +281,9 @@ class GotoPopup(Popup):
 
     def get_all_entries(self):
         self.entries = []
-        self.entries.extend([GotoEntry(entry, type='card') for entry in App.get_running_app().current_project.get_all_cards()])
-        self.entries.extend([GotoEntry(entry, type='set') for entry in App.get_running_app().current_project.encounter_sets])
-        self.entries.extend([GotoEntry(App.get_running_app().current_project, type='project')])
+        self.entries.extend([GotoEntry(entry, type='card') for entry in app.current_project.get_all_cards()])
+        self.entries.extend([GotoEntry(entry, type='set') for entry in app.current_project.encounter_sets])
+        self.entries.extend([GotoEntry(app.current_project, type='project')])
 
     def filter_entries(self, instance, text):
         self.shown_entries = [entry for entry in self.entries if text.lower() in entry.name.lower() or text.lower() in entry.id.lower()]
@@ -284,14 +293,14 @@ class GotoPopup(Popup):
 
     def go(self, entry):
         if entry.type == 'card':
-            App.get_running_app().goto_card(entry.id)
+            app.goto_card(entry.id)
         elif entry.type == 'set':
-            App.get_running_app().goto_set(entry.id)
+            app.goto_set(entry.id)
         elif entry.type == 'project':
-            App.get_running_app().goto_project(entry.id)
+            app.goto_project(entry.id)
         self.dismiss()
 
-def show_file_select(target, callback=None):
+def show_file_select(target, callback:Callable):
     target = filedialpy.openFile(
         initial_dir=str(Path.home()),
         filter=['*.json', '*'],
@@ -299,7 +308,7 @@ def show_file_select(target, callback=None):
     if target:
         callback(target)
 
-def show_file_save(target, callback=None):
+def show_file_save(target, callback:Callable):
     target = filedialpy.saveFile(
         initial_dir=str(Path.home()),
         filter=['*.json', '*'],
@@ -307,6 +316,6 @@ def show_file_save(target, callback=None):
     if target:
         callback(target)
 
-def show_class_select(parent, callback):
+def show_class_select(parent, callback:Callable):
     dropdown = ClassSelectDropdown(callback=callback)
     dropdown.open(parent)

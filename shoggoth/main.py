@@ -1,7 +1,7 @@
 import os
-import json
 import shutil
 import threading
+import shoggoth
 from time import time
 
 from kivy.config import Config
@@ -12,34 +12,33 @@ Config.set('graphics', 'width', '1600')
 Config.set('graphics', 'height', '900')
 os.environ['KIVY_IMAGE'] = 'pil'
 
-from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.treeview import TreeView, TreeViewLabel
-from kivy.uix.popup import Popup
-from kivy.uix.image import Image, CoreImage
-from kivy.uix.behaviors import ButtonBehavior, FocusBehavior, DragBehavior
-from kivy.properties import ObjectProperty, StringProperty, BooleanProperty, ListProperty
-from kivy.clock import Clock, mainthread
-from kivy.core.window import Window
-from kivy.base import ExceptionHandler, ExceptionManager
-from kivy.logger import Logger, LOG_LEVELS
-from kivy.graphics.transformation import Matrix
+from kivy.app import App  # noqa: E402
+from kivy.uix.boxlayout import BoxLayout    # noqa: E402
+from kivy.uix.floatlayout import FloatLayout    # noqa: E402
+from kivy.uix.treeview import TreeView, TreeViewLabel    # noqa: E402
+from kivy.uix.image import CoreImage    # noqa: E402
+from kivy.properties import ObjectProperty, StringProperty  # noqa: E402
+from kivy.clock import Clock, mainthread    # noqa: E402
+from kivy.core.window import Window    # noqa: E402
+from kivy.base import ExceptionHandler, ExceptionManager    # noqa: E402
+from kivy.logger import Logger, LOG_LEVELS    # noqa: E402
+from kivy.graphics.transformation import Matrix    # noqa: E402
 
-from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup
-from shoggoth.project import Project
-from shoggoth.files import defaults_dir, asset_dir
-from shoggoth.renderer import CardRenderer
-from shoggoth.file_monitor import FileMonitor
-from shoggoth.ui import GotoPopup, OkPopup
+from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup  # noqa: E402
+from shoggoth.project import Project  # noqa: E402
+from shoggoth.files import defaults_dir, asset_dir  # noqa: E402
+from shoggoth.renderer import CardRenderer  # noqa: E402
+from shoggoth.file_monitor import FileMonitor  # noqa: E402
+from shoggoth.ui import GotoPopup, OkPopup  # noqa: E402
 
-from kivy.storage.jsonstore import JsonStore
-from shoggoth.ui import show_file_select, Thumbnail
-from pathlib import Path
-from kivy.core.clipboard import Clipboard
+from kivy.storage.jsonstore import JsonStore  # noqa: E402
+from shoggoth.ui import show_file_select, Thumbnail  # noqa: E402
+from pathlib import Path  # noqa: E402
+from kivy.modules import inspector  # noqa: E402
 
 
 Logger.setLevel(LOG_LEVELS["info"])
+
 
 class ShoggothRoot(FloatLayout):
     """Root widget for the Shoggoth application"""
@@ -59,39 +58,41 @@ class ShoggothRoot(FloatLayout):
         # Handle keyboard shortcuts
         if 'ctrl' in modifiers:
             if text == 's':
-                f = App.get_running_app().save_changes
+                f = shoggoth.app.save_changes
                 Clock.schedule_once(lambda x: f())
                 return True
             if text == 'n':
-                f = App.get_running_app().open_new_card_dialog
+                f = shoggoth.app.open_new_card_dialog
                 Clock.schedule_once(lambda x: f())
                 return True
             if text == 'm':
-                App.get_running_app().number_cards()
+                shoggoth.app.number_cards()
                 return True
             if text == 'e':
                 if 'shift' in modifiers:
-                    f = App.get_running_app().export_all
+                    f = shoggoth.app.export_all
                     Clock.schedule_once(lambda x: f())
                     return True
                 else:
-                    f = App.get_running_app().export_current
+                    f = shoggoth.app.export_current
                     Clock.schedule_once(lambda x: f())
-                    return True
+                    return False
             if text == 'o':
-                f = App.get_running_app().open_project_dialog
+                f = shoggoth.app.open_project_dialog
                 Clock.schedule_once(lambda x: f())
                 return True
             if text == 'p':
-                f = App.get_running_app().show_goto_dialog
+                f = shoggoth.app.show_goto_dialog
                 Clock.schedule_once(lambda x: f())
                 return True
         return False
+
 
 class Wing(ExceptionHandler):
     """ Exception handle, that carries off
         unhandled exceptions to a central location
     """
+
     def __init__(self):
         super().__init__()
 
@@ -101,11 +102,11 @@ class Wing(ExceptionHandler):
         print(exception)
         print("*********************************")
         # Keyboard Interrupts should just kill the application.
-        if type(exception) == KeyboardInterrupt:
+        if isinstance(exception, KeyboardInterrupt):
             return ExceptionManager.RAISE
         # Everything else, is expected to be unhandled exceptions that
         # Should then pop up in front of the user
-        App.get_running_app().show_ok_dialog(f'Something unexpected happened. This is a last effort to show you what happened. Maybe Shoggoth will crash after this.\n\n{exception}\n\n{traceback.format_exc(limit=-5)}')
+        shoggoth.app.show_ok_dialog(f'Something unexpected happened. This is a last effort to show you what happened. Maybe Shoggoth will crash after this.\n\n{exception}\n\n{traceback.format_exc(limit=-5)}')
         return ExceptionManager.PASS
 
 
@@ -119,7 +120,7 @@ class FileBrowser(BoxLayout):
         self.bind(project=self.refresh)
 
     def on_selected_node(self):
-        app = App.get_running_app()
+        app = shoggoth.app
         if self.tree.selected_node.element_type == 'project':
             app.show_project(self.tree.selected_node.element)
         elif self.tree.selected_node.element_type == 'encounter':
@@ -164,7 +165,7 @@ class FileBrowser(BoxLayout):
                     target_node = encounter_node
                 else:
                     target_node = story_node
-                c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
+                self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
 
         class_nodes = {}
         for cls in ('investigators', 'seeker', 'rogue', 'guardian', 'mystic', 'survivor', 'neutral', 'other'):
@@ -180,7 +181,7 @@ class FileBrowser(BoxLayout):
                 target_node = investigator_nodes[group]
             else:
                 target_node = class_nodes.get(card.get_class(), class_nodes['other'])
-            c_node = self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
+            self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
 
     def on_tree_select(self, instance, node):
         if hasattr(node, 'full_path') and node.full_path.endswith('.json'):
@@ -217,6 +218,10 @@ class ShoggothApp(App):
     current_project = ObjectProperty(None)
     status_message = StringProperty("Ready")
 
+    def __init__(self, *args, **kwargs):
+        shoggoth.app = self
+        super().__init__(*args, **kwargs)
+
     def build(self):
         self.icon = str(asset_dir / 'elder_sign_neon.png')
         # Initialize main components
@@ -250,6 +255,7 @@ class ShoggothApp(App):
                 Clock.schedule_once(lambda x: self.goto_card(id), 1)
         except:
             pass
+        inspector.create_inspector(Window, self.root)
 
         return self.root
 
@@ -318,8 +324,8 @@ class ShoggothApp(App):
             self.update_card_preview()
 
     def number_cards(self):
-        self.current_card.expansion.assign_card_numbers()
-        self.status_message = f"Updated card numbers"
+        self.current_project.assign_card_numbers()
+        self.status_message = "Updated card numbers"
         self.update_card_preview()
 
     def save_changes(self):
@@ -356,7 +362,7 @@ class ShoggothApp(App):
     def update_card_data(self, face, field, value):
         print('update current card', face, field, value)
         if face.get(field, None) != value:
-            self.current_card.set(face, field, value)
+            face.set(field, value)
 
     def update_card_preview(self):
         if not self.current_card:
@@ -448,29 +454,15 @@ class ShoggothApp(App):
                         gathered[img_path] = str(relative_folder / new_name)
                         if update:
                             card.data[side][field] = gathered[img_path]
-                    except KeyError as e:
+                    except KeyError:
                         Logger.info(f'Field not found on card during gathering: {card.name}:{side}:{field}')
                     except Exception as e:
-                        Logger.error(f'Something went wrong during gathering:', e)
+                        Logger.error(f'Something went wrong during gathering: {e}')
         print(gathered)
 
-    def load_project(self, path):
-        """ Adds a project to the project explorer """
-        if not path or not os.path.exists(path):
-            return
-
-        try:
-            project = Project.load(path)
-
-            # Update status
-            self.status_message = f"Loaded: {os.path.basename(path)}"
-
-        except Exception as e:
-            print(e)
-            self.status_message = f"Error loading project: {str(e)}"
-            self.root.ids.status_bar.text = self.status_message
-
     def export_current(self):
+        if not self.current_card:
+            raise Exception("Cannot export a card, while no card is selected.")
         export_folder = os.path.join(
             os.path.dirname(self.current_project.file_path),
             f'export_of_{os.path.basename(self.current_project.file_path).split(".")[1]}'
@@ -503,11 +495,11 @@ class ShoggothApp(App):
 
         print(f'Export of {len(cards)} cards done in {time()-t} seconds')
 
-
     def on_stop(self):
         """Clean up when the application stops"""
         if self.file_monitor:
             self.file_monitor.stop()
+
 
 if __name__ == "__main__":
     ShoggothApp().run()
