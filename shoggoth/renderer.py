@@ -156,12 +156,13 @@ class CardRenderer:
             )
         else:
             value = value.replace('<esi>', '')
+
+        value = value.replace('<copyright>', side.card.get('copyright') or '')
+
         return value
 
     def render_card_side(self, card, side, size=1):
         """Render one side of a card"""
-        from time import time
-
         self.current_card = card
         self.current_side = side
         self.current_opposite_side = card.front if side == card.back else card.back
@@ -202,6 +203,7 @@ class CardRenderer:
                 func(card_image, side)
             except Exception as e:
                 Logger.info(f'Failed in {func}: {e}')
+        Region.bleed = (0,0)
         return card_image
 
     def render_text(self, card_image, side):

@@ -58,6 +58,8 @@ class RichTextRenderer:
             '</left>': {'start': False, 'align': 'left'},
             '<right>': {'start': True, 'align': 'right'},
             '</right>': {'start': False, 'align': 'right'},
+            '<story>': {'start': True, 'indent': 4 },
+            '</story>': {'start': False, 'indent': 4 },
         }
 
         # Replacement tags - tags that render as different text when encountered
@@ -193,7 +195,7 @@ class RichTextRenderer:
         text += "Formatting tags:\n"
         for tag, options in self.formatting_tags.items():
             if options['start']:
-                text += f'{tag}{options.get("name") or options.get("align")}'
+                text += f'{tag}{options.get("font") or options.get("align")}'
             else:
                 text += f'{tag}\n'
 
@@ -272,6 +274,15 @@ class RichTextRenderer:
                         tokens.append({
                             'type': 'align',
                             'value': info['align'],
+                            'start': info['start']
+                        })
+                        current_pos += len(tag)
+                        format_match = True
+                        break
+                    elif 'indent' in info:
+                        tokens.append({
+                            'type': 'indent',
+                            'value': info['indent'],
                             'start': info['start']
                         })
                         current_pos += len(tag)
@@ -548,7 +559,7 @@ class RichTextRenderer:
                     line = line[1:]
 
             for token in line:
-                if token['type'] == 'format':
+                if token['type'] in ('format', 'indent'):
                     continue  # Format tokens don't render
 
                 if token['type'] == 'text':
@@ -646,7 +657,7 @@ class RichTextRenderer:
                 # if this is a bullet, at the start of a new line, indent it
                 if token['value'] == 'b' and not current_line:
                     current_indent = token_width + get_token_width(
-                        {'type': 'text', 'value': " ", 'font': current_font}
+                        {'type': 'text', 'value': "   ", 'font': current_font}
                     )
 
                 # Check if adding this icon would exceed the max width
@@ -723,7 +734,7 @@ class RichTextRenderer:
                     current_line_width += segment_width
         # Render any remaining line
         if current_line:
-            render_line(current_line, y)
+            render_line(current_line, y, indent=(current_indent if indent_current else 0))
 
             # Check if we ran out of vertical space
             if y + line_height > region.y + max_height and not force:

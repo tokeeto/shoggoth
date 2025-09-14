@@ -14,7 +14,7 @@ import threading
 from kivy.uix.scatterlayout import ScatterLayout
 from shoggoth.project import Project
 import json
-from shoggoth import app
+import shoggoth
 from collections.abc import Callable
 
 
@@ -186,7 +186,7 @@ class SetSelector(ValueSelectPopup):
                 height='32dp',
             )
         )
-        project = app.current_project
+        project = shoggoth.app.current_project
         for encounter in project.encounter_sets:
             def action(*args, encounter=encounter, **kwargs):
                 self.select(encounter)
@@ -237,7 +237,7 @@ class NewProjectPopup(Popup):
             json.dump(data, file)
 
         self.dismiss()
-        app.add_project_file(self.ids.file_name.text)
+        shoggoth.app.add_project_file(self.ids.file_name.text)
 
 class AboutPopup(Popup):
     """ Information about the application """
@@ -281,9 +281,9 @@ class GotoPopup(Popup):
 
     def get_all_entries(self):
         self.entries = []
-        self.entries.extend([GotoEntry(entry, type='card') for entry in app.current_project.get_all_cards()])
-        self.entries.extend([GotoEntry(entry, type='set') for entry in app.current_project.encounter_sets])
-        self.entries.extend([GotoEntry(app.current_project, type='project')])
+        self.entries.extend([GotoEntry(entry, type='card') for entry in shoggoth.app.current_project.get_all_cards()])
+        self.entries.extend([GotoEntry(entry, type='set') for entry in shoggoth.app.current_project.encounter_sets])
+        self.entries.extend([GotoEntry(shoggoth.app.current_project, type='project')])
 
     def filter_entries(self, instance, text):
         self.shown_entries = [entry for entry in self.entries if text.lower() in entry.name.lower() or text.lower() in entry.id.lower()]
@@ -293,11 +293,11 @@ class GotoPopup(Popup):
 
     def go(self, entry):
         if entry.type == 'card':
-            app.goto_card(entry.id)
+            shoggoth.app.goto_card(entry.id)
         elif entry.type == 'set':
-            app.goto_set(entry.id)
+            shoggoth.app.goto_set(entry.id)
         elif entry.type == 'project':
-            app.goto_project(entry.id)
+            shoggoth.app.goto_project(entry.id)
         self.dismiss()
 
 def show_file_select(target, callback:Callable):

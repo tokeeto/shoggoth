@@ -1,8 +1,11 @@
 #:kivy 2.0.0
 #:import os os
 #:import ui shoggoth.ui
+#:import files shoggoth.files
 #:import Factory kivy.factory.Factory
 
+<Label>:
+    markup: True
 
 <TextInput>:
     write_tab: False
@@ -10,6 +13,7 @@
     size_hint_y: None
     height: '32dp'
     multiline: False
+    background_color: [1,1,1,1] if self.focus else [1, 1, 1, .8]
 
 <BoxLayout>:
     spacing: '5dp'
@@ -36,7 +40,9 @@
 
 <TemplateSelector>:
     title: 'Select Template'
-    size_hint: .4,.4
+    size_hint_y: .8
+    size_hint_x: None
+    width: '300dp'
     ScrollView:
         BoxLayout:
             height: self.minimum_height
@@ -179,7 +185,7 @@
             orientation: 'horizontal'
             Button:
                 text: 'Cancel'
-                on_release: root.hide()
+                on_release: root.dismiss()
             Button:
                 text: 'Convert'
                 on_release: root.submit()
@@ -356,32 +362,27 @@
                 on_release: app.open_new_card_dialog()
             ContextMenuTextItem:
                 text: 'Gather images'
+                disabled: not app.current_project
                 on_release: app.gather_images()
             ContextMenuTextItem:
                 text: 'Gather images and update'
+                disabled: not app.current_project
                 on_release: app.gather_images(update=True)
             ContextMenuTextItem:
                 text: 'Export Current Card (Ctrl+E)'
+                disabled: not app.current_card
                 on_release: app.export_current()
             ContextMenuTextItem:
                 text: 'Export All Cards (Ctrl+Shift+E)'
+                disabled: not app.current_project
                 on_release: app.export_all()
             ContextMenuDivider:
             ContextMenuTextItem:
                 text: 'Exit'
                 on_release: app.stop()
     AppMenuTextItem:
-        text: 'Help'
-        ContextMenu:
-            width: '200dp'
-            ContextMenuTextItem:
-                text: 'Text options'
-                on_release: ui.OkPopup(text=app.card_renderer.rich_text.get_help_text()).open()
-            ContextMenuTextItem:
-                text: 'About'
-                on_release: ui.AboutPopup().open()
-    AppMenuTextItem:
         text: 'Project: ' + (app.current_project.get('name') if app.current_project else 'None')
+        disabled: not app.current_project
         ContextMenu:
             ContextMenuTextItem:
                 text: 'Add Scenario template'
@@ -396,11 +397,21 @@
                 text: 'Add Investigator Expansion template'
                 on_release: app.current_project.create_player_expansion()
     AppMenuTextItem:
-        text: "Strange Eons"
+        text: "Tools"
         ContextMenu:
             ContextMenuTextItem:
                 text: 'Convert SE Project'
                 on_release: ui.StrangeEonsImporter().open()
+    AppMenuTextItem:
+        text: 'Help'
+        ContextMenu:
+            width: '200dp'
+            ContextMenuTextItem:
+                text: 'Text options'
+                on_release: ui.OkPopup(text=app.card_renderer.rich_text.get_help_text()).open()
+            ContextMenuTextItem:
+                text: 'About'
+                on_release: ui.AboutPopup().open()
 
 <ShoggothRoot>:
     canvas:
@@ -473,11 +484,13 @@
 
 
     Label:
-        text: 'Files'
+        text: 'Cards'
         size_hint_y: None
-        height: '30dp'
-        font_size: '16sp'
+        padding_top: '10dp'
+        height: '50dp'
+        font_size: '20dp'
         bold: True
+        font_name: str(files.font_dir / 'Arkhamic.ttf')
 
     ScrollView:
         do_scroll_x: False
@@ -551,7 +564,8 @@
 <NewCardPopup>:
     title: 'Add new card'
     name: name
-    size_hint: .75, .75
+    size_hint: .75, None
+    height: '230dp'
     on_open: name.focus = True
     selected_template: 'asset'
     selected_collection: None
@@ -570,6 +584,7 @@
                     text: 'Name'
                 TextInput:
                     id: name
+                    on_text_validate: root.create()
             BoxLayout:
                 orientation: 'horizontal'
                 size_hint_y: None
@@ -660,6 +675,7 @@
 
     ScrollView:
         size_hint: 1, 1
+        bar_width: 4
         GridLayout:
             cols: 1
             size_hint_y: None
@@ -672,6 +688,7 @@
                 height: '50dp'
                 size_hint_y: None
                 align: 'center'
+                font_name: str(files.font_dir / 'Arkhamic.ttf')
             TextEditLine:
                 text: 'Name'
                 id: name
@@ -703,6 +720,7 @@
                 height: '50dp'
                 size_hint_y: None
                 align: 'center'
+                font_name: str(files.font_dir / 'Arkhamic.ttf')
             BoxContainer:
                 id: front_editor_container
             Label:
@@ -711,6 +729,7 @@
                 height: '50dp'
                 size_hint_y: None
                 align: 'center'
+                font_name: str(files.font_dir / 'Arkhamic.ttf')
             BoxContainer:
                 id: back_editor_container
 
@@ -770,6 +789,7 @@
         id: input
         text: ''
 
+
 <TextEditArea@BoxLayout>:
     orientation: 'horizontal'
     input: input
@@ -789,6 +809,20 @@
         multiline: True
         size_hint_y: None
         height: '140dp'
+
+<LevelInput@BoxLayout>:
+    input: input
+    orientation: 'horizontal'
+    size_hint_y: None
+    height: '32dp'
+    Label:
+        text: 'Level'
+    Spinner:
+        id: input
+        size_hint_y: None
+        height: '32dp'
+        text: '0'
+        values: ['None', '0', '1', '2', '3', '4', '5', 'Custom']
 
 <FaceEditor@BoxContainer>:
 
@@ -833,8 +867,7 @@
         TextEditLine:
             text: 'Cost'
             id: cost
-        TextEditLine:
-            text: 'Level'
+        LevelInput:
             id: level
         TextEditLine:
             text: 'Icons'
@@ -883,8 +916,7 @@
         TextEditLine:
             text: 'Cost'
             id: cost
-        TextEditLine:
-            text: 'Level'
+        LevelInput:
             id: level
         TextEditLine:
             text: 'Icons'
@@ -897,19 +929,6 @@
         id: flavor_text
     IllustrationSet:
         id: illustration
-    BoxLayout:
-        orientation: "horizontal"
-        size_hint_y: None
-        height: self.minimum_height
-        TextEditLine:
-            text: 'Pan Y'
-            id: illustration_pan_y
-        TextEditLine:
-            text: 'Pan X'
-            id: illustration_pan_x
-        TextEditLine:
-            text: 'Scale'
-            id: illustration_scale
 
 <SkillEditor@BoxContainer>:
     TextEditLine:
@@ -934,8 +953,7 @@
         TextEditLine:
             text: 'Class'
             id: classes
-        TextEditLine:
-            text: 'level'
+        LevelInput:
             id: level
         TextEditLine:
             text: 'Icons'
@@ -948,19 +966,6 @@
         id: flavor_text
     IllustrationSet:
         id: illustration
-    BoxLayout:
-        orientation: "horizontal"
-        size_hint_y: None
-        height: self.minimum_height
-        TextEditLine:
-            text: 'Pan Y'
-            id: illustration_pan_y
-        TextEditLine:
-            text: 'Pan X'
-            id: illustration_pan_x
-        TextEditLine:
-            text: 'Scale'
-            id: illustration_scale
 
 <InvestigatorEditor@BoxContainer>:
     TextEditLine:
@@ -1020,19 +1025,6 @@
 
     IllustrationSet:
         id: illustration
-    BoxLayout:
-        orientation: "horizontal"
-        size_hint_y: None
-        height: self.minimum_height
-        TextEditLine:
-            text: 'Pan Y'
-            id: illustration_pan_y
-        TextEditLine:
-            text: 'Pan X'
-            id: illustration_pan_x
-        TextEditLine:
-            text: 'Scale'
-            id: illustration_scale
 
 <InvestigatorBackEditor@BoxContainer>:
     TextEditLine:
@@ -1527,3 +1519,17 @@
     TextEditArea:
         text: 'Text'
         id: text10
+
+<StoryEditor@BoxContainer>:
+    TextEditLine:
+        text: 'Type'
+        id: type
+    TextEditLine:
+        text: 'Name'
+        id: name
+    TextEditLine:
+        text: 'Text'
+        id: text
+    TextEditLine:
+        text: 'Class'
+        id: classes

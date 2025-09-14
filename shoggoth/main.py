@@ -26,7 +26,7 @@ from kivy.graphics.transformation import Matrix    # noqa: E402
 
 from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup  # noqa: E402
 from shoggoth.project import Project  # noqa: E402
-from shoggoth.files import defaults_dir, asset_dir  # noqa: E402
+from shoggoth.files import defaults_dir, asset_dir, font_dir  # noqa: E402
 from shoggoth.renderer import CardRenderer  # noqa: E402
 from shoggoth.file_monitor import FileMonitor  # noqa: E402
 from shoggoth.ui import GotoPopup, OkPopup  # noqa: E402
@@ -168,8 +168,18 @@ class FileBrowser(BoxLayout):
                 self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
 
         class_nodes = {}
+        class_labels = {
+            'investigators': 'Investigators',
+            'seeker': f'[size=24][color=#c3901b][font={str(font_dir / "AHLCGSymbol.ttf")}]K[/font][/color][/size] Seeker',
+            'rogue': f'[size=24][color=#0f703f][font={str(font_dir / "AHLCGSymbol.ttf")}]R[/font][/color][/size] Rogue',
+            'guardian': f'[size=24][color=#3a75c3][font={str(font_dir / "AHLCGSymbol.ttf")}]G[/font][/color][/size] Guardian',
+            'mystic': f'[size=24][color=#473e7e][font={str(font_dir / "AHLCGSymbol.ttf")}]M[/font][/color][/size] Mystic',
+            'survivor':  f'[size=24][color=#c12830][font={str(font_dir / "AHLCGSymbol.ttf")}]V[/font][/color][/size] Survivor',
+            'neutral': 'Neutral',
+            'other': 'Other',
+        }
         for cls in ('investigators', 'seeker', 'rogue', 'guardian', 'mystic', 'survivor', 'neutral', 'other'):
-            class_nodes[cls] = self.tree.add_node(TreeViewButton(text=cls, element=None, element_type=''), player_node)
+            class_nodes[cls] = self.tree.add_node(TreeViewButton(text=class_labels[cls], element=None, element_type=''), player_node)
 
         investigator_nodes = {}
 
@@ -216,6 +226,7 @@ class ShoggothApp(App):
     """Main application class for Shoggoth Card Creator"""
     current_card_id = StringProperty("")
     current_project = ObjectProperty(None)
+    current_card = ObjectProperty(None)
     status_message = StringProperty("Ready")
 
     def __init__(self, *args, **kwargs):

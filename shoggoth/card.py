@@ -50,12 +50,15 @@ class Face:
         if key in self.data:
             return self.data[key]
 
-        cls = self.get_class()
-        if f'{key}_{cls}' in self.fallback:
-            return self.fallback[f'{key}_{cls}']
-        elif key in self.fallback:
-            return self.fallback[key]
-        else:
+        try:
+            cls = self.get_class()
+            if f'{key}_{cls}' in self.fallback:
+                return self.fallback[f'{key}_{cls}']
+            elif key in self.fallback:
+                return self.fallback[key]
+            else:
+                return default
+        except:
             return default
 
     def set(self, key, value):
@@ -63,6 +66,9 @@ class Face:
             self._fallback = None
         self.data[key] = value
         shoggoth.app.update_card_preview()
+        if key in ('classes', 'type', 'level'):
+            shoggoth.app.current_project.assign_card_numbers()
+            shoggoth.app.refresh_tree()
 
     def get_class(self):
         cls = self.data.get('classes', ['guardian'])
@@ -83,6 +89,8 @@ class Card:
         encounter=None,
     ):
         self.data = data
+        if encounter:
+            self.data['encounter_set'] = encounter.id
         self.encounter = encounter
         self.expansion = expansion
         if 'id' not in data:
@@ -153,6 +161,10 @@ class Card:
 
     def set(self, key, value):
         self.data[key] = value
+        if key in ('name', 'id', 'investigator', 'encounter_set'):
+            shoggoth.app.current_project.assign_card_numbers()
+            shoggoth.app.update_card_preview()
+            shoggoth.app.refresh_tree()
 
     def get(self, key):
         return self.data.get(key)
@@ -292,5 +304,5 @@ class TEMPLATES:
         card = cls.BASE()
         card['amount'] = 1
         card['front']['type'] = 'story'
-        card['back']['type'] = 'story_back'
+        card['back']['type'] = 'story'
         return card

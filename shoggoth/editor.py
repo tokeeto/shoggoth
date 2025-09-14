@@ -32,10 +32,7 @@ class NewCardPopup(Popup):
         project = shoggoth.app.current_project
         new_card = Card(data=template, expansion=project, encounter=self.target)
 
-        if not self.target:
-            project.add_card(new_card)
-        else:
-            self.target.add_card(new_card)
+        project.add_card(new_card)
         shoggoth.app.refresh_tree()
         shoggoth.app.goto_card(new_card.id)
         self.dismiss()
@@ -732,6 +729,20 @@ class CustomizableEditor(FaceEditor):
         for field in self.fields:
             field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
 
+class StoryEditor(FaceEditor):
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.type.input, 'type'),
+            CardField(self.ids.name.input, 'name'),
+            CardField(self.ids.text.input, 'text'),
+            CardField(self.ids.classes.input, 'classes', list_converter, list_deconverter),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 # maps face types to editors
 MAPPING = {
@@ -755,4 +766,5 @@ MAPPING = {
     'agenda_back': AgendaBackEditor,
     'chaos': ChaosEditor,
     'customizable': CustomizableEditor,
+    'story': StoryEditor,
 }
