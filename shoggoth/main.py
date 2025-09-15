@@ -10,7 +10,6 @@ Config.set('input', 'mouse', 'mouse,disable_multitouch')
 Config.set('kivy', 'log_enable', '0')
 Config.set('graphics', 'width', '1600')
 Config.set('graphics', 'height', '900')
-os.environ['KIVY_IMAGE'] = 'pil'
 
 from kivy.app import App  # noqa: E402
 from kivy.uix.boxlayout import BoxLayout    # noqa: E402

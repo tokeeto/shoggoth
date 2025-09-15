@@ -1,11 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
-    ['src/main.py'],
+    ['shoggoth/tool.py'],
     pathex=[],
     binaries=[],
-    datas=[('assets', 'assets'), ('src/viewer.kv', './'), ('src/shoggoth.kv', './')],
+    datas=[('shoggoth/viewer.kv', 'shoggoth/'), ('shoggoth/shoggoth.kv', 'shoggoth/'), ('.venv/lib/python3.13/site-packages/kivy_garden/contextmenu/*.kv', 'kivy_garden/contextmenu')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

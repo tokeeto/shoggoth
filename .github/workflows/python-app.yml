@@ -18,9 +18,9 @@ jobs:
             - name: Install the project
               run: uv sync --locked --all-extras --dev
             - name: Install pyinstaller
-              run: uvx install pyinstaller
+              run: uv add --dev pyinstaller
             - name: Compile
-              run: pyinstaller shoggoth/tool.py --onedir --name=Shoggoth --add-data="shoggoth/viewer.kv:. --add-data="shoggoth/shoggoth.kv:."
+              run: uv run --dev pyinstaller Shoggoth.spec
             - uses: actions/upload-artifact@v4
               with:
                   name: shoggoth-windows

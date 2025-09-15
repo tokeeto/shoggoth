@@ -43,3 +43,9 @@ def run():
         from shoggoth.main import ShoggothApp
         app = ShoggothApp()
     app.run()
+
+
+if __name__ == '__main__':
+    run()
+
+print('tool done running')
