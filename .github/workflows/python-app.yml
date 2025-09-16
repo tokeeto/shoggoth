@@ -50,9 +50,6 @@ jobs:
                   Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL2-devel-$env:SDL_VERSION-VC.zip" -OutFile C:\SDL.zip
                   Expand-Archive C:\SDL.zip -DestinationPath C:\
 
-            - name: Set SDL2 KIVY PATH
-              run: set KIVY_SDL2_PATH="C:\SDL2-$env:SDL_VERSION\"
-
             - name: Set up Python
               uses: actions/setup-python@v4
               with:
@@ -64,7 +61,7 @@ jobs:
             - name: Install pyinstaller
               run: uv add --dev pyinstaller
             - name: Compile
-              run: uv run --dev pyinstaller ShoggothStandalone.spec
+              run: set USE_OPENGL_MOCK=1 && uv run --dev pyinstaller ShoggothStandalone.spec
             - uses: actions/upload-artifact@v4
               with:
                   name: shoggoth-win
