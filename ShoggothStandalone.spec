@@ -1,8 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 import importlib.util;
+import os
 from pathlib import Path
+
 cm_path = Path(importlib.util.find_spec('kivy_garden.contextmenu').origin)
 
+import os
+import platform
+
+if platform.system() == 'Windows':
+    os.environ['KIVY_SDL2_PATH'] = "C:\\SDL2-2.26.0\\lib\\x64\\"
+os.environ['KIVY_WINDOW'] = "None"
 
 a = Analysis(
     ['shoggoth/tool.py'],

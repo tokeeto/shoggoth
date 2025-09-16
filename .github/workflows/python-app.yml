@@ -61,7 +61,7 @@ jobs:
             - name: Install pyinstaller
               run: uv add --dev pyinstaller
             - name: Compile
-              run: set USE_OPENGL_MOCK=1 && uv run --dev pyinstaller ShoggothStandalone.spec
+              run: uv run --dev pyinstaller ShoggothStandalone.spec
             - uses: actions/upload-artifact@v4
               with:
                   name: shoggoth-win
