@@ -51,7 +51,7 @@ jobs:
                   Expand-Archive C:\SDL.zip -DestinationPath C:\
 
             - name: Set SDL2 KIVY PATH
-              run: KIVY_SDL2_PATH="C:\SDL2-$env:SDL_VERSION\"
+              run: set KIVY_SDL2_PATH="C:\SDL2-$env:SDL_VERSION\"
 
             - name: Set up Python
               uses: actions/setup-python@v4
