@@ -20,7 +20,7 @@ jobs:
             - name: Install pyinstaller
               run: uv add --dev pyinstaller
             - name: Compile
-              run: uv run --dev pyinstaller Shoggoth.spec
+              run: uv run --dev pyinstaller ShoggothStandalone.spec
             - uses: actions/upload-artifact@v4
               with:
                   name: shoggoth-mac
