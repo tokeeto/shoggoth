@@ -36,7 +36,7 @@ from pathlib import Path  # noqa: E402
 from kivy.modules import inspector  # noqa: E402
 
 
-Logger.setLevel(LOG_LEVELS["info"])
+Logger.setLevel(LOG_LEVELS["warning"])
 
 
 class ShoggothRoot(FloatLayout):
