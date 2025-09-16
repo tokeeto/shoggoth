@@ -89,11 +89,11 @@ class CardRenderer:
         back = self.render_card_side(card, card.back)
 
         f_buffer = BytesIO()
-        front.save(f_buffer, format='webp', quality=100)
+        front.save(f_buffer, format='png', quality=100)
         f_buffer.seek(0)
 
         b_buffer = BytesIO()
-        back.save(b_buffer, format='webp', quality=100)
+        back.save(b_buffer, format='png', quality=100)
         b_buffer.seek(0)
 
         return f_buffer, b_buffer

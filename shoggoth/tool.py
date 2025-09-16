@@ -33,6 +33,8 @@ def run():
         with zipfile.ZipFile(filehandle, 'r') as file:
             file.extractall(root_dir)
         print("Assets downloaded successfully.")
+    else:
+        print("Asset pack up to date.")
 
     if args.view:
         # Start in viewer mode

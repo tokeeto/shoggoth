@@ -389,8 +389,8 @@ class ShoggothApp(App):
 
     @mainthread
     def _update_card_preview_texture(self, front_image, back_image):
-        front_texture = CoreImage(front_image, ext='webp').texture
-        back_texture = CoreImage(back_image, ext='webp').texture
+        front_texture = CoreImage(front_image, ext='png').texture
+        back_texture = CoreImage(back_image, ext='png').texture
         self.root.ids.card_preview.set_card_images(front_texture, back_texture)
 
     def refresh_tree(self):
