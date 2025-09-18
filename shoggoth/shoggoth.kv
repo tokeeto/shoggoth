@@ -405,6 +405,9 @@
             ContextMenuTextItem:
                 text: 'Convert SE Project'
                 on_release: ui.StrangeEonsImporter().open()
+            ContextMenuTextItem:
+                text: 'Export card to TTS object'
+                on_release: app.export_card_to_tts()
     AppMenuTextItem:
         text: 'Help'
         ContextMenu:

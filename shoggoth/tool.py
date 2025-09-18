@@ -16,6 +16,7 @@ def version_is_up_to_date() -> bool:
 
 def run():
     os.environ["KIVY_NO_ARGS"] = "1"
+    os.environ["KIVY_IMAGE"] = "sdl2, pil"
 
     parser = argparse.ArgumentParser(description='Shoggoth Card Creator')
     parser.add_argument('-v', '--view', metavar='FILE', help='Open in viewer mode with specified file')

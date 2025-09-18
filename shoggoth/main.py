@@ -25,7 +25,7 @@ from kivy.graphics.transformation import Matrix    # noqa: E402
 
 from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup  # noqa: E402
 from shoggoth.project import Project  # noqa: E402
-from shoggoth.files import defaults_dir, asset_dir, font_dir  # noqa: E402
+from shoggoth.files import defaults_dir, asset_dir, font_dir, tts_dir  # noqa: E402
 from shoggoth.renderer import CardRenderer  # noqa: E402
 from shoggoth.file_monitor import FileMonitor  # noqa: E402
 from shoggoth.ui import GotoPopup, OkPopup  # noqa: E402
@@ -190,7 +190,8 @@ class FileBrowser(BoxLayout):
                 target_node = investigator_nodes[group]
             else:
                 target_node = class_nodes.get(card.get_class(), class_nodes['other'])
-            self.tree.add_node(TreeViewButton(text=card.name, element=card, element_type='card'), target_node)
+            display_name = f'{card.name} ({card.front.get("level")})' if str(card.front.get('level', '0')) != '0' else card.name
+            self.tree.add_node(TreeViewButton(text=display_name, element=card, element_type='card'), target_node)
 
     def on_tree_select(self, instance, node):
         if hasattr(node, 'full_path') and node.full_path.endswith('.json'):
@@ -241,6 +242,8 @@ class ShoggothApp(App):
         # Initialize card renderer
         self.card_renderer = CardRenderer()
         self.scheduled_redraw = None
+
+        self.refresh_tree_timer = None
 
         # Initialize file monitoring
         self.file_monitor = FileMonitor(None, self.on_file_changed)
@@ -313,6 +316,13 @@ class ShoggothApp(App):
         dialog = NewCardPopup()
         dialog.open()
 
+    def export_card_to_tts(self):
+        if not self.current_card:
+            return
+        from shoggoth import tts_lib
+        self.export_current()
+        tts_lib.export_card(self.current_card)
+
     def add_project_file(self, path):
         """Set the project path and initialize monitoring"""
         if not path:
@@ -382,19 +392,28 @@ class ShoggothApp(App):
 
     def _update_card_preview(self, *args, **kwargs):
         try:
+            t = time()
             front_image, back_image = self.card_renderer.get_card_textures(self.current_card)
+            print(f'Generated images in {time()-t} seconds')
             self._update_card_preview_texture(front_image, back_image)
         except Exception as e:
             self.status_message = str(e)
 
     @mainthread
     def _update_card_preview_texture(self, front_image, back_image):
-        front_texture = CoreImage(front_image, ext='png').texture
-        back_texture = CoreImage(back_image, ext='png').texture
+        t = time()
+        front_texture = CoreImage(front_image, ext='jpeg').texture
+        back_texture = CoreImage(back_image, ext='jpeg').texture
+        print(f'Generated textures in {time()-t} seconds')
         self.root.ids.card_preview.set_card_images(front_texture, back_texture)
 
-    def refresh_tree(self):
+    def _refresh_tree(self, *args, **kwargs):
         self.root.ids.file_browser.refresh()
+
+    def refresh_tree(self):
+        if self.refresh_tree_timer:
+            self.refresh_tree_timer.cancel()
+        self.refresh_tree_timer = Clock.schedule_once(self._refresh_tree, 1)
 
     def gather_images(self, output_folder=None, update=False):
         """ Gathers all images on cards
@@ -475,7 +494,7 @@ class ShoggothApp(App):
             raise Exception("Cannot export a card, while no card is selected.")
         export_folder = os.path.join(
             os.path.dirname(self.current_project.file_path),
-            f'export_of_{os.path.basename(self.current_project.file_path).split(".")[1]}'
+            f'export_of_{self.current_project.name}'
         )
         os.makedirs(export_folder, exist_ok=True)
         t = time()

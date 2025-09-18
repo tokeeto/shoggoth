@@ -1,16 +1,10 @@
-from time import time
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageOps
 import pillow_jxl
 from shoggoth import pillow_svg
-from kivy.graphics.texture import Texture
-from kivy.core.image import Image as kivy_img
 from kivy.uix.image import CoreImage
-import sys, os
-import json
-import re
+import os
 from io import BytesIO
 from shoggoth.rich_text import RichTextRenderer
-import numpy as np
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir
 from pathlib import Path
 
@@ -21,7 +15,11 @@ logging.getLogger('pillow').setLevel(logging.ERROR)
 
 
 class Region:
-    bleed:tuple[int, int] = (0,0)
+    bleed:tuple[int, int] = (36, 36)
+    x: int
+    y: int
+    width: int
+    height: int
 
     def __init__(self, data):
         if not data:
@@ -33,7 +31,7 @@ class Region:
             self.y += Region.bleed[1]
         self.width = data.get('width', 0)
         self.height = data.get('height', 0)
-        self.is_attached = data.get('is_attached', False)
+        self.is_attached = bool(data.get('is_attached', False))
         self.attach_before = data.get('attach_before')
         self.attach_after = data.get('attach_after')
 
@@ -61,6 +59,7 @@ class CardRenderer:
     #CARD_HEIGHT = 524
     CARD_WIDTH = 750
     CARD_HEIGHT = 1050
+    CARD_BLEED = 72
 
     def __init__(self):
         # Base paths
@@ -70,9 +69,25 @@ class CardRenderer:
         self.icons_path = icon_dir
         self.defaults_path = defaults_dir
         self.cache = {}
+        self.resized_cache = {}
 
         # Initialize rich text renderer
         self.rich_text = RichTextRenderer(self)
+
+    def get_cached(self, path) -> Image.Image:
+        if path not in self.cache:
+            image = Image.open(path).convert('RGBA')
+            self.cache[path] = image
+        return self.cache[path]
+
+    def get_resized_cached(self, path, size) -> Image.Image:
+        if (path, size) not in self.resized_cache:
+            img = self.get_cached(path)
+            self.resized_cache[(path, size)] = img.resize(size)
+        return self.resized_cache[(path, size)]
+
+    def invalidate_cache(self):
+        self.cache = {}
 
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
@@ -89,11 +104,11 @@ class CardRenderer:
         back = self.render_card_side(card, card.back)
 
         f_buffer = BytesIO()
-        front.save(f_buffer, format='png', quality=100)
+        front.save(f_buffer, format='jpeg', quality=90)
         f_buffer.seek(0)
 
         b_buffer = BytesIO()
-        back.save(b_buffer, format='png', quality=100)
+        back.save(b_buffer, format='jpeg', quality=90)
         b_buffer.seek(0)
 
         return f_buffer, b_buffer
@@ -163,26 +178,38 @@ class CardRenderer:
 
     def render_card_side(self, card, side, size=1):
         """Render one side of a card"""
-        self.current_card = card
-        self.current_side = side
-        self.current_opposite_side = card.front if side == card.back else card.back
-        self.current_field = None
-
-        height, width = int(self.CARD_HEIGHT*size), int(self.CARD_WIDTH*size)
-        bleed = side.get('template_bleed', None)
-        if bleed:
-            height, width = int((self.CARD_HEIGHT+bleed[0]*2)*size), int((self.CARD_WIDTH+bleed[1]*2)*size)
-            Region.bleed = (bleed[0], bleed[1])
-
+        height, width = self.CARD_HEIGHT+self.CARD_BLEED, self.CARD_WIDTH+self.CARD_BLEED
         if side.get('orientation', 'vertical') == 'horizontal':
-            card_image = Image.new('RGB', (height, width), (255, 255, 255))
-        else:
-            card_image = Image.new('RGB', (width, height), (255, 255, 255))
+            width, height = height, width
 
+        card_image = Image.new('RGB', (width, height), (255, 255, 255))
+
+        bleed = side.get('template_bleed', False)
         self.render_illustration(card_image, side)
-        self.render_template(card_image, side)
+        self.render_template(card_image, side, bleed)
         if side['type'] in ('investigator'):
             self.render_illustration(card_image, side)
+
+        if not bleed:
+            # make fake mirror bleed
+            source_img = card_image.crop((36, 36, width-36, height-36))
+            flip_lr = ImageOps.mirror(source_img)
+            flip_ud = ImageOps.flip(source_img)
+            flip_corners = ImageOps.flip(flip_lr)
+
+            #right
+            card_image.paste(flip_lr, (width-36, 36))
+            #left
+            card_image.paste(flip_lr, (36-flip_lr.width, 36))
+            #top
+            card_image.paste(flip_ud, (36, 36-flip_ud.height))
+            #bottom
+            card_image.paste(flip_ud, (36, height-36))
+            #corners, tl, tr, bl, br
+            card_image.paste(flip_corners, (36-flip_corners.width, 36-flip_corners.height))
+            card_image.paste(flip_corners, (width-36, 36-flip_corners.height))
+            card_image.paste(flip_corners, (36-flip_corners.width, height-36))
+            card_image.paste(flip_corners, (width-36, height-36))
 
         for func in [
             self.render_level,
@@ -203,7 +230,7 @@ class CardRenderer:
                 func(card_image, side)
             except Exception as e:
                 Logger.info(f'Failed in {func}: {e}')
-        Region.bleed = (0,0)
+
         return card_image
 
     def render_text(self, card_image, side):
@@ -213,7 +240,6 @@ class CardRenderer:
             'clues', 'doom', 'shroud', 'willpower', 'intellect',
             'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty'
         ]:
-            self.current_field = field
             value = side.get(field)
             if not value:
                 continue
@@ -453,9 +479,10 @@ class CardRenderer:
                 icon = raw_icon.resize((region.width, region.height))
                 card_image.paste(icon, (region.x, region.y), icon)
 
-    def render_template(self, card_image, side):
+    def render_template(self, card_image, side, bleed):
         """Render a template image onto a card"""
-        template_value = side['template']
+        template_value = side.get('template', '')
+
         if '<class>' in template_value:
             side_class = side.get('classes', ['guardian'])
             card_class = side_class[0] if len(side_class) == 1 else 'multi'
@@ -463,17 +490,21 @@ class CardRenderer:
         if '<subtitle>' in template_value:
             sub = side.get('subtitle', '')
             template_value = template_value.replace('<subtitle>', '_subtitle' if sub else '')
+
         if Path(template_value).is_file():
             template_path = Path(template_value)
         else:
             template_path = self.templates_path / (template_value + '.png')
 
-        try:
-            template = Image.open(template_path).convert("RGBA")
-            template = template.resize((card_image.width, card_image.height))
+        if not template_path.exists():
+            return()
+
+        if not bleed:
+            template = self.get_resized_cached(template_path, (card_image.width-72, card_image.height-72))
+            card_image.paste(template, (36, 36), template)
+        else:
+            template = self.get_resized_cached(template_path, (card_image.width, card_image.height))
             card_image.paste(template, (0, 0), template)
-        except Exception as e:
-            print(f"Error rendering template: {str(e)}")
 
     def render_illustration(self, card_image, side):
         """Render the illustration/portrait"""
@@ -484,7 +515,7 @@ class CardRenderer:
 
         try:
             # Load illustration
-            illustration = Image.open(illustration_path).convert("RGBA")
+            illustration = self.get_cached(illustration_path)
 
             # Get clip region
             clip_region = Region(side['illustration_region'])
@@ -494,7 +525,7 @@ class CardRenderer:
                 illustration = illustration.rotate(rotation)
 
             # Calculate scaling
-            illustration_scale = side.get('illustration_scale', None)
+            illustration_scale = float(side.get('illustration_scale', 0))
             if not illustration_scale:
                 if illustration.width > illustration.height:
                     illustration_scale = clip_region.height / illustration.height
@@ -504,7 +535,7 @@ class CardRenderer:
             # Resize illustration
             new_width = int(illustration.width * illustration_scale)
             new_height = int(illustration.height * illustration_scale)
-            illustration = illustration.resize((new_width, new_height))
+            illustration = self.get_resized_cached(illustration_path, (new_width, new_height))
 
             # Apply panning
             pan_x = side.get('illustration_pan_x', 0)
