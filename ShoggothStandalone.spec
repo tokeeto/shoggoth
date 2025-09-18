@@ -3,21 +3,21 @@ import importlib.util;
 import os
 from pathlib import Path
 
-// not automatically included
+# not automatically included
 cm_path = Path(importlib.util.find_spec('kivy_garden.contextmenu').origin)
 
 import os
 import platform
 
-// Files to include
+# Files to include
 datas = [('shoggoth/viewer.kv', 'shoggoth/'), ('shoggoth/shoggoth.kv', 'shoggoth/'), (cm_path.parent / '*.kv', 'kivy_garden/contextmenu')]
 
-// windows needs to manually download a version of sdl2
+# windows needs to manually download a version of sdl2
 if platform.system() == 'Windows':
     os.environ['KIVY_SDL2_PATH'] = "C:\\SDL2-2.26.0\\lib\\x64\\"
     datas.append(("C:\\SDL2-2.26.0\\lib\\x64\\SDL2.dll", '.'))
-// Kivy tries to open up a window during compilation.
-// Setting this makes it "fail" succesfully.
+# Kivy tries to open up a window during compilation.
+# Setting this makes it "fail" succesfully.
 os.environ['KIVY_WINDOW'] = "None"
 
 a = Analysis(
