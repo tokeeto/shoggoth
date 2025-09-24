@@ -98,10 +98,14 @@ class CardRenderer:
         buffer.seek(0)
         return buffer
 
-    def get_card_textures(self, card):
+    def get_card_textures(self, card, bleed=True):
         """Render both sides of a card"""
         front = self.render_card_side(card, card.front)
         back = self.render_card_side(card, card.back)
+
+        if not bleed:
+            front = front.crop((36, 36, front.width-36, front.height-36))
+            back = back.crop((36, 36, back.width-36, back.height-36))
 
         f_buffer = BytesIO()
         front.save(f_buffer, format='jpeg', quality=90)
@@ -121,13 +125,14 @@ class CardRenderer:
 
         return front_image, back_image
 
-    def export_card_images(self, card, folder, force=False):
-        if force or card.front['type'] not in ('player', 'encounter'):
-            front_image = self.render_card_side(card, card.front)
-            front_image.save(os.path.join(folder, card.name + '_front.png'), quality=100, lossless=True)
-        if force or card.back['type'] not in ('player', 'encounter'):
-            back_image  = self.render_card_side(card, card.back)
-            back_image.save(os.path.join(folder, card.name + '_back.png'), quality=100, lossless=True)
+    def export_card_images(self, card, folder, include_backs=False, bleed=True, format='png', quality=100):
+        lossless = quality == 100
+        if include_backs or card.front['type'] not in ('player', 'encounter'):
+            front_image = self.render_card_side(card, card.front, include_bleed=bleed)
+            front_image.save(os.path.join(folder, card.name + f'_front.{format}'), quality=quality, lossless=lossless)
+        if include_backs or card.back['type'] not in ('player', 'encounter'):
+            back_image  = self.render_card_side(card, card.back, include_bleed=bleed)
+            back_image.save(os.path.join(folder, card.name + f'_back.{format}'), quality=quality, lossless=lossless)
 
     def pil_to_texture(self, pil_image):
         """Convert PIL image to Kivy texture"""
@@ -176,7 +181,7 @@ class CardRenderer:
 
         return value
 
-    def render_card_side(self, card, side, size=1):
+    def render_card_side(self, card, side, include_bleed=True):
         """Render one side of a card"""
         height, width = self.CARD_HEIGHT+self.CARD_BLEED, self.CARD_WIDTH+self.CARD_BLEED
         if side.get('orientation', 'vertical') == 'horizontal':
@@ -229,16 +234,24 @@ class CardRenderer:
             try:
                 func(card_image, side)
             except Exception as e:
-                Logger.info(f'Failed in {func}: {e}')
+                Logger.warning(f'Failed in {func}: {e}')
 
+        if not include_bleed:
+            card_image = card_image.crop((
+                self.CARD_BLEED/2,
+                self.CARD_BLEED/2,
+                card_image.width-self.CARD_BLEED/2,
+                card_image.height-self.CARD_BLEED/2
+            ))
         return card_image
 
     def render_text(self, card_image, side):
         for field in [
             'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
-            'attack', 'evade', 'health', 'stamina', 'sanity',
+            'attack', 'evade', 'health', 'stamina', 'sanity', 'victory',
             'clues', 'doom', 'shroud', 'willpower', 'intellect',
-            'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty'
+            'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty',
+            'text1', 'text2', 'text3',
         ]:
             value = side.get(field)
             if not value:
@@ -276,6 +289,9 @@ class CardRenderer:
             try:
                 font = side.get(f'{field}_font', {})
                 polygon = side.get(f'{field}_polygon', None)
+                if polygon:
+                    polygon = [(point[0]+self.CARD_BLEED/2, point[1]+self.CARD_BLEED/2) for point in polygon]
+
                 if font.get('rotation'):
                     temp_image = Image.new('RGBA', (region.height, region.width), (255, 255, 255, 0))
                     self.rich_text.render_text(
@@ -344,17 +360,20 @@ class CardRenderer:
             card_image.paste(overlay_icon, (region.x, region.y+(index*entry_height)), overlay_icon)
 
     def render_connection_icons(self, card_image, side):
+        base_image = Image.open(self.overlays_path/f"location_hi_base.png").convert("RGBA")
+
         # own icon
         value = side.get('connection')
+
         if value and value != "None":
-            # ready circle for coloring
             region = Region(side.get('connection_region'))
-            connection_image = Image.open(self.overlays_path/f"location_{value}.png").convert("RGBA")
-            connection_image = connection_image.resize((connection_image.width*2, connection_image.height*2))
-            card_image.paste(connection_image, (region.x, region.y), connection_image)
+            connection_image = Image.open(self.overlays_path/f"location_hi_{value}.png").convert("RGBA")
+            card_image.paste(base_image, region.pos, base_image)
+            card_image.paste(connection_image, (region.x+6, region.y+6), connection_image)
 
         # outgoing connections
         value = side.get('connections')
+
         if not value:
             return
 
@@ -363,10 +382,8 @@ class CardRenderer:
             if not icon or icon == "None":
                 continue
             region = Region(side.get(f'connection_{index+1}_region'))
-
-            connection_image = Image.open(self.overlays_path/f"location_{icon}.png").convert("RGBA")
-            connection_image = connection_image.resize((connection_image.width*2, connection_image.height*2))
-            card_image.paste(connection_image, region.pos, connection_image)
+            connection_image = Image.open(self.overlays_path/f"location_hi_{icon}.png").convert("RGBA")
+            card_image.paste(connection_image, (region.x+6, region.y+6), connection_image)
 
 
     def render_icons(self, card_image, side):
@@ -381,8 +398,8 @@ class CardRenderer:
             overlay_path = self.overlays_path/f"skill_icon_{icon}.png"
             overlay_icon = Image.open(overlay_path).convert("RGBA")
             overlay_icon = overlay_icon.resize((overlay_icon.width * 2, overlay_icon.height * 2))
-            card_image.paste(box_image, (0, index*84+165), box_image)
-            card_image.paste(overlay_icon, (25, index*84+181), overlay_icon)
+            card_image.paste(box_image, (36, index*84+165+36), box_image)
+            card_image.paste(overlay_icon, (25+36, index*84+181+36), overlay_icon)
 
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """
@@ -559,16 +576,14 @@ class CardRenderer:
         if not region:
             return
 
-        if level is None or level == '':
+        if level is None or level == '' or level == 'None':
             level_icon_path = self.overlays_path/f"no_level.png"
             level_icon = Image.open(level_icon_path).convert("RGBA")
-            level_icon = level_icon.resize((level_icon.width*2, level_icon.height*2))
-            card_image.paste(level_icon, (16, 7), level_icon)
+            card_image.paste(level_icon, (region.x-14, region.y-63), level_icon)
             return
 
         level_icon_path = self.overlays_path/f"level_{level}.png"
         level_icon = Image.open(level_icon_path).convert("RGBA")
-        level_icon = level_icon.resize((level_icon.width*2, level_icon.height*2))
         card_image.paste(level_icon, region.pos, level_icon)
 
     def render_class_symbols(self, card_image, side):

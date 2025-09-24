@@ -1,6 +1,7 @@
 import os
 import shutil
 import threading
+from tokenize import String
 import shoggoth
 from time import time
 
@@ -69,13 +70,11 @@ class ShoggothRoot(FloatLayout):
                 return True
             if text == 'e':
                 if 'shift' in modifiers:
-                    f = shoggoth.app.export_all
-                    Clock.schedule_once(lambda x: f())
+                    Clock.schedule_once(lambda x: shoggoth.app.export_all(bleed=True, format='png', quality=100))
                     return True
                 else:
-                    f = shoggoth.app.export_current
-                    Clock.schedule_once(lambda x: f())
-                    return False
+                    Clock.schedule_once(lambda x: shoggoth.app.export_current(bleed=False, format='png', quality=100))
+                    return True
             if text == 'o':
                 f = shoggoth.app.open_project_dialog
                 Clock.schedule_once(lambda x: f())
@@ -130,8 +129,10 @@ class FileBrowser(BoxLayout):
     def refresh(self, *args):
         opens = set()
         for node in self.tree.iterate_open_nodes():
-            opens.add((node.level, node.text))
-        print('clearing tree, project is now', self.project)
+            if not isinstance(node, TreeViewButton):
+                continue
+            print('node is open:', node.name_path)
+            opens.add(node.name_path)
         # Clear tree
         for node in self.tree.root.nodes:
             self.tree.remove_node(node)
@@ -139,8 +140,11 @@ class FileBrowser(BoxLayout):
         # Recursively add files and folder
         self._add_nodes()
         for node in self.tree.iterate_all_nodes():
-            if (node.level, node.text) in opens:
-                self.tree.toggle_node(node)
+            if not isinstance(node, TreeViewButton):
+                continue
+            if node.name_path in opens:
+                if not node.parent_node.is_open:
+                    self.tree.toggle_node(node.parent_node)
 
     def _add_nodes(self):
         # Add folder contents to tree
@@ -193,14 +197,28 @@ class FileBrowser(BoxLayout):
             display_name = f'{card.name} ({card.front.get("level")})' if str(card.front.get('level', '0')) != '0' else card.name
             self.tree.add_node(TreeViewButton(text=display_name, element=card, element_type='card'), target_node)
 
-    def on_tree_select(self, instance, node):
-        if hasattr(node, 'full_path') and node.full_path.endswith('.json'):
-            self.parent.parent.load_card(node.full_path)
+    # def on_tree_select(self, instance, node):
+    #     if hasattr(node, 'full_path') and node.full_path.endswith('.json'):
+    #         self.parent.parent.load_card(node.full_path)
 
 
 class TreeViewButton(TreeViewLabel):
     element = ObjectProperty()
     element_type = StringProperty('')
+    _name_path = None
+
+    def __init__(self, *args, **kwargs):
+        self._name_path = None
+        super().__init__(*args, **kwargs)
+
+    @property
+    def name_path(self):
+        if not self._name_path:
+            if not isinstance(self.parent_node, TreeViewButton):
+                self._name_path = self.text
+            else:
+                self._name_path = self.parent_node.name_path + '/' + self.text
+        return self._name_path
 
 
 class CardPreview(BoxLayout):
@@ -226,7 +244,7 @@ class ShoggothApp(App):
     """Main application class for Shoggoth Card Creator"""
     current_card_id = StringProperty("")
     current_project = ObjectProperty(None)
-    current_card = ObjectProperty(None)
+    current_card = ObjectProperty(None, allownone=True)
     status_message = StringProperty("Ready")
 
     def __init__(self, *args, **kwargs):
@@ -268,7 +286,7 @@ class ShoggothApp(App):
                 Clock.schedule_once(lambda x: self.goto_card(id), 1)
         except:
             pass
-        inspector.create_inspector(Window, self.root)
+        #inspector.create_inspector(Window, self.root)
 
         return self.root
 
@@ -320,8 +338,15 @@ class ShoggothApp(App):
         if not self.current_card:
             return
         from shoggoth import tts_lib
-        self.export_current()
         tts_lib.export_card(self.current_card)
+
+    def export_player_to_tts(self):
+        from shoggoth import tts_lib
+        tts_lib.export_player_cards(self.current_project.player_cards)
+
+    def export_campaign_to_tts(self):
+        from shoggoth import tts_lib
+        tts_lib.export_campaign(self.current_project)
 
     def add_project_file(self, path):
         """Set the project path and initialize monitoring"""
@@ -393,7 +418,7 @@ class ShoggothApp(App):
     def _update_card_preview(self, *args, **kwargs):
         try:
             t = time()
-            front_image, back_image = self.card_renderer.get_card_textures(self.current_card)
+            front_image, back_image = self.card_renderer.get_card_textures(self.current_card, bleed=False)
             print(f'Generated images in {time()-t} seconds')
             self._update_card_preview_texture(front_image, back_image)
         except Exception as e:
@@ -489,22 +514,29 @@ class ShoggothApp(App):
                         Logger.error(f'Something went wrong during gathering: {e}')
         print(gathered)
 
-    def export_current(self):
+    def export_current(self, include_backs:bool=False, bleed:bool=True, format:str='png', quality:int=100):
         if not self.current_card:
             raise Exception("Cannot export a card, while no card is selected.")
         export_folder = os.path.join(
             os.path.dirname(self.current_project.file_path),
-            f'export_of_{self.current_project.name}'
+            f'Export of {self.current_project.name}'
         )
         os.makedirs(export_folder, exist_ok=True)
         t = time()
-        self.card_renderer.export_card_images(self.current_card, export_folder)
+        self.card_renderer.export_card_images(
+            self.current_card,
+            export_folder,
+            include_backs=include_backs,
+            bleed=bleed,
+            format=format,
+            quality=quality
+        )
         print(f'Export of {self.current_card.name} done in {time()-t} seconds')
 
-    def export_all(self):
+    def export_all(self, include_backs:bool=False, bleed:bool=True, format:str='png', quality:int=100):
         export_folder = os.path.join(
             os.path.dirname(self.current_project.file_path),
-            f'export_of_{os.path.basename(self.current_project.file_path).split(".")[1]}'
+            f'Export of {self.current_project.name}'
         )
         os.makedirs(export_folder, exist_ok=True)
         cards = self.current_project.get_all_cards()
@@ -514,7 +546,11 @@ class ShoggothApp(App):
         threads = []
         for card in cards:
             Logger.debug(f'added {card.name} to queue')
-            thread = threading.Thread(target=self.card_renderer.export_card_images, args=(card, export_folder))
+            thread = threading.Thread(
+                target=self.card_renderer.export_card_images,
+                args=(card, export_folder),
+                kwargs={'include_backs': include_backs, 'bleed': bleed, 'format': format, 'quality': quality}
+            )
             threads.append(thread)
             thread.start()
 

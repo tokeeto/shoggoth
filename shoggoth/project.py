@@ -97,6 +97,12 @@ class Project:
         for e in self.data['encounter_sets']:
             yield EncounterSet(e, expansion=self)
 
+    def get_encounter_set(self, id):
+        for es in self.encounter_sets:
+            if es.id == id:
+                return es
+        return None
+
     def assign_card_numbers(self):
         current_number = 1
         for encounter_set in self.encounter_sets:
@@ -104,7 +110,7 @@ class Project:
             for card in encounter_set.cards:
                 card.expansion_number = current_number
                 current_number += 1
-        for card in self.cards:
+        for card in self.player_cards:
             card.expansion_number = current_number
             current_number += 1
 

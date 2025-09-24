@@ -8,11 +8,9 @@ from shoggoth.files import defaults_dir
 
 
 class Face:
-    def __init__(self, data, card=None, encounter=None, expansion=None):
+    def __init__(self, data, card=None):
         self.data = data
         self.card = card
-        self.encounter = encounter
-        self.expansion = expansion
         self._fallback = None
 
     def __eq__(self, other):
@@ -47,24 +45,23 @@ class Face:
         return self.fallback[key]
 
     def get(self, key, default=''):
-        if key in self.data:
-            return self.data[key]
-
         try:
-            cls = self.get_class()
-            if f'{key}_{cls}' in self.fallback:
-                return self.fallback[f'{key}_{cls}']
-            elif key in self.fallback:
-                return self.fallback[key]
-            else:
-                return default
-        except:
+            result = self.__getitem__(key)
+            if result == '<copy>':
+                return self.other_side[key]
+            return result
+        except KeyError:
             return default
 
     def set(self, key, value):
+        # invalidate cached fallback if fallback should change
         if key == 'type':
             self._fallback = None
+
         self.data[key] = value
+        if value is None:
+            del self.data[key]
+
         shoggoth.app.update_card_preview()
         if key in ('classes', 'type', 'level'):
             shoggoth.app.current_project.assign_card_numbers()
@@ -77,6 +74,12 @@ class Face:
         if len(cls) == 1:
             return cls[0]
         return 'multi'
+
+    @property
+    def other_side(self):
+        if self == self.card.front:
+            return self.card.back
+        return self.card.front
 
 
 class Card:
@@ -91,7 +94,6 @@ class Card:
         self.data = data
         if encounter:
             self.data['encounter_set'] = encounter.id
-        self.encounter = encounter
         self.expansion = expansion
         if 'id' not in data:
             data['id'] = str(uuid4())
@@ -101,6 +103,12 @@ class Card:
 
     def __str__(self):
         return f'<Card "{self.name}">'
+
+    @property
+    def encounter(self):
+        if not 'encounter_set' in self.data or not self.data['encounter_set']:
+           return None
+        return self.expansion.get_encounter_set(self.data['encounter_set'])
 
     def reload_fallback(self):
         """ Invalidates the fallback cache, forcing a reload of the file """

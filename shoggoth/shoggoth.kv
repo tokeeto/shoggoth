@@ -41,6 +41,18 @@
     height: self.minimum_height
     spacing: '5dp'
 
+<TypeSelector>:
+    title: 'Select Defaults'
+    size_hint_y: .8
+    size_hint_x: None
+    width: '300dp'
+    ScrollView:
+        BoxLayout:
+            height: self.minimum_height
+            size_hint_y: None
+            orientation: 'vertical'
+            id: content_box
+
 <TemplateSelector>:
     title: 'Select Template'
     size_hint_y: .8
@@ -316,7 +328,39 @@
     Label:
         text: root.entry.id
 
-<GotoPopup@Popup>
+<ExportPopup@Popup>:
+    BoxLayout:
+        orientation: 'vertical'
+        ToggleButton:
+            pressed: self.state == 'down'
+            text: 'Including bleed' if self.pressed else 'Excluding bleed'
+            id: bleed
+        ToggleButton:
+            pressed: self.state == 'down'
+            text: 'Including common backs' if self.pressed else 'Excluding common backs'
+            id: backs
+        BoxLayout:
+            orientation: 'horizontal'
+            Label:
+                text: 'Image format (we support most types, try "webp"):'
+            TextInput:
+                id: format
+        BoxLayout:
+            orientation: 'horizontal'
+            Label:
+                text: 'Image quality (50-100, 100 being lossless):'
+            TextInput:
+                id: quality
+        BoxLayout:
+            orientation: 'horizontal'
+            Button:
+                text: 'Cancel'
+                on_release: root.dismiss()
+            Button:
+                text: 'Export'
+                on_release: app.export_all(include_backs=backs.pressed, bleed=bleed.pressed, format=format.text, quality=int(quality.text))
+
+<GotoPopup@Popup>:
     title: 'Go to line'
     size_hint: None, None
     size: '700dp', '700dp'
@@ -374,11 +418,11 @@
             ContextMenuTextItem:
                 text: 'Export Current Card (Ctrl+E)'
                 disabled: not app.current_card
-                on_release: app.export_current()
+                on_release: app.export_current(bleed=True, format='png', quality=100)
             ContextMenuTextItem:
                 text: 'Export All Cards (Ctrl+Shift+E)'
                 disabled: not app.current_project
-                on_release: app.export_all()
+                on_release: ui.ExportPopup().open()
             ContextMenuDivider:
             ContextMenuTextItem:
                 text: 'Exit'
@@ -408,6 +452,12 @@
             ContextMenuTextItem:
                 text: 'Export card to TTS object'
                 on_release: app.export_card_to_tts()
+            ContextMenuTextItem:
+                text: 'Export all campaign cards to TTS object'
+                on_release: app.export_campaign_to_tts()
+            ContextMenuTextItem:
+                text: 'Export all player cards to TTS object'
+                on_release: app.export_player_to_tts()
     AppMenuTextItem:
         text: 'Help'
         ContextMenu:
@@ -845,7 +895,7 @@
             id: type
             Button:
                 text: 'Select type'
-                on_release: context_menu.show(*self.pos)
+                on_release: ui.TypeSelector(target=type.input).open()
 
 <AssetEditor@BoxContainer>:
     TextEditLine:

@@ -140,8 +140,6 @@ def card_to_tts(card):
     data['Tags'] = ["Asset", "PlayerCard"]
     return data
 
-def project_to_tts(project):
-    pass
 
 def export_card(card):
     wrapper = deepcopy(wrapper_template)
@@ -157,15 +155,32 @@ def export_card(card):
         json.dump(wrapper, file, indent=4)
 
 
-def export_project():
+def export_campaign(expansion):
     wrapper = deepcopy(wrapper_template)
-    for card in shoggoth.app.current_project.player_cards:
+    for encounter in expansion.encounter_sets:
+        encounter_wrapper = deepcopy(wrapper_template)
+        for card in encounter.cards:
+            encounter_wrapper['ObjectStates'].append(card_to_tts(card))
+        wrapper['ObjectStates'].append(encounter_wrapper)
+
+    if files.tts_dir:
+        output_path = files.tts_dir / f"{shoggoth.app.current_project.name} campaign.json"
+    else:
+        output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} campaign.json"
+
+    with open(output_path, 'w') as file:
+        json.dump(wrapper, file, indent=4)
+
+
+def export_player_cards(cards):
+    wrapper = deepcopy(wrapper_template)
+    for card in cards:
         wrapper['ObjectStates'].append(card_to_tts(card))
 
     if files.tts_dir:
-        output_path = files.tts_dir / f"{shoggoth.app.current_project.name}.json"
+        output_path = files.tts_dir / f"{shoggoth.app.current_project.name} player cards.json"
     else:
-        output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} tts.json"
+        output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} player cards.json"
 
     with open(output_path, 'w') as file:
         json.dump(wrapper, file, indent=4)

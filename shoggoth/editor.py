@@ -21,6 +21,10 @@ class NewCardPopup(Popup):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        if card := shoggoth.app.current_card:
+            if card.encounter:
+                self.name.target = self.set_encounter_set(card.encounter)
+                self.ids.template.text = 'treachery'
 
     def create(self):
         if self.name.text == '':
@@ -33,7 +37,7 @@ class NewCardPopup(Popup):
         new_card = Card(data=template, expansion=project, encounter=self.target)
 
         project.add_card(new_card)
-        shoggoth.app.refresh_tree()
+        shoggoth.app._refresh_tree()
         shoggoth.app.goto_card(new_card.id)
         self.dismiss()
 
@@ -212,8 +216,13 @@ class CardField:
 
     def update_from_card(self, card_data):
         self._updating = True
-        value = card_data.get(self.card_key)
-        self.widget.text = self.deconverter(value) if value else ''
+        value = None
+        if self.card_key in card_data.data:
+            value = card_data.data[self.card_key]
+        if value == '<copy>':
+            self.widget.text = value
+        else:
+            self.widget.text = self.deconverter(value) if value else ''
         self._updating = False
 
     def update_card(self, card_data, value):
@@ -221,7 +230,10 @@ class CardField:
             return False
 
         try:
-            card_data.set(self.card_key, self.converter(value) if value else None)
+            if value == '<copy>':
+                card_data.set(self.card_key, value)
+            else:
+                card_data.set(self.card_key, self.converter(value) if value else None)
             return True
         except ValueError as e:
             print('tried updating the card, it failed with', e)
@@ -250,7 +262,9 @@ class CardFieldComposite():
 
     def update_from_card(self, card_data):
         self._updating = True
-        value = card_data.get(self.card_key)
+        value = None
+        if self.card_key in card_data.data:
+            value = card_data.data[self.card_key]
         for index, output in enumerate(self.deconverter(value)):
             self.widgets[index].text = str(output)
         self._updating = False
@@ -331,6 +345,8 @@ def customizable_deconverter(value:list[list]) -> list[str]:
     return result
 
 def investigator_back_converter(value:list) -> list[str]:
+    if not value:
+        return []
     result = []
     # parse as pairs
     for heading, text in zip(value[::2], value[1::2]):
@@ -339,6 +355,8 @@ def investigator_back_converter(value:list) -> list[str]:
     return result
 
 def investigator_back_second_converter(value:list) -> str:
+    if not value:
+        return ""
     result = ""
     # parse as pairs
     for heading, text in zip(value[::2], value[1::2]):
@@ -348,6 +366,8 @@ def investigator_back_second_converter(value:list) -> str:
 
 def investigator_back_deconverter(value:list[list[str]]) -> list[str]:
     result = []
+    if not value:
+        return result
     for entry in value:
         result.append(entry[0])
         result.append(entry[1])

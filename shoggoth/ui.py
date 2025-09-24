@@ -12,6 +12,7 @@ from pathlib import Path
 from kivy.clock import Clock
 import threading
 from kivy.uix.scatterlayout import ScatterLayout
+from shoggoth import files
 from shoggoth.project import Project
 import json
 import shoggoth
@@ -23,9 +24,11 @@ Created by Toke Ivø.
 
 You can support the development of Shoggoth by [u][ref=contrib]contribution[/ref][/u], [u][ref=patreon]donation[/ref][/u], or [u][ref=tip]tips[/ref][/u].
 
-Various images by the Mythos Busters community.
+Various images and templates by the Mythos Busters community.
 
-Special thanks to Coldtoes, felice, Chr1Z, MickeyTheQ and Morvael.
+Thanks to CGJennings for creating Strange Eons, and pilunte23/JaqenZann for the original AHLCG plugin, without which we'd all be so much more bored.
+
+Special thanks to Coldtoes, felice, Chr1Z, MickeyTheQ and Morvael for helping this project becoming a reality.
 """
 
 
@@ -50,10 +53,10 @@ class Zoom(ScatterLayout):
         return False
 
 
-def _save_project_file(target=None, title="expansion.json"):
+def _save_project_file(target=None, title="expansion.json", name='save_project'):
     """ Returns a file location """
     path = filedialpy.saveFile(
-        initial_dir=str(Path.home()),
+        initial_dir=str(files.get_last_path(name)),
         initial_file=title,
         title="Project file location",
         filter=["*.json","*"],
@@ -65,12 +68,13 @@ def _save_project_file(target=None, title="expansion.json"):
         def wrapper(*args, **kwargs):
             target.text = path
         Clock.schedule_once(wrapper)
+    files.set_last_path(name, path)
     return path
 
 
-def open_image(target=None):
+def open_image(target=None, name='open_folder'):
     path = filedialpy.openFile(
-        initial_dir=str(Path.home()),
+        initial_dir=str(files.get_last_path(name)),
         filter=["*.png *.jpg *.jpeg *.webp *.jxl", "*"],
     )
     if not path:
@@ -79,12 +83,13 @@ def open_image(target=None):
         def wrapper(*args, **kwargs):
             target.text = path
         Clock.schedule_once(wrapper)
+    files.set_last_path(name, path)
     return path
 
-def open_folder(target=None):
+def open_folder(target=None, name='open_folder'):
     """ Returns a folder location """
     path = filedialpy.openDir(
-        initial_dir=str(Path.home()),
+        initial_dir=str(files.get_last_path(name)),
     )
     if not path:
         return
@@ -92,12 +97,13 @@ def open_folder(target=None):
         def wrapper(*args, **kwargs):
             target.text = path
         Clock.schedule_once(wrapper)
+    files.set_last_path(name, path)
     return path
 
-def open_file(target=None):
+def open_file(target=None, name='open_file'):
     """ Returns a file location """
     path = filedialpy.openFile(
-        initial_dir=str(Path.home()),
+        initial_dir=str(files.get_last_path(name)),
     )
     if not path:
         return
@@ -105,6 +111,7 @@ def open_file(target=None):
         def wrapper(*args, **kwargs):
             target.text = path
         Clock.schedule_once(wrapper)
+    files.set_last_path(name, path)
     return path
 
 def save_project_file(target, title=''):
@@ -199,9 +206,11 @@ class SetSelector(ValueSelectPopup):
                 )
             )
 
+class ValueButton(Button):
+    value = ObjectProperty(None)
 
 
-class TypeSelectDropdown(ContextMenu):
+class TypeSelector(Popup):
     target = ObjectProperty()
 
     def __init__(self, **kwargs):
@@ -209,21 +218,23 @@ class TypeSelectDropdown(ContextMenu):
         self.create_values()
 
     def select(self, widget):
-        print('select with', widget)
-        self.target.input.text = widget.text
-        self.hide()
+        self.target.text = widget.value
+        self.dismiss()
 
     def create_values(self):
         from shoggoth import files
 
         for file in files.defaults_dir.iterdir():
-            self.add_widget(
-                ContextMenuTextItem(
-                    text=file.stem,
+            self.ids.content_box.add_widget(
+                ValueButton(
+                    text=file.stem.capitalize(),
+                    value=file.stem,
                     on_release=self.select,
                 )
             )
 
+class ExportPopup(Popup):
+    pass
 
 class NewProjectPopup(Popup):
     """Popup for selecting files/folders"""

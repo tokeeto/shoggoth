@@ -326,7 +326,6 @@ class RichTextRenderer:
             if match := image_regex.match(text[current_pos:]):
                 tag = match[0]
                 attributes = parse_tag_attributes(tag)
-                print('found an image: ', tag, 'with attributes', attributes)
                 if 'src' in attributes:
                     tokens.append({
                         'type': 'image_icon',
@@ -451,7 +450,7 @@ class RichTextRenderer:
 
         # Word wrapping data
         current_line = []
-        line_height = int(font_size * 1.34)  # Line height with spacing
+        line_height = int(font_size * 1.30)  # Line height with spacing
         current_line_width = 0
 
         # Keep track of whether we're going to overflow
