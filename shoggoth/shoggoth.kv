@@ -386,7 +386,9 @@
 
 <TreeViewButton>:
     background_color: 0,0,0,0
-    color_selected: 0,0,0,.3
+    even_color: 1,1,1,.1
+    color_selected: 1,1,1,.7
+    color: [0,0,0,1] if self.is_selected else [.85,.9,.85,1]
 
 <TopMenu@AppMenu>:
     top: root.parent.height
@@ -404,9 +406,11 @@
             ContextMenuTextItem:
                 text: 'Save (Ctrl+S)'
                 on_release: app.save_changes()
+                disabled: not app.current_project
             ContextMenuTextItem:
                 text: 'New Card (Ctrl+N)'
                 on_release: app.open_new_card_dialog()
+                disabled: not app.current_project
             ContextMenuTextItem:
                 text: 'Gather images'
                 disabled: not app.current_project
@@ -451,12 +455,15 @@
                 on_release: ui.StrangeEonsImporter().open()
             ContextMenuTextItem:
                 text: 'Export card to TTS object'
+                disabled: not app.current_project
                 on_release: app.export_card_to_tts()
             ContextMenuTextItem:
                 text: 'Export all campaign cards to TTS object'
+                disabled: not app.current_project
                 on_release: app.export_campaign_to_tts()
             ContextMenuTextItem:
                 text: 'Export all player cards to TTS object'
+                disabled: not app.current_project
                 on_release: app.export_player_to_tts()
     AppMenuTextItem:
         text: 'Help'
@@ -538,7 +545,6 @@
         Color:
             rgba: 1,1,1,1
 
-
     Label:
         text: 'Cards'
         size_hint_y: None
@@ -548,8 +554,20 @@
         bold: True
         font_name: str(files.font_dir / 'Arkhamic.ttf')
 
+    Label:
+        text: 'Create a project\nto get started!'
+        visible: app.current_project is None
+        size_hint_y: None
+        height: 100 if self.visible else 0
+        font_size: '30dp'
+        multiline: True
+        bold: True
+        opacity: .6 if self.visible else 0
+
     ScrollView:
         do_scroll_x: False
+        visible: app.current_project is not None
+        opacity: 1 if self.visible else 0
 
         TreeView:
             id: tree
@@ -557,6 +575,7 @@
             size_hint_y: None
             height: self.minimum_height
             on_selected_node: root.on_selected_node()
+
 
 <FileField@BoxLayout>:
     orientation: 'horizontal'
@@ -1179,6 +1198,9 @@
         TextEditLine:
             text: 'clues'
             id: clues
+        TextEditLine:
+            text: 'Victory'
+            id: victory
     TextEditArea:
         text: 'text'
         id: text
@@ -1258,6 +1280,9 @@
         TextEditLine:
             text: 'horror'
             id: horror
+        TextEditLine:
+            text: 'Victory'
+            id: victory
     TextEditArea:
         text: 'text'
         id: text
@@ -1287,6 +1312,9 @@
         TextEditLine:
             text: 'traits'
             id: traits
+        TextEditLine:
+            text: 'Victory'
+            id: victory
     TextEditArea:
         text: 'text'
         id: text

@@ -567,6 +567,7 @@ class LocationEditor(FaceEditor):
             CardField(self.ids.flavor_text.input, 'flavor_text'),
             CardField(self.ids.shroud.input, 'shroud'),
             CardField(self.ids.clues.input, 'clues'),
+            CardField(self.ids.victory.input, 'victory'),
             CardField(self.ids.connection.input, 'connection'),
             CardField(self.ids.connections.input, 'connections', list_converter, list_deconverter),
             *illustration_fields(self)
@@ -601,7 +602,8 @@ class TreacheryEditor(FaceEditor):
             *base_fields(self),
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
-            *illustration_fields(self)
+            CardField(self.ids.victory.input, 'victory'),
+            *illustration_fields(self),
         ]
 
         # Bind each field
@@ -624,6 +626,7 @@ class EnemyEditor(FaceEditor):
             CardField(self.ids.damage.input, 'damage'),
             CardField(self.ids.horror.input, 'horror'),
 
+            CardField(self.ids.victory.input, 'victory'),
             *illustration_fields(self)
         ]
 

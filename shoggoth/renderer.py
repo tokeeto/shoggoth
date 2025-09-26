@@ -91,7 +91,7 @@ class CardRenderer:
 
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
-        image = self.render_card_side(card, card.front, size=1)
+        image = self.render_card_side(card, card.front)
         image = image.resize((int(image.width*.5), int(image.height*.5)))
         buffer = BytesIO()
         image.save(buffer, format='jpeg', quality=50)
@@ -598,7 +598,7 @@ class CardRenderer:
             region = Region(side.get(f"class_symbol_{index+1}_region"))
 
             symbol = Image.open(symbol_path).convert("RGBA")
-            symbol = symbol.resize((symbol.width*2, symbol.height*2))
+            #symbol = symbol.resize((symbol.width, symbol.height))
             card_image.paste(symbol, (region.x, region.y), symbol)
 
     def render_chaos(self, card_image, side):

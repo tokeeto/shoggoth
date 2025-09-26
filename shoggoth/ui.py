@@ -19,7 +19,10 @@ import shoggoth
 from collections.abc import Callable
 
 
-about_text = """
+about_text = """[size=40]Shoggoth[/size]
+[b]Version 0.0.23[/b]
+[i](This text doesn't auto-update yet)[/i]
+
 Created by Toke Ivø.
 
 You can support the development of Shoggoth by [u][ref=contrib]contribution[/ref][/u], [u][ref=patreon]donation[/ref][/u], or [u][ref=tip]tips[/ref][/u].
