@@ -96,7 +96,7 @@ class RichTextRenderer:
             '<elder_sign>': 'E',
             '<fleur>': 'F',
             '<guardian>': 'G',
-            '<frost>': 'h',
+            '<frost>': 'H',
             '<seeker>': 'K',
             '<elder_thing>': 'L',
             '<mystic>': 'M',
