@@ -537,10 +537,6 @@ class CardRenderer:
             # Get clip region
             clip_region = Region(side['illustration_region'])
 
-            rotation = side.get('illustration_rotation', 0)
-            if rotation:
-                illustration = illustration.rotate(rotation)
-
             # Calculate scaling
             illustration_scale = float(side.get('illustration_scale', 0))
             if not illustration_scale:
@@ -553,6 +549,10 @@ class CardRenderer:
             new_width = int(illustration.width * illustration_scale)
             new_height = int(illustration.height * illustration_scale)
             illustration = self.get_resized_cached(illustration_path, (new_width, new_height))
+            
+            rotation = side.get('illustration_rotation', 0)
+            if rotation:
+                illustration = illustration.rotate(float(rotation))
 
             # Apply panning
             pan_x = side.get('illustration_pan_x', 0)
