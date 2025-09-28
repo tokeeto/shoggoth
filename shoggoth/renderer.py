@@ -254,10 +254,9 @@ class CardRenderer:
             'text1', 'text2', 'text3',
         ]:
             value = side.get(field)
-            if not value:
-                continue
-            region = Region(side[f'{field}_region'])
-            if region.is_attached:
+            region = Region(side.get(f'{field}_region', None))
+            
+            if region.is_attached or not region:
                 # this field is part of another block, and
                 # doesn't render on its own.
                 continue
@@ -283,6 +282,9 @@ class CardRenderer:
                         lines += '\n' + '☐'*slots + f' <b>{name}.</b> {text}'
                     value += lines
 
+            if not value:
+                continue
+
             # Replacements
             value = self.text_replacement(field, value, side)
 
@@ -293,11 +295,11 @@ class CardRenderer:
                     polygon = [(point[0]+self.CARD_BLEED/2, point[1]+self.CARD_BLEED/2) for point in polygon]
 
                 if font.get('rotation'):
-                    temp_image = Image.new('RGBA', (region.height, region.width), (255, 255, 255, 0))
+                    temp_image = Image.new('RGBA', region.size, (0, 0, 0, 0))
                     self.rich_text.render_text(
                         temp_image,
                         value,
-                        Region({'x': 0, 'y': 0, 'height': region.width, 'width': region.height}),
+                        Region({'x': -36, 'y': -36, 'height': region.height, 'width': region.width}),
                         font=font.get('font', 'regular'),
                         font_size=font.get('size', 20),
                         fill=font.get('color', '#231f20'),
@@ -306,8 +308,8 @@ class CardRenderer:
                         alignment=font.get('alignment', 'left'),
                         polygon=polygon,
                     )
-                    temp_image = temp_image.rotate(-90, expand=True)
-                    card_image.paste(temp_image, (region.x-10, region.y), temp_image)
+                    temp_image = temp_image.rotate(font.get('rotation'), expand=True)
+                    card_image.paste(temp_image, (region.x, region.y), temp_image)
                 else:
                     self.rich_text.render_text(
                         card_image,

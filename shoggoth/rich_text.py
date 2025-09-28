@@ -402,7 +402,6 @@ class RichTextRenderer:
 
         # Try rendering with progressively smaller font sizes until it fits
         current_size = font_size  # Start with default size
-        best_size = None
 
         # Create a temporary image with same size to test text fitting
         temp_image = Image.new('RGBA', image.size, (0, 0, 0, 0))
@@ -412,15 +411,17 @@ class RichTextRenderer:
         # Test each font size to find the largest that fits
         while current_size >= min_font_size:
             # Clear the temp image for each test
-            temp_image = Image.new('RGBA', image.size, (0, 0, 0, 0))
+            temp_image = Image.new('RGB', image.size, (0, 0, 0))
 
             # Try rendering at this size
             force = current_size == min_font_size
             success = self._render_with_font_size(temp_image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
 
+            # We finally draw directly to the target.
+            # The reason we don't use the temp image, is that
+            # each using paste() twice, creates antilization artifacts. 
             if success:
-                best_size = current_size
-                image.paste(temp_image, (0,0), temp_image)
+                self._render_with_font_size(image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
                 break
 
             current_size -= 1
