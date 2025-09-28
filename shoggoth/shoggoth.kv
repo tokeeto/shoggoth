@@ -590,11 +590,12 @@
         text: root.text
     TextInput:
         text: root.path
+        id: file_path
     Button:
         size_hint_x: None
-        width: 40
-        text: '📁'
-        on_press: root.path = ui.open_file()
+        width: '70dp'
+        text: 'Browse'
+        on_press: ui.browse_image(target=file_path)
 
 <NewEncounterPopup>:
     size_hint: .4,.4
@@ -639,8 +640,9 @@
 <NewCardPopup>:
     title: 'Add new card'
     name: name
+    error: error
     size_hint: .75, None
-    height: '230dp'
+    height: '250dp'
     on_open: name.focus = True
     selected_template: 'asset'
     selected_collection: None
@@ -660,6 +662,11 @@
                 TextInput:
                     id: name
                     on_text_validate: root.create()
+            Label:
+                id: error
+                text: ""
+                size_hint_y: None
+                height: '28dp'
             BoxLayout:
                 orientation: 'horizontal'
                 size_hint_y: None
