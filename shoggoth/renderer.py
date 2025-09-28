@@ -573,13 +573,15 @@ class CardRenderer:
     def render_level(self, card_image, side):
         """Render the card level"""
         # Get level
-        level = side.get('level')
+        level = side.get('level', None)
         region = Region(side.get('level_region'))
         if not region:
             return
 
         if level is None or level == '' or level == 'None':
             level_icon_path = self.overlays_path/f"no_level.png"
+            if side.get('no_level_overlay', None):
+                level_icon_path = self.overlays_path/f"{side.get('no_level_overlay')}.png"
             level_icon = Image.open(level_icon_path).convert("RGBA")
             card_image.paste(level_icon, (region.x-14, region.y-63), level_icon)
             return
