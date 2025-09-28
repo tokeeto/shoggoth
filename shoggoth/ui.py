@@ -76,8 +76,15 @@ def _save_project_file(target=None, title="expansion.json", name='save_project')
 
 
 def open_image(target=None, name='open_folder'):
+    initial_dir = Path.home
+    if files.get_last_path(name).exists():
+        initial_dir = files.get_last_path(name)
+    if target:
+        if Path(target.text).exists():
+            initial_dir = Path(target.text)
+
     path = filedialpy.openFile(
-        initial_dir=str(files.get_last_path(name)),
+        initial_dir=str(initial_dir),
         filter=["*.png *.jpg *.jpeg *.webp *.jxl", "*"],
     )
     if not path:
