@@ -53,6 +53,29 @@
             orientation: 'vertical'
             id: content_box
 
+<WeaknessTypeSelector>:
+    title: 'Select Variant'
+    size_hint_y: .8
+    size_hint_x: None
+    width: '300dp'
+    ScrollView:
+        BoxLayout:
+            height: self.minimum_height
+            size_hint_y: None
+            orientation: 'vertical'
+            Button:
+                text: 'Normal'
+                on_release: root.select('')
+            Button:
+                text: 'Investigator Weakness'
+                on_release: root.select('weakness')
+            Button:
+                text: 'Basic Weakness'
+                on_release: root.select('basic_weakness')
+            Button:
+                text: 'Encounter Weakness'
+                on_release: root.select('encounter_weakness')
+
 <TemplateSelector>:
     title: 'Select Template'
     size_hint_y: .8
@@ -68,62 +91,49 @@
                 height: '32dp'
                 text: 'Investigator'
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'investigator'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'asset'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'event'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'skill'
                 on_release: root.select(self.text)
             Label:
-                size_hint_y: None
-                height: '32dp'
+                text: 'Weakness'
+            Button:
+                text: 'Enemy weakness'
+                on_release: root.select('enemy_weakness')
+            Button:
+                text: 'Treachery weakness'
+                on_release: root.select('treachery_weakness')
+            Button:
+                text: 'skill'
+                on_release: root.select(self.text)
+            Label:
                 text: 'Story'
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'story'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'treachery'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'enemy'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'location'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'act'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'agenda'
                 on_release: root.select(self.text)
             Button:
-                size_hint_y: None
-                height: '32dp'
                 text: 'scenario'
                 on_release: root.select(self.text)
 
@@ -1262,6 +1272,12 @@
     TextEditLine:
         text: 'subtitle'
         id: subtitle
+    TextEditLine:
+        text: 'Class'
+        id: classes
+        Button:
+            text: 'Variants'
+            on_release: ui.WeaknessTypeSelector(callback=ui.set_target(classes.input)).open()
 
     GridLayout:
         cols: 2
@@ -1309,6 +1325,12 @@
     TextEditLine:
         text: 'subtitle'
         id: subtitle
+    TextEditLine:
+        text: 'Class'
+        id: classes
+        Button:
+            text: 'Variants'
+            on_release: ui.WeaknessTypeSelector(callback=ui.set_target(classes.input)).open()
 
     GridLayout:
         cols: 2

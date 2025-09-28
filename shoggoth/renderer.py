@@ -49,6 +49,9 @@ class Region:
 
     def __bool__(self):
         return self.width > 0 and self.height > 0 or self.is_attached
+        
+    def __repr__(self):
+        return f'<Region pos({self.x},{self.x}) size({self.width},{self.height})>'
 
 
 class CardRenderer:
@@ -446,23 +449,32 @@ class CardRenderer:
 
     def render_encounter_icon(self, card_image, side):
         """Render the encounter icon """
-        if not side.card.encounter:
+        if not side.card.encounter and not side.get('encounter_icon', None):
             return
 
-        region = Region(side.get('encounter_portrait_clip_region'))
+        region = Region(side.get('encounter_icon_region'))
         if not region:
-            raise Exception("Encounter icon region not defined")
+            return
 
         overlay = side.get('encounter_overlay')
         if overlay:
+            if not Path(overlay).is_file():
+                overlay = overlay_dir / overlay
             overlay_image = Image.open(overlay).convert("RGBA")
-            overlay_region = side.get('encounter_overlay_region')
-            overlay_image = overlay_image.resize((overlay_region.width, overlay_region.height))
-            card_image.paste(overlay_image, (overlay_region.x, overlay_region.y), overlay_image)
+            overlay_region = Region(side.get('encounter_overlay_region'))
+            overlay_image = overlay_image.resize(overlay_region.size)
+            card_image.paste(overlay_image, overlay_region.pos, overlay_image)
 
-        icon = Image.open(side.card.encounter.icon).convert("RGBA")
+        icon_path = side.get('encounter_icon', None)
+        if side.card.encounter and not icon_path:
+            icon_path = side.card.encounter.icon
+            
+        if not Path(icon_path).is_file():
+            icon_path = icon_dir / icon_path
+            
+        icon = Image.open(icon_path).convert("RGBA")
         icon = icon.resize((region.width, region.height))
-        card_image.paste(icon, (region.x, region.y), icon)
+        card_image.paste(icon, region.pos, icon)
 
     def render_slots(self, card_image, side):
         """Render the slot icons """

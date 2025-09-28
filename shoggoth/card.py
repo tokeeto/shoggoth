@@ -211,6 +211,8 @@ class TEMPLATES:
             'act': cls.ACT(),
             'agenda': cls.AGENDA(),
             'scenario': cls.SCENARIO(),
+            'enemy_weakness': cls.ENEMY_WEAKNESS(),
+            'treachery_weakness': cls.TREACHERY_WEAKNESS(),
         }.get(name, cls.BASE())
 
     @classmethod
@@ -241,6 +243,13 @@ class TEMPLATES:
         card['amount'] = 1
         card['front']['type'] = 'investigator'
         card['back']['type'] = 'investigator_back'
+        card['back']['entries'] = [
+            ["<b>Deck Size:</b>", "30"],
+            ["<b>Secondary Class Choice:</b>", ""],
+            ["<b>Deckbuilding Options:</b>", ""],
+            ["<b>Deckbuilding Requirements</b> (do not count toward deck size):",""],
+            ["<b>Deckbuilding Restrictions:</b>", ""],
+        ]
         return card
 
     @classmethod
@@ -304,7 +313,9 @@ class TEMPLATES:
         card = cls.BASE()
         card['amount'] = 1
         card['front']['type'] = 'chaos'
-        card['back']['type'] = 'chaos_back'
+        card['front']['difficulty'] = 'Easy/Standard'
+        card['back']['type'] = 'chaos'
+        card['back']['difficulty'] = 'Hard/Expert'
         return card
 
     @classmethod
@@ -313,4 +324,20 @@ class TEMPLATES:
         card['amount'] = 1
         card['front']['type'] = 'story'
         card['back']['type'] = 'story'
+        return card
+
+    @classmethod
+    def ENEMY_WEAKNESS(cls):
+        card = cls.ENEMY()
+        card['amount'] = 1
+        card['front']['type'] = 'weakness_enemy'
+        card['back']['type'] = 'player'
+        return card
+    
+    @classmethod
+    def TREACHERY_WEAKNESS(cls):
+        card = cls.TREACHERY()
+        card['amount'] = 1
+        card['front']['type'] = 'weakness_treachery'
+        card['back']['type'] = 'player'
         return card

@@ -48,28 +48,6 @@ class NewCardPopup(Popup):
         self.target = value
         self.ids.set_text.text = value.name if value else 'Player card'
 
-    def create_investigator_set(self):
-        """ Creates a few cards usually needed for an investigator """
-        pass
-
-    def create_scenario(self):
-        """ Creates an encounter set
-            including acts, agendas, and other
-            placeholder cards.
-        """
-        pass
-
-    def create_campaign(self):
-        """ Creates 8 placeholder scenarios. """
-        pass
-
-    def create_player_expansion(self):
-        """ Creates a set of placeholder cards
-            aligning with the usual distribution of cards
-            in an investigator expansion.
-        """
-        pass
-
 
 class NewEncounterPopup(Popup):
     """Popup for creating new Encounter Set"""
@@ -602,6 +580,7 @@ class TreacheryEditor(FaceEditor):
             *base_fields(self),
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
+            CardField(self.ids.classes.input, 'classes', list_converter, list_deconverter),
             CardField(self.ids.victory.input, 'victory'),
             *illustration_fields(self),
         ]
@@ -618,6 +597,7 @@ class EnemyEditor(FaceEditor):
             *base_fields(self),
             CardField(self.ids.text.input, 'text'),
             CardField(self.ids.flavor_text.input, 'flavor_text'),
+            CardField(self.ids.classes.input, 'classes', list_converter, list_deconverter),
 
             CardField(self.ids.attack.input, 'attack'),
             CardField(self.ids.health.input, 'health'),
@@ -633,6 +613,7 @@ class EnemyEditor(FaceEditor):
         # Bind each field
         for field in self.fields:
             field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
 
 
 class ActEditor(FaceEditor):
@@ -781,7 +762,6 @@ MAPPING = {
     'location': LocationEditor,
     'location_back': LocationBackEditor,
     'treachery': TreacheryEditor,
-    'weakness_treachery': TreacheryEditor,
     'enemy': EnemyEditor,
     'act': ActEditor,
     'act_back': ActBackEditor,

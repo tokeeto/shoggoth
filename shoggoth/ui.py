@@ -55,6 +55,12 @@ class Zoom(ScatterLayout):
                 return True
         return False
 
+def set_target(target):
+    """ Convinience method for setting fields """
+    def method(value):
+        target.text = value
+    return method
+
 
 def _save_project_file(target=None, title="expansion.json", name='save_project'):
     """ Returns a file location """
@@ -79,7 +85,7 @@ def open_image(target=None, name='open_folder'):
     initial_dir = Path.home
     if files.get_last_path(name).exists():
         initial_dir = files.get_last_path(name)
-    if target:
+    if target and target.text:
         if Path(target.text).exists():
             initial_dir = Path(target.text)
 
@@ -192,6 +198,8 @@ class ValueSelectPopup(Popup):
 class TemplateSelector(ValueSelectPopup):
     pass
 
+class WeaknessTypeSelector(ValueSelectPopup):
+    pass
 
 class SetSelector(ValueSelectPopup):
     def populate(self):
