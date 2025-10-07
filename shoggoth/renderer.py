@@ -639,20 +639,23 @@ class CardRenderer:
 
             for token_index, token in enumerate(tokens):
                 try:
-                    token_image = Image.open( overlay_dir / f"chaos_{token}.png")
+                    token_image = Image.open(overlay_dir / f"chaos_{token}.png")
                 except:
                     continue
-                token_image = token_image.resize((
-                    int((region.width/4)/len(tokens)),
-                    int((region.width/4)/len(tokens))
-                ))
+
+                size = min(
+                    region.height/5.1,
+                    (region.width/3)/len(tokens)
+                )
+
+                token_image = token_image.resize((int(size), int(size)))
                 x = int(region.x + token_image.width*token_index)
-                card_image.paste(token_image, (x,y), token_image)
+                card_image.paste(token_image, (x, y), token_image)
 
             self.rich_text.render_text(
                 card_image,
                 entry['text'],
-                Region({'x': (region.x+region.width//3), 'y': y, 'height': region.height//len(entries), 'width': (2*region.width)//3}),
+                Region({'x': (region.x+region.width//3)-32, 'y': y-32, 'height': region.height//len(entries), 'width': (2*region.width)//3}),
                 font=font.get('font', 'regular'),
                 font_size=font.get('size', 32),
                 fill=font.get('color', '#231f20'),
