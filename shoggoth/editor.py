@@ -67,6 +67,16 @@ class NewEncounterPopup(Popup):
             self.error.text = 'You must choose a name for the encounter set.'
 
 
+class GuideEditor(BoxLayout):
+    """ Widget for editing campaign guides """
+    guide = ObjectProperty()
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from pygments.lexers import html
+        self.ids.code_input.lexer = html.HtmlLexer()
+    
+
 class ProjectEditor(BoxLayout):
     """Widget for editing card data"""
     project = ObjectProperty()

@@ -403,30 +403,31 @@ class RichTextRenderer:
         # Try rendering with progressively smaller font sizes until it fits
         current_size = font_size  # Start with default size
 
-        # Create a temporary image with same size to test text fitting
-        temp_image = Image.new('RGBA', image.size, (0, 0, 0, 0))
-
         if not font:
             font = 'regular'
+        
         # Test each font size to find the largest that fits
         while current_size >= min_font_size:
-            # Clear the temp image for each test
-            temp_image = Image.new('RGB', image.size, (0, 0, 0))
-
             # Try rendering at this size
             force = current_size == min_font_size
-            success = self._render_with_font_size(temp_image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
+            success, percentage = self._render_with_font_size(image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
 
             # We finally draw directly to the target.
-            # The reason we don't use the temp image, is that
-            # each using paste() twice, creates antilization artifacts. 
             if success:
-                self._render_with_font_size(image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
+                self._render_with_font_size(image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment, dont_draw=False)
                 break
 
+            # If a lot of the text is left, we skip a few font sizes down.
             current_size -= 1
+            if percentage < .8:
+                current_size -= 1
+            if percentage < .5:
+                current_size -= 1
+            if percentage < .3:
+                current_size -= 1
+               
 
-    def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20', alignment='left'):
+    def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20', alignment='left', dont_draw=True):
         """
         Attempt to render text at the specified font size.
         Returns True if rendering succeeded, False if text doesn't fit.
@@ -546,6 +547,8 @@ class RichTextRenderer:
 
         def render_line(line, y_pos, run_on_line=True, indent=0):
             """Render a line of tokens with proper alignment"""
+            if dont_draw:
+                return
             x_pos = get_line_start_x(line, y_pos)
             x_pos += indent
 
@@ -646,7 +649,7 @@ class RichTextRenderer:
                 # Check if we've exceeded the region height
                 if y + line_height > region.y + max_height:
                     if not force:
-                        return False  # Text doesn't fit
+                        return False, i/len(tokens)  # Text doesn't fit
                     will_overflow = True
 
             elif token['type'] in ['font_icon', 'image_icon']:
@@ -678,7 +681,7 @@ class RichTextRenderer:
                         # Check if we've exceeded the region height
                         if y + line_height > region.y + max_height:
                             if not force:
-                                return False  # Text doesn't fit
+                                return False, i/len(tokens)  # Text doesn't fit
                             will_overflow = True
 
                 # Add icon to current line
@@ -713,7 +716,7 @@ class RichTextRenderer:
                     # Check if we've exceeded the region height
                     if y + line_height > region.y + max_height:
                         if not force:
-                            return False  # Text doesn't fit
+                            return False, i/len(tokens)  # Text doesn't fit
                         will_overflow = True
 
                     # Start new line with this token
@@ -738,7 +741,7 @@ class RichTextRenderer:
 
             # Check if we ran out of vertical space
             if y + line_height > region.y + max_height and not force:
-                return False
+                return False, 1
 
         # If we get here and aren't forcing, the text fit successfully
-        return not will_overflow or force
+        return not will_overflow or force, 1

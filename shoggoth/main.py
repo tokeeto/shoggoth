@@ -7,10 +7,12 @@ from time import time
 
 from kivy.config import Config
 
-Config.set('input', 'mouse', 'mouse,disable_multitouch')
-Config.set('kivy', 'log_enable', '0')
-Config.set('graphics', 'width', '1600')
-Config.set('graphics', 'height', '900')
+if not Config.get('graphics', 'width'):
+    Config.set('input', 'mouse', 'mouse,disable_multitouch')
+    Config.set('kivy', 'log_enable', '0')
+    Config.set('graphics', 'width', '800')
+    Config.set('graphics', 'height', '600')
+    Config.write()
 
 from kivy.app import App  # noqa: E402
 from kivy.uix.boxlayout import BoxLayout    # noqa: E402
@@ -47,12 +49,28 @@ class ShoggothRoot(FloatLayout):
     def __init__(self, **kwargs):
         super(ShoggothRoot, self).__init__(**kwargs)
         Window.bind(on_key_down=self.on_keyboard)
+        Window.bind(on_resize=self.on_resize)
+        Window.bind(on_maximize=self.on_maximize)
+        Window.bind(on_restore=self.on_restore)
         bg_file = asset_dir/'parchment2.png'
         try:
             self.bg_path = str(bg_file)
         except Exception as e:
             print(f"Error loading background image: {e}")
         ExceptionManager.add_handler(Wing())
+
+    def on_maximize(self, window):
+        Config.set('graphics', 'maximized', True)
+        Config.write()
+
+    def on_restore(self, window):
+        Config.set('graphics', 'maximized', False)
+        Config.write()
+
+    def on_resize(self, window, width, height):
+        Config.set('graphics', 'width', width)
+        Config.set('graphics', 'height', height)
+        Config.write()
 
     def on_keyboard(self, instance, keyboard, keycode, text, modifiers):
         # Handle keyboard shortcuts

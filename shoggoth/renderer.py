@@ -468,13 +468,14 @@ class CardRenderer:
         icon_path = side.get('encounter_icon', None)
         if side.card.encounter and not icon_path:
             icon_path = side.card.encounter.icon
-            
+
         if not Path(icon_path).is_file():
             icon_path = icon_dir / icon_path
-            
+
         icon = Image.open(icon_path).convert("RGBA")
-        icon = icon.resize((region.width, region.height))
-        card_image.paste(icon, region.pos, icon)
+        scale = min(region.width/icon.width, region.height/icon.height)
+        icon = icon.resize((int(icon.width*scale), int(icon.height*scale)))
+        card_image.paste(icon, (region.x + (region.width-icon.width)//2, region.y + (region.height-icon.height)//2), icon)
 
     def render_slots(self, card_image, side):
         """Render the slot icons """

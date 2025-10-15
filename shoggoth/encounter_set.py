@@ -21,9 +21,12 @@ class EncounterSet:
 
     @property
     def cards(self):
+        result = []
         for c in self.expansion.data['cards']:
             if c.get('encounter_set') == self.id:
-                yield Card(c, encounter=self, expansion=self.expansion)
+                result.append(Card(c, encounter=self, expansion=self.expansion))
+        result.sort(key=lambda c: c.name)
+        return result
 
     @staticmethod
     def is_valid(data):
