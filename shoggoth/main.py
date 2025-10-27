@@ -247,6 +247,8 @@ class CardPreview(BoxLayout):
     def set_card_images(self, front_image, back_image):
         self.ids.front_preview.texture = front_image
         self.ids.back_preview.texture = back_image
+        self.ids.front_preview.texture.mag_filter = 'nearest'
+        self.ids.back_preview.texture.mag_filter = 'nearest'
 
     def touch_scatter(self, touch, target):
         if touch.is_mouse_scrolling:
