@@ -1,9 +1,12 @@
 import json
 from uuid import uuid4
+import shutil
+from pathlib import Path
 
 import shoggoth
 from shoggoth.card import TEMPLATES, Card
 from shoggoth.encounter_set import EncounterSet
+from shoggoth.files import asset_dir
 
 type_order = {
     "scenario": 0,
@@ -15,7 +18,7 @@ type_order = {
     "key": 6,
     "treachery": 7,
     "enemy": 8,
-    #"story": 9,
+    # "story": 9,
     "investigator": 10,
     "other": 11
 }
@@ -29,6 +32,7 @@ class_order = {
     "neutral": 5,
     "multi": 6  # Multi-class cards are sorted last
 }
+
 
 def sort_cards(cards):
     cards.sort(key=lambda card: (
@@ -52,6 +56,7 @@ class Project:
         if 'id' not in self.data:
             self.data['id'] = str(uuid4())
         self.id = data['id']
+        self.dirty = False
 
     @property
     def icon(self):
@@ -59,7 +64,12 @@ class Project:
 
     @icon.setter
     def icon(self, value):
+        self.dirty = value != self.data['icon']
         self.data['icon'] = value
+
+    @property
+    def folder(self):
+        return Path(self.file_path).parent
 
     def __eq__(self, other):
         return self.data == other.data
@@ -121,6 +131,7 @@ class Project:
             self.data['cards'].append(card.data)
         else:
             self.data['cards'].append(card)
+        self.dirty = True
 
     def get_all_cards(self):
         return self.cards
@@ -158,6 +169,7 @@ class Project:
         }
         self.data['encounter_sets'].append(encounter_data)
         shoggoth.app.refresh_tree()
+        self.dirty = True
         return EncounterSet(encounter_data, expansion=self)
 
     def remove_encounter_set(self, index):
@@ -167,6 +179,7 @@ class Project:
         """Save data to file"""
         with open(self.file_path, 'w') as f:
             json.dump(self.data, f, indent=4)
+        self.dirty = False
 
     @staticmethod
     def new(name, code, icon):
@@ -174,10 +187,14 @@ class Project:
         return {
             'name': name,
             'code': code,
-            "icon": icon,
+            'icon': icon,
             'encounter_sets': [],
             'cards': [],
         }
+
+    def add_guide(self):
+        default_guide = files.asset_dir / 'guide_template.html'
+        shutil.copyfile(default_guide, self.folder / 'guide.html')
 
     def add_investigator_set(self, name):
         """ Creates a few cards usually needed for an investigator """

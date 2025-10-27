@@ -12,6 +12,7 @@ class Face:
         self.data = data
         self.card = card
         self._fallback = None
+        self.dirty = False
 
     def __eq__(self, other):
         return self.data == other.data
@@ -66,6 +67,7 @@ class Face:
         if key in ('classes', 'type', 'level'):
             shoggoth.app.current_project.assign_card_numbers()
             shoggoth.app.refresh_tree()
+        self.dirty = True
 
     def get_class(self):
         cls = self.data.get('classes', ['guardian'])

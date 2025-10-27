@@ -70,12 +70,12 @@ class NewEncounterPopup(Popup):
 class GuideEditor(BoxLayout):
     """ Widget for editing campaign guides """
     guide = ObjectProperty()
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from pygments.lexers import html
         self.ids.code_input.lexer = html.HtmlLexer()
-    
+
 
 class ProjectEditor(BoxLayout):
     """Widget for editing card data"""
@@ -90,7 +90,7 @@ class ProjectEditor(BoxLayout):
             for index, card in enumerate(self.project.get_all_cards()):
                 shoggoth.app.render_thumbnail(card, self.ids.thumbnail_grid)
         except Exception as e:
-           print("failure in on_project", self.project, e)
+            print("failure in on_project", self.project, e)
 
     def callback(self, *args, **kwargs):
         print(args, kwargs)

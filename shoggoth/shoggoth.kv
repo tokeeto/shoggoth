@@ -400,6 +400,10 @@
     color_selected: 1,1,1,.7
     color: [0,0,0,1] if self.is_selected else [.85,.9,.85,1]
 
+    Label:
+        text: '*' if root.element and root.element.dirty else ''
+
+
 <TopMenu@AppMenu>:
     top: root.parent.height
     cancel_handler_widget: root.parent
@@ -445,6 +449,9 @@
         text: 'Project: ' + (app.current_project.get('name') if app.current_project else 'None')
         disabled: not app.current_project
         ContextMenu:
+            ContextMenuTextItem:
+                text: 'Add Guide'
+                on_release: app.current_project.add_guide()
             ContextMenuTextItem:
                 text: 'Add Scenario template'
                 on_release: app.current_project.create_scenario('Placeholder')

@@ -76,7 +76,10 @@ class ShoggothRoot(FloatLayout):
         # Handle keyboard shortcuts
         if 'ctrl' in modifiers:
             if text == 's':
-                f = shoggoth.app.save_changes
+                if 'shift' in modifiers:
+                    f = shoggoth.app.save_changes
+                else:
+                    f = shogget.app.save_current
                 Clock.schedule_once(lambda x: f())
                 return True
             if text == 'n':
@@ -392,7 +395,15 @@ class ShoggothApp(App):
         self.update_card_preview()
 
     def save_changes(self):
+        """ Saves the entire project.
+        """
         self.current_project.save()
+
+    def save_current(self):
+        """ Saves the currently selected item
+            and no sub items.
+        """
+        self.root.ids.file_browser.selected_item.save()
 
     def show_project(self, project):
         self.root.ids.editor_container.clear_widgets()
