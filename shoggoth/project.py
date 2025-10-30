@@ -80,6 +80,11 @@ class Project:
     def get(self, key, default=None):
         return self.data.get(key, default)
 
+    def get_card(self, id):
+        for entry in self.data.get('cards', []):
+            if 'id' in entry and entry['id'] == id:
+                return Card(entry, expansion=self)
+
     @property
     def name(self):
         return self.data['name']
@@ -176,6 +181,15 @@ class Project:
         self.data['encounter_sets'].pop(index)
 
     def save(self):
+        """Save data to file"""
+        with open(self.file_path, 'r') as f:
+            orig_data = json.load(f)
+
+        with open(self.file_path, 'w') as f:
+            json.dump(self.data, f, indent=4)
+        self.dirty = False
+
+    def save_all(self):
         """Save data to file"""
         with open(self.file_path, 'w') as f:
             json.dump(self.data, f, indent=4)

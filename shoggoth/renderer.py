@@ -1,14 +1,10 @@
 from PIL import Image, ImageOps
-import pillow_jxl
-from shoggoth import pillow_svg
-from kivy.uix.image import CoreImage
 import os
 from io import BytesIO
 from shoggoth.rich_text import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir
 from pathlib import Path
 
-from kivy.logger import Logger
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('pillow').setLevel(logging.ERROR)
@@ -139,6 +135,8 @@ class CardRenderer:
 
     def pil_to_texture(self, pil_image):
         """Convert PIL image to Kivy texture"""
+        from kivy.uix.image import CoreImage
+
         buffer = BytesIO()
         pil_image.save(buffer, format='jpeg', quality=50)
         buffer.seek(0)
@@ -237,7 +235,7 @@ class CardRenderer:
             try:
                 func(card_image, side)
             except Exception as e:
-                Logger.warning(f'Failed in {func}: {e}')
+                logging.debug(f'Failed in {func}: {e}')
 
         if not include_bleed:
             card_image = card_image.crop((

@@ -14,12 +14,18 @@ def version_is_up_to_date() -> bool:
             return False
     return True
 
+
 def run():
     os.environ["KIVY_NO_ARGS"] = "1"
     os.environ["KIVY_IMAGE"] = "sdl2, pil"
 
     parser = argparse.ArgumentParser(description='Shoggoth Card Creator')
     parser.add_argument('-v', '--view', metavar='FILE', help='Open in viewer mode with specified file')
+    parser.add_argument('-r', '--render', metavar='FILE', help='Render a specific file directly')
+    parser.add_argument('-id', '--card_id', metavar='STRING', help='Only render the card with the given ID.')
+    parser.add_argument('-o', '--out', metavar='FOLDER', help='Overwrite the default output folder for --render option.')
+    parser.add_argument('-b', '--bleed', metavar='BOOL', help='--render mode option. If set, render will output with bleed.')
+    parser.add_argument('-f', '--format', metavar='STRING', help='--render mode option. Should be one of jpeg, png or webp. Other formats might be supported, as per PIL documentation.', default='jpeg')
     args = parser.parse_args()
 
     # ensure directories exist
@@ -37,10 +43,28 @@ def run():
     else:
         print("Asset pack up to date.")
 
+    if args.view and args.render:
+        print('--view and --render are not compatible options.')
+
     if args.view:
         # Start in viewer mode
         from shoggoth.viewer import ViewerApp
         app = ViewerApp(args.view)
+    elif args.render:
+        from shoggoth.renderer import CardRenderer
+        from shoggoth.project import Project
+
+        p = Project.load(args.render)
+        r = CardRenderer()
+        if args.card_id:
+            cards = [p.get_card(args.card_id)]
+        else:
+            cards = p.get_all_cards()
+
+        target_folder = args.out or p.folder
+        for card in cards:
+            r.export_card_images(card, target_folder, False, bleed=bool(args.bleed), format=args.format, quality=100)
+        return
     else:
         # Start in normal mode
         from shoggoth.main import ShoggothApp
@@ -50,5 +74,5 @@ def run():
 
 if __name__ == '__main__':
     run()
+    print('tool done running')
 
-print('tool done running')

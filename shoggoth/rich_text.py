@@ -1,4 +1,3 @@
-from time import time
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
 import os
 import numpy as np
@@ -405,7 +404,7 @@ class RichTextRenderer:
 
         if not font:
             font = 'regular'
-        
+
         # Test each font size to find the largest that fits
         while current_size >= min_font_size:
             # Try rendering at this size
