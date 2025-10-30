@@ -11,6 +11,7 @@ class EncounterSet:
             self.data['id'] = str(uuid4())
         self.get = self.data.get
         self.__getitem__ = self.data.__getitem__
+        self.dirty = False
 
     def __eq__(self, other):
         return self.id == other.id
@@ -67,3 +68,4 @@ class EncounterSet:
 
     def set(self, key, value):
         self.data[key] = value
+        self.dirty = True

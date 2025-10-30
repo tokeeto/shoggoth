@@ -446,6 +446,9 @@
         disabled: not app.current_project
         ContextMenu:
             ContextMenuTextItem:
+                text: 'Add Guide'
+                on_release: app.current_project.add_guide()
+            ContextMenuTextItem:
                 text: 'Add Scenario template'
                 on_release: app.current_project.create_scenario('Placeholder')
             ContextMenuTextItem:
