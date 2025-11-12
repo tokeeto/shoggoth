@@ -7,6 +7,7 @@ from shoggoth.card import Card, TEMPLATES
 import threading
 from collections.abc import Callable
 import shoggoth
+from kivy.uix.image import CoreImage    # noqa: E402
 
 
 class BoxContainer(GridLayout):
@@ -75,6 +76,18 @@ class GuideEditor(BoxLayout):
         super().__init__(*args, **kwargs)
         from pygments.lexers import html
         self.ids.code_input.lexer = html.HtmlLexer()
+        self.load_html()
+
+    def load_html(self):
+        self.ids.code_input.text = self.guide.get_html()
+
+    def get_page(self):
+        img = self.guide.get_page(1)
+        texture = CoreImage(img, ext='jpeg').texture
+        shoggoth.app.root.ids.card_preview.set_card_images(texture, None)
+ 
+    def render(self, *args):
+        self.guide.render_to_file()
 
 
 class ProjectEditor(BoxLayout):
@@ -170,8 +183,8 @@ class CardEditor(BoxLayout):
             CardField(self.ids.name.input, 'name'),
             CardField(self.ids.copyright.input, 'copyright'),
             CardField(self.ids.amount.input, 'amount', int),
-            CardField(self.ids.collection_number.input, 'encounter_number'),
-            CardField(self.ids.encounter_number.input, 'expansion_number'),
+            CardField(self.ids.collection_number.input, 'expansion_number'),
+            CardField(self.ids.encounter_number.input, 'encounter_number'),
             CardField(self.ids.collection.input, 'investigator'),
             CardField(self.ids.card_id.input, 'id'),
         ]

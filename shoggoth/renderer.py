@@ -75,7 +75,15 @@ class CardRenderer:
 
     def get_cached(self, path) -> Image.Image:
         if path not in self.cache:
-            image = Image.open(path).convert('RGBA')
+            if str(path).endswith('.svg'):
+                from cairosvg import svg2png
+                with open(path,'r') as file:
+                    buffer = BytesIO()
+                    svg2png(bytestring=file.read(), dpi=300, write_to=buffer)
+                    buffer.seek(0)
+                image = Image.open(buffer).convert('RGBA')
+            else:
+                image = Image.open(path).convert('RGBA')
             self.cache[path] = image
         return self.cache[path]
 
@@ -128,10 +136,10 @@ class CardRenderer:
         lossless = quality == 100
         if include_backs or card.front['type'] not in ('player', 'encounter'):
             front_image = self.render_card_side(card, card.front, include_bleed=bleed)
-            front_image.save(os.path.join(folder, card.name + f'_front.{format}'), quality=quality, lossless=lossless)
+            front_image.save(os.path.join(folder, card.name + f'_front.{format}'), quality=quality, lossless=lossless, compress_level=1)
         if include_backs or card.back['type'] not in ('player', 'encounter'):
             back_image  = self.render_card_side(card, card.back, include_bleed=bleed)
-            back_image.save(os.path.join(folder, card.name + f'_back.{format}'), quality=quality, lossless=lossless)
+            back_image.save(os.path.join(folder, card.name + f'_back.{format}'), quality=quality, lossless=lossless, compress_level=1)
 
     def pil_to_texture(self, pil_image):
         """Convert PIL image to Kivy texture"""

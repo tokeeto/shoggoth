@@ -8,7 +8,7 @@ from shoggoth.files import defaults_dir
 
 
 class Face:
-    def __init__(self, data, card=None):
+    def __init__(self, data, card):
         self.data = data
         self.card = card
         self._fallback = None
@@ -22,8 +22,8 @@ class Face:
         if self._fallback is not None:
             return self._fallback
 
-        if Path(self.data['type']).is_file():
-            defaults_path = Path(self.data['type'])
+        if path := self.card.expansion.find_file(self.data['type']):
+            defaults_path = path
         else:
             defaults_file = f'{self.data["type"]}.json'
             defaults_path = defaults_dir / defaults_file

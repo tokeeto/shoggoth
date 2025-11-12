@@ -51,6 +51,8 @@ def run():
         from shoggoth.viewer import ViewerApp
         app = ViewerApp(args.view)
     elif args.render:
+        from time import time
+        t = time()
         from shoggoth.renderer import CardRenderer
         from shoggoth.project import Project
 
@@ -64,6 +66,7 @@ def run():
         target_folder = args.out or p.folder
         for card in cards:
             r.export_card_images(card, target_folder, False, bleed=bool(args.bleed), format=args.format, quality=100)
+        print(f'Took {time()-t} seconds.')
         return
     else:
         # Start in normal mode

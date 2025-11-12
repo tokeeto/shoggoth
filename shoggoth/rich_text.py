@@ -48,7 +48,9 @@ class RichTextRenderer:
             '<bi>': {'start': True, 'font': 'bolditalic'},
             '</bi>': {'start': False, 'font': 'bolditalic'},
             '<t>': {'start': True, 'font': 'bolditalic'},
+            '[[': {'start': True, 'font': 'bolditalic'},
             '</t>': {'start': False, 'font': 'bolditalic'},
+            ']]': {'start': False, 'font': 'bolditalic'},
             '<icon>': {'start': True, 'font': 'icon'},
             '</icon>': {'start': False, 'font': 'icon'},
             '<center>': {'start': True, 'align': 'center'},
@@ -59,6 +61,8 @@ class RichTextRenderer:
             '</right>': {'start': False, 'align': 'right'},
             '<story>': {'start': True, 'indent': 4 },
             '</story>': {'start': False, 'indent': 4 },
+            '<blockquote>': {'start': True, 'format': 'quote', 'block': True},
+            '</blockquote>': {'start': False, 'format': 'quote', 'block': True},
         }
 
         # Replacement tags - tags that render as different text when encountered
@@ -67,6 +71,8 @@ class RichTextRenderer:
             '<prey>': '<b>Prey –</b>',
             '<rev>': '<b>Revelation –</b>',
             '<spawn>': '<b>Spawn –</b>',
+            '<obj>': '<b>Objective –</b>',
+            '<objective>': '<b>Objective –</b>',
             '<quote>': '‘',
             '<dquote>': '“',
             '<quoteend>': '’',
@@ -106,32 +112,31 @@ class RichTextRenderer:
             '<survivor>': 'V',
 
             '<agility>': 'a',
+            '<agi>': 'a',
+            '[agility]': 'a',
             '<bullet>': 'b',
+            '<com>': 'c',
             '<combat>': 'c',
+            '[combat]': 'c',
             '<horror>': 'd',
             '<resolution>': 'e',
             '<free>': 'f',
+            '[fast]': 'f',
             '<damage>': 'h',
+            '<intellect>': 'i',
+            '[intellect]': 'i',
             '<int>': 'i',
             '<resource>': 'm',
+            '<act>': 'n',
             '<action>': 'n',
+            '[action]': 'n',
             '<open>': 'o',
             '<per>': 'p',
+            '[per_investigator]': 'p',
             '<reaction>': 'r',
             '<unique>': 'u',
             '<willpower>': 'w',
-        }
-
-        # Define image-based icon tags and their corresponding image paths
-        self.image_icon_tags = {
-            '<set core>': 'icons/AHLCG-CoreSet',
-            '<set dunwich>': 'icons/AHLCG-TheDunwichLegacy',
-            '<set carcosa>': 'icons/AHLCG-ThePathToCarcosa',
-            '<set forgotten>': 'icons/AHLCG-TheForgottenAge',
-            '<set circle>': 'icons/AHLCG-TheCircleUndone',
-            '<set dream>': 'icons/AHLCG-DreamEaters',
-            '<set innsmouth>': 'icons/AHLCG-TheInnsmouthConspiracy',
-            '<set scarlet>': 'icons/AHLCG-TheScarletKeys',
+            '[willpower]': 'w',
         }
 
         # Font configurations
@@ -258,35 +263,45 @@ class RichTextRenderer:
         while current_pos < len(text):
             # Check for formatting tags
             format_match = False
-            for tag, info in self.formatting_tags.items():
-                if text[current_pos:].startswith(tag):
-                    if 'font' in info:
-                        tokens.append({
-                            'type': 'format',
-                            'value': info['font'],
-                            'start': info['start']
-                        })
-                        current_pos += len(tag)
-                        format_match = True
-                        break
-                    elif 'align' in info:
-                        tokens.append({
-                            'type': 'align',
-                            'value': info['align'],
-                            'start': info['start']
-                        })
-                        current_pos += len(tag)
-                        format_match = True
-                        break
-                    elif 'indent' in info:
-                        tokens.append({
-                            'type': 'indent',
-                            'value': info['indent'],
-                            'start': info['start']
-                        })
-                        current_pos += len(tag)
-                        format_match = True
-                        break
+            if text[current_pos] in ('<', '[', ']'):
+                for tag, info in self.formatting_tags.items():
+                    if text[current_pos:].startswith(tag):
+                        if 'font' in info:
+                            tokens.append({
+                                'type': 'format',
+                                'value': info['font'],
+                                'start': info['start']
+                            })
+                            current_pos += len(tag)
+                            format_match = True
+                            break
+                        elif 'align' in info:
+                            tokens.append({
+                                'type': 'align',
+                                'value': info['align'],
+                                'start': info['start']
+                            })
+                            current_pos += len(tag)
+                            format_match = True
+                            break
+                        elif 'indent' in info:
+                            tokens.append({
+                                'type': 'indent',
+                                'value': info['indent'],
+                                'start': info['start']
+                            })
+                            current_pos += len(tag)
+                            format_match = True
+                            break
+                        elif 'format' in info:
+                            tokens.append({
+                                'type': 'story',
+                                'value': info['format'],
+                                'start': info['start']
+                            })
+                            current_pos += len(tag)
+                            format_match = True
+                            break
 
             if format_match:
                 continue
@@ -304,21 +319,6 @@ class RichTextRenderer:
                     break
 
             if font_icon_match:
-                continue
-
-            # Check for image-based icons
-            image_icon_match = False
-            for tag, icon_path in self.image_icon_tags.items():
-                if text[current_pos:].startswith(tag):
-                    tokens.append({
-                        'type': 'image_icon',
-                        'value': icon_path
-                    })
-                    current_pos += len(tag)
-                    image_icon_match = True
-                    break
-
-            if image_icon_match:
                 continue
 
             # image tag
@@ -358,7 +358,6 @@ class RichTextRenderer:
             all_tags = (
                 list(self.formatting_tags.keys()) +
                 list(self.font_icon_tags.keys()) +
-                list(self.image_icon_tags.keys()) +
                 [' ', '\n']
             )
 
@@ -448,6 +447,8 @@ class RichTextRenderer:
         current_indent = 0
         indent_current = False
         alignment_stack = []
+        quote = False
+        quote_last = False
 
         # Word wrapping data
         current_line = []
@@ -548,6 +549,16 @@ class RichTextRenderer:
             """Render a line of tokens with proper alignment"""
             if dont_draw:
                 return
+
+            if quote or quote_last:
+                indent = 20
+                if not quote:
+                    draw.line((x, y_pos, x, y_pos+font_size*.8), fill=fill)
+                    draw.line((x+5, y_pos, x+5, y_pos+font_size*.8), fill=fill)
+                else:
+                    draw.line((x, y_pos, x, y_pos+line_height), fill=fill)
+                    draw.line((x+5, y_pos, x+5, y_pos+line_height), fill=fill)
+
             x_pos = get_line_start_x(line, y_pos)
             x_pos += indent
 
@@ -614,6 +625,19 @@ class RichTextRenderer:
                 # Add format change to current line (it has no width impact)
                 current_line.append(token)
 
+            elif token['type'] == 'story':
+                # Whether this is the beginning or the end of the block
+                # a new line starts before/after this.
+                if token['start']:
+                    quote = True
+                    font_stack.append(current_font)  # Save current font
+                    current_font = 'italic'
+                else:
+                    # update quote stuff after render
+                    quote = False
+                    quote_last = True
+                    current_font = font_stack.pop()
+
             elif token['type'] == 'align':
                 token['width'] = 0
                 # Update current alignment
@@ -636,6 +660,7 @@ class RichTextRenderer:
                     render_line(current_line, y, indent=(current_indent if indent_current else 0))
                     current_indent = 0
                     indent_current = False
+                    quote_last = False
 
                 # Move to next line
                 y += line_height
@@ -668,6 +693,7 @@ class RichTextRenderer:
                     if current_line:
                         render_line(current_line, y, indent=(current_indent if indent_current else 0))
                         indent_current = current_indent > 0
+                        quote_last = False
 
                         # Move to next line
                         y += font_size
@@ -707,6 +733,7 @@ class RichTextRenderer:
                     # Render current line and move to next
                     render_line(current_line, y, indent=(current_indent if indent_current else 0))
                     indent_current = current_indent > 0
+                    quote_last = False
                     y += font_size
                     if polygon:
                         l,r = polygon_width_at_y(y, polygon)
@@ -737,6 +764,7 @@ class RichTextRenderer:
         # Render any remaining line
         if current_line:
             render_line(current_line, y, indent=(current_indent if indent_current else 0))
+            quote_last = False
 
             # Check if we ran out of vertical space
             if y + line_height > region.y + max_height and not force:
