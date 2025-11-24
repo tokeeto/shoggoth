@@ -26,7 +26,7 @@ from kivy.base import ExceptionHandler, ExceptionManager    # noqa: E402
 from kivy.logger import Logger, LOG_LEVELS    # noqa: E402
 from kivy.graphics.transformation import Matrix    # noqa: E402
 
-from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup  # noqa: E402
+from shoggoth.editor import CardEditor, EncounterEditor, ProjectEditor, NewCardPopup, GuideEditor  # noqa: E402
 from shoggoth.project import Project  # noqa: E402
 from shoggoth.files import defaults_dir, asset_dir, font_dir, tts_dir  # noqa: E402
 from shoggoth.renderer import CardRenderer  # noqa: E402
@@ -79,7 +79,7 @@ class ShoggothRoot(FloatLayout):
                 if 'shift' in modifiers:
                     f = shoggoth.app.save_changes
                 else:
-                    f = shogget.app.save_current
+                    f = shoggoth.app.save_current
                 Clock.schedule_once(lambda x: f())
                 return True
             if text == 'n':
@@ -132,6 +132,7 @@ class Wing(ExceptionHandler):
 class FileBrowser(BoxLayout):
     """File browser widget showing project files"""
     project = ObjectProperty()
+    selected_item = ObjectProperty(None)
     tree: TreeView
 
     def __init__(self, **kwargs):
@@ -146,6 +147,9 @@ class FileBrowser(BoxLayout):
             app.show_encounter(self.tree.selected_node.element)
         elif self.tree.selected_node.element_type == 'card':
             app.show_card(self.tree.selected_node.element)
+        elif self.tree.selected_node.element_type == 'guide':
+            app.show_guide(self.tree.selected_node.element)
+        self.selected_item = self.tree.selected_node.element
 
     def refresh(self, *args):
         opens = set()
@@ -218,6 +222,13 @@ class FileBrowser(BoxLayout):
             display_name = f'{card.name} ({card.front.get("level")})' if str(card.front.get('level', '0')) != '0' else card.name
             self.tree.add_node(TreeViewButton(text=display_name, element=card, element_type='card'), target_node)
 
+        if self.project.guides:
+            guide_node = self.tree.add_node(TreeViewButton(text='Guides', element=None, element_type=''), p_node)
+
+        for guide in self.project.guides:
+            self.tree.add_node(TreeViewButton(text=guide.name, element=guide, element_type='guide'), guide_node)
+
+
     # def on_tree_select(self, instance, node):
     #     if hasattr(node, 'full_path') and node.full_path.endswith('.json'):
     #         self.parent.parent.load_card(node.full_path)
@@ -244,11 +255,14 @@ class TreeViewButton(TreeViewLabel):
 
 class CardPreview(BoxLayout):
     """Widget for displaying card previews"""
+
     def set_card_images(self, front_image, back_image):
-        self.ids.front_preview.texture = front_image
-        self.ids.back_preview.texture = back_image
-        self.ids.front_preview.texture.mag_filter = 'nearest'
-        self.ids.back_preview.texture.mag_filter = 'nearest'
+        if front_image:
+            self.ids.front_preview.texture = front_image
+            self.ids.front_preview.texture.mag_filter = 'nearest'
+        if back_image:
+            self.ids.back_preview.texture = back_image
+            self.ids.back_preview.texture.mag_filter = 'nearest'
 
     def touch_scatter(self, touch, target):
         if touch.is_mouse_scrolling:
@@ -425,6 +439,16 @@ class ShoggothApp(App):
 
         self.root.ids.editor_container.add_widget(CardEditor(card=self.current_card))
         self.update_card_preview()
+
+    def show_guide(self, guide):
+        self.current_guide = guide
+        self.current_guide_id = guide.id
+        self.storage.put('session', project=self.current_project.file_path, last_id=guide.id)
+        self.root.ids.editor_container.clear_widgets()
+
+        self.root.ids.editor_container.add_widget(GuideEditor(guide=self.current_guide))
+        # self.update_card_preview()
+        # todo: change to guide preview
 
     def update_texture(self, texture, container, card):
         img = Thumbnail(card_id=card.id)

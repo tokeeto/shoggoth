@@ -7,6 +7,7 @@ import shoggoth
 from shoggoth.card import TEMPLATES, Card
 from shoggoth.encounter_set import EncounterSet
 from shoggoth.files import asset_dir
+from shoggoth.guide import Guide
 
 type_order = {
     "scenario": 0,
@@ -71,6 +72,11 @@ class Project:
     def folder(self):
         return Path(self.file_path).parent
 
+    def find_file(self, path):
+        if (self.folder / path).is_file():
+            return (self.folder / path).absolute()
+        return False
+
     def __eq__(self, other):
         return self.data == other.data
 
@@ -84,6 +90,13 @@ class Project:
         for entry in self.data.get('cards', []):
             if 'id' in entry and entry['id'] == id:
                 return Card(entry, expansion=self)
+
+    @property 
+    def guides(self):
+        result = []
+        for entry in self.data.get('guides', []):
+            result.append(Guide(entry['path'], entry['name'], entry['id'], self))
+        return result
 
     @property
     def name(self):
@@ -184,10 +197,28 @@ class Project:
         """Save data to file"""
         with open(self.file_path, 'r') as f:
             orig_data = json.load(f)
+        for key in self.data:
+            if key in ('cards', 'encounter_sets', 'guides'):
+                continue
+            orig_data[key] = self.data[key]
 
         with open(self.file_path, 'w') as f:
             json.dump(self.data, f, indent=4)
         self.dirty = False
+
+    def save_card(self, card):
+        print('saving card of project', card.id)
+        with open(self.file_path, 'r') as f:
+            orig_data = json.load(f)
+        index = None
+        for key, value in enumerate(orig_data['cards']):
+            if value['id'] == card.id:
+                index = key
+                break
+        if index:
+            orig_data['cards'][index] = card.data
+        with open(self.file_path, 'w') as f:
+            json.dump(orig_data, f, indent=4)
 
     def save_all(self):
         """Save data to file"""
@@ -207,8 +238,16 @@ class Project:
         }
 
     def add_guide(self):
-        default_guide = files.asset_dir / 'guide_template.html'
+        default_guide = asset_dir / 'guide_template.html'
         shutil.copyfile(default_guide, self.folder / 'guide.html')
+        if 'guides' not in self.data:
+            self.data['guides'] = []
+        self.data['guides'].append({
+            'path': str(self.folder / 'guide.html'),
+            'name': 'Guide',
+            'id': str(uuid4()),
+        })
+        shoggoth.app.refresh_tree()
 
     def add_investigator_set(self, name):
         """ Creates a few cards usually needed for an investigator """

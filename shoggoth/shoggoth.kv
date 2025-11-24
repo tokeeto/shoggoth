@@ -712,8 +712,25 @@
 
 <GuideEditor>:
     orientation: 'vertical'
-    CodeInput:
-        id: code_input
+    ScrollView:
+        CodeInput:
+            id: code_input
+            size_hint_y: None
+            height: self.minimum_height
+    BoxLayout:
+        orientation: 'horizontal'
+        size_hint_y: None
+        height: 32
+        Button:
+            text: 'Export'
+            on_release: root.export()
+        Button:
+            text: 'Show page'
+            on_release: root.get_page(int(page_count.text))
+        TextInput:
+            value: '1'
+            id: page_count
+            on_text: root.get_page(int(self.text)) if int(self.text) else root.get_page(0)
 
 <ProjectEditor>:
     orientation: 'vertical'

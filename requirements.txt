@@ -1,4 +1,0 @@
-pillow
-kivy
-numpy
-watchdog
