@@ -197,10 +197,28 @@ class Project:
         """Save data to file"""
         with open(self.file_path, 'r') as f:
             orig_data = json.load(f)
+        for key in self.data:
+            if key in ('cards', 'encounter_sets', 'guides'):
+                continue
+            orig_data[key] = self.data[key]
 
         with open(self.file_path, 'w') as f:
             json.dump(self.data, f, indent=4)
         self.dirty = False
+
+    def save_card(self, card):
+        print('saving card of project', card.id)
+        with open(self.file_path, 'r') as f:
+            orig_data = json.load(f)
+        index = None
+        for key, value in enumerate(orig_data['cards']):
+            if value['id'] == card.id:
+                index = key
+                break
+        if index:
+            orig_data['cards'][index] = card.data
+        with open(self.file_path, 'w') as f:
+            json.dump(orig_data, f, indent=4)
 
     def save_all(self):
         """Save data to file"""

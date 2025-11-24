@@ -1,41 +1,46 @@
 from pathlib import Path
-import weasyprint
 import pymupdf
 from io import BytesIO
+import subprocess
+from subprocess import PIPE
+
+PRINCE_DIR = '/home/toke/Downloads/prince-16.1-linux-generic-x86_64/lib/prince'
+PRINCE_CMD = './bin/prince'
 
 
 class Guide:
-	def __init__(self, path, name, id, project):
-		self.path = path
-		self.name = name
-		self.id = id
-		self.project = project
-		self._html = None
+    def __init__(self, path, name, id, project):
+        self.path = path
+        self.name = name
+        self.id = id
+        self.project = project
+        self._html = None
 
-	@property
-	def target_path(self):
-		return Path(self.path).parent / 'guide.pdf'
+    @property
+    def target_path(self):
+        return Path(self.path).parent / 'guide.pdf'
 
-	def get_html(self):
-		if not self._html:
-			with open(self.path, 'r') as file:
-				self._html = file.read()
-		return self._html
+    def get_html(self):
+        if not self._html:
+            with open(self.path, 'r') as file:
+                self._html = file.read()
+        return self._html
 
-	def get_page(self, page):
-		document = weasyprint.HTML(string=self.get_html()).write_pdf()
-		pdf = pymupdf.open(stream=document)
-		image = pdf[page].get_pixmap().pil_image()
+    def get_page(self, page):
+        print('get page', [PRINCE_CMD, self.path, '-o', str(self.target_path)])
+        p = subprocess.call([PRINCE_CMD, self.path, '-o', str(self.target_path)], cwd=PRINCE_DIR)
+        pdf = pymupdf.open(self.target_path)
+        image = pdf[page].get_pixmap().pil_image()
 
-		buffer = BytesIO()
-		image.save(buffer, format='jpeg', quality=90)
-		buffer.seek(0)
-		return buffer
+        buffer = BytesIO()
+        image.save(buffer, format='jpeg', quality=90)
+        buffer.seek(0)
+        return buffer
 
-	def render_to_file(self):
-		with open(self.target_path, "w+b") as result_file:
-		    # convert HTML to PDF
-		    weasyprint.HTML(string=self.get_html()).write_pdf(result_file)
+    def render_to_file(self):
+        with open(self.target_path, "w+b") as result_file:
+            # convert HTML to PDF
+            subprocess.call([PRINCE_CMD, str(self.path), str(result_file)], cwd=PRINCE_DIR)
 
 
 # todo:

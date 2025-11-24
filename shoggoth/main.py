@@ -79,7 +79,7 @@ class ShoggothRoot(FloatLayout):
                 if 'shift' in modifiers:
                     f = shoggoth.app.save_changes
                 else:
-                    f = shogget.app.save_current
+                    f = shoggoth.app.save_current
                 Clock.schedule_once(lambda x: f())
                 return True
             if text == 'n':
@@ -132,6 +132,7 @@ class Wing(ExceptionHandler):
 class FileBrowser(BoxLayout):
     """File browser widget showing project files"""
     project = ObjectProperty()
+    selected_item = ObjectProperty(None)
     tree: TreeView
 
     def __init__(self, **kwargs):
@@ -148,6 +149,7 @@ class FileBrowser(BoxLayout):
             app.show_card(self.tree.selected_node.element)
         elif self.tree.selected_node.element_type == 'guide':
             app.show_guide(self.tree.selected_node.element)
+        self.selected_item = self.tree.selected_node.element
 
     def refresh(self, *args):
         opens = set()
@@ -253,11 +255,14 @@ class TreeViewButton(TreeViewLabel):
 
 class CardPreview(BoxLayout):
     """Widget for displaying card previews"""
+
     def set_card_images(self, front_image, back_image):
-        self.ids.front_preview.texture = front_image
-        self.ids.back_preview.texture = back_image
-        self.ids.front_preview.texture.mag_filter = 'nearest'
-        self.ids.back_preview.texture.mag_filter = 'nearest'
+        if front_image:
+            self.ids.front_preview.texture = front_image
+            self.ids.front_preview.texture.mag_filter = 'nearest'
+        if back_image:
+            self.ids.back_preview.texture = back_image
+            self.ids.back_preview.texture.mag_filter = 'nearest'
 
     def touch_scatter(self, touch, target):
         if touch.is_mouse_scrolling:

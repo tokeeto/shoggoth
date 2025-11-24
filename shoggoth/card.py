@@ -196,6 +196,11 @@ class Card:
             }
         }
 
+    def save(self):
+        print('Saving card', self.id)
+        self.expansion.save_card(self)
+        self.dirty = False
+
 
 # templates
 class TEMPLATES:

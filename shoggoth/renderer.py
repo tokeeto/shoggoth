@@ -11,7 +11,7 @@ logging.getLogger('pillow').setLevel(logging.ERROR)
 
 
 class Region:
-    bleed:tuple[int, int] = (36, 36)
+    bleed: tuple[int, int] = (36, 36)
     x: int
     y: int
     width: int
@@ -45,7 +45,7 @@ class Region:
 
     def __bool__(self):
         return self.width > 0 and self.height > 0 or self.is_attached
-        
+
     def __repr__(self):
         return f'<Region pos({self.x},{self.x}) size({self.width},{self.height})>'
 
