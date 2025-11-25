@@ -4,17 +4,21 @@ from io import BytesIO
 import subprocess
 from subprocess import PIPE
 
-PRINCE_DIR = '/home/toke/Downloads/prince-16.1-linux-generic-x86_64/lib/prince'
-PRINCE_CMD = './bin/prince'
-
 
 class Guide:
-    def __init__(self, path, name, id, project):
+    def __init__(self, path, name, id, project, prince_cmd=None, prince_dir=None):
         self.path = path
         self.name = name
         self.id = id
         self.project = project
         self._html = None
+
+        if not prince_cmd:
+            from kivy.config import Config
+            prince_cmd = Config.get('Shoggoth', 'prince_cmd')
+            prince_dir = Config.get('Shoggoth', 'prince_dir')
+        self.prince_cmd = prince_cmd
+        self.prince_dir = prince_dir
 
     @property
     def target_path(self):
@@ -27,8 +31,8 @@ class Guide:
         return self._html
 
     def get_page(self, page):
-        print('get page', [PRINCE_CMD, self.path, '-o', str(self.target_path)])
-        p = subprocess.call([PRINCE_CMD, self.path, '-o', str(self.target_path)], cwd=PRINCE_DIR)
+        print('get page', [self.prince_cmd, self.path, '-o', str(self.target_path)])
+        p = subprocess.call([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
         pdf = pymupdf.open(self.target_path)
         image = pdf[page].get_pixmap().pil_image()
 
@@ -40,7 +44,7 @@ class Guide:
     def render_to_file(self):
         with open(self.target_path, "w+b") as result_file:
             # convert HTML to PDF
-            subprocess.call([PRINCE_CMD, str(self.path), str(result_file)], cwd=PRINCE_DIR)
+            subprocess.call([self.prince_cmd, str(self.path), str(result_file)], cwd=self.prince_dir)
 
 
 # todo:

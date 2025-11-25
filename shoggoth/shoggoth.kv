@@ -730,7 +730,7 @@
         TextInput:
             value: '1'
             id: page_count
-            on_text: root.get_page(int(self.text)) if int(self.text) else root.get_page(0)
+            on_text: root.get_page(int(self.text)) if self.text else root.get_page(0)
 
 <ProjectEditor>:
     orientation: 'vertical'
