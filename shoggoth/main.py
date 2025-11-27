@@ -149,7 +149,8 @@ class FileBrowser(BoxLayout):
             app.show_card(self.tree.selected_node.element)
         elif self.tree.selected_node.element_type == 'guide':
             app.show_guide(self.tree.selected_node.element)
-        self.selected_item = self.tree.selected_node.element
+        if self.tree.selected_node.element:
+            self.selected_item = self.tree.selected_node.element
 
     def refresh(self, *args):
         opens = set()
