@@ -1,6 +1,7 @@
 import os
 import shutil
 import threading
+import json
 from tokenize import String
 import shoggoth
 from time import time
@@ -12,6 +13,7 @@ if not Config.get('graphics', 'width'):
     Config.set('kivy', 'log_enable', '0')
     Config.set('graphics', 'width', '800')
     Config.set('graphics', 'height', '600')
+    Config.set('kivy', 'exit_on_escape', 0)
     Config.write()
 
 from kivy.app import App  # noqa: E402
@@ -327,6 +329,56 @@ class ShoggothApp(App):
         #inspector.create_inspector(Window, self.root)
 
         return self.root
+
+    def build_config(self, config):
+        config.setdefaults('Shoggoth', {
+            'prince_cmd': 'prince',
+            'prince_dir': '',
+            'strange_eons': '',
+            'java': 'java',
+        })
+
+    def build_settings(self, settings):
+        data = [
+            {
+                "type": "title",
+                "title": "External applications",
+            },
+            { 
+                "type": "string",
+                "title": "Prince command",
+                "desc": "Command to run prince",
+                "section": "Shoggoth",
+                "key": "prince_cmd",
+            },
+            {
+                "type": "path",
+                "title": "Prince location",
+                "desc": "Location of the Prince directory, if not installed system wide.",
+                "section": "Shoggoth",
+                "key": "prince_dir",
+            },
+            {
+                "type": "path",
+                "title": "Strange Eons",
+                "desc": "Location of the Strange Eons jar file. For use with importing SE projects.",
+                "section": "Shoggoth",
+                "key": "strange_eons",
+            },
+            {
+                "type": "string",
+                "title": "Java command",
+                "desc": "Command to run java. Used in conjunction with Strange Eons.",
+                "section": "Shoggoth",
+                "key": "java",
+            },
+        ]
+
+        settings.add_json_panel(
+            'Shoggoth',
+            self.config,
+            data=json.dumps(data)
+        )
 
     def goto_project(self, project_id):
         self.current_project = Project.load(project_id)

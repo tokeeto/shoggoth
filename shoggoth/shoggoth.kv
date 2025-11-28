@@ -439,6 +439,10 @@
                 on_release: ui.ExportPopup().open()
             ContextMenuDivider:
             ContextMenuTextItem:
+                text: 'Settings'
+                on_release: app.open_settings()
+            ContextMenuDivider:
+            ContextMenuTextItem:
                 text: 'Exit'
                 on_release: app.stop()
     AppMenuTextItem:

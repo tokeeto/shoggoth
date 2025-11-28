@@ -82,7 +82,7 @@ class GuideEditor(BoxLayout):
         self.ids.code_input.text = self.guide.get_html()
 
     def get_page(self, page):
-        img = self.guide.get_page(page)
+        img = self.guide.get_page(page, html=self.ids.code_input.text)
         texture = CoreImage(img, ext='jpeg').texture
         shoggoth.app.root.ids.card_preview.set_card_images(texture, None)
  

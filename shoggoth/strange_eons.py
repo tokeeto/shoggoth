@@ -2,10 +2,13 @@ import jpype
 import jpype.imports
 from shoggoth.files import asset_dir
 
-def run_conversion(jar_path, project_path, output_path):
+def run_conversion(java_path, jar_path, project_path, output_path):
+    if not jar_path:
+        raise Exception("Path to Strange Eons jar file not set. Press F1 and change the settings. This needs to be the .jar file - other versions won't work.")
+
     # start the JVM to make further imports available
     jpype.startJVM(
-        jpype.getDefaultJVMPath(),
+        java_path or jpype.getDefaultJVMPath(),
         f'-javaagent:{jar_path}',
         classpath=[f'{jar_path}'],
     )

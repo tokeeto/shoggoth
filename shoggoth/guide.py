@@ -12,13 +12,22 @@ class Guide:
         self.id = id
         self.project = project
         self._html = None
+        self._prince_cmd = prince_cmd
+        self._prince_dir = prince_dir
 
-        if not prince_cmd:
-            from kivy.config import Config
-            prince_cmd = Config.get('Shoggoth', 'prince_cmd')
-            prince_dir = Config.get('Shoggoth', 'prince_dir')
-        self.prince_cmd = prince_cmd
-        self.prince_dir = prince_dir
+    @property
+    def prince_dir(self):
+        if self._prince_dir is None:
+            import shoggoth
+            return shoggoth.app.config.get('Shoggoth', 'prince_dir') or None
+        return self._prince_dir
+
+    @property
+    def prince_cmd(self):
+        if self._prince_cmd is None:
+            import shoggoth
+            return shoggoth.app.config.get('Shoggoth', 'prince_cmd')
+        return self._prince_cmd
 
     @property
     def target_path(self):
@@ -30,10 +39,21 @@ class Guide:
                 self._html = file.read()
         return self._html
 
-    def get_page(self, page):
-        print('get page', [self.prince_cmd, self.path, '-o', str(self.target_path)])
-        p = subprocess.call([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
-        pdf = pymupdf.open(self.target_path)
+    def get_page(self, page, html: str = ''):
+        if not html:
+            p = subprocess.call([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
+            pdf = pymupdf.open(self.target_path)
+        else:
+            p = subprocess.run(
+                [self.prince_cmd, '-', '-o', '-'],
+                cwd=self.prince_dir,
+                input=html.encode(),
+                stdout=subprocess.PIPE,
+            )
+            data = p.stdout
+            print('got data of len', len(data))
+            pdf = pymupdf.open(stream=data)
+
         image = pdf[page].get_pixmap().pil_image()
 
         buffer = BytesIO()
@@ -42,9 +62,7 @@ class Guide:
         return buffer
 
     def render_to_file(self):
-        with open(self.target_path, "w+b") as result_file:
-            # convert HTML to PDF
-            subprocess.call([self.prince_cmd, str(self.path), str(result_file)], cwd=self.prince_dir)
+        subprocess.run([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
 
 
 # todo:
