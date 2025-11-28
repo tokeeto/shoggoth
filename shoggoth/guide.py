@@ -4,17 +4,30 @@ from io import BytesIO
 import subprocess
 from subprocess import PIPE
 
-PRINCE_DIR = '/home/toke/Downloads/prince-16.1-linux-generic-x86_64/lib/prince'
-PRINCE_CMD = './bin/prince'
-
 
 class Guide:
-    def __init__(self, path, name, id, project):
+    def __init__(self, path, name, id, project, prince_cmd=None, prince_dir=None):
         self.path = path
         self.name = name
         self.id = id
         self.project = project
         self._html = None
+        self._prince_cmd = prince_cmd
+        self._prince_dir = prince_dir
+
+    @property
+    def prince_dir(self):
+        if self._prince_dir is None:
+            import shoggoth
+            return shoggoth.app.config.get('Shoggoth', 'prince_dir') or None
+        return self._prince_dir
+
+    @property
+    def prince_cmd(self):
+        if self._prince_cmd is None:
+            import shoggoth
+            return shoggoth.app.config.get('Shoggoth', 'prince_cmd')
+        return self._prince_cmd
 
     @property
     def target_path(self):
@@ -26,10 +39,21 @@ class Guide:
                 self._html = file.read()
         return self._html
 
-    def get_page(self, page):
-        print('get page', [PRINCE_CMD, self.path, '-o', str(self.target_path)])
-        p = subprocess.call([PRINCE_CMD, self.path, '-o', str(self.target_path)], cwd=PRINCE_DIR)
-        pdf = pymupdf.open(self.target_path)
+    def get_page(self, page, html: str = ''):
+        if not html:
+            p = subprocess.call([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
+            pdf = pymupdf.open(self.target_path)
+        else:
+            p = subprocess.run(
+                [self.prince_cmd, '-', '-o', '-'],
+                cwd=self.prince_dir,
+                input=html.encode(),
+                stdout=subprocess.PIPE,
+            )
+            data = p.stdout
+            print('got data of len', len(data))
+            pdf = pymupdf.open(stream=data)
+
         image = pdf[page].get_pixmap().pil_image()
 
         buffer = BytesIO()
@@ -38,9 +62,7 @@ class Guide:
         return buffer
 
     def render_to_file(self):
-        with open(self.target_path, "w+b") as result_file:
-            # convert HTML to PDF
-            subprocess.call([PRINCE_CMD, str(self.path), str(result_file)], cwd=PRINCE_DIR)
+        subprocess.run([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
 
 
 # todo:

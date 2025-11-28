@@ -152,10 +152,12 @@ class StrangeEonsImporter(Popup):
         from shoggoth import strange_eons
 
         project_path = self.ids.se_path.text
-        jar_path = self.ids.jar_path.text
+        jar_path = shoggoth.app.config.get('Shoggoth', 'strange_eons')
+        java_path = shoggoth.app.config.get('Shoggoth', 'java')
         output_path = self.ids.new_path.text
 
-        threading.Thread(target=strange_eons.run_conversion, args=(jar_path, project_path, output_path)).start()
+        threading.Thread(target=strange_eons.run_conversion, args=(java_path, jar_path, project_path, output_path)).start()
+
 
 class Thumbnail(ButtonBehavior, Image):
     card_id = StringProperty("")
