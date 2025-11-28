@@ -171,18 +171,6 @@
         BoxLayout:
             orientation: 'horizontal'
             Label:
-                text: 'Path to Strange Eons jar file'
-            TextInput:
-                size_hint_x: 0.6
-                id: jar_path
-                size_hint_y: None
-            Button:
-                size_hint_x: 0.2
-                text: 'Browse'
-                on_release: ui.browse_file(target=jar_path)
-        BoxLayout:
-            orientation: 'horizontal'
-            Label:
                 text: 'SE Project'
             TextInput:
                 size_hint_x: 0.6
@@ -205,7 +193,7 @@
                 text: 'Browse'
                 on_release: ui.browse_folder(target=new_path)
         Label:
-            text: "Once it starts, it will take a while (~30 seconds) with no response. Then Shoggoth will close. This is expected for now."
+            text: "Once it starts, it will take a while (~30 seconds) with no response. Then Shoggoth will close. Then the new project file will be available in the output folder. This is expected for now."
         BoxLayout:
             orientation: 'horizontal'
             Button:
