@@ -3,13 +3,14 @@ import pymupdf
 from io import BytesIO
 import subprocess
 from subprocess import PIPE
+from shoggoth import files
 
 
 class Guide:
-    def __init__(self, path, name, id, project, prince_cmd=None, prince_dir=None):
-        self.path = path
-        self.name = name
-        self.id = id
+    def __init__(self, data, project, prince_cmd=None, prince_dir=None):
+        self.path = data['path']
+        self.id = data['id']
+        self.data = data
         self.project = project
         self._html = None
         self._prince_cmd = prince_cmd
@@ -39,7 +40,33 @@ class Guide:
                 self._html = file.read()
         return self._html
 
+    @property
+    def front_page(self):
+        return self.data.get('front_page', '')
+
+    @front_page.setter
+    def front_page(self, value):
+        self.data['front_page'] = value
+
+    @property
+    def name(self):
+        return self.data.get('name', 'Unnamed Guide')
+
+    @name.setter
+    def name(self, value):
+        self.data['name'] = value
+
+    def html_format(self, html) -> str:
+        """ Does a simple string replacement for certain defined elements """
+        html = html.replace("{{frontpage}}", self.front_page)
+        html = html.replace("{{a4_empty}}", str(files.guide_dir/'guide_a4_empty.webp'))
+        html = html.replace("{{a4_title}}", str(files.guide_dir/'guide_a4_title.webp'))
+        html = html.replace("{{resolution_glyph_top}}", str(files.guide_dir/'resolution_glyph_top.png'))
+        html = html.replace("{{resolution_glyph_bottom}}", str(files.guide_dir/'resolution_glyph_bottom.png'))
+        return html
+
     def get_page(self, page, html: str = ''):
+        print(self.front_page)
         if not html:
             p = subprocess.call([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
             pdf = pymupdf.open(self.target_path)
@@ -47,7 +74,7 @@ class Guide:
             p = subprocess.run(
                 [self.prince_cmd, '-', '-o', '-'],
                 cwd=self.prince_dir,
-                input=html.encode(),
+                input=self.html_format(html).encode(),
                 stdout=subprocess.PIPE,
             )
             data = p.stdout

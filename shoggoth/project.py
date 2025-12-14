@@ -6,7 +6,7 @@ from pathlib import Path
 import shoggoth
 from shoggoth.card import TEMPLATES, Card
 from shoggoth.encounter_set import EncounterSet
-from shoggoth.files import asset_dir
+from shoggoth.files import asset_dir, guide_dir
 from shoggoth.guide import Guide
 
 type_order = {
@@ -95,7 +95,7 @@ class Project:
     def guides(self):
         result = []
         for entry in self.data.get('guides', []):
-            result.append(Guide(entry['path'], entry['name'], entry['id'], self))
+            result.append(Guide(entry, self))
         return result
 
     @property
@@ -238,7 +238,7 @@ class Project:
         }
 
     def add_guide(self):
-        default_guide = asset_dir / 'guide_template.html'
+        default_guide = guide_dir / 'guide_template.html'
         shutil.copyfile(default_guide, self.folder / 'guide.html')
         if 'guides' not in self.data:
             self.data['guides'] = []

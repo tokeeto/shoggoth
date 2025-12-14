@@ -13,6 +13,7 @@ font_dir = asset_dir / "fonts"
 overlay_dir = asset_dir / "overlays"
 template_dir = asset_dir / "templates"
 icon_dir = asset_dir / "icons"
+guide_dir = asset_dir / "guide"
 tts_dir = None
 
 # TTS Output folder

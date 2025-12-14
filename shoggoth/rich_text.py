@@ -137,6 +137,9 @@ class RichTextRenderer:
             '<unique>': 'u',
             '<willpower>': 'w',
             '[willpower]': 'w',
+
+            '<day>': '<',
+            '<night>': '>',
         }
 
         # Font configurations

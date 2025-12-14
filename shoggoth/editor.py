@@ -77,6 +77,7 @@ class GuideEditor(BoxLayout):
         from pygments.lexers import html
         self.ids.code_input.lexer = html.HtmlLexer()
         self.load_html()
+        self.ids.front_page_fields.ids.file_path.bind(text=self.set_front_page)
 
     def load_html(self):
         self.ids.code_input.text = self.guide.get_html()
@@ -85,7 +86,10 @@ class GuideEditor(BoxLayout):
         img = self.guide.get_page(page, html=self.ids.code_input.text)
         texture = CoreImage(img, ext='jpeg').texture
         shoggoth.app.root.ids.card_preview.set_card_images(texture, None)
- 
+
+    def set_front_page(self, *args):
+        self.guide.front_page = args[1]
+
     def export(self):
         self.guide.render_to_file()
 

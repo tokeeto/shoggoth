@@ -40,6 +40,11 @@ from shoggoth.ui import show_file_select, Thumbnail  # noqa: E402
 from pathlib import Path  # noqa: E402
 from kivy.modules import inspector  # noqa: E402
 
+try:
+    from ctypes import windll
+    windll.user32.SetProcessDpiAwarenessContext(-4)
+except ImportError:
+    pass
 
 Logger.setLevel(LOG_LEVELS["warning"])
 
@@ -201,11 +206,11 @@ class FileBrowser(BoxLayout):
         class_nodes = {}
         class_labels = {
             'investigators': 'Investigators',
-            'seeker': f'[size=24][color=#c3901b][font={str(font_dir / "AHLCGSymbol.ttf")}]K[/font][/color][/size] Seeker',
-            'rogue': f'[size=24][color=#0f703f][font={str(font_dir / "AHLCGSymbol.ttf")}]R[/font][/color][/size] Rogue',
-            'guardian': f'[size=24][color=#3a75c3][font={str(font_dir / "AHLCGSymbol.ttf")}]G[/font][/color][/size] Guardian',
-            'mystic': f'[size=24][color=#473e7e][font={str(font_dir / "AHLCGSymbol.ttf")}]M[/font][/color][/size] Mystic',
-            'survivor':  f'[size=24][color=#c12830][font={str(font_dir / "AHLCGSymbol.ttf")}]V[/font][/color][/size] Survivor',
+            'seeker': f'[size=24][color=#c3901b][font={str(font_dir / "AHLCGSymbol.otf")}]K[/font][/color][/size] Seeker',
+            'rogue': f'[size=24][color=#0f703f][font={str(font_dir / "AHLCGSymbol.otf")}]R[/font][/color][/size] Rogue',
+            'guardian': f'[size=24][color=#3a75c3][font={str(font_dir / "AHLCGSymbol.otf")}]G[/font][/color][/size] Guardian',
+            'mystic': f'[size=24][color=#473e7e][font={str(font_dir / "AHLCGSymbol.otf")}]M[/font][/color][/size] Mystic',
+            'survivor':  f'[size=24][color=#c12830][font={str(font_dir / "AHLCGSymbol.otf")}]V[/font][/color][/size] Survivor',
             'neutral': 'Neutral',
             'other': 'Other',
         }

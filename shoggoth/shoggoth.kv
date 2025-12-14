@@ -32,7 +32,7 @@
 
 <Thumbnail>:
     size_hint_y: None
-    height: 300
+    height: '300dp'
     on_release: app.goto_card(root.card_id)
 
 <BoxContainer@GridLayout>:
@@ -704,6 +704,14 @@
 
 <GuideEditor>:
     orientation: 'vertical'
+    BoxLayout:
+        orientation: 'horizontal'
+        size_hint_y: None
+        height: 32
+        FileField:
+            text: 'Front page image'
+            path: root.guide.front_page
+            id: front_page_fields
     ScrollView:
         CodeInput:
             id: code_input

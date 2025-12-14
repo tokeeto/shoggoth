@@ -26,13 +26,14 @@ def run():
     parser.add_argument('-o', '--out', metavar='FOLDER', help='Overwrite the default output folder for --render option.')
     parser.add_argument('-b', '--bleed', metavar='BOOL', help='--render mode option. If set, render will output with bleed.')
     parser.add_argument('-f', '--format', metavar='STRING', help='--render mode option. Should be one of jpeg, png or webp. Other formats might be supported, as per PIL documentation.', default='jpeg')
+    parser.add_argument('-re', '--refresh', metavar='FLAG', help='Re-downloads the asset files. Use in case of corrupt asset folder, or in case of new version.')
     args = parser.parse_args()
 
     # ensure directories exist
     root_dir.mkdir(parents=True, exist_ok=True)
 
     # ensure assets directory exists
-    if not asset_dir.is_dir() or not version_is_up_to_date():
+    if args.refresh or not asset_dir.is_dir() or not version_is_up_to_date():
         print("Asset pack not found. Downloading assets...")
         # download assets
         url = 'https://www.dropbox.com/scl/fi/htwenk0k3vxxr4bl69b4z/assets-0-4-0.zip?rlkey=30ch88hivad2j6g08xfxehs4h&st=g9libbot&dl=1'
