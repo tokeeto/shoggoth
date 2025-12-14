@@ -10,7 +10,7 @@ def version_is_up_to_date() -> bool:
     if not (asset_dir/'version.txt').exists():
         return False
     with (asset_dir/'version.txt').open('r') as f:
-        if not f.read().startswith('0.4.0'):
+        if not f.read().startswith('0.4.1'):
             return False
     return True
 
@@ -36,7 +36,7 @@ def run():
     if args.refresh or not asset_dir.is_dir() or not version_is_up_to_date():
         print("Asset pack not found. Downloading assets...")
         # download assets
-        url = 'https://www.dropbox.com/scl/fi/htwenk0k3vxxr4bl69b4z/assets-0-4-0.zip?rlkey=30ch88hivad2j6g08xfxehs4h&st=g9libbot&dl=1'
+        url = 'https://www.dropbox.com/scl/fi/5df6umq75ueexvisgfbr7/assets-0-4-1.zip?rlkey=42nio7o6dssbnis99ul19flhe&st=sqk00lrd&dl=1'
         filehandle, _ = urllib.request.urlretrieve(url)
         with zipfile.ZipFile(filehandle, 'r') as file:
             file.extractall(root_dir)
