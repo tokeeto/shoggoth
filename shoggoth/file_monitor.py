@@ -4,7 +4,7 @@ from threading import Thread
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import logging
-#logging.getLogger('watchdog').setLevel(logging.WARNING)
+logging.getLogger('watchdog').setLevel(logging.WARNING)
 
 
 class CardFileHandler(FileSystemEventHandler):

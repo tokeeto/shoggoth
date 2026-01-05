@@ -2,7 +2,7 @@ from kivy.uix.colorpicker import StringProperty
 from kivy.uix.popup import Popup
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
-from kivy.uix.image import Image
+from kivy.uix.image import BooleanProperty, Image
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
 from kivy.properties import ObjectProperty
@@ -17,6 +17,7 @@ from shoggoth.project import Project
 import json
 import shoggoth
 from collections.abc import Callable
+from kivy.core.window import Window
 
 
 about_text = """[size=40]Shoggoth[/size]
@@ -270,21 +271,26 @@ class NewProjectPopup(Popup):
         self.dismiss()
         shoggoth.app.add_project_file(self.ids.file_name.text)
 
+
 class AboutPopup(Popup):
     """ Information about the application """
     pass
+
 
 class OkPopup(Popup):
     text = StringProperty("")
     """ Shows a text string, with no interaction """
     pass
 
+
 class GotoEntryListItem(ButtonBehavior, BoxLayout):
     entry = ObjectProperty()
     callback = ObjectProperty()
+    selected = BooleanProperty(False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
 
 class GotoEntry:
     def __init__(self, item, type):
@@ -301,14 +307,17 @@ class GotoEntry:
         elif type == 'project':
             self.name = f'{item.name}'
 
+
 class GotoPopup(Popup):
     """Popup for selecting files/folders"""
+
     def __init__(self):
         super().__init__()
         self.entries = []
         self.shown_entries = []
         self.get_all_entries()
         self.ids.input.bind(text=self.filter_entries)
+        self.selected_id = 0
 
     def get_all_entries(self):
         self.entries = []
@@ -317,10 +326,13 @@ class GotoPopup(Popup):
         self.entries.extend([GotoEntry(shoggoth.app.current_project, type='project')])
 
     def filter_entries(self, instance, text):
-        self.shown_entries = [entry for entry in self.entries if text.lower() in entry.name.lower() or text.lower() in entry.id.lower()]
+        self.shown_entries = [entry for entry in self.entries if text.lower() in entry.name.lower()]
         self.ids.list.clear_widgets()
-        for entry in self.shown_entries:
+        for entry in self.shown_entries[:10]:
             self.ids.list.add_widget(GotoEntryListItem(entry=entry, callback=self.go))
+        self.selected_id = -1
+        if self.ids.list.children:
+            self.ids.list.children[self.selected_id].selected = True
 
     def go(self, entry):
         if entry.type == 'card':
@@ -331,6 +343,34 @@ class GotoPopup(Popup):
             shoggoth.app.goto_project(entry.id)
         self.dismiss()
 
+    def open(self):
+        super().open()
+        Window.bind(on_key_down=self.on_keyboard)
+
+    def on_dismiss(self):
+        Window.unbind(on_key_down=self.on_keyboard)
+
+    def on_keyboard(self, instance, keyboard, keycode, text, modifiers):
+        # Handle up/down/enter
+        result = keycode in (81, 82, 40)
+        if not self.ids.list.children:
+            return result
+
+        # enter
+        if keycode == 40:
+            entry = self.ids.list.children[self.selected_id].entry
+            self.go(entry)
+
+        self.ids.list.children[self.selected_id].selected = False
+        if keycode == 81:
+            self.selected_id -= 1
+        if keycode == 82:
+            self.selected_id += 1
+        self.selected_id %= len(self.ids.list.children)
+        self.ids.list.children[self.selected_id].selected = True
+        return result
+
+
 def show_file_select(target, callback:Callable):
     target = filedialpy.openFile(
         initial_dir=str(Path.home()),
@@ -338,6 +378,7 @@ def show_file_select(target, callback:Callable):
     )
     if target:
         callback(target)
+
 
 def show_file_save(target, callback:Callable):
     target = filedialpy.saveFile(

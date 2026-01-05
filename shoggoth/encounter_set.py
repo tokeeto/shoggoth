@@ -14,7 +14,7 @@ class EncounterSet:
         self.dirty = False
 
     def __eq__(self, other):
-        return self.id == other.id
+        return other is not None and self.id == other.id
 
     @property
     def order(self):

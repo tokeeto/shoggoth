@@ -100,7 +100,29 @@ class ProjectEditor(BoxLayout):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields = []
+        self._setup_fields()
+        self.load_data()
         threading.Thread(target=self.show_thumbnails).start()
+
+    def load_data(self):
+        for field in self.fields:
+            field.update_from_card(self.project)
+
+    def _setup_fields(self):
+        # Register all your fields
+        self.fields = [
+            CardField(self.ids.name.input, 'name'),
+            CardField(self.ids.icon.input, 'icon'),
+            CardField(self.ids.order.input, 'order', int),
+        ]
+
+        # Bind each field
+        for field in self.fields:
+            field.widget.bind(text=lambda instance, value, f=field: self._on_field_changed(f, value))
+
+    def _on_field_changed(self, field, text):
+        field.update_card(self.project, text)
 
     def show_thumbnails(self):
         try:
@@ -108,9 +130,6 @@ class ProjectEditor(BoxLayout):
                 shoggoth.app.render_thumbnail(card, self.ids.thumbnail_grid)
         except Exception as e:
             print("failure in on_project", self.project, e)
-
-    def callback(self, *args, **kwargs):
-        print(args, kwargs)
 
     def show_new_encounter_popup(self):
         popup = NewEncounterPopup(
@@ -224,6 +243,9 @@ class CardField:
         value = None
         if self.card_key in card_data.data:
             value = card_data.data[self.card_key]
+        else:
+            self.widget.hint_text = str(card_data.get(self.card_key, ''))
+
         if value == '<copy>':
             self.widget.text = value
         else:

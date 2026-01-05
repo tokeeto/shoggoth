@@ -333,7 +333,6 @@ class RichTextRenderer:
                         'type': 'image_icon',
                         'value': attributes.get('src'),
                     })
-                    print('appended an image icon')
                 current_pos += len(tag)
                 continue
 

@@ -40,11 +40,6 @@ from shoggoth.ui import show_file_select, Thumbnail  # noqa: E402
 from pathlib import Path  # noqa: E402
 from kivy.modules import inspector  # noqa: E402
 
-try:
-    from ctypes import windll
-    windll.user32.SetProcessDpiAwarenessContext(-4)
-except ImportError:
-    pass
 
 Logger.setLevel(LOG_LEVELS["warning"])
 
@@ -147,6 +142,8 @@ class FileBrowser(BoxLayout):
         self.bind(project=self.refresh)
 
     def on_selected_node(self):
+        if not self.tree.selected_node:
+            return
         app = shoggoth.app
         if self.tree.selected_node.element_type == 'project':
             app.show_project(self.tree.selected_node.element)
@@ -341,6 +338,7 @@ class ShoggothApp(App):
             'prince_dir': '',
             'strange_eons': '',
             'java': 'java',
+            'show_bleed': True,
         })
 
     def build_settings(self, settings):
@@ -377,6 +375,13 @@ class ShoggothApp(App):
                 "section": "Shoggoth",
                 "key": "java",
             },
+            {
+                "type": "bool",
+                "title": "Show bleed",
+                "desc": "Shows bleed-area in preview. The bleed area is a part of the card that is not meant to be included, but creates a margin for error in the cutting/printing process.",
+                "section": "Shoggoth",
+                "key": "show_bleed",
+            },
         ]
 
         settings.add_json_panel(
@@ -397,7 +402,7 @@ class ShoggothApp(App):
         print(f'looking for card with id {card_id}')
         tree = self.root.ids.file_browser.tree
         for node in tree.iterate_all_nodes():
-            try:
+            if hasattr(node, 'element') and node.element is not None:
                 if str(node.element.id) == str(card_id):
                     tree.select_node(node)
                     parent = node.parent_node
@@ -406,8 +411,6 @@ class ShoggothApp(App):
                             tree.toggle_node(parent)
                         parent = parent.parent_node
                     return
-            except AttributeError:
-                continue
         print('Card not found')
 
     def show_goto_dialog(self):
@@ -530,12 +533,18 @@ class ShoggothApp(App):
 
     def _update_card_preview(self, *args, **kwargs):
         try:
+            bleed = False
+            if self.config.getint('Shoggoth', 'show_bleed'):
+                bleed = 'mark'
             t = time()
-            front_image, back_image = self.card_renderer.get_card_textures(self.current_card, bleed=False)
+            front_image, back_image = self.card_renderer.get_card_textures(self.current_card, bleed=bleed)
             print(f'Generated images in {time()-t} seconds')
             self._update_card_preview_texture(front_image, back_image)
         except Exception as e:
             self.status_message = str(e)
+
+    def reset_image_cache(self, path=None):
+        self.card_renderer.invalidate_cache(path)
 
     @mainthread
     def _update_card_preview_texture(self, front_image, back_image):
@@ -672,6 +681,16 @@ class ShoggothApp(App):
             thread.join()
 
         print(f'Export of {len(cards)} cards done in {time()-t} seconds')
+
+    def export_all_to_pdf(self):
+        export_folder = os.path.join(
+            os.path.dirname(self.current_project.file_path),
+            f'Export of {self.current_project.name}'
+        )
+        os.makedirs(export_folder, exist_ok=True)
+        from shoggoth.pdf_exporter import create_mbprint_pdf
+        create_mbprint_pdf(self.current_project.get_all_cards(), export_folder)
+
 
     def on_stop(self):
         """Clean up when the application stops"""

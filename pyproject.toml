@@ -26,6 +26,9 @@ dependencies = [
     "pillow>=11.2.1",
     "cairosvg>=2.8.2",
     "weasyprint>=66.0",
+    "customtkinter>=5.2.2",
+    "tknodesystem>=0.9",
+    "ctkmenubar>=0.9",
 ]
 
 [project.urls]
@@ -44,6 +47,7 @@ allow-direct-references = true
 
 [dependency-groups]
 dev = [
+    "jurigged>=0.6.1",
     "pyinstaller>=6.16.0",
 ]
 

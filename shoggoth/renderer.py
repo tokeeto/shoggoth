@@ -1,4 +1,4 @@
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageDraw
 import os
 from io import BytesIO
 from shoggoth.rich_text import RichTextRenderer
@@ -93,8 +93,12 @@ class CardRenderer:
             self.resized_cache[(path, size)] = img.resize(size)
         return self.resized_cache[(path, size)]
 
-    def invalidate_cache(self):
-        self.cache = {}
+    def invalidate_cache(self, path=None):
+        if path:
+            if path in self.cache:
+                del self.cache[path]
+        else:
+            self.cache = {}
 
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
@@ -105,21 +109,18 @@ class CardRenderer:
         buffer.seek(0)
         return buffer
 
-    def get_card_textures(self, card, bleed=True):
+    def get_card_textures(self, card, bleed=True, format='jpeg', quality=90):
         """Render both sides of a card"""
-        front = self.render_card_side(card, card.front)
-        back = self.render_card_side(card, card.back)
-
-        if not bleed:
-            front = front.crop((36, 36, front.width-36, front.height-36))
-            back = back.crop((36, 36, back.width-36, back.height-36))
+        lossless = quality == 100
+        front = self.render_card_side(card, card.front, include_bleed=bleed)
+        back = self.render_card_side(card, card.back, include_bleed=bleed)
 
         f_buffer = BytesIO()
-        front.save(f_buffer, format='jpeg', quality=90)
+        front.save(f_buffer, format=format, quality=quality, lossless=lossless)
         f_buffer.seek(0)
 
         b_buffer = BytesIO()
-        back.save(b_buffer, format='jpeg', quality=90)
+        back.save(b_buffer, format=format, quality=quality, lossless=lossless)
         b_buffer.seek(0)
 
         return f_buffer, b_buffer
@@ -132,14 +133,31 @@ class CardRenderer:
 
         return front_image, back_image
 
-    def export_card_images(self, card, folder, include_backs=False, bleed=True, format='png', quality=100):
+    def export_card_images(self, card, folder, include_backs=False, bleed=True, format='png', quality=100, seperate_versions=True):
         lossless = quality == 100
-        if include_backs or card.front['type'] not in ('player', 'encounter'):
-            front_image = self.render_card_side(card, card.front, include_bleed=bleed)
-            front_image.save(os.path.join(folder, card.name + f'_front.{format}'), quality=quality, lossless=lossless, compress_level=1)
-        if include_backs or card.back['type'] not in ('player', 'encounter'):
-            back_image  = self.render_card_side(card, card.back, include_bleed=bleed)
-            back_image.save(os.path.join(folder, card.name + f'_back.{format}'), quality=quality, lossless=lossless, compress_level=1)
+        outputs = []
+        orig_card = card
+
+        # should each version (eg. 1/2 and 2/2) be printed seperately or as 1-2/2?
+        faces = orig_card.versions
+        if not seperate_versions:
+            faces = [orig_card]
+
+        for index, card in enumerate(faces):
+            for face, name in ((card.front, 'front'), (card.back, 'back')):
+                # if this is a repeated card, only export it once
+                if face['type'] in ('player', 'encounter') and not include_backs:
+                    file_path = Path(folder) / f'{face["type"]}.{format}'
+                    if not file_path.exists():
+                        image = self.render_card_side(card, face, include_bleed=bleed)
+                        image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+                    outputs.append(str(file_path))
+                else:
+                    file_path = Path(folder) / f'{card.id}_{index}.{format}'
+                    image = self.render_card_side(card, face, include_bleed=bleed)
+                    image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+                    outputs.append(str(file_path))
+        return outputs
 
     def pil_to_texture(self, pil_image):
         """Convert PIL image to Kivy texture"""
@@ -157,13 +175,11 @@ class CardRenderer:
         """ handles advanced text replacement fields """
         # <name>
         value = value.replace('<name>', side.card.name)
-        # '<copy>': self.get_copy_field,
         if side == side.card.front:
             other_side = side.card.back
         else:
             other_side = side.card.front
         value = value.replace('<copy>', other_side.get(field, '<copy>'))
-        #'<exi>': self.get_expansion_icon,
         if side.card.expansion.icon:
             value = value.replace(
                 '<exi>',
@@ -171,7 +187,6 @@ class CardRenderer:
             )
         else:
             value = value.replace('<exi>', '')
-        #'<exn>': self.get_expansion_number,
         value = value.replace('<exn>', str(side.card.expansion_number))
         value = value.replace('<esn>', str(side.card.encounter_number))
         if side.card.encounter and '<est>' in value:
@@ -252,6 +267,29 @@ class CardRenderer:
                 card_image.width-self.CARD_BLEED/2,
                 card_image.height-self.CARD_BLEED/2
             ))
+        if include_bleed == 'mark':
+            mark_image = Image.new('RGBA', (width, height), (255, 255, 255, 0))
+            draw = ImageDraw.Draw(mark_image)
+            print(mark_image.width, mark_image.height, self.CARD_BLEED)
+            draw.polygon(
+                [
+                    # outer line
+                    (0, 0),
+                    (0, mark_image.height),
+                    (mark_image.width, mark_image.height),
+                    (mark_image.width, 0),
+                    (0, 0),
+                    # inner line
+                    ((self.CARD_BLEED/2), (self.CARD_BLEED/2)),
+                    (mark_image.width-(self.CARD_BLEED/2), (self.CARD_BLEED/2)),
+                    (mark_image.width-(self.CARD_BLEED/2), mark_image.height-(self.CARD_BLEED/2)),
+                    ((self.CARD_BLEED/2), mark_image.height-((self.CARD_BLEED/2))),
+                    ((self.CARD_BLEED/2), (self.CARD_BLEED/2)),
+                ],
+                fill=(255, 0, 0, 50),
+            )
+            card_image.paste(mark_image, mask=mark_image)
+
         return card_image
 
     def render_text(self, card_image, side):
@@ -415,13 +453,13 @@ class CardRenderer:
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """
         for stat in ['health', 'sanity']:
-            if not side.get(f'draw_{stat}_overlay', True):
+            if side.get(f'draw_{stat}_overlay', True) is False:
                 continue
-            self.current_field = stat
             value = side.get(stat)
             region = Region(side.get(f'{stat}_region'))
-            if region is None or value is None or not side.get('draw_health_overlay', True):
-                continue
+            if not side.get(f'draw_{stat}_overlay', False):
+                if (not region) or value is None:
+                    continue
 
             overlay_path = self.overlays_path/f"{stat}_base.png"
             overlay_icon = Image.open(overlay_path).convert("RGBA")
@@ -535,7 +573,7 @@ class CardRenderer:
             template_path = self.templates_path / (template_value + '.png')
 
         if not template_path.exists():
-            return()
+            return
 
         if not bleed:
             template = self.get_resized_cached(template_path, (card_image.width-72, card_image.height-72))
@@ -570,24 +608,23 @@ class CardRenderer:
             new_width = int(illustration.width * illustration_scale)
             new_height = int(illustration.height * illustration_scale)
             illustration = self.get_resized_cached(illustration_path, (new_width, new_height))
-            
+
             rotation = side.get('illustration_rotation', 0)
             if rotation:
                 illustration = illustration.rotate(float(rotation))
 
             # Apply panning
-            pan_x = side.get('illustration_pan_x', 0)
-            pan_y = side.get('illustration_pan_y', 0)
+            pan_x = side.get('illustration_pan_x', clip_region.x)
+            pan_y = side.get('illustration_pan_y', clip_region.y)
 
             # Position and paste
             card_image.paste(
                 illustration,
-                (clip_region.x+pan_x, clip_region.y+pan_y),
+                (pan_x, pan_y),
                 illustration
             )
         except Exception as e:
             print(f"Error rendering illustration: {str(e)}")
-
 
     def render_level(self, card_image, side):
         """Render the card level"""

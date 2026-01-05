@@ -7,6 +7,7 @@ from kivy.core.window import Window
 from kivy.properties import StringProperty
 from kivy.clock import Clock
 from kivy.lang import Builder
+from kivy.uix.image import CoreImage
 
 from shoggoth.file_monitor import FileMonitor
 from shoggoth.project import Project
@@ -45,7 +46,6 @@ class ViewerRoot(BoxLayout):
                 self.ids.master_container.add_widget(self._back_container)
             self.shown = 'both'
 
-
     def on_keyboard(self, instance, keyboard, keycode, text, modifiers):
         print('on keyboard', keycode, modifiers, text)
         # Handle keyboard shortcuts
@@ -61,9 +61,6 @@ class ViewerRoot(BoxLayout):
         if text == 'n':  # right
             App.get_running_app().number_cards()
             return True
-        if text == 's' and 'ctrl' in modifiers:  # right
-            App.get_running_app().save_all()
-            return True
         if text == 'f':  # right
             if 'shift' in modifiers:
                 App.get_running_app().toggle_faces_shown()
@@ -78,6 +75,7 @@ class ViewerRoot(BoxLayout):
                 f = App.get_running_app().export_current
                 Clock.schedule_once(lambda x: f())
         return False
+
 
 class ViewerApp(App):
     """Application class for Viewer Mode"""
@@ -152,8 +150,8 @@ class ViewerApp(App):
         # Update card preview
         front_image, back_image = self.card_renderer.get_card_textures(card)
         target = self.root.ids.front_preview
-        target.texture = front_image
-        self.root.ids.back_preview.texture = back_image
+        target.texture = CoreImage(front_image, ext='jpeg').texture
+        self.root.ids.back_preview.texture = CoreImage(back_image, ext='jpeg').texture
 
         # Update status
         if file_path:

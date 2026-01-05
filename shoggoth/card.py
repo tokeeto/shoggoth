@@ -60,13 +60,15 @@ class Face:
             self._fallback = None
 
         self.data[key] = value
-        if value is None:
+        if value is None and key != 'type':
             del self.data[key]
 
         shoggoth.app.update_card_preview()
         if key in ('classes', 'type', 'level'):
             shoggoth.app.current_project.assign_card_numbers()
             shoggoth.app.refresh_tree()
+        if key in ('illustration', 'template'):
+            shoggoth.app.reset_image_cache(value)
         self.dirty = True
 
     def get_class(self):
@@ -150,13 +152,24 @@ class Card:
         self.data['encounter_number'] = value
 
     @property
+    def versions(self):
+        if not self.encounter_number or '-' not in self.encounter_number:
+            yield self
+            return
+        r = self.encounter_number.split('-')
+        for n in range(int(r[0]), int(r[1])+1):
+            cp = Card(self.data.copy(), self.expansion, self.encounter)
+            cp.encounter_number = n
+            yield cp
+
+    @property
     def code(self):
         if self.encounter:
             return f'{self.expansion.code}_{self.encounter.code}_{self.name}'
         return f'{self.expansion.code}_{self.expansion_number}_{self.name}'
 
     def __eq__(self, other):
-        return self.data == other.data
+        return other is not None and self.data == other.data
 
     def get_class(self):
         back_classes = self.data['back'].get('classes')
@@ -176,8 +189,8 @@ class Card:
             shoggoth.app.update_card_preview()
             shoggoth.app.refresh_tree()
 
-    def get(self, key):
-        return self.data.get(key)
+    def get(self, key, default=None):
+        return self.data.get(key, default)
 
     @staticmethod
     def is_valid(data):
@@ -337,7 +350,8 @@ class TEMPLATES:
     def ENEMY_WEAKNESS(cls):
         card = cls.ENEMY()
         card['amount'] = 1
-        card['front']['type'] = 'weakness_enemy'
+        card['front']['type'] = 'enemy'
+        card['front']['class'] = 'weakness'
         card['back']['type'] = 'player'
         return card
     
@@ -345,6 +359,7 @@ class TEMPLATES:
     def TREACHERY_WEAKNESS(cls):
         card = cls.TREACHERY()
         card['amount'] = 1
-        card['front']['type'] = 'weakness_treachery'
+        card['front']['type'] = 'treachery'
+        card['front']['class'] = 'weakness'
         card['back']['type'] = 'player'
         return card

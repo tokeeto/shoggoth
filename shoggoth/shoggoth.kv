@@ -319,6 +319,12 @@
     height: '32dp'
     size_hint_x: 1
     on_release: root.callback(root.entry)
+    canvas:
+        Color:
+            rgba: [1,1,1,.2] if root.selected else [1,1,1,0]
+        Rectangle:
+            size: self.size
+            pos: self.pos
     Label:
         text: root.entry.name
     Label:
@@ -327,6 +333,7 @@
         text: root.entry.id
 
 <ExportPopup@Popup>:
+    export_func: None
     BoxLayout:
         orientation: 'vertical'
         ToggleButton:
@@ -356,7 +363,8 @@
                 on_release: root.dismiss()
             Button:
                 text: 'Export'
-                on_release: app.export_all(include_backs=backs.pressed, bleed=bleed.pressed, format=format.text, quality=int(quality.text))
+                on_release: root.export_func(include_backs=backs.pressed, bleed=bleed.pressed, format=format.text, quality=int(quality.text))
+
 
 <GotoPopup@Popup>:
     title: 'Go to line'
@@ -453,11 +461,18 @@
                 text: 'Add Investigator Expansion template'
                 on_release: app.current_project.create_player_expansion()
     AppMenuTextItem:
-        text: "Tools"
+        text: 'Export'
         ContextMenu:
+            width: '200dp'
             ContextMenuTextItem:
-                text: 'Convert SE Project'
-                on_release: ui.StrangeEonsImporter().open()
+                text: 'Card To PDF'
+                on_release: app.export_card_to_pdf()
+            ContextMenuTextItem:
+                text: 'Cards To PDF'
+                on_release: app.export_all_to_pdf()
+            ContextMenuTextItem:
+                text: 'Project To PDF'
+                on_release: ui.ExportPopup(export_func=app.export_all_to_pdf).open()
             ContextMenuTextItem:
                 text: 'Export card to TTS object'
                 disabled: not app.current_project
@@ -470,6 +485,12 @@
                 text: 'Export all player cards to TTS object'
                 disabled: not app.current_project
                 on_release: app.export_player_to_tts()
+    AppMenuTextItem:
+        text: "Tools"
+        ContextMenu:
+            ContextMenuTextItem:
+                text: 'Convert SE Project'
+                on_release: ui.StrangeEonsImporter().open()
     AppMenuTextItem:
         text: 'Help'
         ContextMenu:
@@ -735,13 +756,14 @@
 <ProjectEditor>:
     orientation: 'vertical'
     TextEditLine:
-        size_hint_y: None
         text: 'Name'
-        field: root.project.get('name', '')
+        id: name
+    TextEditLine:
+        text: 'Default copyright'
+        id: default_copyright
     FileField:
-        size_hint_y: None
         text: 'Icon'
-        path: root.project.get('icon', '')
+        id: icon
     Button:
         size_hint_y: None
         text: 'Add Encounter set'
@@ -1211,45 +1233,51 @@
     TextEditLine:
         text: 'type'
         id: type
-    TextEditLine:
-        text: 'name'
-        id: name
-    TextEditLine:
-        text: 'subtitle'
-        id: subtitle
-
     GridLayout:
         cols: 2
         size_hint_y: None
         height: self.minimum_height
         spacing: '5dp'
-
-        TextEditLine:
-            text: 'traits'
-            id: traits
         TextEditLine:
             text: 'connection'
             id: connection
         TextEditLine:
-            text: 'connections'
-            id: connections
+            text: 'name'
+            id: name
+    TextEditLine:
+        text: 'subtitle'
+        id: subtitle
+
+    GridLayout:
+        cols: 3
+        size_hint_y: None
+        height: self.minimum_height
+        spacing: '5dp'
+
         TextEditLine:
             text: 'shroud'
             id: shroud
         TextEditLine:
+            text: 'traits'
+            id: traits
+        TextEditLine:
             text: 'clues'
             id: clues
-        TextEditLine:
-            text: 'Victory'
-            id: victory
+    IllustrationSet:
+        id: illustration
+
+    TextEditLine:
+        text: 'connections'
+        id: connections
     TextEditArea:
         text: 'text'
         id: text
     TextEditArea:
         text: 'flavor_text'
         id: flavor_text
-    IllustrationSet:
-        id: illustration
+    TextEditLine:
+        text: 'Victory'
+        id: victory
 
 <LocationBackEditor@BoxContainer>:
     TextEditLine:
