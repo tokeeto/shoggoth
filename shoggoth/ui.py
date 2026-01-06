@@ -45,16 +45,17 @@ class Zoom(ScatterLayout):
             return False
 
         if touch.button == 'scrolldown':
-            ## zoom in
+            # zoom in
             if self.scale < 10:
                 self.scale = self.scale * 1.1
                 return True
         elif touch.button == 'scrollup':
-            ## zoom out
-            if self.scale > 1:
-                self.scale = self.scale * 0.8
+            # zoom out
+            if self.scale > 0.9**6:
+                self.scale = self.scale * 0.9
                 return True
         return False
+
 
 def set_target(target):
     """ Convinience method for setting fields """

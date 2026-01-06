@@ -153,7 +153,7 @@ class CardRenderer:
                         image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
                     outputs.append(str(file_path))
                 else:
-                    file_path = Path(folder) / f'{card.id}_{index}.{format}'
+                    file_path = Path(folder) / f'{card.id}_{name}_{index}.{format}'
                     image = self.render_card_side(card, face, include_bleed=bleed)
                     image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
                     outputs.append(str(file_path))
@@ -447,8 +447,8 @@ class CardRenderer:
             overlay_path = self.overlays_path/f"skill_icon_{icon}.png"
             overlay_icon = Image.open(overlay_path).convert("RGBA")
             overlay_icon = overlay_icon.resize((overlay_icon.width * 2, overlay_icon.height * 2))
-            card_image.paste(box_image, (36, index*84+165+36), box_image)
-            card_image.paste(overlay_icon, (25+36, index*84+181+36), overlay_icon)
+            card_image.paste(box_image, (36, index*84+175+36), box_image)
+            card_image.paste(overlay_icon, (25+36, index*84+191+36), overlay_icon)
 
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """
@@ -558,6 +558,8 @@ class CardRenderer:
     def render_template(self, card_image, side, bleed):
         """Render a template image onto a card"""
         template_value = side.get('template', '')
+        if not template_value:
+            return
 
         if '<class>' in template_value:
             side_class = side.get('classes', ['guardian'])

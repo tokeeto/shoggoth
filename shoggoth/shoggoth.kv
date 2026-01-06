@@ -216,6 +216,14 @@
                     Image:
                         id: front_preview
                         color: [1,1,1,0] if not self.texture else [1,1,1,1]
+                        canvas.before:
+                            ScissorPush:
+                                x: root.x
+                                y: root.y
+                                width: root.width
+                                height: root.height
+                        canvas.after:
+                            ScissorPop:
 
         TabbedPanelItem:
             text: 'Back'
@@ -533,6 +541,7 @@
             sizable_from: 'left'
             size_hint_x: None
             min_size: 400
+            index: -1
 
             CardPreview:
                 id: card_preview

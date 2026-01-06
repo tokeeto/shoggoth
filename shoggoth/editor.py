@@ -185,8 +185,8 @@ class CardEditor(BoxLayout):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.front_editor = MAPPING.get(self.card.front.get('type'), BaseEditor)(face=self.card.front, type_change=self.update_card_face_type)
-        self.back_editor = MAPPING.get(self.card.back.get('type'), BaseEditor)(face=self.card.back, type_change=self.update_card_face_type)
+        self.front_editor = MAPPING.get(self.card.front.get_editor(), BaseEditor)(face=self.card.front, type_change=self.update_card_face_type)
+        self.back_editor = MAPPING.get(self.card.back.get_editor(), BaseEditor)(face=self.card.back, type_change=self.update_card_face_type)
         self.front_editor_container.add_widget(self.front_editor)
         self.back_editor_container.add_widget(self.back_editor)
 
@@ -222,11 +222,11 @@ class CardEditor(BoxLayout):
     def update_card_face_type(self, widget):
         if widget is self.front_editor:
             self.front_editor_container.remove_widget(self.front_editor)
-            self.front_editor = MAPPING.get(self.card.front.get('type'), FaceEditor)(face=self.card.front, type_change=self.update_card_face_type)
+            self.front_editor = MAPPING.get(self.card.front.get_editor(), FaceEditor)(face=self.card.front, type_change=self.update_card_face_type)
             self.front_editor_container.add_widget(self.front_editor)
         elif widget is self.back_editor:
             self.back_editor_container.remove_widget(self.back_editor)
-            self.back_editor = MAPPING.get(self.card.back.get('type'), FaceEditor)(face=self.card.back, type_change=self.update_card_face_type)
+            self.back_editor = MAPPING.get(self.card.back.get_editor(), FaceEditor)(face=self.card.back, type_change=self.update_card_face_type)
             self.back_editor_container.add_widget(self.back_editor)
 
 
@@ -414,7 +414,7 @@ class FaceEditor(BoxContainer):
 
     def type_changed(self, widget, text):
         """ Replaces the editor with another """
-        new_editor = MAPPING.get(text)
+        new_editor = MAPPING.get(self.face.get_editor())
         if new_editor and self.type_change and type(self) is not new_editor:
             try:
                 self.type_change(self)

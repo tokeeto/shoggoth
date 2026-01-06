@@ -17,24 +17,34 @@ class Face:
     def __eq__(self, other):
         return self.data == other.data
 
-    @property
-    def fallback(self):
-        if self._fallback is not None:
-            return self._fallback
-
-        if path := self.card.expansion.find_file(self.data['type']):
+    def __build_fallback(self, name):
+        """ Builds the fallback recursively """
+        fallback = {}
+        if path := self.card.expansion.find_file(name):
             defaults_path = path
         else:
-            defaults_file = f'{self.data["type"]}.json'
+            defaults_file = f'{name}.json'
             defaults_path = defaults_dir / defaults_file
 
         try:
             with defaults_path.open('r') as f:
-                self._fallback = json.load(f)
-            return self._fallback
+                fallback = json.load(f)
+                if 'parent' in fallback and fallback['parent']:
+                    parent = self.__build_fallback(fallback['parent'])
+                    fallback = parent | fallback
         except Exception as e:
             print('exception when loading fallback:', e)
             return {}
+
+        return fallback
+
+    @property
+    def fallback(self):
+        if self._fallback is None:
+            if not self.data['type']:
+                return {}
+            self._fallback = self.__build_fallback(self.data['type'])
+        return self._fallback
 
     def __getitem__(self, key):
         if key in self.data:
@@ -79,6 +89,13 @@ class Face:
             return cls[0]
         return 'multi'
 
+    def get_editor(self):
+        """ Returns the expected editor type for this face
+            This will usually be the same as a the type, but
+            some types might be using a parent editor instead.
+        """
+        return self.get('editor', self.get('type'))
+
     @property
     def other_side(self):
         if self == self.card.front:
@@ -104,6 +121,9 @@ class Card:
 
         self.front = Face(self.data['front'], card=self)
         self.back = Face(self.data['back'], card=self)
+
+    def __hash__(self):
+        return hash(self.id)
 
     def __str__(self):
         return f'<Card "{self.name}">'
