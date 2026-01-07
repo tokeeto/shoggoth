@@ -91,13 +91,13 @@ class ShoggothRoot(FloatLayout):
             if text == 'm':
                 shoggoth.app.number_cards()
                 return True
-            # if text == 'e':
-            #     if 'shift' in modifiers:
-            #         Clock.schedule_once(lambda x: shoggoth.app.export_all(bleed=True, format='png', quality=100))
-            #         return True
-            #     else:
-            #         Clock.schedule_once(lambda x: shoggoth.app.export_current(bleed=False, format='png', quality=100))
-            #         return True
+            if text == 'e':
+                if 'shift' in modifiers:
+                    Clock.schedule_once(lambda x: shoggoth.app.export_all(bleed=True, format='png', quality=100))
+                    return True
+                else:
+                    Clock.schedule_once(lambda x: shoggoth.app.export_current(bleed=False, format='png', quality=100))
+                    return True
             if text == 'o':
                 f = shoggoth.app.open_project_dialog
                 Clock.schedule_once(lambda x: f())
@@ -328,7 +328,7 @@ class ShoggothApp(App):
                 Clock.schedule_once(lambda x: self.goto_card(id), 1)
         except:
             pass
-        inspector.create_inspector(Window, self.root)
+        # inspector.create_inspector(Window, self.root)
 
         return self.root
 
