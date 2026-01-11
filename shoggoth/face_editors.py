@@ -626,8 +626,7 @@ class JsonEditor(FaceEditor):
         self.main_layout.addWidget(info)
 
         # Create the JSON editor with syntax highlighting
-        from editors import ArkhamTextEdit
-        self.json_editor = ArkhamTextEdit()
+        self.json_editor = editors.ArkhamTextEdit()
         self.json_editor.setPlaceholderText("{\n  \"type\": \"asset\",\n  \"name\": \"Card Name\"\n}")
 
         # Enable JSON syntax highlighting

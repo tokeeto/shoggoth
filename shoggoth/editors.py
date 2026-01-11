@@ -316,7 +316,7 @@ class CardEditor(QWidget):
         json_layout.addWidget(info)
 
         # JSON editor
-        from editors import ArkhamTextEdit
+        from shoggoth.editors import ArkhamTextEdit
         self.json_editor = ArkhamTextEdit()
 
         # Enable JSON syntax highlighting
