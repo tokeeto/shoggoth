@@ -1,14 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 import importlib.util;
 from pathlib import Path
-cm_path = Path(importlib.util.find_spec('kivy_garden.contextmenu').origin)
 
 
 a = Analysis(
     ['shoggoth/tool.py'],
     pathex=[],
     binaries=[],
-    datas=[('shoggoth/viewer.kv', 'shoggoth/'), ('shoggoth/shoggoth.kv', 'shoggoth/'), (cm_path.parent / '*.kv', 'kivy_garden/contextmenu')],
+    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

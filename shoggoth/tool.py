@@ -1,5 +1,4 @@
 import argparse
-import os
 from shoggoth.files import asset_dir, root_dir
 import urllib.request
 import zipfile
@@ -7,20 +6,16 @@ import zipfile
 
 def version_is_up_to_date() -> bool:
     """ Parses the asset pack version """
-    if not (asset_dir/'version.txt').exists():
+    if not (asset_dir / 'version.txt').exists():
         return False
-    with (asset_dir/'version.txt').open('r') as f:
-        if not f.read().startswith('0.4.1'):
+    with (asset_dir / 'version.txt').open('r') as f:
+        if not f.read().startswith('0.5.0'):
             return False
     return True
 
 
 def run():
-    os.environ["KIVY_NO_ARGS"] = "1"
-    os.environ["KIVY_IMAGE"] = "sdl2, pil"
-
     parser = argparse.ArgumentParser(description='Shoggoth Card Creator')
-    parser.add_argument('-v', '--view', metavar='FILE', help='Open in viewer mode with specified file')
     parser.add_argument('-r', '--render', metavar='FILE', help='Render a specific file directly')
     parser.add_argument('-id', '--card_id', metavar='STRING', help='Only render the card with the given ID.')
     parser.add_argument('-o', '--out', metavar='FOLDER', help='Overwrite the default output folder for --render option.')
@@ -44,14 +39,7 @@ def run():
     else:
         print("Asset pack up to date.")
 
-    if args.view and args.render:
-        print('--view and --render are not compatible options.')
-
-    if args.view:
-        # Start in viewer mode
-        from shoggoth.viewer import ViewerApp
-        app = ViewerApp(args.view)
-    elif args.render:
+    if args.render:
         from time import time
         t = time()
         from shoggoth.renderer import CardRenderer
@@ -71,12 +59,9 @@ def run():
         return
     else:
         # Start in normal mode
-        from shoggoth.main import ShoggothApp
-        app = ShoggothApp()
-    app.run()
+        from shoggoth.main_qt import main
+        main()
 
 
 if __name__ == '__main__':
     run()
-    print('tool done running')
-

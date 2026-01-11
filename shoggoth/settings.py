@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QPushButton, QCheckBox, QLabel,
     QFileDialog, QTabWidget, QWidget, QDialogButtonBox,
-    QGroupBox
+    QGroupBox, QComboBox, QSpinBox
 )
 from pathlib import Path
 
@@ -32,6 +32,11 @@ class SettingsManager:
             'strange_eons': '',
             'java': 'java',
             'show_bleed': True,
+            # Export settings
+            'export_format': 'png',
+            'export_quality': 95,
+            'export_bleed': True,
+            'export_separate_versions': False,
         }
         
         for key, value in defaults.items():
@@ -102,11 +107,15 @@ class SettingsDialog(QDialog):
         # External Applications tab
         apps_tab = self.create_apps_tab()
         tabs.addTab(apps_tab, "External Applications")
-        
+
         # Display tab
         display_tab = self.create_display_tab()
         tabs.addTab(display_tab, "Display")
-        
+
+        # Export tab
+        export_tab = self.create_export_tab()
+        tabs.addTab(export_tab, "Export")
+
         layout.addWidget(tabs)
         
         # Dialog buttons
@@ -191,24 +200,95 @@ class SettingsDialog(QDialog):
         """Create display settings tab"""
         widget = QWidget()
         layout = QVBoxLayout()
-        
+
         # Preview group
         preview_group = QGroupBox("Preview Settings")
         preview_layout = QFormLayout()
-        
+
         # Show bleed checkbox
         self.show_bleed_checkbox = QCheckBox("Show bleed area in preview")
         self.show_bleed_checkbox.setToolTip(
             "The bleed area is the margin for error in cutting/printing"
         )
         preview_layout.addRow("Bleed Display:", self.show_bleed_checkbox)
-        
+
         preview_group.setLayout(preview_layout)
         layout.addWidget(preview_group)
-        
+
         layout.addStretch()
         widget.setLayout(layout)
         return widget
+
+    def create_export_tab(self):
+        """Create export settings tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        # Format group
+        format_group = QGroupBox("Export Format")
+        format_layout = QFormLayout()
+
+        # Format dropdown
+        self.export_format_combo = QComboBox()
+        self.export_format_combo.addItems(['png', 'jpeg', 'webp'])
+        self.export_format_combo.setToolTip(
+            "PNG: Lossless, best quality\n"
+            "JPEG: Lossy, smaller files\n"
+            "WebP: Modern format, good compression"
+        )
+        self.export_format_combo.currentTextChanged.connect(self._on_format_changed)
+        format_layout.addRow("Format:", self.export_format_combo)
+
+        # Quality spinbox
+        quality_layout = QHBoxLayout()
+        self.export_quality_spin = QSpinBox()
+        self.export_quality_spin.setRange(1, 100)
+        self.export_quality_spin.setValue(95)
+        self.export_quality_spin.setSuffix("%")
+        self.export_quality_spin.setToolTip(
+            "Quality for lossy formats (JPEG, WebP)\n"
+            "Higher = better quality, larger files"
+        )
+        quality_layout.addWidget(self.export_quality_spin)
+        quality_layout.addStretch()
+        format_layout.addRow("Quality:", quality_layout)
+
+        format_group.setLayout(format_layout)
+        layout.addWidget(format_group)
+
+        # Options group
+        options_group = QGroupBox("Export Options")
+        options_layout = QFormLayout()
+
+        # Include bleed checkbox
+        self.export_bleed_checkbox = QCheckBox("Include bleed area in exported images")
+        self.export_bleed_checkbox.setToolTip(
+            "Include the 36-pixel bleed area around cards.\n"
+            "Enable for professional printing, disable for digital use."
+        )
+        options_layout.addRow("Include Bleed:", self.export_bleed_checkbox)
+
+        # Separate versions checkbox
+        self.export_separate_versions_checkbox = QCheckBox("Export all card variations separately")
+        self.export_separate_versions_checkbox.setToolTip(
+            "When enabled, cards with multiple copies (e.g., 3x Treachery)\n"
+            "will be exported as separate numbered files.\n"
+            "Useful for print-and-play or Tabletop Simulator."
+        )
+        options_layout.addRow("Separate Versions:", self.export_separate_versions_checkbox)
+
+        options_group.setLayout(options_layout)
+        layout.addWidget(options_group)
+
+        layout.addStretch()
+        widget.setLayout(layout)
+        return widget
+
+    def _on_format_changed(self, format_text):
+        """Handle format change - enable/disable quality based on format"""
+        # PNG is lossless, so quality doesn't apply
+        is_lossy = format_text.lower() in ('jpeg', 'webp')
+        self.export_quality_spin.setEnabled(is_lossy)
     
     def browse_prince_dir(self):
         """Browse for Prince directory"""
@@ -248,6 +328,23 @@ class SettingsDialog(QDialog):
         self.show_bleed_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_bleed', True)
         )
+
+        # Export settings
+        export_format = self.settings.get('Shoggoth', 'export_format', 'png')
+        index = self.export_format_combo.findText(export_format)
+        if index >= 0:
+            self.export_format_combo.setCurrentIndex(index)
+        self._on_format_changed(export_format)  # Update quality spinbox state
+
+        self.export_quality_spin.setValue(
+            self.settings.getint('Shoggoth', 'export_quality', 95)
+        )
+        self.export_bleed_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'export_bleed', True)
+        )
+        self.export_separate_versions_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'export_separate_versions', False)
+        )
     
     def save_settings(self):
         """Save settings and close dialog"""
@@ -256,6 +353,12 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'strange_eons', self.se_jar_input.text())
         self.settings.set('Shoggoth', 'java', self.java_cmd_input.text())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
-        
+
+        # Export settings
+        self.settings.set('Shoggoth', 'export_format', self.export_format_combo.currentText())
+        self.settings.set('Shoggoth', 'export_quality', self.export_quality_spin.value())
+        self.settings.set('Shoggoth', 'export_bleed', self.export_bleed_checkbox.isChecked())
+        self.settings.set('Shoggoth', 'export_separate_versions', self.export_separate_versions_checkbox.isChecked())
+
         self.settings.save()
         self.accept()

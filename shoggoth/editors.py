@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt, Signal
 
 from shoggoth.text_editor import ArkhamTextEdit
 from shoggoth.floating_label_widget import FloatingLabelTextEdit, FloatingLabelLineEdit
-import face_editors
+from shoggoth import face_editors
 
 
 class FieldWidget:

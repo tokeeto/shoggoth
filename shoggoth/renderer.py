@@ -94,11 +94,30 @@ class CardRenderer:
         return self.resized_cache[(path, size)]
 
     def invalidate_cache(self, path=None):
+        """Invalidate cached images.
+
+        Args:
+            path: If provided, invalidate only entries for this path.
+                  If None, clear the entire cache.
+        """
         if path:
-            if path in self.cache:
-                del self.cache[path]
+            # Normalize path for comparison
+            from pathlib import Path
+            normalized = str(Path(path).resolve())
+
+            # Remove from main cache
+            paths_to_remove = [p for p in self.cache if str(Path(p).resolve()) == normalized]
+            for p in paths_to_remove:
+                del self.cache[p]
+
+            # Remove from resized cache (keys are (path, size) tuples)
+            keys_to_remove = [k for k in self.resized_cache if str(Path(k[0]).resolve()) == normalized]
+            for k in keys_to_remove:
+                del self.resized_cache[k]
         else:
+            # Clear both caches entirely
             self.cache = {}
+            self.resized_cache = {}
 
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
@@ -160,16 +179,11 @@ class CardRenderer:
         return outputs
 
     def pil_to_texture(self, pil_image):
-        """Convert PIL image to Kivy texture"""
-        from kivy.uix.image import CoreImage
-
+        """Convert PIL image to buffer"""
         buffer = BytesIO()
         pil_image.save(buffer, format='jpeg', quality=50)
         buffer.seek(0)
-
-        # Create texture
-        im = CoreImage(buffer, ext='jpeg')
-        return im.texture
+        return buffer
 
     def text_replacement(self, field, value, side):
         """ handles advanced text replacement fields """

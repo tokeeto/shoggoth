@@ -134,6 +134,11 @@ class FaceEditor(QWidget):
             return widget.currentText().strip()
         return ''
 
+    # Fields that require type conversion
+    INTEGER_FIELDS = {'illustration_pan_x', 'illustration_pan_y'}
+    FLOAT_FIELDS = {'illustration_scale'}
+    LIST_FIELDS = {'classes'}  # Fields stored as lists but displayed as comma-separated
+
     def on_field_changed(self, field_name):
         """Handle field change"""
         if self.updating:
@@ -145,8 +150,21 @@ class FaceEditor(QWidget):
 
         value = self.get_widget_value(widget)
 
-        # Set the value
+        # Convert value to appropriate type
         if value:
+            if field_name in self.INTEGER_FIELDS:
+                try:
+                    value = int(value)
+                except ValueError:
+                    return  # Invalid integer, don't update
+            elif field_name in self.FLOAT_FIELDS:
+                try:
+                    value = float(value)
+                except ValueError:
+                    return  # Invalid float, don't update
+            elif field_name in self.LIST_FIELDS:
+                # Convert comma-separated string to list
+                value = [v.strip() for v in value.split(',') if v.strip()]
             self.face.set(field_name, value)
         else:
             self.face.set(field_name, None)
@@ -311,7 +329,7 @@ class EventEditor(FaceEditor):
         level_combo = QComboBox()
         level_combo.addItems(['None', '0', '1', '2', '3', '4', '5'])
         level_combo.currentTextChanged.connect(lambda: self.on_field_changed('level'))
-        self.fields['level'] = level_combo.input
+        self.fields['level'] = level_combo
         grid_layout.addRow("Level", level_combo)
 
         icons_input = editors.LabeledLineEdit("Icons")
@@ -710,14 +728,66 @@ class JsonEditor(FaceEditor):
 
 
 
+class ActEditor(FaceEditor):
+    """Editor for act cards (front side)"""
+
+    def setup_ui(self):
+        self.add_labeled_line("Name", "name")
+        self.add_labeled_line("Index", "index")
+        self.add_labeled_line("Clues", "clues")
+
+        self.add_labeled_text("Text", "text", use_arkham=True)
+        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_illustration_widget()
+
+        self.main_layout.addStretch()
+
+
+class ActBackEditor(FaceEditor):
+    """Editor for act cards (back side)"""
+
+    def setup_ui(self):
+        self.add_labeled_line("Name", "name")
+        self.add_labeled_line("Index", "index")
+
+        self.add_labeled_text("Text", "text", use_arkham=True)
+        self.add_labeled_text("Flavor", "flavor_text")
+
+        self.main_layout.addStretch()
+
+
+class AgendaEditor(FaceEditor):
+    """Editor for agenda cards (front side)"""
+
+    def setup_ui(self):
+        self.add_labeled_line("Name", "name")
+        self.add_labeled_line("Index", "index")
+        self.add_labeled_line("Doom", "doom")
+
+        self.add_labeled_text("Text", "text", use_arkham=True)
+        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_illustration_widget()
+
+        self.main_layout.addStretch()
+
+
+class AgendaBackEditor(FaceEditor):
+    """Editor for agenda cards (back side)"""
+
+    def setup_ui(self):
+        self.add_labeled_line("Name", "name")
+        self.add_labeled_line("Index", "index")
+
+        self.add_labeled_text("Text", "text", use_arkham=True)
+        self.add_labeled_text("Flavor", "flavor_text")
+
+        self.main_layout.addStretch()
+
+
 # Create aliases for similar editors
 LocationBackEditor = LocationEditor
 InvestigatorEditor = AssetEditor
 InvestigatorBackEditor = BaseEditor
-ActEditor = LocationEditor
-ActBackEditor = BaseEditor
-AgendaEditor = LocationEditor
-AgendaBackEditor = BaseEditor
 ChaosEditor = BaseEditor
 CustomizableEditor = BaseEditor
 StoryEditor = BaseEditor

@@ -10,7 +10,7 @@ def do(project):
 			"name": project.name,
 
 			"description": project.data['description'],
-			"date_updated": datetime.date.now().isoformat(),
+			"date_updated": datetime.date.today().isoformat(),
 			"banner_url": project.get('banner_url'),
 			"banner_credit": project.get('banner_url'),
 
