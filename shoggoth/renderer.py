@@ -270,7 +270,6 @@ class CardRenderer:
         if include_bleed == 'mark':
             mark_image = Image.new('RGBA', (width, height), (255, 255, 255, 0))
             draw = ImageDraw.Draw(mark_image)
-            print(mark_image.width, mark_image.height, self.CARD_BLEED)
             draw.polygon(
                 [
                     # outer line

@@ -74,11 +74,11 @@ class Face:
             del self.data[key]
 
         shoggoth.app.update_card_preview()
-        if key in ('classes', 'type', 'level'):
-            shoggoth.app.current_project.assign_card_numbers()
-            shoggoth.app.refresh_tree()
-        if key in ('illustration', 'template'):
-            shoggoth.app.reset_image_cache(value)
+        # if key in ('classes', 'type', 'level'):
+        #     shoggoth.app.current_project.assign_card_numbers()
+        #     shoggoth.app.refresh_tree()
+        # if key in ('illustration', 'template'):
+        #     shoggoth.app.reset_image_cache(value)
         self.dirty = True
 
     def get_class(self):
@@ -130,8 +130,8 @@ class Card:
 
     @property
     def encounter(self):
-        if not 'encounter_set' in self.data or not self.data['encounter_set']:
-           return None
+        if 'encounter_set' not in self.data or not self.data['encounter_set']:
+            return None
         return self.expansion.get_encounter_set(self.data['encounter_set'])
 
     def reload_fallback(self):
@@ -177,7 +177,7 @@ class Card:
             yield self
             return
         r = self.encounter_number.split('-')
-        for n in range(int(r[0]), int(r[1])+1):
+        for n in range(int(r[0]), int(r[1]) + 1):
             cp = Card(self.data.copy(), self.expansion, self.encounter)
             cp.encounter_number = n
             yield cp
@@ -204,10 +204,11 @@ class Card:
 
     def set(self, key, value):
         self.data[key] = value
-        if key in ('name', 'id', 'investigator', 'encounter_set'):
-            shoggoth.app.current_project.assign_card_numbers()
-            shoggoth.app.update_card_preview()
-            shoggoth.app.refresh_tree()
+        self.dirty = True
+        # if key in ('name', 'id', 'investigator', 'encounter_set'):
+        #     shoggoth.app.current_project.assign_card_numbers()
+        #     shoggoth.app.update_card_preview()
+        #     shoggoth.app.refresh_tree()
 
     def get(self, key, default=None):
         return self.data.get(key, default)
@@ -287,7 +288,7 @@ class TEMPLATES:
             ["<b>Deck Size:</b>", "30"],
             ["<b>Secondary Class Choice:</b>", ""],
             ["<b>Deckbuilding Options:</b>", ""],
-            ["<b>Deckbuilding Requirements</b> (do not count toward deck size):",""],
+            ["<b>Deckbuilding Requirements</b> (do not count toward deck size):", ""],
             ["<b>Deckbuilding Restrictions:</b>", ""],
         ]
         return card

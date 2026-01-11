@@ -29,6 +29,7 @@ dependencies = [
     "customtkinter>=5.2.2",
     "tknodesystem>=0.9",
     "ctkmenubar>=0.9",
+    "pyside6>=6.10.1",
 ]
 
 [project.urls]
