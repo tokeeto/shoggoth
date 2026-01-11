@@ -998,17 +998,76 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_about(self):
         """Show about dialog"""
-        QMessageBox.about(
-            self,
-            "About Shoggoth",
-            "Shoggoth Card Creator\n\n"
-            "Version 0.0.23\n\n"
-            "Created by Toke Ivø\n\n"
-            "A card creation tool for Arkham Horror: The Card Game"
-        )
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+
+        # Get version from package metadata
+        try:
+            from importlib.metadata import version
+            app_version = version("shoggoth")
+        except Exception:
+            app_version = "unknown"
+
+        # URLs for links
+        urls = {
+            'contrib': 'https://github.com/tokeeto/shoggoth',
+            'patreon': 'https://www.patreon.com/tokeeto',
+            'tips': 'https://ko-fi.com/tokeeto',
+        }
+
+        about_html = f"""
+        <div style="text-align: center;">
+            <h1 style="font-size: 32pt; margin-bottom: 5px;">Shoggoth</h1>
+            <p style="font-size: 14pt; color: #666;">Version {app_version}</p>
+        </div>
+        <hr>
+        <p>Created by <b>Toke Ivø</b></p>
+        <p>
+            You can support the development of Shoggoth by
+            <a href="{urls['contrib']}">contributing</a>,
+            <a href="{urls['patreon']}">donating on Patreon</a>, or
+            <a href="{urls['tips']}">leaving a tip</a>.
+        </p>
+        <p>Various images and templates by the <b>Mythos Busters</b> community - especially <b>Coldtoes</b> and <b>Hauke</b>.</p>
+        <p>
+            Thanks to <b>CGJennings</b> for creating Strange Eons, and
+            <b>pilunte23/JaqenZann</b> for the original AHLCG plugin,
+            without which we'd all be so much more bored.
+        </p>
+        <p>
+            Special thanks to <b>Coldtoes</b>, <b>felice</b>, <b>Chr1Z</b>,
+            <b>MickeyTheQ</b> and <b>Morvael</b> for helping this project become a reality.
+        </p>
+        """
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("About Shoggoth")
+        dialog.setMinimumSize(450, 350)
+
+        layout = QVBoxLayout()
+
+        # Use QTextBrowser for clickable links
+        text_browser = QTextBrowser()
+        text_browser.setOpenExternalLinks(True)
+        text_browser.setHtml(about_html)
+        text_browser.setStyleSheet("background: transparent; border: none;")
+        layout.addWidget(text_browser)
+
+        # OK button
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(dialog.accept)
+        layout.addWidget(button_box)
+
+        dialog.setLayout(layout)
+        dialog.exec()
 
     def closeEvent(self, event):
         """Handle window close event - check for unsaved changes"""
+        if self.card_file_monitor:
+            self.card_file_monitor.stop()
+        self.save_settings()
+
         if self.has_unsaved_changes():
             reply = QMessageBox.question(
                 self,
@@ -1202,10 +1261,3 @@ class ShoggothMainWindow(QMainWindow):
         from PySide6.QtWidgets import QInputDialog
         text, ok = QInputDialog.getText(self, title, label, text=default)
         return text, ok
-
-    def closeEvent(self, event):
-        """Handle window close event"""
-        if self.card_file_monitor:
-            self.card_file_monitor.stop()
-        self.save_settings()
-        event.accept()
