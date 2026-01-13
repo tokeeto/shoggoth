@@ -273,6 +273,7 @@ class ArkhamTextEdit(QTextEdit):
                 self.completer.popup().sizeHintForColumn(0)
                 + self.completer.popup().verticalScrollBar().sizeHint().width()
             )
+            cursor_rect.translate(0, cursor_rect.height())
             self.completer.complete(cursor_rect)
             self.completing = True
         else:
@@ -329,7 +330,7 @@ class LabeledArkhamTextEdit(QTextEdit):
         layout.addWidget(self.input)
         
         self.container.setLayout(layout)
-    
+
     def toPlainText(self):
         return self.input.toPlainText()
     
