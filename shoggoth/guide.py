@@ -66,7 +66,6 @@ class Guide:
         return html
 
     def get_page(self, page, html: str = ''):
-        print(self.front_page)
         if not html:
             p = subprocess.call([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
             pdf = pymupdf.open(self.target_path)
@@ -78,7 +77,6 @@ class Guide:
                 stdout=subprocess.PIPE,
             )
             data = p.stdout
-            print('got data of len', len(data))
             pdf = pymupdf.open(stream=data)
 
         image = pdf[page].get_pixmap().pil_image()
@@ -88,14 +86,19 @@ class Guide:
         buffer.seek(0)
         return buffer
 
-    def render_to_file(self):
-        subprocess.run([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
+    def save(self, html):
+        self._html = html
+        with open(self.path, 'w') as file:
+            file.write(html)
 
+    def render_to_file(self, html=None):
+        if not html:
+            html = self.get_html()
+        html = self.html_format(html)
 
-# todo:
-# use pymupdf
-# load file
-# use file[n] to get page
-# use page.get_pixmap(matrix=(scale_x, scale_y)) to get pixelmap
-# use pixmap.pil_image() to get pil_image
-# use pil_image as normal to get jpeg, then send to renderer.
+        p = subprocess.run(
+            [self.prince_cmd, '-', '-o', str(self.target_path)],
+            cwd=self.prince_dir,
+            input=html.encode(),
+        )
+        return

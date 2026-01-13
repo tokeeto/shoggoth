@@ -7,8 +7,10 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QStatusBar, QScrollArea, QDialog,
     QLineEdit, QPushButton, QDialogButtonBox
 )
-from PySide6.QtCore import Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QPixmap, QAction, QImage, QKeySequence, QShortcut, QIcon
+from PySide6.QtCore import QUrl, Qt, QTimer, Signal, Slot
+from PySide6.QtGui import (
+    QPixmap, QAction, QImage, QKeySequence, QShortcut, QIcon, QDesktopServices
+)
 from pathlib import Path
 import json
 import threading
@@ -31,6 +33,7 @@ class FileBrowser(QWidget):
     encounter_selected = Signal(object)  # Emits encounter object
     project_selected = Signal(object)  # Emits project object
     guide_selected = Signal(object)  # Emits guide object
+    locations_selected = Signal(object)  # Emits encounter set for location view
 
     def __init__(self):
         super().__init__()
@@ -97,7 +100,7 @@ class FileBrowser(QWidget):
             story_node = QTreeWidgetItem(['Story'])
             story_node.setData(0, Qt.UserRole, {'type': 'category', 'data': encounter_set})
             location_node = QTreeWidgetItem(['Locations'])
-            location_node.setData(0, Qt.UserRole, {'type': 'category', 'data': encounter_set})
+            location_node.setData(0, Qt.UserRole, {'type': 'locations', 'data': encounter_set})
             encounter_node = QTreeWidgetItem(['Encounter'])
             encounter_node.setData(0, Qt.UserRole, {'type': 'category', 'data': encounter_set})
             e_node.addChild(story_node)
@@ -209,6 +212,8 @@ class FileBrowser(QWidget):
             self.card_selected.emit(item_data)
         elif item_type == 'guide':
             self.guide_selected.emit(item_data)
+        elif item_type == 'locations':
+            self.locations_selected.emit(item_data)
 
     def on_context_menu(self, position):
         """Handle context menu request"""
@@ -298,6 +303,7 @@ class ShoggothMainWindow(QMainWindow):
         self.file_browser.encounter_selected.connect(self.show_encounter)
         self.file_browser.project_selected.connect(self.show_project)
         self.file_browser.guide_selected.connect(self.show_guide)
+        self.file_browser.locations_selected.connect(self.show_locations)
         self.main_splitter.addWidget(self.file_browser)
 
         # Right panel - Content area (will contain editor + preview for cards)
@@ -563,6 +569,10 @@ class ShoggothMainWindow(QMainWindow):
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
+        asset_location_action = QAction("&Asset file location", self)
+        asset_location_action.triggered.connect(self.open_asset_location)
+        help_menu.addAction(asset_location_action)
+
         # View menu
         view_menu = menubar.addMenu("&View")
 
@@ -629,6 +639,10 @@ class ShoggothMainWindow(QMainWindow):
             element = self.current_project.get_guide(element_id)
             if element:
                 self.show_guide(element)
+        elif element_type == 'locations':
+            element = self.current_project.get_encounter_set(element_id)
+            if element:
+                self.show_locations(element)
 
         # Select in tree if element was found
         if element:
@@ -1008,6 +1022,33 @@ class ShoggothMainWindow(QMainWindow):
 
         self.current_guide = guide
 
+    def show_locations(self, encounter_set):
+        """Display location connection editor for an encounter set"""
+        # Clear current editor
+        self.clear_editor()
+
+        # Save selection
+        self.settings['session']['last_id'] = encounter_set.id
+        self.settings['session']['last_type'] = 'locations'
+        self.save_settings()
+
+        # Hide preview for non-card views
+        self.preview_dock.hide()
+
+        # Clear content layout
+        while self.content_layout.count():
+            item = self.content_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        # Create and add location view
+        from shoggoth.location_view import LocationViewWidget
+        self.location_view = LocationViewWidget(encounter_set, self.card_renderer)
+        self.location_view.card_selected.connect(self.show_card)
+        self.content_layout.addWidget(self.location_view)
+
+        self.status_bar.showMessage(f"Editing locations: {encounter_set.name}")
+
     def schedule_preview_update(self):
         """Schedule a debounced preview update (400ms delay)"""
         if not self.current_card:
@@ -1208,6 +1249,10 @@ class ShoggothMainWindow(QMainWindow):
 
         dialog.setLayout(layout)
         dialog.exec()
+
+    def open_asset_location(self):
+        """Open the asset folder in the system file explorer"""
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(asset_dir)))
 
     def closeEvent(self, event):
         """Handle window close event - check for unsaved changes"""
