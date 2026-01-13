@@ -10,7 +10,6 @@ datas = []
 #     datas.append(("C:\\SDL2-2.26.0\\lib\\x64\\SDL2.dll", '.'))
 # Kivy tries to open up a window during compilation.
 # Setting this makes it "fail" succesfully.
-os.environ['KIVY_WINDOW'] = "None"
 
 a = Analysis(
     ['shoggoth/tool.py'],

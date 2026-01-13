@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QPixmap, QAction, QImage, QKeySequence, QShortcut, QIcon
 from pathlib import Path
 import json
+import threading
 from io import BytesIO
 
 import shoggoth
@@ -78,7 +79,9 @@ class FileBrowser(QWidget):
 
         if has_encounters and has_player_cards:
             campaign_node = QTreeWidgetItem(['Campaign cards'])
+            campaign_node.setData(0, Qt.UserRole, {'type': 'campaign_cards', 'data': self._project})
             player_node = QTreeWidgetItem(['Player cards'])
+            player_node.setData(0, Qt.UserRole, {'type': 'player_cards', 'data': self._project})
             root.addChild(campaign_node)
             root.addChild(player_node)
         else:
@@ -223,11 +226,17 @@ class ShoggothMainWindow(QMainWindow):
     # Signal for file changes (emitted from background thread, handled on main thread)
     file_changed_signal = Signal(str)
 
+    # Signal for render results (version, front_image, back_image)
+    render_result_signal = Signal(int, object, object)
+
     def __init__(self):
         super().__init__()
 
         # Connect file change signal to handler (for thread-safe UI updates)
         self.file_changed_signal.connect(self._handle_file_changed)
+
+        # Connect render result signal to handler
+        self.render_result_signal.connect(self._handle_render_result)
 
         # Settings manager - must be before shoggoth.app assignment
         from shoggoth.settings import SettingsManager
@@ -236,7 +245,7 @@ class ShoggothMainWindow(QMainWindow):
         shoggoth.app = self
 
         self.setWindowTitle("Shoggoth Card Creator")
-        self.setMinimumSize(1200, 800)
+        self.setMinimumSize(1400, 900)
 
         # Set application icon
         icon_path = asset_dir / "elder_sign_neon.png"
@@ -246,8 +255,15 @@ class ShoggothMainWindow(QMainWindow):
         # Initialize components
         self.current_project = None
         self.current_card = None
+        self.current_editor = None
         self.card_renderer = CardRenderer()
         self.card_file_monitor = None
+
+        # Preview rendering with debounce
+        self.render_timer = QTimer()
+        self.render_timer.setSingleShot(True)
+        self.render_timer.timeout.connect(self._start_background_render)
+        self.render_version = 0  # Tracks render requests, stale results are discarded
 
         # Load settings
         self.load_settings()
@@ -589,10 +605,34 @@ class ShoggothMainWindow(QMainWindow):
         if project_path := session.get('project'):
             try:
                 self.open_project(project_path)
-                if card_id := session.get('last_id'):
-                    QTimer.singleShot(100, lambda: self.goto_card(card_id))
+                if last_id := session.get('last_id'):
+                    last_type = session.get('last_type', 'card')
+                    QTimer.singleShot(100, lambda: self._restore_last_element(last_id, last_type))
             except Exception as e:
                 print(f"Error restoring session: {e}")
+
+    def _restore_last_element(self, element_id, element_type):
+        """Restore the last selected element by ID and type"""
+        if not self.current_project:
+            return
+
+        element = None
+        if element_type == 'card':
+            element = self.current_project.get_card(element_id)
+            if element:
+                self.show_card(element)
+        elif element_type == 'encounter':
+            element = self.current_project.get_encounter_set(element_id)
+            if element:
+                self.show_encounter(element)
+        elif element_type == 'guide':
+            element = self.current_project.get_guide(element_id)
+            if element:
+                self.show_guide(element)
+
+        # Select in tree if element was found
+        if element:
+            self.select_item_in_tree(element_id)
 
     def open_project_dialog(self):
         """Show dialog to open a project"""
@@ -778,7 +818,9 @@ class ShoggothMainWindow(QMainWindow):
         self.clear_editor()
 
         self.current_card = card
+        self.current_editor = None
         self.settings['session']['last_id'] = card.id
+        self.settings['session']['last_type'] = 'card'
         self.save_settings()
 
         # Update file monitoring for this card's dependencies
@@ -798,9 +840,13 @@ class ShoggothMainWindow(QMainWindow):
         # Load card editor
         from shoggoth.editors import CardEditor
         editor = CardEditor(card)
+        self.current_editor = editor
 
-        # Connect data change signal to preview update
-        editor.data_changed.connect(self.update_card_preview)
+        # Connect data change signal to debounced preview update
+        editor.data_changed.connect(self.schedule_preview_update)
+
+        # Connect illustration mode signals
+        self._connect_illustration_mode(editor)
 
         # Wrap editor in scroll area
         editor_scroll = QScrollArea()
@@ -822,10 +868,65 @@ class ShoggothMainWindow(QMainWindow):
         # Update preview
         self.update_card_preview()
 
+    def _disconnect_illustration_mode(self):
+        """Disconnect illustration mode signals"""
+        try:
+            self.card_preview.illustration_pan_changed.disconnect(self._on_illustration_pan)
+            self.card_preview.illustration_scale_changed.disconnect(self._on_illustration_scale)
+        except RuntimeError:
+            pass  # Signals weren't connected
+
+        # Reset illustration mode on preview
+        self.card_preview.set_illustration_mode(False)
+
+    def _connect_illustration_mode(self, editor):
+        """Connect illustration mode signals between editor and preview"""
+        # Disconnect any previous connections first
+        self._disconnect_illustration_mode()
+
+        # Connect preview pan/scale signals to editor
+        self.card_preview.illustration_pan_changed.connect(self._on_illustration_pan)
+        self.card_preview.illustration_scale_changed.connect(self._on_illustration_scale)
+
+        # Connect editor illustration mode signals to preview
+        for face_editor in [editor.front_editor, editor.back_editor]:
+            if face_editor and hasattr(face_editor, 'illustration_widget'):
+                widget = face_editor.illustration_widget
+                widget.illustration_mode_changed.connect(self._on_illustration_mode_changed)
+
+    def _on_illustration_mode_changed(self, enabled, side):
+        """Handle illustration mode toggle from editor"""
+        self.card_preview.set_illustration_mode(enabled, side)
+
+    def _on_illustration_pan(self, side, delta_x, delta_y):
+        """Handle pan changes from preview"""
+        if not self.current_editor:
+            return
+
+        # Find the right face editor and illustration widget
+        face_editor = self.current_editor.front_editor if side == 'front' else self.current_editor.back_editor
+        if face_editor and hasattr(face_editor, 'illustration_widget'):
+            face_editor.illustration_widget.update_pan(delta_x, delta_y)
+
+    def _on_illustration_scale(self, side, delta):
+        """Handle scale changes from preview"""
+        if not self.current_editor:
+            return
+
+        # Find the right face editor and illustration widget
+        face_editor = self.current_editor.front_editor if side == 'front' else self.current_editor.back_editor
+        if face_editor and hasattr(face_editor, 'illustration_widget'):
+            face_editor.illustration_widget.update_scale(delta)
+
     def show_encounter(self, encounter):
         """Display an encounter set in the editor"""
         # Clear current editor
         self.clear_editor()
+
+        # Save selection
+        self.settings['session']['last_id'] = encounter.id
+        self.settings['session']['last_type'] = 'encounter'
+        self.save_settings()
 
         # Hide preview for non-card views
         self.preview_dock.hide()
@@ -886,6 +987,11 @@ class ShoggothMainWindow(QMainWindow):
         # Clear current editor
         self.clear_editor()
 
+        # Save selection
+        self.settings['session']['last_id'] = guide.id
+        self.settings['session']['last_type'] = 'guide'
+        self.save_settings()
+
         # Hide preview for non-card views
         self.preview_dock.hide()
 
@@ -902,15 +1008,55 @@ class ShoggothMainWindow(QMainWindow):
 
         self.current_guide = guide
 
-    def update_card_preview(self):
-        """Update the card preview"""
+    def schedule_preview_update(self):
+        """Schedule a debounced preview update (400ms delay)"""
+        if not self.current_card:
+            return
+        # Increment version to invalidate any in-progress renders
+        self.render_version += 1
+        # Restart the debounce timer
+        self.render_timer.start(100)
+
+    def _start_background_render(self):
+        """Start rendering in background thread"""
         if not self.current_card:
             return
 
-        # Update file monitoring in case illustration paths changed
-        if self.card_file_monitor:
-            card_files = self.card_file_monitor.get_card_file_dependencies(self.current_card)
-            self.card_file_monitor.set_card_files(card_files)
+        # Capture current state for the background thread
+        card = self.current_card
+        version = self.render_version
+        bleed = 'mark' if self.config.getboolean('Shoggoth', 'show_bleed', True) else False
+        renderer = self.card_renderer
+
+        def render_task():
+            try:
+                front_image, back_image = renderer.get_card_textures(card, bleed=bleed)
+                # Emit result signal (will be handled on main thread)
+                self.render_result_signal.emit(version, front_image, back_image)
+            except Exception as e:
+                # Emit with None images to signal error
+                print(f"Render error: {e}")
+                self.render_result_signal.emit(version, None, None)
+
+        thread = threading.Thread(target=render_task, daemon=True)
+        thread.start()
+
+    @Slot(int, object, object)
+    def _handle_render_result(self, version, front_image, back_image):
+        """Handle render result on main thread"""
+        # Discard stale results
+        if version != self.render_version:
+            return
+
+        if front_image is not None:
+            self.card_preview.set_card_images(front_image, back_image)
+        else:
+            self.status_bar.showMessage("Error rendering card")
+
+    def update_card_preview(self):
+        """Update the card preview immediately (synchronous, for initial load)"""
+        if not self.current_card:
+            return
 
         try:
             # Get bleed setting
@@ -993,8 +1139,9 @@ class ShoggothMainWindow(QMainWindow):
             # Reload fallback data (for template/defaults changes)
             self.current_card.reload_fallback()
 
-            # Update the preview
-            self.update_card_preview()
+            # Update the preview (increment version and start background render immediately)
+            self.render_version += 1
+            self._start_background_render()
 
     def show_about(self):
         """Show about dialog"""

@@ -26,24 +26,28 @@ class TreeContextMenu:
         data = item.data(0, Qt.UserRole)
         if not data:
             return
-        
+
         item_type = data.get('type')
         item_data = data.get('data')
-        
+
         menu = QMenu(self.parent)
-        
+
         if item_type == 'card':
             self._create_card_menu(menu, item_data)
         elif item_type == 'encounter':
             self._create_encounter_menu(menu, item_data)
         elif item_type == 'project':
             self._create_project_menu(menu, item_data)
+        elif item_type == 'campaign_cards':
+            self._create_campaign_cards_menu(menu, item_data)
+        elif item_type == 'player_cards':
+            self._create_player_cards_menu(menu, item_data)
         elif item_type == 'category':
             # Category nodes (Story, Locations, Encounter, Class groups, etc.)
             category_name = item.text(0)
             parent_data = item.parent().data(0, Qt.UserRole) if item.parent() else None
-            self._create_category_menu(menu, category_name, parent_data, item_data)
-        
+            self._create_category_menu(menu, category_name, parent_data, data)
+
         if not menu.isEmpty():
             menu.exec(position)
     
@@ -93,24 +97,72 @@ class TreeContextMenu:
         new_encounter_action = QAction("New Encounter Set", self.parent)
         new_encounter_action.triggered.connect(lambda: self.new_encounter_set(project))
         menu.addAction(new_encounter_action)
-        
+
         # New Player Card
         new_player_action = QAction("New Player Card", self.parent)
         new_player_action.triggered.connect(lambda: self.new_player_card(project))
         menu.addAction(new_player_action)
+
+    def _create_campaign_cards_menu(self, menu, project):
+        """Create context menu for Campaign cards node"""
+        new_encounter_action = QAction("New Encounter Set", self.parent)
+        new_encounter_action.triggered.connect(lambda: self.new_encounter_set(project))
+        menu.addAction(new_encounter_action)
+
+    def _create_player_cards_menu(self, menu, project):
+        """Create context menu for Player cards node"""
+        new_card_action = QAction("New Card", self.parent)
+        new_card_action.triggered.connect(lambda: self.new_player_card(project))
+        menu.addAction(new_card_action)
     
     def _create_category_menu(self, menu, category_name, parent_data, item_data):
         """Create context menu for category nodes (Story, Locations, etc.)"""
-        # Determine what kind of category this is
+        # Check if this is a class category node (Guardian, Seeker, etc.)
+        class_type = item_data.get('class') if item_data else None
+
+        if class_type == 'investigators':
+            # Investigators node - add new investigator option
+            new_inv_action = QAction("New Investigator", self.parent)
+            new_inv_action.triggered.connect(self.new_investigator)
+            menu.addAction(new_inv_action)
+            return
+
+        if class_type == 'other':
+            # Other node - add new card option
+            new_card_action = QAction("New Card", self.parent)
+            new_card_action.triggered.connect(lambda: self.new_player_card(None))
+            menu.addAction(new_card_action)
+            return
+
+        if class_type in ('guardian', 'seeker', 'rogue', 'mystic', 'survivor', 'neutral'):
+            # Class nodes - add asset/event/skill options
+            for card_type in ['Asset', 'Event', 'Skill']:
+                action = QAction(f"New {card_type}", self.parent)
+                action.triggered.connect(
+                    lambda checked=False, ct=card_type.lower(), cls=class_type: self.new_class_card(cls, ct)
+                )
+                menu.addAction(action)
+
+            # Paste (if we have something in clipboard)
+            if self.clipboard:
+                menu.addSeparator()
+                paste_action = QAction("Paste Card", self.parent)
+                paste_action.triggered.connect(
+                    lambda: self.paste_class_card(class_type)
+                )
+                menu.addAction(paste_action)
+            return
+
+        # Encounter set categories (Story, Locations, Encounter)
         template = self._get_template_for_category(category_name, parent_data)
-        
+
         if template:
             new_card_action = QAction(f"New {category_name} Card", self.parent)
             new_card_action.triggered.connect(
                 lambda: self.new_card_with_template(parent_data.get('data'), template)
             )
             menu.addAction(new_card_action)
-            
+
             # Paste (if we have something in clipboard)
             if self.clipboard:
                 menu.addSeparator()
@@ -327,7 +379,7 @@ class TreeContextMenu:
     def new_player_card(self, project):
         """Create new player card"""
         import shoggoth
-        shoggoth.app.open_new_card_dialog()
+        shoggoth.app.new_card_dialog()
     
     def delete_encounter(self, encounter):
         """Delete an encounter set"""
@@ -357,6 +409,66 @@ class TreeContextMenu:
             project.data['encounter_sets'].remove(encounter.data)
             
             print(f"Deleted encounter set: {encounter.name}")
-            
+
             # Trigger refresh
             shoggoth.app.refresh_tree()
+
+    def new_investigator(self):
+        """Create new investigator card"""
+        import shoggoth
+        shoggoth.app.add_investigator_template()
+
+    def new_class_card(self, class_type, card_type):
+        """Create new card with specific class and type"""
+        import shoggoth
+        from uuid import uuid4
+
+        # Build card data
+        new_data = {
+            'id': str(uuid4()),
+            'name': 'New Card',
+            'front': {
+                'type': card_type,
+                'classes': [class_type],
+            },
+            'back': {'type': 'player'},
+        }
+
+        # Add to project
+        project = shoggoth.app.current_project
+        project.add_card(new_data)
+
+        # Refresh and open
+        shoggoth.app.refresh_tree()
+
+        # Find and show the new card
+        new_card = project.get_card(new_data['id'])
+        if new_card:
+            shoggoth.app.show_card(new_card)
+            shoggoth.app.select_item_in_tree(new_card.id)
+
+    def paste_class_card(self, class_type):
+        """Paste clipboard card with specific class"""
+        if not self.clipboard:
+            return
+
+        import shoggoth
+        from uuid import uuid4
+
+        # Create new card data from clipboard
+        new_data = json.loads(json.dumps(self.clipboard))
+
+        # Generate new ID
+        new_data['id'] = str(uuid4())
+
+        # Set class on front face
+        new_data.setdefault('front', {})['classes'] = [class_type]
+
+        # Add to project
+        project = shoggoth.app.current_project
+        project.add_card(new_data)
+
+        print(f"Pasted card: {new_data.get('name', 'New Card')}")
+
+        # Trigger refresh
+        shoggoth.app.refresh_tree()

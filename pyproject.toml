@@ -1,6 +1,6 @@
 [project]
 name = "shoggoth"
-version = "0.1.0"
+version = "0.1.1"
 authors = [{ name = "Toke Ivø", email = "toke.ivo@gmail.com" }]
 description = "A card creator for Arkham Horror: The Card Game"
 readme = "README.md"

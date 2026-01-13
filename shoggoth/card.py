@@ -73,7 +73,7 @@ class Face:
         if value is None and key != 'type':
             del self.data[key]
 
-        shoggoth.app.update_card_preview()
+        shoggoth.app.schedule_preview_update()
         # if key in ('classes', 'type', 'level'):
         #     shoggoth.app.current_project.assign_card_numbers()
         #     shoggoth.app.refresh_tree()

@@ -131,6 +131,12 @@ class Project:
                 return es
         return None
 
+    def get_guide(self, id):
+        for guide in self.guides:
+            if guide.id == id:
+                return guide
+        return None
+
     def assign_card_numbers(self):
         current_number = 1
         for encounter_set in self.encounter_sets:
@@ -149,6 +155,9 @@ class Project:
             self.data['cards'].append(card.data)
         else:
             self.data['cards'].append(card)
+
+        if not card.get('copyright') and 'default_copyright' in self.data:
+            card.set('copyright', self.data['default_copyright'])
         self.dirty = True
 
     def get_all_cards(self):

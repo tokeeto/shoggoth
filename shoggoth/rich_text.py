@@ -34,6 +34,7 @@ class RichTextRenderer:
     def __init__(self, card_renderer):
         self.card_renderer = card_renderer
         self.icon_cache = {}  # Cache for loaded icons
+        self.font_cache = {}  # Cache for loaded fonts by size
 
         # Add alignment configuration
         self.alignment = 'left'  # Default alignment: 'left', 'center', 'right'
@@ -221,10 +222,15 @@ class RichTextRenderer:
 
 
     def load_fonts(self, size):
-        """Load all fonts at the specified size"""
+        """Load all fonts at the specified size, with caching"""
+        if size in self.font_cache:
+            return self.font_cache[size]
+
         loaded_fonts = {}
         for font_type, font_info in self.fonts.items():
             loaded_fonts[font_type] = ImageFont.truetype(font_info['path'], size)
+
+        self.font_cache[size] = loaded_fonts
         return loaded_fonts
 
     def load_icon(self, icon_path, height):
@@ -380,6 +386,94 @@ class RichTextRenderer:
 
         return tokens
 
+    def _measure_fits(self, tokens, region, polygon, font_size, base_font='regular'):
+        """
+        Fast check if text fits at given font size. Returns (fits: bool, percentage: float).
+        percentage indicates how much of the tokens were processed before overflow.
+        """
+        fonts = self.load_fonts(font_size)
+        line_height = int(font_size * 1.30)
+
+        x, y = region.x, region.y
+        max_width = region.width
+        max_height = region.height
+
+        current_font = base_font
+        font_stack = []
+        current_line_width = 0
+
+        def polygon_width_at_y(target_y, polygon_points):
+            x_intersections = []
+            for i in range(len(polygon_points) - 1):
+                (x1, y1), (x2, y2) = polygon_points[i], polygon_points[i + 1]
+                if (y1 < target_y and y2 < target_y) or (y1 > target_y and y2 > target_y) or y1 == y2:
+                    continue
+                t = (target_y - y1) / (y2 - y1)
+                x_val = x1 + t * (x2 - x1)
+                x_intersections.append(x_val)
+            if not x_intersections:
+                return region.x, region.x + region.width
+            return min(x_intersections), max(x_intersections)
+
+        if polygon:
+            left, right = polygon_width_at_y(y, polygon)
+            max_width = right - left
+
+        def get_token_width(token, font_name):
+            if token['type'] == 'text':
+                return fonts[font_name].getlength(token['value'])
+            elif token['type'] == 'font_icon':
+                return fonts['icon'].getlength(token['value'])
+            elif token['type'] == 'image_icon':
+                icon = self.load_icon(token['value'], font_size)
+                return icon.width if icon else 0
+            return 0
+
+        for i, token in enumerate(tokens):
+            if token['type'] == 'format':
+                if token['start']:
+                    font_stack.append(current_font)
+                    current_font = token['value']
+                else:
+                    current_font = font_stack.pop() if font_stack else base_font
+
+            elif token['type'] == 'story':
+                if token['start']:
+                    font_stack.append(current_font)
+                    current_font = 'italic'
+                else:
+                    current_font = font_stack.pop() if font_stack else base_font
+
+            elif token['type'] == 'newline':
+                y += line_height
+                current_line_width = 0
+                if polygon:
+                    left, right = polygon_width_at_y(y, polygon)
+                    max_width = right - left
+                if y + line_height > region.y + max_height:
+                    return False, i / len(tokens)
+
+            elif token['type'] in ('text', 'font_icon', 'image_icon'):
+                token_width = get_token_width(token, current_font)
+
+                if current_line_width + token_width > max_width:
+                    # Wrap to next line
+                    y += line_height
+                    current_line_width = token_width
+                    if polygon:
+                        left, right = polygon_width_at_y(y, polygon)
+                        max_width = right - left
+                    if y + line_height > region.y + max_height:
+                        return False, i / len(tokens)
+                else:
+                    current_line_width += token_width
+
+        # Check final line
+        if y + line_height > region.y + max_height:
+            return False, 1.0
+
+        return True, 1.0
+
     def render_text(self, image, text, region, polygon=None, alignment='left', font_size=32, min_font_size=16, font=None, outline=0, outline_fill=None, fill='#231f20'):
         """
         Render rich text with specified alignment and automatic font size reduction.
@@ -408,13 +502,14 @@ class RichTextRenderer:
 
         # Test each font size to find the largest that fits
         while current_size >= min_font_size:
-            # Try rendering at this size
             force = current_size == min_font_size
-            success, percentage = self._render_with_font_size(image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
 
-            # We finally draw directly to the target.
-            if success:
-                self._render_with_font_size(image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment, dont_draw=False)
+            # Use fast measurement to check if text fits
+            fits, percentage = self._measure_fits(tokens, region, polygon, current_size, base_font=font)
+
+            if fits or force:
+                # Render directly - single pass
+                self._render_with_font_size(image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
                 break
 
             # If a lot of the text is left, we skip a few font sizes down.
@@ -427,10 +522,9 @@ class RichTextRenderer:
                 current_size -= 1
                
 
-    def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20', alignment='left', dont_draw=True):
+    def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20', alignment='left'):
         """
-        Attempt to render text at the specified font size.
-        Returns True if rendering succeeded, False if text doesn't fit.
+        Render text at the specified font size. Called after _measure_fits confirms text fits.
         """
         draw = ImageDraw.Draw(image)
 
@@ -549,9 +643,6 @@ class RichTextRenderer:
 
         def render_line(line, y_pos, run_on_line=True, indent=0):
             """Render a line of tokens with proper alignment"""
-            if dont_draw:
-                return
-
             if quote or quote_last:
                 indent = 20
                 if not quote:

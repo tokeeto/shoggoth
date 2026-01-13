@@ -2,9 +2,9 @@
 Face editors for different card types - Consolidated
 """
 from PySide6.QtWidgets import (
-    QSpacerItem, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLineEdit, QTextEdit, QPushButton, QComboBox,
-    QLabel, QFileDialog, QGridLayout, QGroupBox, QCompleter
+    QBoxLayout, QSpacerItem, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
+    QLineEdit, QTextEdit, QPlainTextEdit, QPushButton, QComboBox,
+    QLabel, QFileDialog, QGridLayout, QGroupBox, QCompleter, QSpinBox
 )
 from PySide6.QtCore import Signal, Qt, QSize
 from pathlib import Path
@@ -195,7 +195,10 @@ class FaceEditor(QWidget):
 
     def add_illustration_widget(self):
         """Add illustration widget"""
-        illustration = editors.IllustrationWidget()
+        # Determine which side this face is on
+        face_side = 'front' if self.face == self.face.card.front else 'back'
+        illustration = editors.IllustrationWidget(face_side=face_side)
+        self.illustration_widget = illustration
 
         # Add fields
         self.fields['illustration'] = illustration.path_input.input
@@ -261,34 +264,39 @@ class AssetEditor(FaceEditor):
         self.fields['level'] = level_combo
         grid_layout.addRow("Level", level_combo)
 
-        # Icons
-        icons_input = editors.LabeledLineEdit("Icons")
-        icons_input.input.setPlaceholderText("willpower, intellect, etc.")
-        icons_input.textChanged.connect(lambda: self.on_field_changed('icons'))
-        self.fields['icons'] = icons_input.input
-        grid_layout.addRow(icons_input)
+        grid_widget.setLayout(grid_layout)
+        self.main_layout.addWidget(grid_widget)
+
+        # Icons widget (separate from grid)
+        self.icons_widget = editors.IconsWidget()
+        self.icons_widget.iconsChanged.connect(self.on_icons_changed)
+        self.main_layout.addWidget(self.icons_widget)
+
+        # Continue with more grid fields
+        grid_widget2 = QWidget()
+        grid_layout2 = QFormLayout()
 
         # Health
         health_input = editors.LabeledLineEdit("Health")
         health_input.input.textChanged.connect(lambda: self.on_field_changed('health'))
         self.fields['health'] = health_input.input
-        grid_layout.addRow(health_input)
+        grid_layout2.addRow(health_input)
 
         # Sanity
         sanity_input = editors.LabeledLineEdit("Sanity")
         sanity_input.input.textChanged.connect(lambda: self.on_field_changed('sanity'))
         self.fields['sanity'] = sanity_input.input
-        grid_layout.addRow(sanity_input)
+        grid_layout2.addRow(sanity_input)
 
         # Slots
         slots_input = editors.LabeledLineEdit("Slots")
         slots_input.input.setPlaceholderText("hand, hands, arcane, etc.")
         slots_input.textChanged.connect(lambda: self.on_field_changed('slots'))
         self.fields['slots'] = slots_input.input
-        grid_layout.addRow(slots_input)
+        grid_layout2.addRow(slots_input)
 
-        grid_widget.setLayout(grid_layout)
-        self.main_layout.addWidget(grid_widget)
+        grid_widget2.setLayout(grid_layout2)
+        self.main_layout.addWidget(grid_widget2)
 
         # Text fields
         self.add_labeled_text("Text", "text", use_arkham=True)
@@ -298,6 +306,22 @@ class AssetEditor(FaceEditor):
         self.add_illustration_widget()
 
         self.main_layout.addStretch()
+
+    def load_data(self):
+        """Load data including icons widget"""
+        super().load_data()
+        # Load icons separately
+        icons_value = self.face.get('icons', '')
+        self.icons_widget.set_icons_string(icons_value)
+
+    def on_icons_changed(self, icons_str):
+        """Handle icons widget change"""
+        if self.updating:
+            return
+        if icons_str:
+            self.face.set('icons', icons_str)
+        else:
+            self.face.set('icons', None)
 
 
 class EventEditor(FaceEditor):
@@ -332,19 +356,35 @@ class EventEditor(FaceEditor):
         self.fields['level'] = level_combo
         grid_layout.addRow("Level", level_combo)
 
-        icons_input = editors.LabeledLineEdit("Icons")
-        icons_input.input.textChanged.connect(lambda: self.on_field_changed('icons'))
-        self.fields['icons'] = icons_input.input
-        grid_layout.addRow(icons_input)
-
         grid_widget.setLayout(grid_layout)
         self.main_layout.addWidget(grid_widget)
+
+        # Icons widget (separate from grid)
+        self.icons_widget = editors.IconsWidget()
+        self.icons_widget.iconsChanged.connect(self.on_icons_changed)
+        self.main_layout.addWidget(self.icons_widget)
 
         self.add_labeled_text("Text", "text", use_arkham=True)
         self.add_labeled_text("Flavor", "flavor_text")
         self.add_illustration_widget()
 
         self.main_layout.addStretch()
+
+    def load_data(self):
+        """Load data including icons widget"""
+        super().load_data()
+        # Load icons separately
+        icons_value = self.face.get('icons', '')
+        self.icons_widget.set_icons_string(icons_value)
+
+    def on_icons_changed(self, icons_str):
+        """Handle icons widget change"""
+        if self.updating:
+            return
+        if icons_str:
+            self.face.set('icons', icons_str)
+        else:
+            self.face.set('icons', None)
 
 
 # Skill editor is similar to event
@@ -511,19 +551,10 @@ class LocationEditor(FaceEditor):
         self.add_labeled_line("Name", "name")
         self.add_labeled_line("Subtitle", "subtitle")
 
-        # Other fields
-        for field, label in [
-            ("shroud", "Shroud"),
-            ("traits", "Traits"),
-            ("clues", "Clues"),
-            ("victory", "Victory"),
-        ]:
-            widget = editors.LabeledLineEdit(label)
-            self.fields[field] = widget
-            def make_callback(field_name):
-                return lambda: self.on_field_changed(field_name)
-            widget.input.textChanged.connect(make_callback(field))
-            self.main_layout.addWidget(widget)
+        self.add_labeled_line("Shroud", "shroud")
+        self.add_labeled_line("Traits", "traits")
+        self.add_labeled_line("Clues", "clues")
+        self.add_labeled_line("Victory", "victory")
 
         # Connections section - single row of icon dropdowns
         connections_row = QHBoxLayout()
@@ -783,26 +814,427 @@ class AgendaBackEditor(FaceEditor):
         self.main_layout.addStretch()
 
 
+class InvestigatorEditor(FaceEditor):
+    """Editor for investigator cards (front side)"""
+
+    def setup_ui(self):
+        self.add_labeled_line("Name", "name")
+        self.add_labeled_line("Subtitle", "subtitle")
+
+        # Classes
+        classes_input = editors.LabeledLineEdit("Classes")
+        classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
+        self.fields['classes'] = classes_input.input
+        self.main_layout.addWidget(classes_input)
+
+        # Stats in a grid
+        box_widget = QWidget()
+        box_layout = QHBoxLayout()
+
+        for field, label in [
+            ("willpower", "Willpower"),
+            ("intellect", "Intellect"),
+            ("combat", "Combat"),
+            ("agility", "Agility"),
+        ]:
+            widget = editors.LabeledLineEdit(label)
+            self.fields[field] = widget.input
+
+            def make_callback(field_name):
+                return lambda: self.on_field_changed(field_name)
+            widget.input.textChanged.connect(make_callback(field))
+            box_layout.addWidget(widget)
+
+        box_widget.setLayout(box_layout)
+        self.main_layout.addWidget(box_widget)
+
+        # Stats in a grid
+        box_widget = QWidget()
+        box_layout = QHBoxLayout()
+        for field, label in [
+            ("health", "Health"),
+            ("sanity", "Sanity"),
+        ]:
+            widget = editors.LabeledLineEdit(label)
+            self.fields[field] = widget.input
+
+            def make_callback(field_name):
+                return lambda: self.on_field_changed(field_name)
+            widget.input.textChanged.connect(make_callback(field))
+            box_layout.addWidget(widget)
+
+        box_widget.setLayout(box_layout)
+        self.main_layout.addWidget(box_widget)
+
+        # Text fields
+        self.add_labeled_text("Text", "text", use_arkham=True)
+        self.add_labeled_text("Flavor", "flavor_text")
+
+        # Illustration
+        self.add_illustration_widget()
+
+        self.main_layout.addStretch()
+
+
+class InvestigatorBackEditor(FaceEditor):
+    """Editor for investigator cards (back side) with deck building entries"""
+
+    NUM_ENTRIES = 8
+
+    def setup_ui(self):
+        self.add_labeled_line("Name", "name")
+        self.add_labeled_line("Subtitle", "subtitle")
+
+        # Classes
+        classes_input = editors.LabeledLineEdit("Classes")
+        classes_input.input.setPlaceholderText("Comma-separated")
+        classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
+        self.fields['classes'] = classes_input.input
+        self.main_layout.addWidget(classes_input)
+
+        # Deck building entries section
+        entries_group = QGroupBox("Deck Building Options")
+        entries_layout = QVBoxLayout()
+        entries_layout.setSpacing(15)
+        entries_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.entry_widgets = []  # Store (header_input, text_input) pairs
+
+        for i in range(self.NUM_ENTRIES):
+            entry_widget = QWidget()
+            entry_layout = QVBoxLayout()
+            entry_layout.setContentsMargins(0, 0, 0, 0)
+
+            # Header input (narrow)
+            header_input = QLineEdit()
+            header_input.setPlaceholderText(f"Header {i+1}")
+            header_input.textChanged.connect(self.on_entries_changed)
+            entry_layout.addWidget(header_input)
+
+            # Value input (multi-line text field)
+            value_input = QPlainTextEdit()
+            value_input.setPlaceholderText(f"Value {i+1}")
+            value_input.setFixedHeight(54)  # ~3 lines
+            value_input.textChanged.connect(self.on_entries_changed)
+            entry_layout.addWidget(value_input)
+
+            entry_widget.setLayout(entry_layout)
+            entries_layout.addWidget(entry_widget)
+
+            self.entry_widgets.append((header_input, value_input))
+
+        entries_group.setLayout(entries_layout)
+        self.main_layout.addWidget(entries_group)
+
+        # Flavor text
+        self.add_labeled_text("Flavor", "flavor_text")
+
+        # Illustration
+        self.add_illustration_widget()
+
+        self.main_layout.addStretch()
+
+    def load_data(self):
+        """Load data from face into fields, including special entries handling"""
+        self.updating = True
+
+        # Load regular fields
+        for field_name, widget in self.fields.items():
+            value = self.face.get(field_name, '')
+            self.set_widget_value(widget, value)
+
+        # Load entries
+        entries = self.face.get('entries', [])
+        if not entries:
+            entries = []
+
+        for i, (header_input, value_input) in enumerate(self.entry_widgets):
+            if i < len(entries) and isinstance(entries[i], list) and len(entries[i]) >= 2:
+                header_input.setText(str(entries[i][0]) if entries[i][0] else '')
+                # QPlainTextEdit uses setPlainText instead of setText
+                value_input.setPlainText(str(entries[i][1]) if entries[i][1] else '')
+            else:
+                header_input.setText('')
+                value_input.setPlainText('')
+
+        self.updating = False
+
+    def on_entries_changed(self):
+        """Handle changes to entry fields"""
+        if self.updating:
+            return
+
+        # Collect all entries
+        entries = []
+        text_parts = []
+
+        for header_input, value_input in self.entry_widgets:
+            header = header_input.text().strip()
+            # QPlainTextEdit uses toPlainText() instead of text()
+            value = value_input.toPlainText().strip()
+
+            if header or value:
+                entries.append([header, value])
+                # Only add to text if BOTH header and value have content
+                if header and value:
+                    text_parts.append(f"<b>{header}</b> {value}")
+
+        # Save entries list
+        if entries:
+            self.face.set('entries', entries)
+        else:
+            self.face.set('entries', None)
+
+        # Save combined text field
+        if text_parts:
+            combined_text = "\n".join(text_parts)
+            self.face.set('text', combined_text)
+        else:
+            self.face.set('text', None)
+
+        # Emit data_changed signal
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
+
+
 # Create aliases for similar editors
 LocationBackEditor = LocationEditor
-InvestigatorEditor = AssetEditor
-InvestigatorBackEditor = BaseEditor
-ChaosEditor = BaseEditor
-CustomizableEditor = BaseEditor
-StoryEditor = BaseEditor
+
+
+class ChaosEditor(FaceEditor):
+    """Editor for chaos bag reference cards"""
+
+    NUM_ENTRIES = 10
+
+    def setup_ui(self):
+        self.add_labeled_line("Difficulty", "difficulty")
+
+        # Entries section
+        entries_group = QGroupBox("Chaos Bag Entries")
+        entries_layout = QVBoxLayout()
+        entries_layout.setSpacing(8)
+        entries_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.entry_widgets = []  # Store (token_input, text_input) pairs
+
+        for i in range(self.NUM_ENTRIES):
+            entry_widget = QWidget()
+            entry_layout = QHBoxLayout()
+            entry_layout.setContentsMargins(0, 0, 0, 0)
+
+            # Token input (comma-separated list of tokens)
+            token_input = QLineEdit()
+            token_input.setPlaceholderText(f"Tokens (e.g. -1, -2)")
+            token_input.setMaximumWidth(150)
+            token_input.textChanged.connect(self.on_entries_changed)
+            entry_layout.addWidget(token_input)
+
+            # Text input
+            text_input = QLineEdit()
+            text_input.setPlaceholderText(f"Effect text")
+            text_input.textChanged.connect(self.on_entries_changed)
+            entry_layout.addWidget(text_input)
+
+            entry_widget.setLayout(entry_layout)
+            entries_layout.addWidget(entry_widget)
+
+            self.entry_widgets.append((token_input, text_input))
+
+        entries_group.setLayout(entries_layout)
+        self.main_layout.addWidget(entries_group)
+
+        self.main_layout.addStretch()
+
+    def load_data(self):
+        """Load data from face into fields"""
+        self.updating = True
+
+        # Load regular fields
+        for field_name, widget in self.fields.items():
+            value = self.face.get(field_name, '')
+            self.set_widget_value(widget, value)
+
+        # Load entries
+        entries = self.face.get('entries', [])
+        if not entries:
+            entries = []
+
+        for i, (token_input, text_input) in enumerate(self.entry_widgets):
+            if i < len(entries) and isinstance(entries[i], dict):
+                # Token is a list, join with comma
+                tokens = entries[i].get('token', [])
+                if isinstance(tokens, list):
+                    token_input.setText(', '.join(str(t) for t in tokens))
+                else:
+                    token_input.setText(str(tokens) if tokens else '')
+                text_input.setText(str(entries[i].get('text', '')))
+            else:
+                token_input.setText('')
+                text_input.setText('')
+
+        self.updating = False
+
+    def on_entries_changed(self):
+        """Handle changes to entry fields"""
+        if self.updating:
+            return
+
+        entries = []
+        for token_input, text_input in self.entry_widgets:
+            token_str = token_input.text().strip()
+            text = text_input.text().strip()
+
+            if token_str or text:
+                # Parse tokens as comma-separated list
+                tokens = [t.strip() for t in token_str.split(',') if t.strip()]
+                entries.append({'token': tokens, 'text': text})
+
+        if entries:
+            self.face.set('entries', entries)
+        else:
+            self.face.set('entries', None)
+
+        # Emit data_changed signal
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
+
+
+class CustomizableEditor(FaceEditor):
+    """Editor for customizable cards with upgrade options"""
+
+    NUM_ENTRIES = 12
+
+    def setup_ui(self):
+        self.add_labeled_line("Name", "name")
+        self.add_labeled_text("Text", "text", use_arkham=True)
+
+        # Entries section (customization options)
+        entries_group = QGroupBox("Customization Options")
+        entries_layout = QVBoxLayout()
+        entries_layout.setSpacing(6)
+        entries_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.entry_widgets = []  # Store (cost_input, name_input, text_input) tuples
+
+        for i in range(self.NUM_ENTRIES):
+            entry_widget = QWidget()
+            entry_layout = QHBoxLayout()
+            entry_layout.setContentsMargins(0, 0, 0, 0)
+            entry_layout.setSpacing(4)
+
+            # Cost input (small integer field)
+            cost_input = QSpinBox()
+            cost_input.setRange(0, 10)
+            cost_input.setFixedWidth(50)
+            cost_input.setToolTip("XP Cost")
+            cost_input.valueChanged.connect(self.on_entries_changed)
+            entry_layout.addWidget(cost_input)
+
+            # Name input
+            name_input = QLineEdit()
+            name_input.setPlaceholderText(f"Option name")
+            name_input.setMaximumWidth(150)
+            name_input.textChanged.connect(self.on_entries_changed)
+            entry_layout.addWidget(name_input)
+
+            # Text input
+            text_input = QLineEdit()
+            text_input.setPlaceholderText(f"Option effect")
+            text_input.textChanged.connect(self.on_entries_changed)
+            entry_layout.addWidget(text_input)
+
+            entry_widget.setLayout(entry_layout)
+            entries_layout.addWidget(entry_widget)
+
+            self.entry_widgets.append((cost_input, name_input, text_input))
+
+        entries_group.setLayout(entries_layout)
+        self.main_layout.addWidget(entries_group)
+        self.main_layout.addStretch()
+
+    def load_data(self):
+        """Load data from face into fields"""
+        self.updating = True
+
+        # Load regular fields
+        for field_name, widget in self.fields.items():
+            value = self.face.get(field_name, '')
+            self.set_widget_value(widget, value)
+
+        # Load entries
+        entries = self.face.get('entries', [])
+        if not entries:
+            entries = []
+
+        for i, (cost_input, name_input, text_input) in enumerate(self.entry_widgets):
+            if i < len(entries) and isinstance(entries[i], list) and len(entries[i]) >= 3:
+                cost_input.setValue(int(entries[i][0]) if entries[i][0] else 0)
+                name_input.setText(str(entries[i][1]) if entries[i][1] else '')
+                text_input.setText(str(entries[i][2]) if entries[i][2] else '')
+            else:
+                cost_input.setValue(0)
+                name_input.setText('')
+                text_input.setText('')
+
+        self.updating = False
+
+    def on_entries_changed(self):
+        """Handle changes to entry fields"""
+        if self.updating:
+            return
+
+        entries = []
+        for cost_input, name_input, text_input in self.entry_widgets:
+            cost = cost_input.value()
+            name = name_input.text().strip()
+            text = text_input.text().strip()
+
+            if name or text or cost > 0:
+                entries.append([cost, name, text])
+
+        if entries:
+            self.face.set('entries', entries)
+        else:
+            self.face.set('entries', None)
+
+        # Emit data_changed signal
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
+
+
+class StoryEditor(FaceEditor):
+    """Editor for story cards"""
+
+    def setup_ui(self):
+        self.add_labeled_line("Name", "name")
+        self.add_labeled_line("Classes", "classes")
+
+        self.add_labeled_text("Text", "text", use_arkham=True)
+        self.main_layout.addStretch()
 
 
 # Mapping of editor types to classes
 EDITOR_MAPPING = {
     'player': BaseEditor,
+    'customizable_back': BaseEditor,
+    'encounter': BaseEditor,
     'asset': AssetEditor,
     'event': EventEditor,
     'skill': SkillEditor,
-    
     'investigator': InvestigatorEditor,
     'investigator_back': InvestigatorBackEditor,
-    
-    'encounter': BaseEditor,
     'location': LocationEditor,
     'location_back': LocationBackEditor,
     'treachery': TreacheryEditor,

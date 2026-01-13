@@ -69,6 +69,7 @@ class CardRenderer:
         self.defaults_path = defaults_dir
         self.cache = {}
         self.resized_cache = {}
+        self.card_wo_illus_cache = {}
 
         # Initialize rich text renderer
         self.rich_text = RichTextRenderer(self)
@@ -101,21 +102,14 @@ class CardRenderer:
                   If None, clear the entire cache.
         """
         if path:
-            # Normalize path for comparison
-            from pathlib import Path
-            normalized = str(Path(path).resolve())
+            if path not in self.cache:
+                return
+            del self.cache[path]
 
-            # Remove from main cache
-            paths_to_remove = [p for p in self.cache if str(Path(p).resolve()) == normalized]
-            for p in paths_to_remove:
-                del self.cache[p]
-
-            # Remove from resized cache (keys are (path, size) tuples)
-            keys_to_remove = [k for k in self.resized_cache if str(Path(k[0]).resolve()) == normalized]
+            keys_to_remove = [k for k in self.resized_cache if k[0] == path]
             for k in keys_to_remove:
                 del self.resized_cache[k]
         else:
-            # Clear both caches entirely
             self.cache = {}
             self.resized_cache = {}
 
@@ -128,8 +122,10 @@ class CardRenderer:
         buffer.seek(0)
         return buffer
 
-    def get_card_textures(self, card, bleed=True, format='jpeg', quality=90):
+    def get_card_textures(self, card, bleed=True, format='jpeg', quality=80):
         """Render both sides of a card"""
+        import time
+        t = time.time()
         lossless = quality == 100
         front = self.render_card_side(card, card.front, include_bleed=bleed)
         back = self.render_card_side(card, card.back, include_bleed=bleed)
@@ -142,24 +138,25 @@ class CardRenderer:
         back.save(b_buffer, format=format, quality=quality, lossless=lossless)
         b_buffer.seek(0)
 
+        print(f'get_card_textures in {time.time()-t}')
         return f_buffer, b_buffer
 
     def get_card_images(self, card):
         """Get raw PIL images for the card"""
         # Render front and back
         front_image = self.render_card_side(card, card.front)
-        back_image  = self.render_card_side(card, card.back)
+        back_image = self.render_card_side(card, card.back)
 
         return front_image, back_image
 
-    def export_card_images(self, card, folder, include_backs=False, bleed=True, format='png', quality=100, seperate_versions=True):
+    def export_card_images(self, card, folder, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
         lossless = quality == 100
         outputs = []
         orig_card = card
 
         # should each version (eg. 1/2 and 2/2) be printed seperately or as 1-2/2?
         faces = orig_card.versions
-        if not seperate_versions:
+        if not separate_versions:
             faces = [orig_card]
 
         for index, card in enumerate(faces):
@@ -218,6 +215,16 @@ class CardRenderer:
         value = value.replace('<copyright>', side.card.get('copyright') or '')
 
         return value
+
+    def render_card_side_without_illustration(self, card, side, include_bleed=True):
+        from shoggoth.card import Card
+        if card in self.card_wo_illus_cache[card]:
+            return self.card_wo_illus_cache[card]
+
+        c = Card(card.data, expansion=card.expansion, encounter=card.encounter)
+        c.set('illustration', None)
+        self.card_wo_illus_cache[card] = self.render_card_side(c, side, include_bleed)
+        return self.card_wo_illus_cache[card]
 
     def render_card_side(self, card, side, include_bleed=True):
         """Render one side of a card"""
@@ -455,13 +462,12 @@ class CardRenderer:
 
         box_path = self.overlays_path/f"skill_box_{side.get_class()}.png"
         box_image = Image.open(box_path).convert("RGBA")
-        box_image = box_image.resize((109, 83))
         for index, icon in enumerate(value):
             overlay_path = self.overlays_path/f"skill_icon_{icon}.png"
             overlay_icon = Image.open(overlay_path).convert("RGBA")
             overlay_icon = overlay_icon.resize((overlay_icon.width * 2, overlay_icon.height * 2))
-            card_image.paste(box_image, (36, index*84+175+36), box_image)
-            card_image.paste(overlay_icon, (25+36, index*84+191+36), overlay_icon)
+            card_image.paste(box_image, (0, index*84+175+36), box_image)
+            card_image.paste(overlay_icon, (25+36, index*84+187+36), overlay_icon)
 
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """

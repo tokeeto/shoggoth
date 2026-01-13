@@ -7,9 +7,11 @@ from PySide6.QtWidgets import (
     QLineEdit, QTextEdit, QPushButton, QLabel, QComboBox,
     QScrollArea, QGroupBox, QSpinBox
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QPixmap, QIcon
 
 from shoggoth.text_editor import ArkhamTextEdit
+from shoggoth.files import overlay_dir
 from shoggoth.floating_label_widget import FloatingLabelTextEdit, FloatingLabelLineEdit
 from shoggoth import face_editors
 
@@ -143,11 +145,132 @@ class LabeledTextEdit(QWidget):
         self.floating_widget.setPlainText(text)
 
 
-class IllustrationWidget(QWidget):
-    """Widget for illustration settings"""
+class IconsWidget(QWidget):
+    """Widget for skill icons with +/- buttons for each icon type (WICAQ)"""
+
+    # Icon order and their full names
+    ICONS = [
+        ('W', 'Willpower'),
+        ('I', 'Intellect'),
+        ('C', 'Combat'),
+        ('A', 'Agility'),
+        ('Q', 'Wild'),
+    ]
+    MAX_COUNT = 8
+
+    iconsChanged = Signal(str)
 
     def __init__(self):
         super().__init__()
+        self.counts = {letter: 0 for letter, _ in self.ICONS}
+        self.labels = {}
+        self._updating = False
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        # Label
+        icons_label = QLabel("Icons")
+        icons_label.setMinimumWidth(50)
+        layout.addWidget(icons_label)
+
+        # Create +/- controls for each icon
+        for letter, name in self.ICONS:
+            icon_layout = QHBoxLayout()
+            icon_layout.setSpacing(2)
+
+            # Icon image
+            icon_label = QLabel()
+            icon_label.setToolTip(name)
+            icon_path = overlay_dir / f"skill_icon_{letter}.png"
+            if icon_path.exists():
+                pixmap = QPixmap(str(icon_path)).scaled(
+                    20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+                icon_label.setPixmap(pixmap)
+            else:
+                icon_label.setText(letter)
+            icon_label.setFixedSize(20, 20)
+            icon_layout.addWidget(icon_label)
+
+            # Minus button
+            minus_btn = QPushButton("-")
+            minus_btn.setFixedSize(24, 24)
+            minus_btn.clicked.connect(lambda checked, l=letter: self.decrement(l))
+            icon_layout.addWidget(minus_btn)
+
+            # Count label
+            count_label = QLabel("0")
+            count_label.setAlignment(Qt.AlignCenter)
+            count_label.setFixedWidth(20)
+            self.labels[letter] = count_label
+            icon_layout.addWidget(count_label)
+
+            # Plus button
+            plus_btn = QPushButton("+")
+            plus_btn.setFixedSize(24, 24)
+            plus_btn.clicked.connect(lambda checked, l=letter: self.increment(l))
+            icon_layout.addWidget(plus_btn)
+
+            layout.addLayout(icon_layout)
+
+        layout.addStretch()
+        self.setLayout(layout)
+
+    def increment(self, letter):
+        """Increment count for an icon"""
+        if self.counts[letter] < self.MAX_COUNT:
+            self.counts[letter] += 1
+            self.labels[letter].setText(str(self.counts[letter]))
+            if not self._updating:
+                self.iconsChanged.emit(self.get_icons_string())
+
+    def decrement(self, letter):
+        """Decrement count for an icon"""
+        if self.counts[letter] > 0:
+            self.counts[letter] -= 1
+            self.labels[letter].setText(str(self.counts[letter]))
+            if not self._updating:
+                self.iconsChanged.emit(self.get_icons_string())
+
+    def get_icons_string(self):
+        """Get the icons as an ordered string like 'WWICQQ'"""
+        result = ''
+        for letter, _ in self.ICONS:
+            result += letter * self.counts[letter]
+        return result
+
+    def set_icons_string(self, icons_str):
+        """Set icons from a string like 'WWICQQ'"""
+        self._updating = True
+        # Reset all counts
+        for letter, _ in self.ICONS:
+            self.counts[letter] = 0
+
+        # Count occurrences of each letter
+        if icons_str:
+            for char in icons_str.upper():
+                if char in self.counts:
+                    self.counts[char] = min(self.counts[char] + 1, self.MAX_COUNT)
+
+        # Update labels
+        for letter, _ in self.ICONS:
+            self.labels[letter].setText(str(self.counts[letter]))
+
+        self._updating = False
+
+
+class IllustrationWidget(QWidget):
+    """Widget for illustration settings"""
+
+    # Signal emitted when illustration mode is toggled (enabled, face_side)
+    illustration_mode_changed = Signal(bool, str)
+
+    def __init__(self, face_side='front'):
+        super().__init__()
+        self.face_side = face_side
+        self.illustration_mode = False
         layout = QVBoxLayout()
 
         # Image path
@@ -159,7 +282,7 @@ class IllustrationWidget(QWidget):
         path_layout.addWidget(browse_btn)
         layout.addLayout(path_layout)
 
-        # Pan and scale
+        # Pan and scale with edit button
         pan_scale_layout = QHBoxLayout()
         self.pan_y_input = LabeledLineEdit("Pan Y")
         self.pan_x_input = LabeledLineEdit("Pan X")
@@ -167,6 +290,14 @@ class IllustrationWidget(QWidget):
         pan_scale_layout.addWidget(self.pan_y_input)
         pan_scale_layout.addWidget(self.pan_x_input)
         pan_scale_layout.addWidget(self.scale_input)
+
+        # Edit position button
+        self.edit_position_btn = QPushButton("Edit Position")
+        self.edit_position_btn.setCheckable(True)
+        self.edit_position_btn.setToolTip("Drag on preview to position image, scroll to scale")
+        self.edit_position_btn.clicked.connect(self.toggle_illustration_mode)
+        pan_scale_layout.addWidget(self.edit_position_btn)
+
         layout.addLayout(pan_scale_layout)
 
         # Artist
@@ -174,6 +305,41 @@ class IllustrationWidget(QWidget):
         layout.addWidget(self.artist_input)
 
         self.setLayout(layout)
+
+    def toggle_illustration_mode(self, checked):
+        """Toggle illustration positioning mode"""
+        self.illustration_mode = checked
+        if checked:
+            self.edit_position_btn.setText("Done")
+            self.edit_position_btn.setStyleSheet("background-color: #4a9eff; color: white;")
+        else:
+            self.edit_position_btn.setText("Edit Position")
+            self.edit_position_btn.setStyleSheet("")
+        self.illustration_mode_changed.emit(checked, self.face_side)
+
+    def set_illustration_mode(self, enabled):
+        """Set illustration mode programmatically"""
+        self.edit_position_btn.setChecked(enabled)
+        self.toggle_illustration_mode(enabled)
+
+    def update_pan(self, delta_x, delta_y):
+        """Update pan values from external input (e.g., preview drag)"""
+        try:
+            current_x = int(self.pan_x_input.text() or 0)
+            current_y = int(self.pan_y_input.text() or 0)
+            self.pan_x_input.setText(str(current_x + delta_x))
+            self.pan_y_input.setText(str(current_y + delta_y))
+        except ValueError:
+            pass
+
+    def update_scale(self, delta):
+        """Update scale value from external input (e.g., preview scroll)"""
+        try:
+            current_scale = float(self.scale_input.text() or 1.0)
+            new_scale = max(0.1, current_scale + delta)
+            self.scale_input.setText(f"{new_scale:.3f}")
+        except ValueError:
+            pass
 
     def browse_image(self):
         """Browse for image file"""
@@ -207,15 +373,36 @@ class CardEditor(QWidget):
         content = QWidget()
         layout = QVBoxLayout()
 
-        # Basic info section
-        basic_group = QGroupBox("Basic Information")
+        # Basic info section (collapsible)
+        basic_group = QWidget()
         basic_layout = QVBoxLayout()
+        basic_layout.setContentsMargins(0, 0, 0, 0)
+        basic_layout.setSpacing(4)
+
+        # Header row with Name field and toggle button on the right
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
 
         self.name_input = LabeledLineEdit("Name")
-        basic_layout.addWidget(self.name_input)
+        header_row.addWidget(self.name_input)
+
+        self.basic_toggle_btn = QPushButton("\u25b6")  # Right arrow
+        self.basic_toggle_btn.setFixedWidth(28)
+        self.basic_toggle_btn.setCheckable(True)
+        self.basic_toggle_btn.setChecked(False)
+        self.basic_toggle_btn.setToolTip("Show/hide basic card info")
+        self.basic_toggle_btn.clicked.connect(self.toggle_basic_info)
+        header_row.addWidget(self.basic_toggle_btn)
+
+        basic_layout.addLayout(header_row)
+
+        # Collapsible content (hidden by default)
+        self.basic_info_content = QWidget()
+        content_layout = QVBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
 
         self.copyright_input = LabeledLineEdit("Copyright")
-        basic_layout.addWidget(self.copyright_input)
+        content_layout.addWidget(self.copyright_input)
 
         # Numbers
         numbers_layout = QHBoxLayout()
@@ -225,14 +412,23 @@ class CardEditor(QWidget):
         numbers_layout.addWidget(self.amount_input)
         numbers_layout.addWidget(self.collection_input)
         numbers_layout.addWidget(self.encounter_input)
-        basic_layout.addLayout(numbers_layout)
+        content_layout.addLayout(numbers_layout)
 
         self.investigator_input = LabeledLineEdit("Investigator Link")
-        basic_layout.addWidget(self.investigator_input)
+        content_layout.addWidget(self.investigator_input)
 
         self.id_input = LabeledLineEdit("ID")
         self.id_input.input.setReadOnly(True)
-        basic_layout.addWidget(self.id_input)
+        content_layout.addWidget(self.id_input)
+
+        self.basic_info_content.setLayout(content_layout)
+        self.basic_info_content.setMaximumHeight(0)
+        basic_layout.addWidget(self.basic_info_content)
+
+        # Animation for collapsible content
+        self.basic_info_animation = QPropertyAnimation(self.basic_info_content, b"maximumHeight")
+        self.basic_info_animation.setDuration(150)
+        self.basic_info_animation.setEasingCurve(QEasingCurve.OutCubic)
 
         basic_group.setLayout(basic_layout)
         layout.addWidget(basic_group)
@@ -310,7 +506,7 @@ class CardEditor(QWidget):
         json_layout = QVBoxLayout()
 
         # Info
-        info = QLabel("Edit the entire card data as JSON. Changes save automatically when valid.")
+        info = QLabel("Edit the entire card data as JSON. Changes update automatically when valid.")
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; padding: 5px;")
         json_layout.addWidget(info)
@@ -357,11 +553,29 @@ class CardEditor(QWidget):
         self.showing_json = not self.showing_json
 
         if self.showing_json:
-            self.json_view_btn.setText("📋 View as Form")
+            self.json_view_btn.setText("View as Form")
             self.create_json_editor()
         else:
-            self.json_view_btn.setText("📝 View Card as JSON")
+            self.json_view_btn.setText("View Card as JSON")
             self.create_form_editors()
+
+    def toggle_basic_info(self, checked):
+        """Toggle visibility of basic info fields with animation"""
+        # Update arrow icon
+        self.basic_toggle_btn.setText("\u25bc" if checked else "\u25b6")  # Down / Right arrow
+
+        # Animate the content height
+        self.basic_info_animation.stop()
+        if checked:
+            # Expanding: animate from 0 to full height
+            target_height = self.basic_info_content.sizeHint().height()
+            self.basic_info_animation.setStartValue(0)
+            self.basic_info_animation.setEndValue(target_height)
+        else:
+            # Collapsing: animate from current height to 0
+            self.basic_info_animation.setStartValue(self.basic_info_content.height())
+            self.basic_info_animation.setEndValue(0)
+        self.basic_info_animation.start()
 
     def load_json_data(self):
         """Load card data into JSON editor"""
@@ -483,9 +697,6 @@ class CardEditor(QWidget):
         self.back_editor.type_changed.connect(lambda: self.on_type_changed('back'))
         self.back_layout.addWidget(self.back_editor)
 
-        self.back_editor.type_changed.connect(lambda f: self.on_type_changed('back'))
-        self.back_layout.addWidget(self.back_editor)
-
     def on_type_changed(self, which_face):
         """Handle face type change - recreate the appropriate editor"""
         if which_face == 'front':
@@ -518,7 +729,8 @@ class CardEditor(QWidget):
 
     def on_field_changed(self, field, value):
         """Handle field value changes"""
-        field.update_card(self.card, value)
+        if field.update_card(self.card, value):
+            self.data_changed.emit()
 
     def cleanup(self):
         """Cleanup editor resources"""
