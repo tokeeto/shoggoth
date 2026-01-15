@@ -33,6 +33,115 @@ FULLART_CARD_TYPES = [
 ]
 
 
+class NoScrollComboBox(QComboBox):
+    """ComboBox that ignores wheel events when not focused."""
+
+    def wheelEvent(self, event):
+        if self.hasFocus():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
+
+
+class SlotComboBox(NoScrollComboBox):
+    """ComboBox that displays available slot types with icons."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from shoggoth.files import overlay_dir
+        from PySide6.QtGui import QIcon
+
+        self.setIconSize(QSize(24, 24))
+
+        # Add empty option first
+        self.addItem('—', userData=None)
+
+        # Discover slot files dynamically
+        if overlay_dir.exists():
+            slot_files = sorted(overlay_dir.glob('slot_*.png'))
+            for slot_file in slot_files:
+                # Extract name from "slot_<name>.png"
+                name = slot_file.stem[5:]  # Remove "slot_" prefix
+                icon = QIcon(str(slot_file))
+                self.addItem(icon, name, userData=name)
+
+    def setCurrentSlot(self, slot_name):
+        """Set current selection by slot name"""
+        if not slot_name:
+            self.setCurrentIndex(0)
+        else:
+            for i in range(self.count()):
+                if self.itemData(i) == slot_name:
+                    self.setCurrentIndex(i)
+                    return
+            # If not found, default to empty
+            self.setCurrentIndex(0)
+
+    def currentSlot(self):
+        """Get current slot name (or None for empty)"""
+        return self.itemData(self.currentIndex())
+
+
+class SlotsWidget(QWidget):
+    """Widget with two slot comboboxes for asset cards."""
+
+    slotsChanged = Signal(object)  # Emits list or None
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.slot1_combo = SlotComboBox()
+        self.slot2_combo = SlotComboBox()
+
+        self.slot1_combo.currentIndexChanged.connect(self._on_changed)
+        self.slot2_combo.currentIndexChanged.connect(self._on_changed)
+
+        layout.addWidget(QLabel("Slot 1:"))
+        layout.addWidget(self.slot1_combo)
+        layout.addWidget(QLabel("Slot 2:"))
+        layout.addWidget(self.slot2_combo)
+        layout.addStretch()
+
+        self.setLayout(layout)
+
+    def _on_changed(self):
+        """Emit the current slots value"""
+        self.slotsChanged.emit(self.get_slots())
+
+    def get_slots(self):
+        """Get slots as list (reversed order for rendering) or None if both empty"""
+        slot1 = self.slot1_combo.currentSlot()
+        slot2 = self.slot2_combo.currentSlot()
+
+        if not slot1 and not slot2:
+            return None
+        # Return as [right, left] due to rendering order, filtering out None
+        result = [s for s in [slot2, slot1] if s]
+        return result if result else None
+
+    def set_slots(self, slots):
+        """Set slots from list (reversed order) or None"""
+        # Block signals to prevent triggering changes during load
+        self.slot1_combo.blockSignals(True)
+        self.slot2_combo.blockSignals(True)
+        try:
+            if not slots:
+                self.slot1_combo.setCurrentSlot(None)
+                self.slot2_combo.setCurrentSlot(None)
+            elif len(slots) == 1:
+                self.slot1_combo.setCurrentSlot(slots[0])
+                self.slot2_combo.setCurrentSlot(None)
+            else:
+                # slots is [right, left], so reverse when setting
+                self.slot1_combo.setCurrentSlot(slots[1] if len(slots) > 1 else None)
+                self.slot2_combo.setCurrentSlot(slots[0])
+        finally:
+            self.slot1_combo.blockSignals(False)
+            self.slot2_combo.blockSignals(False)
+
+
 class FaceEditor(QWidget):
     """Base class for all face editors"""
 
@@ -64,7 +173,7 @@ class FaceEditor(QWidget):
         type_label = QLabel("Type")
         type_label.setMinimumWidth(110)
 
-        self.type_combo = QComboBox()
+        self.type_combo = NoScrollComboBox()
         self.type_combo.setEditable(True)
         self.type_combo.setInsertPolicy(QComboBox.NoInsert)
         self.type_combo.addItems(ALL_CARD_TYPES)
@@ -77,9 +186,11 @@ class FaceEditor(QWidget):
         completer.setCompletionMode(QCompleter.PopupCompletion)
         self.type_combo.setCompleter(completer)
 
-        # Connect to handle changes
-        self.type_combo.currentTextChanged.connect(self.on_type_field_changed)
-        self.type_combo.editTextChanged.connect(self.on_type_field_changed)
+        # Connect to handle changes - use signals that fire on "commit" not every keystroke
+        # activated: fires when user selects from dropdown
+        # lineEdit().editingFinished: fires on Enter or focus loss
+        self.type_combo.activated.connect(self._on_type_committed)
+        self.type_combo.lineEdit().editingFinished.connect(self._on_type_committed)
 
         self.fields['type'] = self.type_combo
 
@@ -89,11 +200,12 @@ class FaceEditor(QWidget):
         type_widget.setLayout(type_layout)
         self.main_layout.addWidget(type_widget)
 
-    def on_type_field_changed(self, value):
-        """Handle type field change specially"""
+    def _on_type_committed(self, _=None):
+        """Handle type field commit (Enter, focus loss, or dropdown selection)"""
         if self.updating:
             return
 
+        value = self.type_combo.currentText()
         old_type = self.face.get('type')
         if value and value != old_type:
             self.face.set('type', value)
@@ -288,15 +400,13 @@ class AssetEditor(FaceEditor):
         self.fields['sanity'] = sanity_input.input
         grid_layout2.addRow(sanity_input)
 
-        # Slots
-        slots_input = editors.LabeledLineEdit("Slots")
-        slots_input.input.setPlaceholderText("hand, hands, arcane, etc.")
-        slots_input.textChanged.connect(lambda: self.on_field_changed('slots'))
-        self.fields['slots'] = slots_input.input
-        grid_layout2.addRow(slots_input)
-
         grid_widget2.setLayout(grid_layout2)
         self.main_layout.addWidget(grid_widget2)
+
+        # Slots widget (separate from grid for better layout)
+        self.slots_widget = SlotsWidget()
+        self.slots_widget.slotsChanged.connect(self.on_slots_changed)
+        self.main_layout.addWidget(self.slots_widget)
 
         # Text fields
         self.add_labeled_text("Text", "text", use_arkham=True)
@@ -308,11 +418,14 @@ class AssetEditor(FaceEditor):
         self.main_layout.addStretch()
 
     def load_data(self):
-        """Load data including icons widget"""
+        """Load data including icons and slots widgets"""
         super().load_data()
         # Load icons separately
         icons_value = self.face.get('icons', '')
         self.icons_widget.set_icons_string(icons_value)
+        # Load slots separately
+        slots_value = self.face.get('slots')
+        self.slots_widget.set_slots(slots_value)
 
     def on_icons_changed(self, icons_str):
         """Handle icons widget change"""
@@ -322,6 +435,12 @@ class AssetEditor(FaceEditor):
             self.face.set('icons', icons_str)
         else:
             self.face.set('icons', None)
+
+    def on_slots_changed(self, slots):
+        """Handle slots widget change"""
+        if self.updating:
+            return
+        self.face.set('slots', slots)
 
 
 class EventEditor(FaceEditor):

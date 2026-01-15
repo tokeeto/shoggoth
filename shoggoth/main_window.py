@@ -54,81 +54,140 @@ class FileBrowser(QWidget):
 
         self.setLayout(layout)
         self._project = None
+        self._node_map = {}  # Maps node_id -> QTreeWidgetItem for fast lookup
 
         # Context menu handler
         from shoggoth.tree_context_menu import TreeContextMenu
         self.context_menu = TreeContextMenu(self)
 
     def set_project(self, project):
-        """Set the project and refresh the tree"""
+        """Set the project and do a full tree rebuild"""
         self._project = project
-        self.refresh()
+        self._node_map.clear()
+        self._full_rebuild()
 
     def refresh(self):
-        """Rebuild the tree from the project"""
+        """Smart refresh - only update what has changed"""
+        if not self._project:
+            return
+
+        # Build desired tree specification
+        desired_spec = self._build_tree_spec()
+
+        # If tree is empty, do a full rebuild
+        if self.tree.topLevelItemCount() == 0:
+            self._full_rebuild()
+            return
+
+        # Apply incremental updates
+        root_item = self.tree.topLevelItem(0)
+        self._sync_tree_node(root_item, desired_spec)
+
+    def _full_rebuild(self):
+        """Do a complete tree rebuild (used for initial load or project change)"""
         if not self._project:
             return
 
         self.tree.clear()
+        self._node_map.clear()
 
-        # Create root node
-        root = QTreeWidgetItem([self._project['name']])
-        root.setData(0, Qt.UserRole, {'type': 'project', 'data': self._project})
-        self.tree.addTopLevelItem(root)
+        spec = self._build_tree_spec()
+        root_item = self._create_tree_item(spec)
+        self.tree.addTopLevelItem(root_item)
+        root_item.setExpanded(True)
+
+    def _build_tree_spec(self):
+        """Build a specification of the desired tree state"""
+        if not self._project:
+            return None
+
+        # Root node
+        root_spec = {
+            'node_id': f'project:{self._project.file_path}',
+            'text': self._project['name'],
+            'type': 'project',
+            'data': self._project,
+            'icon': None,
+            'children': []
+        }
 
         # Determine if we need campaign/player split
         has_encounters = bool(self._project.encounter_sets)
         has_player_cards = any(c for c in self._project.cards if not c.encounter)
 
         if has_encounters and has_player_cards:
-            campaign_node = QTreeWidgetItem(['Campaign cards'])
-            campaign_node.setData(0, Qt.UserRole, {'type': 'campaign_cards', 'data': self._project})
-            player_node = QTreeWidgetItem(['Player cards'])
-            player_node.setData(0, Qt.UserRole, {'type': 'player_cards', 'data': self._project})
-            root.addChild(campaign_node)
-            root.addChild(player_node)
+            campaign_spec = {
+                'node_id': 'category:campaign_cards',
+                'text': 'Campaign cards',
+                'type': 'campaign_cards',
+                'data': self._project,
+                'icon': None,
+                'children': []
+            }
+            player_spec = {
+                'node_id': 'category:player_cards',
+                'text': 'Player cards',
+                'type': 'player_cards',
+                'data': self._project,
+                'icon': None,
+                'children': []
+            }
+            root_spec['children'].append(campaign_spec)
+            root_spec['children'].append(player_spec)
         else:
-            campaign_node = player_node = root
+            campaign_spec = player_spec = root_spec
 
         # Add encounter sets
         for encounter_set in self._project.encounter_sets:
-            e_node = QTreeWidgetItem([encounter_set.name])
-            e_node.setData(0, Qt.UserRole, {'type': 'encounter', 'data': encounter_set})
-            campaign_node.addChild(e_node)
+            e_spec = {
+                'node_id': f'encounter:{encounter_set.name}',
+                'text': encounter_set.name,
+                'type': 'encounter',
+                'data': encounter_set,
+                'icon': None,
+                'children': []
+            }
 
-            # Add category nodes
-            story_node = QTreeWidgetItem(['Story'])
-            story_node.setData(0, Qt.UserRole, {'type': 'category', 'data': encounter_set})
-            location_node = QTreeWidgetItem(['Locations'])
-            location_node.setData(0, Qt.UserRole, {'type': 'locations', 'data': encounter_set})
-            encounter_node = QTreeWidgetItem(['Encounter'])
-            encounter_node.setData(0, Qt.UserRole, {'type': 'category', 'data': encounter_set})
-            e_node.addChild(story_node)
-            e_node.addChild(location_node)
-            e_node.addChild(encounter_node)
+            story_spec = {
+                'node_id': f'category:{encounter_set.name}:story',
+                'text': 'Story',
+                'type': 'category',
+                'data': encounter_set,
+                'icon': None,
+                'children': []
+            }
+            location_spec = {
+                'node_id': f'locations:{encounter_set.name}',
+                'text': 'Locations',
+                'type': 'locations',
+                'data': encounter_set,
+                'icon': None,
+                'children': []
+            }
+            encounter_cat_spec = {
+                'node_id': f'category:{encounter_set.name}:encounter',
+                'text': 'Encounter',
+                'type': 'category',
+                'data': encounter_set,
+                'icon': None,
+                'children': []
+            }
+            e_spec['children'] = [story_spec, location_spec, encounter_cat_spec]
 
             # Add cards to appropriate categories
             for card in encounter_set.cards:
-                # Add dirty indicator if card has unsaved changes
-                display_name = card.name
-                if hasattr(card, 'dirty') and card.dirty:
-                    display_name = '● ' + display_name
-                elif (hasattr(card, 'front') and hasattr(card.front, 'dirty') and card.front.dirty) or \
-                     (hasattr(card, 'back') and hasattr(card.back, 'dirty') and card.back.dirty):
-                    display_name = '● ' + display_name
-
-                card_node = QTreeWidgetItem([display_name])
-                card_node.setData(0, Qt.UserRole, {'type': 'card', 'data': card})
+                card_spec = self._build_card_spec(card)
 
                 if card.front.get('type') == 'location':
-                    location_node.addChild(card_node)
+                    location_spec['children'].append(card_spec)
                 elif card.back.get('type') == 'encounter':
-                    encounter_node.addChild(card_node)
+                    encounter_cat_spec['children'].append(card_spec)
                 else:
-                    story_node.addChild(card_node)
+                    story_spec['children'].append(card_spec)
+
+            campaign_spec['children'].append(e_spec)
 
         # Add player cards
-        class_nodes = {}
         class_labels = {
             'investigators': 'Investigators',
             'seeker': 'Seeker',
@@ -139,61 +198,307 @@ class FileBrowser(QWidget):
             'neutral': 'Neutral',
             'other': 'Other',
         }
-
-        # Classes that have icon files
         classes_with_icons = {'guardian', 'seeker', 'rogue', 'mystic', 'survivor'}
 
+        class_specs = {}
         for cls in ['investigators', 'seeker', 'rogue', 'guardian', 'mystic', 'survivor', 'neutral', 'other']:
-            class_node = QTreeWidgetItem([class_labels[cls]])
-            class_node.setData(0, Qt.UserRole, {'type': 'category', 'data': None, 'class': cls})
-
-            # Set icon for classes that have them
+            icon_path = None
             if cls in classes_with_icons:
-                icon_path = overlay_dir / f"class_symbol_{cls}.png"
-                if icon_path.exists():
-                    class_node.setIcon(0, QIcon(str(icon_path)))
+                path = overlay_dir / f"class_symbol_{cls}.png"
+                if path.exists():
+                    icon_path = str(path)
 
-            class_nodes[cls] = class_node
-            player_node.addChild(class_node)
+            class_spec = {
+                'node_id': f'class:{cls}',
+                'text': class_labels[cls],
+                'type': 'category',
+                'data': None,
+                'class': cls,
+                'icon': icon_path,
+                'children': []
+            }
+            class_specs[cls] = class_spec
+            player_spec['children'].append(class_spec)
 
-        investigator_nodes = {}
+        investigator_specs = {}
 
         for card in self._project.player_cards:
             if group := card.data.get('investigator', False):
-                if group not in investigator_nodes:
-                    inv_node = QTreeWidgetItem([group])
-                    inv_node.setData(0, Qt.UserRole, {'type': 'category', 'data': None, 'investigator': group})
-                    investigator_nodes[group] = inv_node
-                    class_nodes['investigators'].addChild(inv_node)
-                target_node = investigator_nodes[group]
+                if group not in investigator_specs:
+                    inv_spec = {
+                        'node_id': f'investigator:{group}',
+                        'text': group,
+                        'type': 'category',
+                        'data': None,
+                        'investigator': group,
+                        'icon': None,
+                        'children': []
+                    }
+                    investigator_specs[group] = inv_spec
+                    class_specs['investigators']['children'].append(inv_spec)
+                target_spec = investigator_specs[group]
             else:
                 card_class = card.get_class() or 'other'
-                target_node = class_nodes.get(card_class, class_nodes['other'])
+                target_spec = class_specs.get(card_class, class_specs['other'])
 
-            display_name = f'{card.name} ({card.front.get("level")})' if str(card.front.get('level', '0')) != '0' else card.name
-
-            # Add dirty indicator if card has unsaved changes
-            if hasattr(card, 'dirty') and card.dirty:
-                display_name = '● ' + display_name
-            elif (hasattr(card, 'front') and hasattr(card.front, 'dirty') and card.front.dirty) or \
-                 (hasattr(card, 'back') and hasattr(card.back, 'dirty') and card.back.dirty):
-                display_name = '● ' + display_name
-
-            card_node = QTreeWidgetItem([display_name])
-            card_node.setData(0, Qt.UserRole, {'type': 'card', 'data': card})
-            target_node.addChild(card_node)
+            card_spec = self._build_card_spec(card, include_level=True)
+            target_spec['children'].append(card_spec)
 
         # Add guides
         if self._project.guides:
-            guide_node = QTreeWidgetItem(['Guides'])
-            root.addChild(guide_node)
-
+            guide_parent = {
+                'node_id': 'category:guides',
+                'text': 'Guides',
+                'type': 'category',
+                'data': None,
+                'icon': None,
+                'children': []
+            }
             for guide in self._project.guides:
-                g_node = QTreeWidgetItem([guide.name])
-                g_node.setData(0, Qt.UserRole, {'type': 'guide', 'data': guide})
-                guide_node.addChild(g_node)
+                guide_spec = {
+                    'node_id': f'guide:{guide.id}',
+                    'text': guide.name,
+                    'type': 'guide',
+                    'data': guide,
+                    'icon': None,
+                    'children': []
+                }
+                guide_parent['children'].append(guide_spec)
+            root_spec['children'].append(guide_parent)
 
-        root.setExpanded(True)
+        return root_spec
+
+    def _build_card_spec(self, card, include_level=False):
+        """Build a specification for a card node"""
+        if include_level and str(card.front.get('level', '0')) != '0':
+            display_name = f'{card.name} ({card.front.get("level")})'
+        else:
+            display_name = card.name
+
+        # Add dirty indicator
+        if card.dirty:
+            display_name = '● ' + display_name
+
+        return {
+            'node_id': f'card:{card.id}',
+            'text': display_name,
+            'type': 'card',
+            'data': card,
+            'icon': None,
+            'children': []
+        }
+
+    def _create_tree_item(self, spec):
+        """Create a QTreeWidgetItem from a spec, recursively"""
+        item = QTreeWidgetItem([spec['text']])
+
+        # Build user data
+        user_data = {'type': spec['type'], 'data': spec['data']}
+        if 'class' in spec:
+            user_data['class'] = spec['class']
+        if 'investigator' in spec:
+            user_data['investigator'] = spec['investigator']
+        item.setData(0, Qt.UserRole, user_data)
+
+        # Set icon if specified
+        if spec.get('icon'):
+            item.setIcon(0, QIcon(spec['icon']))
+
+        # Store in node map for fast lookup
+        self._node_map[spec['node_id']] = item
+
+        # Create children
+        for child_spec in spec.get('children', []):
+            child_item = self._create_tree_item(child_spec)
+            item.addChild(child_item)
+
+        return item
+
+    def _sync_tree_node(self, item, spec):
+        """Synchronize an existing tree item with a spec, updating only what changed"""
+        if spec is None:
+            return
+
+        # Update text if changed
+        if item.text(0) != spec['text']:
+            item.setText(0, spec['text'])
+
+        # Update user data
+        user_data = {'type': spec['type'], 'data': spec['data']}
+        if 'class' in spec:
+            user_data['class'] = spec['class']
+        if 'investigator' in spec:
+            user_data['investigator'] = spec['investigator']
+        item.setData(0, Qt.UserRole, user_data)
+
+        # Update node map
+        self._node_map[spec['node_id']] = item
+
+        # Build maps of current and desired children
+        current_children = {}
+        for i in range(item.childCount()):
+            child = item.child(i)
+            child_data = child.data(0, Qt.UserRole)
+            if child_data:
+                # Build node_id from current item
+                child_id = self._get_node_id_from_item(child)
+                if child_id:
+                    current_children[child_id] = (i, child)
+
+        desired_children = {child_spec['node_id']: child_spec for child_spec in spec.get('children', [])}
+        desired_order = [child_spec['node_id'] for child_spec in spec.get('children', [])]
+
+        # Find nodes to remove (in current but not in desired)
+        to_remove = set(current_children.keys()) - set(desired_children.keys())
+
+        # Find nodes to add (in desired but not in current)
+        to_add = set(desired_children.keys()) - set(current_children.keys())
+
+        # Find nodes to update (in both)
+        to_update = set(current_children.keys()) & set(desired_children.keys())
+
+        # Remove nodes (in reverse order to maintain indices)
+        remove_indices = sorted([current_children[node_id][0] for node_id in to_remove], reverse=True)
+        for idx in remove_indices:
+            removed_item = item.takeChild(idx)
+            # Clean up node map
+            self._remove_from_node_map(removed_item)
+
+        # Update existing nodes
+        for node_id in to_update:
+            _, child_item = current_children[node_id]
+            child_spec = desired_children[node_id]
+            self._sync_tree_node(child_item, child_spec)
+
+        # Add new nodes
+        for node_id in to_add:
+            child_spec = desired_children[node_id]
+            new_item = self._create_tree_item(child_spec)
+            item.addChild(new_item)  # Add at end for now
+
+        # Reorder children to match desired order
+        self._reorder_children(item, desired_order)
+
+    def _get_node_id_from_item(self, item):
+        """Extract or construct a node_id from an existing tree item"""
+        data = item.data(0, Qt.UserRole)
+        if not data:
+            return None
+
+        item_type = data.get('type')
+        item_data = data.get('data')
+
+        if item_type == 'card' and item_data:
+            return f'card:{item_data.id}'
+        elif item_type == 'guide' and item_data:
+            return f'guide:{item_data.id}'
+        elif item_type == 'encounter' and item_data:
+            return f'encounter:{item_data.name}'
+        elif item_type == 'project' and item_data:
+            return f'project:{item_data.path}'
+        elif item_type == 'locations' and item_data:
+            return f'locations:{item_data.name}'
+        elif item_type == 'campaign_cards':
+            return 'category:campaign_cards'
+        elif item_type == 'player_cards':
+            return 'category:player_cards'
+        elif item_type == 'category':
+            if data.get('class'):
+                return f'class:{data["class"]}'
+            elif data.get('investigator'):
+                return f'investigator:{data["investigator"]}'
+            elif item_data:  # Encounter category (Story/Encounter)
+                text = item.text(0).lower()
+                return f'category:{item_data.name}:{text}'
+            elif item.text(0) == 'Guides':
+                return 'category:guides'
+        return None
+
+    def _remove_from_node_map(self, item):
+        """Recursively remove an item and its children from the node map"""
+        node_id = self._get_node_id_from_item(item)
+        if node_id and node_id in self._node_map:
+            del self._node_map[node_id]
+
+        for i in range(item.childCount()):
+            self._remove_from_node_map(item.child(i))
+
+    def _reorder_children(self, parent_item, desired_order):
+        """Reorder children of a parent item to match desired order"""
+        if not desired_order:
+            return
+
+        # Build current order map
+        current_order = []
+        for i in range(parent_item.childCount()):
+            child = parent_item.child(i)
+            node_id = self._get_node_id_from_item(child)
+            current_order.append(node_id)
+
+        # Check if reordering is needed
+        if current_order == desired_order:
+            return
+
+        # Remove all children while preserving expansion state
+        children_with_expansion = []
+        while parent_item.childCount() > 0:
+            child = parent_item.takeChild(0)
+            node_id = self._get_node_id_from_item(child)
+            children_with_expansion.append((node_id, child, child.isExpanded()))
+
+        # Create lookup
+        child_lookup = {node_id: (child, expanded) for node_id, child, expanded in children_with_expansion}
+
+        # Re-add in correct order
+        for node_id in desired_order:
+            if node_id in child_lookup:
+                child, expanded = child_lookup[node_id]
+                parent_item.addChild(child)
+                child.setExpanded(expanded)
+
+    def update_card_node(self, card_id):
+        """Update a single card node by its ID without rebuilding the tree"""
+        node_id = f'card:{card_id}'
+        if node_id not in self._node_map:
+            # Card not in tree, might need full refresh
+            return False
+
+        item = self._node_map[node_id]
+        data = item.data(0, Qt.UserRole)
+        if not data or data.get('type') != 'card':
+            return False
+
+        card = data.get('data')
+        print('update_card_node, card', card)
+        if not card:
+            return False
+
+        # Determine if this is a player card (needs level in name)
+        include_level = not card.encounter
+
+        # Build new display name
+        if include_level and str(card.front.get('level', '0')) != '0':
+            display_name = f'{card.name} ({card.front.get("level")})'
+        else:
+            display_name = card.name
+
+        # Add dirty indicator
+        if card.dirty:
+            print('update_card_node, dirty:', card.dirty)
+            display_name = '● ' + display_name
+        else:
+            print('update_card_node, false dirty:', card.dirty)
+
+        # Update only if changed
+        if item.text(0) != display_name:
+            item.setText(0, display_name)
+
+        return True
+
+    def get_card_item(self, card_id):
+        """Get the tree item for a card by ID"""
+        node_id = f'card:{card_id}'
+        return self._node_map.get(node_id)
 
     def on_item_clicked(self, item, column):
         """Handle tree item click"""
@@ -269,6 +574,11 @@ class ShoggothMainWindow(QMainWindow):
         self.render_timer.setSingleShot(True)
         self.render_timer.timeout.connect(self._start_background_render)
         self.render_version = 0  # Tracks render requests, stale results are discarded
+
+        # Navigation history (browser-like back/forward)
+        self._nav_history = []  # List of (type, id) tuples
+        self._nav_index = -1    # Current position in history
+        self._nav_navigating = False  # Prevent recursive history updates during navigation
 
         # Load settings
         self.load_settings()
@@ -666,6 +976,9 @@ class ShoggothMainWindow(QMainWindow):
             self.file_browser.set_project(self.current_project)
             self.settings['session']['project'] = file_path
             self.save_settings()
+            # Clear navigation history for new project
+            self._nav_history.clear()
+            self._nav_index = -1
             self.status_bar.showMessage(f"Opened: {self.current_project['name']}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open project: {e}")
@@ -735,15 +1048,7 @@ class ShoggothMainWindow(QMainWindow):
 
         try:
             self.current_card.save()
-            self.current_card.dirty = False
-            if hasattr(self.current_card, 'front') and hasattr(self.current_card.front, 'dirty'):
-                self.current_card.front.dirty = False
-            if hasattr(self.current_card, 'back') and hasattr(self.current_card.back, 'dirty'):
-                self.current_card.back.dirty = False
-
-            # Update tree to remove dirty indicator
-            self.file_browser.refresh()
-
+            # Note: Card.save() already clears dirty flags and updates tree node
             self.status_bar.showMessage(f"Saved: {self.current_card.name}", 3000)
         except Exception as e:
             QMessageBox.critical(self, "Save Error", f"Failed to save card:\n{e}")
@@ -828,6 +1133,8 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_card(self, card):
         """Display a card in the editor"""
+        self._push_nav_history('card', card.id)
+
         # Clean up previous editor
         self.clear_editor()
 
@@ -934,6 +1241,8 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_encounter(self, encounter):
         """Display an encounter set in the editor"""
+        self._push_nav_history('encounter', encounter.id)
+
         # Clear current editor
         self.clear_editor()
 
@@ -971,6 +1280,8 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_project(self, project):
         """Display project editor"""
+        self._push_nav_history('project', project.file_path)
+
         # Clear current editor
         self.clear_editor()
 
@@ -998,6 +1309,8 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_guide(self, guide):
         """Display guide editor"""
+        self._push_nav_history('guide', guide.id)
+
         # Clear current editor
         self.clear_editor()
 
@@ -1024,6 +1337,8 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_locations(self, encounter_set):
         """Display location connection editor for an encounter set"""
+        self._push_nav_history('locations', encounter_set.id)
+
         # Clear current editor
         self.clear_editor()
 
@@ -1125,6 +1440,88 @@ class ShoggothMainWindow(QMainWindow):
     def refresh_tree(self):
         """Refresh the file browser tree"""
         self.file_browser.refresh()
+
+    def update_card_in_tree(self, card_id):
+        """Update a single card's display in the tree (for name/dirty changes)"""
+        return self.file_browser.update_card_node(card_id)
+
+    # --- Navigation History (browser-like back/forward) ---
+
+    def _push_nav_history(self, nav_type, nav_id):
+        """Push a navigation item to history, truncating any forward history"""
+        if self._nav_navigating:
+            return  # Don't record history during back/forward navigation
+
+        nav_item = (nav_type, nav_id)
+
+        # Don't add duplicates if we're already at this item
+        if self._nav_history and self._nav_index >= 0:
+            if self._nav_history[self._nav_index] == nav_item:
+                return
+
+        # Truncate forward history
+        self._nav_history = self._nav_history[:self._nav_index + 1]
+
+        # Add new item
+        self._nav_history.append(nav_item)
+        self._nav_index = len(self._nav_history) - 1
+
+    def navigate_back(self):
+        """Navigate to the previous item in history"""
+        if self._nav_index <= 0:
+            return  # Nothing to go back to
+
+        self._nav_index -= 1
+        self._navigate_to_history_item(self._nav_history[self._nav_index])
+
+    def navigate_forward(self):
+        """Navigate to the next item in history"""
+        if self._nav_index >= len(self._nav_history) - 1:
+            return  # Nothing to go forward to
+
+        self._nav_index += 1
+        self._navigate_to_history_item(self._nav_history[self._nav_index])
+
+    def _navigate_to_history_item(self, nav_item):
+        """Navigate to a history item without adding to history"""
+        nav_type, nav_id = nav_item
+        self._nav_navigating = True
+        try:
+            if nav_type == 'card':
+                card = self.current_project.get_card(nav_id)
+                if card:
+                    self.show_card(card)
+                    self.select_item_in_tree(nav_id)
+            elif nav_type == 'encounter':
+                encounter = self.current_project.get_encounter_set(nav_id)
+                if encounter:
+                    self.show_encounter(encounter)
+                    self.select_item_in_tree(nav_id)
+            elif nav_type == 'project':
+                self.show_project(self.current_project)
+            elif nav_type == 'guide':
+                guide = self.current_project.get_guide(nav_id)
+                if guide:
+                    self.show_guide(guide)
+                    self.select_item_in_tree(nav_id)
+            elif nav_type == 'locations':
+                encounter = self.current_project.get_encounter_set(nav_id)
+                if encounter:
+                    self.show_locations(encounter)
+        finally:
+            self._nav_navigating = False
+
+    def mousePressEvent(self, event):
+        """Handle mouse button presses for back/forward navigation"""
+        from PySide6.QtCore import Qt
+        if event.button() == Qt.BackButton:
+            self.navigate_back()
+            event.accept()
+        elif event.button() == Qt.ForwardButton:
+            self.navigate_forward()
+            event.accept()
+        else:
+            super().mousePressEvent(event)
 
     def export_current(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export the current card using settings from preferences"""

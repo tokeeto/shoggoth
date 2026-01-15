@@ -57,7 +57,14 @@ class Project:
         if 'id' not in self.data:
             self.data['id'] = str(uuid4())
         self.id = data['id']
-        self.dirty = False
+
+    @property
+    def dirty(self):
+        return bool(self.data.get('meta', {}).get('dirty', []))
+
+    @dirty.setter
+    def dirty(self, value):
+        self.set_dirty(self.id, value)
 
     @property
     def icon(self):
@@ -163,6 +170,24 @@ class Project:
     def get_all_cards(self):
         return self.cards
 
+    def set_dirty(self, id, value=True):
+        if 'meta' not in self.data:
+            self.data['meta'] = {}
+        if 'dirty' not in self.data['meta']:
+            self.data['meta']['dirty'] = []
+        if value and id not in self.data['meta']['dirty']:
+            self.data['meta']['dirty'].append(id)
+        elif not value and id in self.data['meta']['dirty']:
+            self.data['meta']['dirty'].remove(id)
+
+    def clear_dirty(self):
+        if 'meta' not in self.data:
+            self.data['meta'] = {}
+        self.data['meta']['dirty'] = []
+
+    def is_dirty(self, id):
+        return id in self.data.get('meta', {}).get('dirty', [])
+
     @staticmethod
     def load(file_path):
         """Load card data from JSON file"""
@@ -228,12 +253,13 @@ class Project:
             orig_data['cards'][index] = card.data
         with open(self.file_path, 'w') as f:
             json.dump(orig_data, f, indent=4)
+        self.set_dirty(card.id, False)
 
     def save_all(self):
         """Save data to file"""
+        self.clear_dirty()
         with open(self.file_path, 'w') as f:
             json.dump(self.data, f, indent=4)
-        self.dirty = False
 
     @staticmethod
     def new(name, code, icon):

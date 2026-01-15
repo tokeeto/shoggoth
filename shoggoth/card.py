@@ -12,7 +12,6 @@ class Face:
         self.data = data
         self.card = card
         self._fallback = None
-        self.dirty = False
 
     def __eq__(self, other):
         return self.data == other.data
@@ -69,17 +68,16 @@ class Face:
         if key == 'type':
             self._fallback = None
 
+        if self.data.get(key) != value:
+            self.card.dirty = True
+
         self.data[key] = value
         if value is None and key != 'type':
             del self.data[key]
 
         shoggoth.app.schedule_preview_update()
-        # if key in ('classes', 'type', 'level'):
-        #     shoggoth.app.current_project.assign_card_numbers()
-        #     shoggoth.app.refresh_tree()
-        # if key in ('illustration', 'template'):
-        #     shoggoth.app.reset_image_cache(value)
-        self.dirty = True
+        print('face set, dirty set to ', self.card.dirty)
+        shoggoth.app.update_card_in_tree(self.card.id)
 
     def get_class(self):
         cls = self.data.get('classes', ['guardian'])
@@ -127,6 +125,14 @@ class Card:
 
     def __str__(self):
         return f'<Card "{self.name}">'
+
+    @property
+    def dirty(self):
+        return self.expansion.is_dirty(self.id)
+
+    @dirty.setter
+    def dirty(self, value):
+        self.expansion.set_dirty(self.id, value)
 
     @property
     def encounter(self):
@@ -203,12 +209,10 @@ class Card:
             return classes[0]
 
     def set(self, key, value):
+        if self.data.get(key) != value:
+            self.dirty = True
         self.data[key] = value
-        self.dirty = True
-        # if key in ('name', 'id', 'investigator', 'encounter_set'):
-        #     shoggoth.app.current_project.assign_card_numbers()
-        #     shoggoth.app.update_card_preview()
-        #     shoggoth.app.refresh_tree()
+        shoggoth.app.update_card_in_tree(self.id)
 
     def get(self, key, default=None):
         return self.data.get(key, default)
@@ -234,6 +238,9 @@ class Card:
         print('Saving card', self.id)
         self.expansion.save_card(self)
         self.dirty = False
+        # Update tree to remove dirty indicator
+        if shoggoth.app:
+            shoggoth.app.update_card_in_tree(self.id)
 
 
 # templates
