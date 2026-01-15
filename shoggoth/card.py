@@ -211,7 +211,11 @@ class Card:
     def set(self, key, value):
         if self.data.get(key) != value:
             self.dirty = True
+
         self.data[key] = value
+        if key in self.data and value is None:
+            del self.data[key]
+
         shoggoth.app.update_card_in_tree(self.id)
 
     def get(self, key, default=None):
