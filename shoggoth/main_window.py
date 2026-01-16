@@ -20,7 +20,7 @@ import shoggoth
 from shoggoth.project import Project
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import CardFileMonitor
-from shoggoth.files import defaults_dir, asset_dir, font_dir, overlay_dir
+from shoggoth.files import defaults_dir, asset_dir, font_dir, overlay_dir, root_dir
 from shoggoth.preview_widget import ImprovedCardPreview
 from shoggoth.goto_dialog import GotoCardDialog
 from shoggoth.encounter_editor import EncounterSetEditor
@@ -1091,7 +1091,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def load_settings(self):
         """Load application settings"""
-        settings_file = Path('shoggoth.json')
+        settings_file = root_dir / 'shoggoth.json'
         if settings_file.exists():
             with open(settings_file, 'r') as f:
                 self.settings = json.load(f)
@@ -1100,7 +1100,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def save_settings(self):
         """Save application settings"""
-        with open('shoggoth.json', 'w') as f:
+        with open(root_dir / 'shoggoth.json', 'w') as f:
             json.dump(self.settings, f)
 
     def setup_file_monitoring(self):
