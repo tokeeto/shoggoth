@@ -37,6 +37,9 @@ class SettingsManager:
             'export_quality': 95,
             'export_bleed': True,
             'export_separate_versions': False,
+            # Update settings
+            'auto_check_updates': True,
+            'skipped_version': '',
         }
         
         for key, value in defaults.items():
@@ -115,6 +118,10 @@ class SettingsDialog(QDialog):
         # Export tab
         export_tab = self.create_export_tab()
         tabs.addTab(export_tab, "Export")
+
+        # Updates tab
+        updates_tab = self.create_updates_tab()
+        tabs.addTab(updates_tab, "Updates")
 
         layout.addWidget(tabs)
         
@@ -284,6 +291,49 @@ class SettingsDialog(QDialog):
         widget.setLayout(layout)
         return widget
 
+    def create_updates_tab(self):
+        """Create updates settings tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        # Auto-update group
+        update_group = QGroupBox("Automatic Updates")
+        update_layout = QFormLayout()
+
+        # Auto-check checkbox
+        self.auto_check_updates_checkbox = QCheckBox("Check for updates on startup")
+        self.auto_check_updates_checkbox.setToolTip(
+            "When enabled, Shoggoth will check for new versions when starting up."
+        )
+        update_layout.addRow("Auto-check:", self.auto_check_updates_checkbox)
+
+        # Current version display
+        from shoggoth.updater import get_current_version, detect_installation_type
+        version_text = get_current_version()
+        install_type = detect_installation_type()
+        version_label = QLabel(f"{version_text} ({install_type.value})")
+        version_label.setStyleSheet("color: #666;")
+        update_layout.addRow("Current version:", version_label)
+
+        # Manual check button
+        check_now_btn = QPushButton("Check for Updates Now")
+        check_now_btn.clicked.connect(self._check_for_updates_now)
+        update_layout.addRow("", check_now_btn)
+
+        update_group.setLayout(update_layout)
+        layout.addWidget(update_group)
+
+        layout.addStretch()
+        widget.setLayout(layout)
+        return widget
+
+    def _check_for_updates_now(self):
+        """Trigger manual update check from settings"""
+        import shoggoth
+        if hasattr(shoggoth, 'app') and shoggoth.app:
+            if hasattr(shoggoth.app, 'update_manager'):
+                shoggoth.app.update_manager.check_for_updates_manual()
+
     def _on_format_changed(self, format_text):
         """Handle format change - enable/disable quality based on format"""
         # PNG is lossless, so quality doesn't apply
@@ -345,7 +395,12 @@ class SettingsDialog(QDialog):
         self.export_separate_versions_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'export_separate_versions', False)
         )
-    
+
+        # Update settings
+        self.auto_check_updates_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'auto_check_updates', True)
+        )
+
     def save_settings(self):
         """Save settings and close dialog"""
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
@@ -359,6 +414,9 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'export_quality', self.export_quality_spin.value())
         self.settings.set('Shoggoth', 'export_bleed', self.export_bleed_checkbox.isChecked())
         self.settings.set('Shoggoth', 'export_separate_versions', self.export_separate_versions_checkbox.isChecked())
+
+        # Update settings
+        self.settings.set('Shoggoth', 'auto_check_updates', self.auto_check_updates_checkbox.isChecked())
 
         self.settings.save()
         self.accept()

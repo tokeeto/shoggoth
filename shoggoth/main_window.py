@@ -773,6 +773,10 @@ class ShoggothMainWindow(QMainWindow):
         # Load settings
         self.load_settings()
 
+        # Initialize update manager (before setup_ui so menu can reference it)
+        from shoggoth.updater import UpdateManager
+        self.update_manager = UpdateManager(self.config, self)
+
         # Setup UI
         self.setup_ui()
 
@@ -781,6 +785,9 @@ class ShoggothMainWindow(QMainWindow):
 
         # Restore session
         self.restore_session()
+
+        # Check for updates after UI is ready (deferred)
+        QTimer.singleShot(2000, self._check_for_updates_startup)
 
     def setup_ui(self):
         """Setup the user interface"""
@@ -1059,6 +1066,13 @@ class ShoggothMainWindow(QMainWindow):
         # ==================== HELP MENU ====================
         help_menu = menubar.addMenu("&Help")
 
+        # Check for Updates
+        check_updates_action = QAction("Check for &Updates...", self)
+        check_updates_action.triggered.connect(self.update_manager.check_for_updates_manual)
+        help_menu.addAction(check_updates_action)
+
+        help_menu.addSeparator()
+
         # Text options
         text_options_action = QAction("&Text options", self)
         text_options_action.triggered.connect(self.show_text_options)
@@ -1147,6 +1161,11 @@ class ShoggothMainWindow(QMainWindow):
         # Select in tree if element was found
         if element:
             self.select_item_in_tree(element_id)
+
+    def _check_for_updates_startup(self):
+        """Check for updates after startup (deferred to avoid blocking)"""
+        if self.update_manager.should_check_for_updates():
+            self.update_manager.check_for_updates_async()
 
     def open_project_dialog(self):
         """Show dialog to open a project"""
