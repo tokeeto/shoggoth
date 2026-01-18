@@ -6,6 +6,8 @@ from shoggoth.files import font_dir, icon_dir, overlay_dir
 
 #ImageDraw.fontmode = 'L'
 image_regex = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
+size_regex = re.compile(r'<size (\d+?)>', flags=re.IGNORECASE)
+margin_regex = re.compile(r'<margin (\d+?)(\s\d+?)*>', flags=re.IGNORECASE)
 tag_value_pattern = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 
 
@@ -330,6 +332,29 @@ class RichTextRenderer:
             if font_icon_match:
                 continue
 
+            # size tag
+            if match := size_regex.match(text[current_pos:]):
+                tag = match[0]
+                size = match[1]
+                tokens.append({
+                    'type': 'size',
+                    'value': size,
+                })
+                current_pos += len(tag)
+                continue
+
+            # margin tag
+            if match := margin_regex.match(text[current_pos:]):
+                tag = match[0]
+                margin_top = int(match[1])
+                #margin_left = match[2]
+                tokens.append({
+                    'type': 'margin',
+                    'value': margin_top,
+                })
+                current_pos += len(tag)
+                continue
+
             # image tag
             if match := image_regex.match(text[current_pos:]):
                 tag = match[0]
@@ -436,6 +461,9 @@ class RichTextRenderer:
                     current_font = token['value']
                 else:
                     current_font = font_stack.pop() if font_stack else base_font
+
+            elif token['type'] == 'margin':
+                y += token['value']
 
             elif token['type'] == 'story':
                 if token['start']:
@@ -745,6 +773,9 @@ class RichTextRenderer:
 
                 # Add alignment change to current line (it has no width impact)
                 current_line.append(token)
+
+            elif token['type'] == 'margin':
+                y += token['value']
 
             elif token['type'] == 'newline':
                 # Render current line and start a new one

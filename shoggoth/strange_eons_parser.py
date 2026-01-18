@@ -195,9 +195,11 @@ def translate_text(value):
     value = value.replace('<mon>', '<elder_thing>')
     value = value.replace('<eld>', '<elder_sign>')
     value = value.replace('<ten>', '<fail>')
-    value = value.replace('<ble>', '<bless>')
+    value = value.replace('<ble>', '<blessing>')
     value = value.replace('<cur>', '<curse>')
     value = value.replace('<spa>', '<spawn>')
+    value = value.replace('<bul>', '<bullet>')
+    value = value.replace('<bultab>', '')
     value = value.replace('<vs>\n', '')
     value = value.replace('\n\n', '\n')
 
@@ -315,6 +317,7 @@ def run_import(project_path, output_path):
         json.dump(collection, file, cls=JavaWriter, indent=4)
     print(f'Done saving.')
 
+
 def parse_card(file:Path, results:dict, image_folder:Path):
     card = ResourceKit.getGameComponentFromFile(File(str(file)), False)
     if not card:
@@ -357,7 +360,7 @@ def parse_card(file:Path, results:dict, image_folder:Path):
         out["front"]["text"] = settings.get("Keywords") or settings.get("Rules")
 
 
-    if health := settings.get("Health") or settings.get('Stamina'):
+    if health := (settings.get("Health") or settings.get('Stamina')):
         out['front']['health'] = str(health)
     if sanity := settings.get('Sanity'):
         out['front']['sanity'] = str(sanity)
@@ -386,21 +389,23 @@ def parse_card(file:Path, results:dict, image_folder:Path):
         out["front"]["classes"] = []
         for c in ('CardClass', 'CardClass2', 'CardClass3'):
             if cl := settings.get(c):
-                out['front']['classes'].append(str(cl).lower())
+                if cl != None:
+                    out['front']['classes'].append(str(cl).lower())
 
     illustrations = get_portaits(card)
     if illustrations:
         for name, portrait in illustrations.items():
             if name in ('Portrait-Front', 'Portrait-Both', 'TransparentPortrait-Both'):
                 out['front']['illustration'] = results['images'][portrait.getSource()]
-                out['front']['illustration_pan_x'] = 0
-                out['front']['illustration_pan_y'] = 0
-                out['front']['illustration_scale'] = portrait.getScale() * 2
+                # out['front']['illustration_pan_x'] = portrait.getPanX() * 2
+                # out['front']['illustration_pan_y'] = portrait.getPanY() * 2
+                # out['front']['illustration_scale'] = portrait.getScale() * 2
             if name in ('Portrait-Back', 'Portrait-Both', 'BackPortrait-Back', 'TransparentPortrait-Both'):
-                out['back']['illustration'] = results['images'][portrait.getSource()]
-                out['back']['illustration_pan_x'] = 0
-                out['back']['illustration_pan_y'] = 0
-                out['back']['illustration_scale'] = portrait.getScale() * 2
+                if portrait.getSource() != None:
+                    out['back']['illustration'] = results['images'][portrait.getSource()]
+                # out['back']['illustration_pan_x'] = portrait.getPanX() * 2
+                # out['back']['illustration_pan_y'] = portrait.getPanY() * 2
+                # out['back']['illustration_scale'] = portrait.getScale() * 2
 
     if clues := settings.get("Clues"):
         out['front']['clues'] = clues + ("<per>" if settings.get("PerInvestigator") else '')
@@ -426,7 +431,7 @@ def parse_card(file:Path, results:dict, image_folder:Path):
             settings.get("Connection5Icon"),
             settings.get("Connection6Icon"),
         ]
-        out['front']['connections'] = [(str(n).lower() if n else None) for n in connections]
+        out['front']['connections'] = [str(n).lower() for n in connections if n != None]
 
     if number := settings.get("EncounterNumber"):
         out["encounter_number"] = number

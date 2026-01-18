@@ -21,22 +21,22 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
 
         # Tag format (for known <tag> and [[tag]])
         tag_format = QTextCharFormat()
-        tag_format.setForeground(QColor("#0066cc"))  # Blue
-        tag_format.setFontWeight(QFont.Bold)
+        tag_format.setForeground(QColor("#6666cc"))  # Blue
+        # tag_format.setFontWeight(QFont.Bold)
         self.formats['tag'] = tag_format
 
         # Unknown tag format (for unknown tags)
         unknown_format = QTextCharFormat()
         unknown_format.setForeground(QColor("#cc0000"))  # Red
-        unknown_format.setFontWeight(QFont.Bold)
+        # unknown_format.setFontWeight(QFont.Bold)
         unknown_format.setUnderlineStyle(QTextCharFormat.WaveUnderline)
         unknown_format.setUnderlineColor(QColor("#cc0000"))
         self.formats['unknown'] = unknown_format
 
         # Icon tag format (for icon tags like <blessing>, <curse>)
         icon_format = QTextCharFormat()
-        icon_format.setForeground(QColor("#cc6600"))  # Orange
-        icon_format.setFontWeight(QFont.Bold)
+        icon_format.setForeground(QColor("#dd9977"))  # Orange
+        # icon_format.setFontWeight(QFont.Bold)
         self.formats['icon'] = icon_format
 
         # Bold format
@@ -50,6 +50,12 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
         italic_format.setFontItalic(True)
         italic_format.setForeground(QColor("#7b1fa2"))  # Purple
         self.formats['italic'] = italic_format
+
+        trait_format = QTextCharFormat()
+        # trait_format.setFontWeight(QFont.Bold)
+        trait_format.setFontItalic(True)
+        trait_format.setForeground(QColor("#ffff99"))  # Purple
+        self.formats['trait'] = trait_format
 
         # Define known tags
         self.icon_tags = {
@@ -67,7 +73,7 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
             'for', 'prey', 'rev', 'spawn', 'obj', 'objective', 'center', 'left',
             'right', 'story', 'blockquote', 'quote', 'dquote', 'quoteend', 'dquoteend',
             'n', 'name', 'copy', 'exi', 'exn', 'esn', 'est', 'esi', 'copyright',
-            'image'
+            'image', 'margin'
         }
 
         self.format_tags = {
@@ -75,11 +81,69 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
             '/center', '/left', '/right', '/story', '/blockquote'
         }
 
+        self.known_traits = {
+            'Power', 'Prison', "R'lyeh", 'Spider', 'Witch House',
+            'Arkham', 'Innocent', 'Haunted', "St Mary's", 'Mexico City',
+            'Uncharted', 'Lodge', 'Montréal', 'Resident', 'Providence',
+            'Dark Young', 'Tactic', 'Private', 'Forgotten', 'Summit', 'Job',
+            'Carnevale', 'Fated', 'Grant', 'Serpent', 'Cthulhu', 'Byakhee',
+            'Shoggoth', 'Nest', 'Otherworld', 'Criminal', 'Assistant', 'Shattered',
+            'Supply', 'Key', 'Script', 'Locus Site', 'Forest', 'Charm', 'Hex',
+            'Present', 'Staff', 'Unpracticed', 'Curse', 'Havana', 'Cave', 'Elder Thing',
+            'Field', 'Sorcerer', 'Ruin', 'Casino', 'Gug', 'Road', 'Weapon', 'Miskatonic',
+            'Injury', 'Basement', 'Talent', 'Pnakotus', 'Set', 'Incomplete', 'Coterie',
+            'City', 'Rot', 'Manor', 'Buenos Aires', 'Saturnite', 'Unhallowed', 'Expert',
+            'Return', 'Double', 'Mutated', 'Enraged', 'Ancient One', 'Stable',
+            'Boat', 'Crime Scene', 'Nightgaunt', 'Detective', 'Dhole', 'Innate',
+            'Altered', 'Trick', 'Gambit', 'Blunder', 'Hunter', 'Lift', 'Brotherhood',
+            'Arkham Asylum', 'Madness', 'Seafloor', 'Practiced', 'Avatar', 'Humanoid',
+            'Patron', 'Game', 'Spell', 'Artifact', 'Entrepreneur', 'Spirit', 'Favor',
+            'Cart', 'Synergy', 'Unlit', 'Ghoul', 'Mi-Go', 'Temple', 'Front', 'Fortune',
+            'Relic', 'Sanctum', 'Tindalos', 'Scientist', 'Falcon Point', 'Rooftop',
+            'Star Spawn', 'Hemlock Vale', 'Condition', 'Unstable', 'Keeper', 'Tome',
+            'Hideout', 'Bystander', 'Flaw', 'Ooth-Nargai', 'Emissary', 'Colour',
+            'Wilderness', 'Tool', 'Glacier', 'Ship', 'Mainland', 'Risen', 'Bayou',
+            'Drifter', 'Silver Twilight', 'Dilemma', 'Present-Day', 'Mystery', 'River',
+            'Endtimes', 'Jungle', 'Dreamlands', 'Town', 'Mountains', 'Ranged', 'Research',
+            'Spectral', 'Mask', 'Castle', 'Bog', 'Hardship', 'Woods', 'Farm', 'Station',
+            'Lit', 'Future', 'Walkway', 'Bold', 'Cairo', 'Clothing', 'London', 'Dreamer',
+            'Eidolon', 'Sunken', 'Oriab', 'Tenochtitlán', 'Abyss', 'Dunwich', 'Leng',
+            'Armor', 'Wastes', 'Desperate', 'Mountain', 'Terror', 'Mirage', 'Marrakesh',
+            'Allied', 'Hall', 'Salem', 'Circle', 'Port', 'Plot', 'Mnar', 'Kingsport',
+            'Melee', 'Augury', 'Island', 'Act 1', 'Stowaway', 'Yoth', 'Chosen', 'Upgrade',
+            'Portal', 'Lead', 'Reporter', 'Forbidden', 'Broken', 'Blight', 'Enclave',
+            'Possessed', 'Room', 'Dionsaur', 'Service', 'New Orleans', 'Outsider', 'Skai',
+            'Insight', 'Boon', 'Blessed', 'Illicit', 'Alexandria', 'Past', 'Creature',
+            'Item', 'Expedition', 'Witch', 'Elite', 'Yithian', 'Leader', 'Syndicate',
+            'Vehicle', 'Cursed', 'Yuggoth', 'Eztli', 'Tower', 'Creature', 'Police', 'Central',
+            'Cosmos', 'Scholar', 'Flora', 'Veteran', 'Civic', 'Paris', 'Guest', 'Surface',
+            'Eldritch', 'Servitor', 'Warden', 'Believer', 'Venice', 'Abandoned', 'Connection',
+            'Paradox', 'Firearm', 'Covenant', 'Train', 'Restricted', 'Developed', 'Ancient',
+            'Dinosaur', 'Dormant', 'Coastal', 'Oozified', 'Distortion', 'Scion', 'Pact',
+            'Glyph', 'Evidence', 'Kadath', 'Ocean', 'Occult', 'Extraterrestrial', 'Instrument',
+            'Monster', 'Science', 'Item', 'Public', 'Task', 'Familiar', 'Conspirator',
+            'Hybrid', 'Geist', 'Hazard', 'Desert', 'New York City', 'Ruined', 'Clairvoyant',
+            'Song', 'Clover Club', 'Medic', 'Construct', 'Resolute', 'Wilderness Monster',
+            'Kuala Lumpur', 'Obstacle', 'Crew', 'Tentacle', 'Second Floor', 'Campsite',
+            'Exhibit', 'Bridge', 'Third Floor', 'Riverside', 'Innsmouth', 'Passageway',
+            'Performer', 'Rival', 'Manifold', 'Void', 'Scheme', 'Istanbul', 'Attack',
+            'Completed', 'Tarot', 'Midtown', 'Composure', 'Rail', 'Historical Society',
+            'Sentinel Hill', 'Ritual Site', 'Ritual', 'Ruins', 'Ally', 'Government', 'Steps',
+            'Bazaar', 'Ghast', 'Satellite', 'Dark', 'Poison', 'Agency', 'Wayfarer',
+            'Lantern Club', 'Hazard Glyph', 'Cultist', 'Prop', 'Suspect', 'Inconspicuous',
+            'Unbroken', 'Insect', 'Graveyard', 'Ground Floor', 'Ruins Ancient One', 'Depths',
+            'Corruption', 'Vault', 'Shantak', 'Role', 'Artist', 'Misfortune', 'Ooze', 'Trap',
+            'Lair', 'Vale', 'Footwear', 'Summon', 'Omen', ' Talent', 'Deep One', 'Socialite',
+            'Machination', "Y'ha-nthlei", 'Extradimensional', 'Improvised', 'Zoog', 'Apiary',
+            'Abomination'
+        }
+
         # Compile patterns
         self.tag_pattern = re.compile(r'<([^>]+)>|\[([^\]]+)\]')
         self.double_bracket_pattern = re.compile(r'\[\[.*?\]\]')
         self.bold_pattern = re.compile(r'<b>.*?</b>')
         self.italic_pattern = re.compile(r'<i>.*?</i>')
+        self.trait_pattern = re.compile(r'<t>.*?</t>')
 
     def highlightBlock(self, text):
         """Apply syntax highlighting to a block of text"""
@@ -90,9 +154,12 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
         for match in self.italic_pattern.finditer(text):
             self.setFormat(match.start(), match.end() - match.start(), self.formats['italic'])
 
+        for match in self.trait_pattern.finditer(text):
+            self.setFormat(match.start(), match.end() - match.start(), self.formats['trait'])
+
         # Handle double brackets
         for match in self.double_bracket_pattern.finditer(text):
-            self.setFormat(match.start(), match.end() - match.start(), self.formats['bold'])
+            self.setFormat(match.start(), match.end() - match.start(), self.formats['trait'])
 
         # Handle all tags
         for match in self.tag_pattern.finditer(text):

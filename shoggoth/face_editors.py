@@ -13,6 +13,7 @@ import json
 # Import helper widgets from editors.py
 from shoggoth import editors
 
+
 # All available card types
 ALL_CARD_TYPES = [
     'asset', 'event', 'skill',
@@ -297,6 +298,14 @@ class FaceEditor(QWidget):
         self.main_layout.addWidget(widget)
         return widget
 
+    def add_trait_field(self, label="Traits", field_name="traits"):
+        """Helper to add a trait field with autocomplete"""
+        widget = editors.LabeledTraitEdit(label)
+        widget.input.textChanged.connect(lambda: self.on_field_changed(field_name))
+        self.fields[field_name] = widget.input
+        self.main_layout.addWidget(widget)
+        return widget
+
     def add_labeled_text(self, label, field_name, use_arkham=False):
         """Helper to add a labeled text edit"""
         widget = editors.LabeledTextEdit(label, use_arkham_editor=use_arkham)
@@ -304,6 +313,27 @@ class FaceEditor(QWidget):
         self.fields[field_name] = widget.input
         self.main_layout.addWidget(widget)
         return widget
+
+    def add_copyright_collection_row(self):
+        """Add copyright and collection fields side by side at the bottom"""
+        row_widget = QWidget()
+        row_layout = QHBoxLayout()
+        row_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Copyright field
+        copyright_input = editors.LabeledLineEdit("Copyright")
+        copyright_input.input.textChanged.connect(lambda: self.on_field_changed('copyright'))
+        self.fields['copyright'] = copyright_input.input
+        row_layout.addWidget(copyright_input)
+
+        # Collection field
+        collection_input = editors.LabeledLineEdit("Collection")
+        collection_input.input.textChanged.connect(lambda: self.on_field_changed('collection'))
+        self.fields['collection'] = collection_input.input
+        row_layout.addWidget(collection_input)
+
+        row_widget.setLayout(row_layout)
+        self.main_layout.addWidget(row_widget)
 
     def add_illustration_widget(self):
         """Add illustration widget"""
@@ -346,15 +376,12 @@ class AssetEditor(FaceEditor):
         self.add_labeled_line("Name", "name")
         self.add_labeled_line("Subtitle", "subtitle")
 
+        # Traits with autocomplete
+        self.add_trait_field()
+
         # Grid for compact fields
         grid_widget = QWidget()
         grid_layout = QFormLayout()
-
-        # Traits
-        traits_input = editors.LabeledLineEdit("Traits")
-        traits_input.input.textChanged.connect(lambda: self.on_field_changed('traits'))
-        self.fields['traits'] = traits_input.input
-        grid_layout.addRow(traits_input)
 
         # Classes
         classes_input = editors.LabeledLineEdit("Classes")
@@ -415,6 +442,9 @@ class AssetEditor(FaceEditor):
         # Illustration
         self.add_illustration_widget()
 
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
     def load_data(self):
@@ -450,14 +480,12 @@ class EventEditor(FaceEditor):
         self.add_labeled_line("Name", "name")
         self.add_labeled_line("Subtitle", "subtitle")
 
+        # Traits with autocomplete
+        self.add_trait_field()
+
         # Grid for compact fields
         grid_widget = QWidget()
         grid_layout = QFormLayout()
-
-        traits_input = editors.LabeledLineEdit("Traits")
-        traits_input.input.textChanged.connect(lambda: self.on_field_changed('traits'))
-        self.fields['traits'] = traits_input.input
-        grid_layout.addRow(traits_input)
 
         classes_input = editors.LabeledLineEdit("Classes")
         classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
@@ -486,6 +514,9 @@ class EventEditor(FaceEditor):
         self.add_labeled_text("Text", "text", use_arkham=True)
         self.add_labeled_text("Flavor", "flavor_text")
         self.add_illustration_widget()
+
+        # Copyright and collection
+        self.add_copyright_collection_row()
 
         self.main_layout.addStretch()
 
@@ -517,11 +548,13 @@ class EnemyEditor(FaceEditor):
         self.add_labeled_line("Name", "name")
         self.add_labeled_line("Subtitle", "subtitle")
 
+        # Traits with autocomplete
+        self.add_trait_field()
+
         grid_widget = QWidget()
         grid_layout = QFormLayout()
 
         for field, label in [
-            ("traits", "Traits"),
             ("classes", "Classes"),
             ("attack", "Attack"),
             ("health", "Health"),
@@ -545,6 +578,9 @@ class EnemyEditor(FaceEditor):
         self.add_labeled_text("Flavor", "flavor_text")
         self.add_illustration_widget()
 
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
 
@@ -554,13 +590,16 @@ class TreacheryEditor(FaceEditor):
     def setup_ui(self):
         self.add_labeled_line("Name", "name")
         self.add_labeled_line("Subtitle", "subtitle")
-        self.add_labeled_line("Traits", "traits")
+        self.add_trait_field()
         self.add_labeled_line("Classes", "classes")
         self.add_labeled_line("Victory", "victory")
 
         self.add_labeled_text("Text", "text", use_arkham=True)
         self.add_labeled_text("Flavor", "flavor_text")
         self.add_illustration_widget()
+
+        # Copyright and collection
+        self.add_copyright_collection_row()
 
         self.main_layout.addStretch()
 
@@ -671,7 +710,7 @@ class LocationEditor(FaceEditor):
         self.add_labeled_line("Subtitle", "subtitle")
 
         self.add_labeled_line("Shroud", "shroud")
-        self.add_labeled_line("Traits", "traits")
+        self.add_trait_field()
         self.add_labeled_line("Clues", "clues")
         self.add_labeled_line("Victory", "victory")
 
@@ -699,6 +738,9 @@ class LocationEditor(FaceEditor):
         self.add_labeled_text("Text", "text", use_arkham=True)
         self.add_labeled_text("Flavor", "flavor_text")
         self.add_illustration_widget()
+
+        # Copyright and collection
+        self.add_copyright_collection_row()
 
         self.main_layout.addStretch()
 
@@ -889,6 +931,9 @@ class ActEditor(FaceEditor):
         self.add_labeled_text("Flavor", "flavor_text")
         self.add_illustration_widget()
 
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
 
@@ -901,6 +946,9 @@ class ActBackEditor(FaceEditor):
 
         self.add_labeled_text("Text", "text", use_arkham=True)
         self.add_labeled_text("Flavor", "flavor_text")
+
+        # Copyright and collection
+        self.add_copyright_collection_row()
 
         self.main_layout.addStretch()
 
@@ -917,6 +965,9 @@ class AgendaEditor(FaceEditor):
         self.add_labeled_text("Flavor", "flavor_text")
         self.add_illustration_widget()
 
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
 
@@ -930,6 +981,9 @@ class AgendaBackEditor(FaceEditor):
         self.add_labeled_text("Text", "text", use_arkham=True)
         self.add_labeled_text("Flavor", "flavor_text")
 
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
 
@@ -939,6 +993,7 @@ class InvestigatorEditor(FaceEditor):
     def setup_ui(self):
         self.add_labeled_line("Name", "name")
         self.add_labeled_line("Subtitle", "subtitle")
+        self.add_trait_field()
 
         # Classes
         classes_input = editors.LabeledLineEdit("Classes")
@@ -992,6 +1047,9 @@ class InvestigatorEditor(FaceEditor):
         # Illustration
         self.add_illustration_widget()
 
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
 
@@ -1003,6 +1061,7 @@ class InvestigatorBackEditor(FaceEditor):
     def setup_ui(self):
         self.add_labeled_line("Name", "name")
         self.add_labeled_line("Subtitle", "subtitle")
+        self.add_trait_field()
 
         # Classes
         classes_input = editors.LabeledLineEdit("Classes")
@@ -1050,6 +1109,9 @@ class InvestigatorBackEditor(FaceEditor):
 
         # Illustration
         self.add_illustration_widget()
+
+        # Copyright and collection
+        self.add_copyright_collection_row()
 
         self.main_layout.addStretch()
 
@@ -1166,6 +1228,9 @@ class ChaosEditor(FaceEditor):
         entries_group.setLayout(entries_layout)
         self.main_layout.addWidget(entries_group)
 
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
     def load_data(self):
@@ -1277,6 +1342,10 @@ class CustomizableEditor(FaceEditor):
 
         entries_group.setLayout(entries_layout)
         self.main_layout.addWidget(entries_group)
+
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
     def load_data(self):
@@ -1341,6 +1410,10 @@ class StoryEditor(FaceEditor):
         self.add_labeled_line("Classes", "classes")
 
         self.add_labeled_text("Text", "text", use_arkham=True)
+
+        # Copyright and collection
+        self.add_copyright_collection_row()
+
         self.main_layout.addStretch()
 
 
