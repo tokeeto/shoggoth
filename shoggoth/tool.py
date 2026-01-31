@@ -1,4 +1,5 @@
 import argparse
+import multiprocessing
 from shoggoth.files import asset_dir, root_dir
 import urllib.request
 import zipfile
@@ -9,12 +10,15 @@ def version_is_up_to_date() -> bool:
     if not (asset_dir / 'version.txt').exists():
         return False
     with (asset_dir / 'version.txt').open('r') as f:
-        if not f.read().startswith('0.5.1'):
+        if not f.read().startswith('0.5.2'):
             return False
     return True
 
 
 def run():
+    # Required for multiprocessing to work with frozen executables (PyInstaller on Windows)
+    multiprocessing.freeze_support()
+
     parser = argparse.ArgumentParser(description='Shoggoth Card Creator')
     parser.add_argument('-r', '--render', metavar='FILE', help='Render a specific file directly')
     parser.add_argument('-id', '--card_id', metavar='STRING', help='Only render the card with the given ID.')
@@ -31,7 +35,7 @@ def run():
     if args.refresh or not asset_dir.is_dir() or not version_is_up_to_date():
         print("Asset pack not found. Downloading assets...")
         # download assets
-        url = 'https://www.dropbox.com/scl/fi/shyfdek1vt6k365jca5t3/assets-0-5-1.zip?rlkey=90uuf0sqj06bk4eby12odzwil&st=bib8j8gs&dl=1'
+        url = 'https://www.dropbox.com/scl/fi/0gkgh4tt4cyra6uz83hwc/assets-0-5-2.zip?rlkey=helhanuumy7ng23tvznekxqd3&st=xif3wpav&dl=1'
         filehandle, _ = urllib.request.urlretrieve(url)
         with zipfile.ZipFile(filehandle, 'r') as file:
             file.extractall(root_dir)

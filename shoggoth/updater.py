@@ -7,8 +7,7 @@ import sys
 import json
 import logging
 import threading
-import urllib.request
-import urllib.error
+import requests
 import tempfile
 import subprocess
 import platform
@@ -17,19 +16,16 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import Optional
 
-from PySide6.QtCore import QObject, Signal, QProcess, QTimer, QUrl
+from PySide6.QtCore import QObject, Signal, QProcess, QTimer
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QPushButton, QTextBrowser, QProgressBar,
     QPlainTextEdit, QMessageBox, QApplication
 )
-from PySide6.QtGui import QDesktopServices
 
 # Constants
-GITHUB_REPO = "tokeeto/shoggoth"
-PYPI_PACKAGE = "shoggoth"
-GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-PYPI_API_URL = f"https://pypi.org/pypi/{PYPI_PACKAGE}/json"
+GITHUB_API_URL = "https://api.github.com/repos/tokeeto/shoggoth/releases/latest"
+PYPI_API_URL = "https://pypi.org/pypi/shoggoth/json"
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +77,7 @@ def detect_installation_type() -> InstallationType:
             pass
 
         return InstallationType.PYPI
-    except Exception:
+    except Exception as e:
         # Package not found via importlib.metadata - likely development
         return InstallationType.DEVELOPMENT
 
@@ -155,12 +151,11 @@ class UpdateChecker(QObject):
     def _check_pypi(self) -> Optional[VersionInfo]:
         """Query PyPI JSON API for latest version"""
         try:
-            request = urllib.request.Request(
+            response = requests.get(
                 PYPI_API_URL,
                 headers={'Accept': 'application/json', 'User-Agent': 'Shoggoth-Updater'}
             )
-            with urllib.request.urlopen(request, timeout=10) as response:
-                data = json.loads(response.read().decode('utf-8'))
+            data = response.json()
 
             info = data.get('info', {})
             return VersionInfo(
@@ -174,15 +169,14 @@ class UpdateChecker(QObject):
     def _check_github_releases(self) -> Optional[VersionInfo]:
         """Query GitHub Releases API for latest version"""
         try:
-            request = urllib.request.Request(
+            response = requests.get(
                 GITHUB_API_URL,
                 headers={
                     'Accept': 'application/vnd.github.v3+json',
                     'User-Agent': 'Shoggoth-Updater'
                 }
             )
-            with urllib.request.urlopen(request, timeout=10) as response:
-                data = json.loads(response.read().decode('utf-8'))
+            data = response.json()
 
             # Find appropriate asset for this platform
             download_url = None
@@ -192,13 +186,10 @@ class UpdateChecker(QObject):
             for asset in assets:
                 name = asset.get('name', '').lower()
                 # Match platform-specific installers
-                if system == 'windows' and ('win' in name or name.endswith('.exe') or name.endswith('.msi')):
+                if system == 'windows' and 'win' in name:
                     download_url = asset.get('browser_download_url')
                     break
-                elif system == 'darwin' and ('mac' in name or 'darwin' in name or name.endswith('.dmg')):
-                    download_url = asset.get('browser_download_url')
-                    break
-                elif system == 'linux' and ('linux' in name or name.endswith('.AppImage')):
+                elif system == 'darwin' and 'mac' in name:
                     download_url = asset.get('browser_download_url')
                     break
 
@@ -369,7 +360,7 @@ class UpdateProgressDialog(QDialog):
         self.process.finished.connect(self._on_pip_finished)
 
         # Use sys.executable to ensure correct Python
-        self.process.start(sys.executable, ["-m", "pip", "install", "--upgrade", PYPI_PACKAGE])
+        self.process.start(sys.executable, ["-m", "pip", "install", "--upgrade", 'shoggoth'])
 
     def _on_stdout(self):
         """Handle stdout from pip"""
@@ -403,7 +394,7 @@ class UpdateProgressDialog(QDialog):
         if not self.version_info.download_url:
             self.status_label.setText("No download available for your platform.")
             self.output_log.appendPlainText("Could not find a compatible download.")
-            self.output_log.appendPlainText(f"Please visit: https://github.com/{GITHUB_REPO}/releases/latest")
+            self.output_log.appendPlainText(f"Please visit: https://github.com/tokeeto/shoggoth/releases/latest")
             self.cancel_btn.setVisible(False)
             self.close_btn.setVisible(True)
             return
@@ -419,6 +410,8 @@ class UpdateProgressDialog(QDialog):
         try:
             # Determine filename from URL
             url = self.version_info.download_url
+            if not url:
+                raise
             filename = url.split('/')[-1]
 
             # Download to temp directory
@@ -432,6 +425,7 @@ class UpdateProgressDialog(QDialog):
                     # Update UI from main thread
                     QTimer.singleShot(0, lambda: self._update_download_progress(percent, downloaded, total_size))
 
+            import urllib.request
             urllib.request.urlretrieve(url, self.download_path, reporthook=report_progress)
 
             # Download complete - update UI from main thread
@@ -467,7 +461,7 @@ class UpdateProgressDialog(QDialog):
         self.status_label.setText("Download failed")
         self.output_log.appendPlainText(f"Error: {error}")
         self.output_log.appendPlainText(f"\nPlease download manually from:")
-        self.output_log.appendPlainText(f"https://github.com/{GITHUB_REPO}/releases/latest")
+        self.output_log.appendPlainText(f"https://github.com/tokeeto/shoggoth/releases/latest")
         self.cancel_btn.setVisible(False)
         self.close_btn.setVisible(True)
 
@@ -514,6 +508,7 @@ class UpdateManager(QObject):
 
         # Connect signals
         self.checker.update_available.connect(self._on_update_available)
+        self.checker.check_complete.connect(self._on_check_complete)
         self.checker.check_failed.connect(self._on_check_failed)
 
         self._is_manual_check = False
@@ -551,6 +546,15 @@ class UpdateManager(QObject):
             return
 
         self.checker.check_for_updates()
+
+    def _on_check_complete(self, has_update: bool):
+        """Handle check complete signal"""
+        if not has_update and self._is_manual_check:
+            QMessageBox.information(
+                self.parent_widget,
+                "Up to Date",
+                f"Shoggoth is already up to date.\n\nCurrent version: {self.checker.current_version}"
+            )
 
     def _on_update_available(self, version_info: VersionInfo):
         """Handle update available signal"""

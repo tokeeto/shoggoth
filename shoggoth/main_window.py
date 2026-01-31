@@ -171,10 +171,15 @@ class DraggableTreeWidget(QTreeWidget):
             return
 
         card_ids = event.mimeData().data('application/x-shoggoth-card').data().decode().split(',')
-        project = self.file_browser._project
 
         for card_id in card_ids:
-            card = project.get_card(card_id)
+            # Find the project that contains this card
+            card = None
+            for project in self.file_browser._projects:
+                card = project.get_card(card_id)
+                if card:
+                    break
+
             if not card:
                 continue
 
@@ -212,7 +217,9 @@ class DraggableTreeWidget(QTreeWidget):
                 card.set('investigator', drop_data)
 
         # Refresh the tree to reflect changes
-        event.acceptProposedAction()
+        # Use accept() instead of acceptProposedAction() to prevent Qt from
+        # performing its own item move - we handle tree updates via refresh_tree()
+        event.accept()
         shoggoth.app.refresh_tree()
 
 
@@ -224,6 +231,7 @@ class FileBrowser(QWidget):
     project_selected = Signal(object)  # Emits project object
     guide_selected = Signal(object)  # Emits guide object
     locations_selected = Signal(object)  # Emits encounter set for location view
+    active_project_changed = Signal(object)  # Emits project when active project changes
 
     def __init__(self):
         super().__init__()
@@ -243,82 +251,173 @@ class FileBrowser(QWidget):
         layout.addWidget(self.tree)
 
         self.setLayout(layout)
-        self._project = None
+        self._projects = []  # List of open projects
+        self._active_project = None  # The active project for operations
         self._node_map = {}  # Maps node_id -> QTreeWidgetItem for fast lookup
 
         # Context menu handler
         from shoggoth.tree_context_menu import TreeContextMenu
         self.context_menu = TreeContextMenu(self)
 
+    @property
+    def _project(self):
+        """Compatibility property - returns active project"""
+        return self._active_project
+
     def set_project(self, project):
-        """Set the project and do a full tree rebuild"""
-        self._project = project
+        """Set a single project (clears others) - for backward compatibility"""
+        self._projects = [project] if project else []
+        self._active_project = project
         self._node_map.clear()
         self._full_rebuild()
 
-    def refresh(self):
-        """Smart refresh - only update what has changed"""
-        if not self._project:
+    def add_project(self, project):
+        """Add a project to the browser. If first project, make it active."""
+        if project in self._projects:
+            # Already open - just make it active
+            self.set_active_project(project)
             return
 
-        # Build desired tree specification
-        desired_spec = self._build_tree_spec()
+        self._projects.append(project)
+        if self._active_project is None:
+            self._active_project = project
+
+        self._full_rebuild()
+        self.active_project_changed.emit(self._active_project)
+
+    def remove_project(self, project):
+        """Remove a project from the browser"""
+        if project not in self._projects:
+            return
+
+        self._projects.remove(project)
+
+        # If we removed the active project, select another
+        if self._active_project == project:
+            self._active_project = self._projects[0] if self._projects else None
+            self.active_project_changed.emit(self._active_project)
+
+        self._full_rebuild()
+
+    def set_active_project(self, project):
+        """Set the active project for operations"""
+        if project not in self._projects:
+            return
+        if self._active_project == project:
+            return
+
+        self._active_project = project
+        self._update_active_project_display()
+        self.active_project_changed.emit(project)
+
+    def _update_active_project_display(self):
+        """Update visual indicators for active project"""
+        # Update all project nodes to show/hide bold
+        for project in self._projects:
+            node_id = f'project:{project.file_path}'
+            if node_id in self._node_map:
+                item = self._node_map[node_id]
+                font = item.font(0)
+                font.setBold(project == self._active_project)
+                item.setFont(0, font)
+
+    def get_project_for_card(self, card):
+        """Find which project a card belongs to"""
+        for project in self._projects:
+            if project.get_card(card.id):
+                return project
+        return None
+
+    def refresh(self):
+        """Smart refresh - only update what has changed"""
+        if not self._projects:
+            self.tree.clear()
+            self._node_map.clear()
+            return
 
         # If tree is empty, do a full rebuild
         if self.tree.topLevelItemCount() == 0:
             self._full_rebuild()
             return
 
-        # Apply incremental updates
-        root_item = self.tree.topLevelItem(0)
-        self._sync_tree_node(root_item, desired_spec)
+        # Build desired tree specification for all projects
+        desired_specs = self._build_all_tree_specs()
+
+        # Remove extra projects if any were closed
+        while self.tree.topLevelItemCount() > len(desired_specs):
+            removed_item = self.tree.takeTopLevelItem(self.tree.topLevelItemCount() - 1)
+            self._remove_from_node_map(removed_item)
+
+        # Apply incremental updates to each project root
+        for i, spec in enumerate(desired_specs):
+            if i < self.tree.topLevelItemCount():
+                root_item = self.tree.topLevelItem(i)
+                self._sync_tree_node(root_item, spec)
+            else:
+                # New project added
+                root_item = self._create_tree_item(spec)
+                self.tree.addTopLevelItem(root_item)
+                root_item.setExpanded(True)
 
     def _full_rebuild(self):
         """Do a complete tree rebuild (used for initial load or project change)"""
-        if not self._project:
-            return
-
         self.tree.clear()
         self._node_map.clear()
 
-        spec = self._build_tree_spec()
-        root_item = self._create_tree_item(spec)
-        self.tree.addTopLevelItem(root_item)
-        root_item.setExpanded(True)
+        if not self._projects:
+            return
 
-    def _build_tree_spec(self):
+        for project in self._projects:
+            spec = self._build_tree_spec(project)
+            root_item = self._create_tree_item(spec)
+            self.tree.addTopLevelItem(root_item)
+            root_item.setExpanded(True)
+
+            # Set bold for active project
+            if project == self._active_project:
+                font = root_item.font(0)
+                font.setBold(True)
+                root_item.setFont(0, font)
+
+    def _build_all_tree_specs(self):
+        """Build tree specs for all open projects"""
+        return [self._build_tree_spec(project) for project in self._projects]
+
+    def _build_tree_spec(self, project=None):
         """Build a specification of the desired tree state"""
-        if not self._project:
+        if project is None:
+            project = self._active_project
+        if not project:
             return None
 
         # Root node
         root_spec = {
-            'node_id': f'project:{self._project.file_path}',
-            'text': self._project['name'],
+            'node_id': f'project:{project.file_path}',
+            'text': project['name'],
             'type': 'project',
-            'data': self._project,
+            'data': project,
             'icon': None,
             'children': []
         }
 
         # Determine if we need campaign/player split
-        has_encounters = bool(self._project.encounter_sets)
-        has_player_cards = any(c for c in self._project.cards if not c.encounter)
+        has_encounters = bool(project.encounter_sets)
+        has_player_cards = any(c for c in project.cards if not c.encounter)
 
         if has_encounters and has_player_cards:
             campaign_spec = {
-                'node_id': 'category:campaign_cards',
+                'node_id': f'category:campaign_cards:{project.file_path}',
                 'text': 'Campaign cards',
                 'type': 'campaign_cards',
-                'data': self._project,
+                'data': project,
                 'icon': None,
                 'children': []
             }
             player_spec = {
-                'node_id': 'category:player_cards',
+                'node_id': f'category:player_cards:{project.file_path}',
                 'text': 'Player cards',
                 'type': 'player_cards',
-                'data': self._project,
+                'data': project,
                 'icon': None,
                 'children': []
             }
@@ -328,7 +427,7 @@ class FileBrowser(QWidget):
             campaign_spec = player_spec = root_spec
 
         # Add encounter sets
-        for encounter_set in self._project.encounter_sets:
+        for encounter_set in project.encounter_sets:
             e_spec = {
                 'node_id': f'encounter:{encounter_set.name}',
                 'text': encounter_set.name,
@@ -362,8 +461,6 @@ class FileBrowser(QWidget):
                 'icon': None,
                 'children': []
             }
-            e_spec['children'] = [story_spec, location_spec, encounter_cat_spec]
-
             # Add cards to appropriate categories
             for card in encounter_set.cards:
                 card_spec = self._build_card_spec(card)
@@ -374,6 +471,12 @@ class FileBrowser(QWidget):
                     encounter_cat_spec['children'].append(card_spec)
                 else:
                     story_spec['children'].append(card_spec)
+
+            # If only encounter cards exist (no story or location), show cards directly
+            if not story_spec['children'] and not location_spec['children']:
+                e_spec['children'] = encounter_cat_spec['children']
+            else:
+                e_spec['children'] = [story_spec, location_spec, encounter_cat_spec]
 
             campaign_spec['children'].append(e_spec)
 
@@ -399,10 +502,10 @@ class FileBrowser(QWidget):
                     icon_path = str(path)
 
             class_spec = {
-                'node_id': f'class:{cls}',
+                'node_id': f'class:{cls}:{project.file_path}',
                 'text': class_labels[cls],
                 'type': 'category',
-                'data': None,
+                'data': project,
                 'class': cls,
                 'icon': icon_path,
                 'children': []
@@ -412,14 +515,14 @@ class FileBrowser(QWidget):
 
         investigator_specs = {}
 
-        for card in self._project.player_cards:
+        for card in project.player_cards:
             if group := card.data.get('investigator', False):
                 if group not in investigator_specs:
                     inv_spec = {
-                        'node_id': f'investigator:{group}',
+                        'node_id': f'investigator:{group}:{project.file_path}',
                         'text': group,
                         'type': 'category',
-                        'data': None,
+                        'data': project,
                         'investigator': group,
                         'icon': None,
                         'children': []
@@ -435,16 +538,16 @@ class FileBrowser(QWidget):
             target_spec['children'].append(card_spec)
 
         # Add guides
-        if self._project.guides:
+        if project.guides:
             guide_parent = {
-                'node_id': 'category:guides',
+                'node_id': f'category:guides:{project.file_path}',
                 'text': 'Guides',
                 'type': 'category',
-                'data': None,
+                'data': project,
                 'icon': None,
                 'children': []
             }
-            for guide in self._project.guides:
+            for guide in project.guides:
                 guide_spec = {
                     'node_id': f'guide:{guide.id}',
                     'text': guide.name,
@@ -578,6 +681,13 @@ class FileBrowser(QWidget):
         item_type = data.get('type')
         item_data = data.get('data')
 
+        # Get project path for unique IDs
+        project_path = ''
+        if item_data and hasattr(item_data, 'file_path'):
+            project_path = item_data.file_path
+        elif item_data and hasattr(item_data, 'expansion') and item_data.expansion:
+            project_path = item_data.expansion.file_path
+
         if item_type == 'card' and item_data:
             return f'card:{item_data.id}'
         elif item_type == 'guide' and item_data:
@@ -585,23 +695,26 @@ class FileBrowser(QWidget):
         elif item_type == 'encounter' and item_data:
             return f'encounter:{item_data.name}'
         elif item_type == 'project' and item_data:
-            return f'project:{item_data.path}'
+            return f'project:{item_data.file_path}'
         elif item_type == 'locations' and item_data:
             return f'locations:{item_data.name}'
-        elif item_type == 'campaign_cards':
-            return 'category:campaign_cards'
-        elif item_type == 'player_cards':
-            return 'category:player_cards'
+        elif item_type == 'campaign_cards' and item_data:
+            return f'category:campaign_cards:{item_data.file_path}'
+        elif item_type == 'player_cards' and item_data:
+            return f'category:player_cards:{item_data.file_path}'
         elif item_type == 'category':
-            if data.get('class'):
-                return f'class:{data["class"]}'
-            elif data.get('investigator'):
-                return f'investigator:{data["investigator"]}'
-            elif item_data:  # Encounter category (Story/Encounter)
+            if data.get('class') and item_data:
+                return f'class:{data["class"]}:{item_data.file_path}'
+            elif data.get('investigator') and item_data:
+                return f'investigator:{data["investigator"]}:{item_data.file_path}'
+            elif item_data and hasattr(item_data, 'file_path'):
+                # Project-level category (Guides) - item_data is Project
+                if item.text(0) == 'Guides':
+                    return f'category:guides:{item_data.file_path}'
+            elif item_data and hasattr(item_data, 'name') and not hasattr(item_data, 'file_path'):
+                # Encounter subcategory (Story/Encounter) - item_data is EncounterSet (no file_path)
                 text = item.text(0).lower()
                 return f'category:{item_data.name}:{text}'
-            elif item.text(0) == 'Guides':
-                return 'category:guides'
         return None
 
     def _remove_from_node_map(self, item):
@@ -700,6 +813,8 @@ class FileBrowser(QWidget):
         item_data = data['data']
 
         if item_type == 'project':
+            # Clicking a project sets it as active
+            self.set_active_project(item_data)
             self.project_selected.emit(item_data)
         elif item_type == 'encounter':
             self.encounter_selected.emit(item_data)
@@ -753,7 +868,8 @@ class ShoggothMainWindow(QMainWindow):
             self.setWindowIcon(QIcon(str(icon_path)))
 
         # Initialize components
-        self.current_project = None
+        self.open_projects = []  # List of all open projects
+        self.active_project = None  # The currently active project
         self.current_card = None
         self.current_editor = None
         self.card_renderer = CardRenderer()
@@ -811,6 +927,7 @@ class ShoggothMainWindow(QMainWindow):
         self.file_browser.project_selected.connect(self.show_project)
         self.file_browser.guide_selected.connect(self.show_guide)
         self.file_browser.locations_selected.connect(self.show_locations)
+        self.file_browser.active_project_changed.connect(self._on_active_project_changed)
         self.main_splitter.addWidget(self.file_browser)
 
         # Right panel - Content area (will contain editor + preview for cards)
@@ -867,11 +984,11 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_goto_dialog(self):
         """Show the Go to Card dialog"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.information(self, "No Project", "Please open a project first")
             return
 
-        dialog = GotoCardDialog(self.current_project, self)
+        dialog = GotoCardDialog(self.active_project, self)
         dialog.card_selected.connect(self.on_goto_card_selected)
         dialog.exec()
 
@@ -934,6 +1051,13 @@ class ShoggothMainWindow(QMainWindow):
         new_action = QAction("&New Project", self)
         new_action.triggered.connect(self.new_project_dialog)
         file_menu.addAction(new_action)
+
+        # Close Project
+        close_project_action = QAction("Close &Project", self)
+        close_project_action.triggered.connect(lambda: self.close_project())
+        file_menu.addAction(close_project_action)
+
+        file_menu.addSeparator()
 
         # Save
         save_action = QAction("&Save (Ctrl+S)", self)
@@ -1063,15 +1187,15 @@ class ShoggothMainWindow(QMainWindow):
         convert_se_action.triggered.connect(self.convert_strange_eons)
         tools_menu.addAction(convert_se_action)
 
-        # ==================== HELP MENU ====================
-        help_menu = menubar.addMenu("&Help")
+        tools_menu.addSeparator()
 
         # Check for Updates
         check_updates_action = QAction("Check for &Updates...", self)
         check_updates_action.triggered.connect(self.update_manager.check_for_updates_manual)
-        help_menu.addAction(check_updates_action)
+        tools_menu.addAction(check_updates_action)
 
-        help_menu.addSeparator()
+        # ==================== HELP MENU ====================
+        help_menu = menubar.addMenu("&Help")
 
         # Text options
         text_options_action = QAction("&Text options", self)
@@ -1126,35 +1250,61 @@ class ShoggothMainWindow(QMainWindow):
     def restore_session(self):
         """Restore previous session"""
         session = self.settings.get('session', {})
-        if project_path := session.get('project'):
+
+        # Support for multiple open projects
+        open_project_paths = session.get('open_projects', [])
+        active_project_path = session.get('active_project', session.get('project'))
+
+        # Fallback to single project if no list exists
+        if not open_project_paths and active_project_path:
+            open_project_paths = [active_project_path]
+
+        for project_path in open_project_paths:
             try:
                 self.open_project(project_path)
-                if last_id := session.get('last_id'):
-                    last_type = session.get('last_type', 'card')
-                    QTimer.singleShot(100, lambda: self._restore_last_element(last_id, last_type))
             except Exception as e:
-                print(f"Error restoring session: {e}")
+                print(f"Error restoring project {project_path}: {e}")
+
+        # Set the active project
+        if active_project_path:
+            for project in self.open_projects:
+                if project.file_path == active_project_path:
+                    self.file_browser.set_active_project(project)
+                    break
+
+        # Restore last selected element
+        if last_id := session.get('last_id'):
+            last_type = session.get('last_type', 'card')
+            QTimer.singleShot(100, lambda: self._restore_last_element(last_id, last_type))
+
+    def _save_session(self):
+        """Save current session state"""
+        self.settings['session']['open_projects'] = [p.file_path for p in self.open_projects]
+        self.settings['session']['active_project'] = self.active_project.file_path if self.active_project else None
+        # Keep legacy 'project' key for backward compatibility
+        self.settings['session']['project'] = self.active_project.file_path if self.active_project else None
+        self.save_settings()
 
     def _restore_last_element(self, element_id, element_type):
         """Restore the last selected element by ID and type"""
-        if not self.current_project:
+        if not self.active_project:
             return
 
         element = None
         if element_type == 'card':
-            element = self.current_project.get_card(element_id)
+            element = self.active_project.get_card(element_id)
             if element:
                 self.show_card(element)
         elif element_type == 'encounter':
-            element = self.current_project.get_encounter_set(element_id)
+            element = self.active_project.get_encounter_set(element_id)
             if element:
                 self.show_encounter(element)
         elif element_type == 'guide':
-            element = self.current_project.get_guide(element_id)
+            element = self.active_project.get_guide(element_id)
             if element:
                 self.show_guide(element)
         elif element_type == 'locations':
-            element = self.current_project.get_encounter_set(element_id)
+            element = self.active_project.get_encounter_set(element_id)
             if element:
                 self.show_locations(element)
 
@@ -1181,16 +1331,79 @@ class ShoggothMainWindow(QMainWindow):
     def open_project(self, file_path):
         """Open a project file"""
         try:
-            self.current_project = Project.load(file_path)
-            self.file_browser.set_project(self.current_project)
-            self.settings['session']['project'] = file_path
-            self.save_settings()
+            # Check if project is already open
+            for project in self.open_projects:
+                if project.file_path == file_path:
+                    # Already open - just make it active
+                    self.file_browser.set_active_project(project)
+                    self.status_bar.showMessage(f"Switched to: {project['name']}")
+                    return
+
+            # Load new project
+            project = Project.load(file_path)
+            self.open_projects.append(project)
+            self.active_project = project
+            self.file_browser.add_project(project)
+            self._save_session()
             # Clear navigation history for new project
             self._nav_history.clear()
             self._nav_index = -1
-            self.status_bar.showMessage(f"Opened: {self.current_project['name']}")
+            self.status_bar.showMessage(f"Opened: {project['name']}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open project: {e}")
+
+    def close_project(self, project=None):
+        """Close a project"""
+        if project is None:
+            project = self.active_project
+        if project is None:
+            return
+
+        # Check for unsaved changes in this project
+        if self._project_has_unsaved_changes(project):
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                f"'{project['name']}' has unsaved changes. Save before closing?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                QMessageBox.Save
+            )
+            if reply == QMessageBox.Save:
+                project.save()
+            elif reply == QMessageBox.Cancel:
+                return
+
+        # Remove from open projects
+        if project in self.open_projects:
+            self.open_projects.remove(project)
+
+        # Update file browser
+        self.file_browser.remove_project(project)
+
+        # Update active project
+        if self.active_project == project:
+            self.active_project = self.open_projects[0] if self.open_projects else None
+
+        self._save_session()
+        self.status_bar.showMessage(f"Closed: {project['name']}")
+
+    def _project_has_unsaved_changes(self, project):
+        """Check if a specific project has unsaved changes"""
+        for card in project.get_all_cards():
+            if hasattr(card, 'dirty') and card.dirty:
+                return True
+        return False
+
+    def _on_active_project_changed(self, project):
+        """Handle active project change from file browser"""
+        self.active_project = project
+        if project:
+            self.status_bar.showMessage(f"Active: {project['name']}")
+
+    @property
+    def current_project(self):
+        """Backward compatibility property"""
+        return self.active_project
 
     def new_project_dialog(self):
         """Show dialog to create a new project"""
@@ -1229,14 +1442,14 @@ class ShoggothMainWindow(QMainWindow):
 
     def save_changes(self):
         """Save the entire project"""
-        if not self.current_project:
+        if not self.active_project:
             return
 
         try:
-            self.current_project.save()
+            self.active_project.save()
 
             # Mark all cards as clean
-            for card in self.current_project.get_all_cards():
+            for card in self.active_project.get_all_cards():
                 card.dirty = False
                 if hasattr(card, 'front') and hasattr(card.front, 'dirty'):
                     card.front.dirty = False
@@ -1264,7 +1477,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def export_all(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export all cards in the project using settings from preferences"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project loaded")
             return
 
@@ -1279,10 +1492,10 @@ class ShoggothMainWindow(QMainWindow):
             separate_versions = self.config.getboolean('Shoggoth', 'export_separate_versions', False)
 
         try:
-            export_folder = Path(self.current_project.file_path).parent / f'Export of {self.current_project.name}'
+            export_folder = Path(self.active_project.file_path).parent / f'Export of {self.active_project.name}'
             export_folder.mkdir(parents=True, exist_ok=True)
 
-            cards = self.current_project.get_all_cards()
+            cards = self.active_project.get_all_cards()
 
             # Show progress
             from PySide6.QtWidgets import QProgressDialog
@@ -1332,7 +1545,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def new_card_dialog(self):
         """Show dialog to create a new card"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
 
@@ -1351,7 +1564,7 @@ class ShoggothMainWindow(QMainWindow):
         self.current_editor = None
         self.settings['session']['last_id'] = card.id
         self.settings['session']['last_type'] = 'card'
-        self.save_settings()
+        self._save_session()
 
         # Update file monitoring for this card's dependencies
         if self.card_file_monitor:
@@ -1458,7 +1671,7 @@ class ShoggothMainWindow(QMainWindow):
         # Save selection
         self.settings['session']['last_id'] = encounter.id
         self.settings['session']['last_type'] = 'encounter'
-        self.save_settings()
+        self._save_session()
 
         # Hide preview for non-card views
         self.preview_dock.hide()
@@ -1526,7 +1739,7 @@ class ShoggothMainWindow(QMainWindow):
         # Save selection
         self.settings['session']['last_id'] = guide.id
         self.settings['session']['last_type'] = 'guide'
-        self.save_settings()
+        self._save_session()
 
         # Hide preview for non-card views
         self.preview_dock.hide()
@@ -1554,7 +1767,7 @@ class ShoggothMainWindow(QMainWindow):
         # Save selection
         self.settings['session']['last_id'] = encounter_set.id
         self.settings['session']['last_type'] = 'locations'
-        self.save_settings()
+        self._save_session()
 
         # Hide preview for non-card views
         self.preview_dock.hide()
@@ -1638,10 +1851,10 @@ class ShoggothMainWindow(QMainWindow):
 
     def goto_card(self, card_id):
         """Navigate to a specific card by ID"""
-        if not self.current_project:
+        if not self.active_project:
             return
 
-        card = self.current_project.get_card(card_id)
+        card = self.active_project.get_card(card_id)
         if card:
             self.show_card(card)
             self.select_item_in_tree(card_id)
@@ -1697,24 +1910,24 @@ class ShoggothMainWindow(QMainWindow):
         self._nav_navigating = True
         try:
             if nav_type == 'card':
-                card = self.current_project.get_card(nav_id)
+                card = self.active_project.get_card(nav_id)
                 if card:
                     self.show_card(card)
                     self.select_item_in_tree(nav_id)
             elif nav_type == 'encounter':
-                encounter = self.current_project.get_encounter_set(nav_id)
+                encounter = self.active_project.get_encounter_set(nav_id)
                 if encounter:
                     self.show_encounter(encounter)
                     self.select_item_in_tree(nav_id)
             elif nav_type == 'project':
-                self.show_project(self.current_project)
+                self.show_project(self.active_project)
             elif nav_type == 'guide':
-                guide = self.current_project.get_guide(nav_id)
+                guide = self.active_project.get_guide(nav_id)
                 if guide:
                     self.show_guide(guide)
                     self.select_item_in_tree(nav_id)
             elif nav_type == 'locations':
-                encounter = self.current_project.get_encounter_set(nav_id)
+                encounter = self.active_project.get_encounter_set(nav_id)
                 if encounter:
                     self.show_locations(encounter)
         finally:
@@ -1749,7 +1962,7 @@ class ShoggothMainWindow(QMainWindow):
             separate_versions = self.config.getboolean('Shoggoth', 'export_separate_versions', False)
 
         try:
-            export_folder = Path(self.current_project.file_path).parent / f'Export of {self.current_project.name}'
+            export_folder = Path(self.active_project.file_path).parent / f'Export of {self.active_project.name}'
             export_folder.mkdir(parents=True, exist_ok=True)
 
             # Export card
@@ -1887,10 +2100,10 @@ class ShoggothMainWindow(QMainWindow):
 
     def has_unsaved_changes(self):
         """Check if there are any unsaved changes in the project"""
-        if not self.current_project:
+        if not self.active_project:
             return False
 
-        for card in self.current_project.get_all_cards():
+        for card in self.active_project.get_all_cards():
             if hasattr(card, 'dirty') and card.dirty:
                 return True
             if hasattr(card, 'front') and hasattr(card.front, 'dirty') and card.front.dirty:
@@ -1904,50 +2117,50 @@ class ShoggothMainWindow(QMainWindow):
 
     def add_guide(self):
         """Add a guide to the project"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
-        self.current_project.add_guide()
+        self.active_project.add_guide()
         self.file_browser.refresh()
         self.status_bar.showMessage("Guide added")
 
     def add_scenario_template(self):
         """Add a scenario template"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
         name, ok = self.get_text_input("Scenario Name", "Enter scenario name:", "Placeholder")
         if ok and name:
-            self.current_project.create_scenario(name)
+            self.active_project.create_scenario(name)
             self.file_browser.refresh()
             self.status_bar.showMessage(f"Scenario '{name}' created")
 
     def add_campaign_template(self):
         """Add a campaign template"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
-        self.current_project.create_campaign()
+        self.active_project.create_campaign()
         self.file_browser.refresh()
         self.status_bar.showMessage("Campaign template created")
 
     def add_investigator_template(self):
         """Add an investigator template"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
         name, ok = self.get_text_input("Investigator Name", "Enter investigator name:", "John Doe")
         if ok and name:
-            self.current_project.add_investigator_set(name)
+            self.active_project.add_investigator_set(name)
             self.file_browser.refresh()
             self.status_bar.showMessage(f"Investigator '{name}' created")
 
     def add_investigator_expansion_template(self):
         """Add an investigator expansion template"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
-        self.current_project.create_player_expansion()
+        self.active_project.create_player_expansion()
         self.file_browser.refresh()
         self.status_bar.showMessage("Player expansion template created")
 
@@ -1963,7 +2176,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def export_cards_to_pdf(self):
         """Export all cards to PDF"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
         # TODO: Implement PDF export
@@ -1971,7 +2184,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def export_project_to_pdf(self):
         """Export entire project to PDF"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
         # TODO: Implement PDF export
@@ -1991,24 +2204,24 @@ class ShoggothMainWindow(QMainWindow):
 
     def export_campaign_to_tts(self):
         """Export campaign cards to Tabletop Simulator"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
         try:
             from shoggoth import tts_lib
-            tts_lib.export_campaign(self.current_project)
+            tts_lib.export_campaign(self.active_project)
             self.status_bar.showMessage("Campaign exported to TTS")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to export to TTS: {e}")
 
     def export_player_to_tts(self):
         """Export player cards to Tabletop Simulator"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
         try:
             from shoggoth import tts_lib
-            tts_lib.export_player_cards(self.current_project.player_cards)
+            tts_lib.export_player_cards(self.active_project.player_cards)
             self.status_bar.showMessage("Player cards exported to TTS")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to export to TTS: {e}")
@@ -2025,12 +2238,12 @@ class ShoggothMainWindow(QMainWindow):
 
     def gather_images(self, update=False):
         """Gather all images from the project"""
-        if not self.current_project:
+        if not self.active_project:
             QMessageBox.warning(self, "Error", "No project open")
             return
 
         try:
-            self.current_project.gather_images(update=update)
+            self.active_project.gather_images(update=update)
             action = "gathered and updated" if update else "gathered"
             self.status_bar.showMessage(f"Images {action}")
             QMessageBox.information(self, "Success", f"Images {action} successfully")
