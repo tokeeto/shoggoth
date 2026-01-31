@@ -93,6 +93,15 @@ class TreeContextMenu:
     
     def _create_project_menu(self, menu, project):
         """Create context menu for project root"""
+        import shoggoth
+
+        # Set as Active (only show if not already active)
+        if shoggoth.app and shoggoth.app.active_project != project:
+            set_active_action = QAction("Set as Active", self.parent)
+            set_active_action.triggered.connect(lambda: self.set_active_project(project))
+            menu.addAction(set_active_action)
+            menu.addSeparator()
+
         # New Encounter Set
         new_encounter_action = QAction("New Encounter Set", self.parent)
         new_encounter_action.triggered.connect(lambda: self.new_encounter_set(project))
@@ -102,6 +111,13 @@ class TreeContextMenu:
         new_player_action = QAction("New Player Card", self.parent)
         new_player_action.triggered.connect(lambda: self.new_player_card(project))
         menu.addAction(new_player_action)
+
+        menu.addSeparator()
+
+        # Close Project
+        close_action = QAction("Close Project", self.parent)
+        close_action.triggered.connect(lambda: self.close_project(project))
+        menu.addAction(close_action)
 
     def _create_campaign_cards_menu(self, menu, project):
         """Create context menu for Campaign cards node"""
@@ -472,3 +488,15 @@ class TreeContextMenu:
 
         # Trigger refresh
         shoggoth.app.refresh_tree()
+
+    def set_active_project(self, project):
+        """Set a project as the active project"""
+        import shoggoth
+        if shoggoth.app:
+            shoggoth.app.file_browser.set_active_project(project)
+
+    def close_project(self, project):
+        """Close a project"""
+        import shoggoth
+        if shoggoth.app:
+            shoggoth.app.close_project(project)

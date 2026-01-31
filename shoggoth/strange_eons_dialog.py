@@ -1,17 +1,51 @@
 """
 Strange Eons Converter Dialog
 """
-import sys
-import subprocess
+import multiprocessing
 from pathlib import Path
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QPushButton, QLabel, QFileDialog,
-    QDialogButtonBox, QProgressDialog, QMessageBox,
+    QDialogButtonBox, QMessageBox,
     QPlainTextEdit
 )
-from PySide6.QtCore import Qt, QProcess, QTimer
+from PySide6.QtCore import Qt, QTimer
+
+
+def _run_conversion_subprocess(java_path, jar_path, project_path, output_path, log_queue):
+    """
+    Target function for multiprocessing.Process.
+
+    Runs the Strange Eons conversion in an isolated subprocess.
+    When JPype/Strange Eons terminates, only this subprocess dies.
+    """
+    import sys
+
+    # Redirect stdout/stderr to the queue
+    class QueueWriter:
+        def __init__(self, queue):
+            self.queue = queue
+
+        def write(self, text):
+            if text.strip():
+                self.queue.put(text)
+
+        def flush(self):
+            pass
+
+    sys.stdout = QueueWriter(log_queue)
+    sys.stderr = QueueWriter(log_queue)
+
+    try:
+        from shoggoth.strange_eons import run_conversion
+        run_conversion(java_path, jar_path, project_path, output_path)
+        log_queue.put('__SUCCESS__')
+    except Exception as e:
+        log_queue.put(f'Error: {e}')
+        log_queue.put('__FAILED__')
+    finally:
+        log_queue.put('__DONE__')
 
 
 class StrangeEonsConverterDialog(QDialog):
@@ -180,6 +214,8 @@ class ConversionProgressDialog(QDialog):
 
         self.output_path = output_path
         self.process = None
+        self.log_queue = None
+        self.poll_timer = None
         self.success = False
 
         layout = QVBoxLayout(self)
@@ -204,39 +240,32 @@ class ConversionProgressDialog(QDialog):
         ))
 
     def _run_conversion(self, java_path, jar_path, project_path, output_path):
-        """Run the conversion in a subprocess"""
+        """Run the conversion in a subprocess using multiprocessing"""
         # Log configuration
         self._append_log("=== Strange Eons Conversion ===")
         self._append_log(f"Java: {java_path}")
         self._append_log(f"JAR: {jar_path}")
         self._append_log(f"Project: {project_path}")
         self._append_log(f"Output: {output_path}")
-        self._append_log(f"Python: {sys.executable}")
         self._append_log("")
-
-        # Create a Python script to run the conversion
-        script = f'''
-import sys
-sys.path.insert(0, {repr(str(Path(__file__).parent.parent))})
-from shoggoth.strange_eons import run_conversion
-run_conversion(
-    {repr(java_path)},
-    {repr(jar_path)},
-    {repr(project_path)},
-    {repr(output_path)}
-)
-'''
-
-        self.process = QProcess(self)
-        self.process.finished.connect(self._on_finished)
-        self.process.readyReadStandardOutput.connect(self._on_stdout)
-        self.process.readyReadStandardError.connect(self._on_stderr)
-        self.process.errorOccurred.connect(self._on_error)
 
         self.status_label.setText("Converting... (this may take a while)")
 
-        # Run Python with the conversion script
-        self.process.start(sys.executable, ['-c', script])
+        # Use multiprocessing to run conversion in isolated subprocess
+        # This works with frozen executables and isolates JPype termination
+        ctx = multiprocessing.get_context('spawn')
+        self.log_queue = ctx.Queue()
+
+        self.process = ctx.Process(
+            target=_run_conversion_subprocess,
+            args=(java_path, jar_path, project_path, output_path, self.log_queue)
+        )
+        self.process.start()
+
+        # Poll the queue for log output
+        self.poll_timer = QTimer(self)
+        self.poll_timer.timeout.connect(self._poll_queue)
+        self.poll_timer.start(100)
 
     def _append_log(self, text):
         """Append text to log view and scroll to bottom"""
@@ -245,28 +274,36 @@ run_conversion(
         scrollbar = self.log_view.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
-    def _on_stdout(self):
-        if self.process:
-            output = self.process.readAllStandardOutput().data().decode()
-            if output:
-                self._append_log(output)
+    def _poll_queue(self):
+        """Poll the multiprocessing queue for log messages"""
+        try:
+            while not self.log_queue.empty():
+                msg = self.log_queue.get_nowait()
+                if msg == '__DONE__':
+                    self._on_finished()
+                    return
+                elif msg == '__SUCCESS__':
+                    self.success = True
+                elif msg == '__FAILED__':
+                    self.success = False
+                else:
+                    self._append_log(msg)
+        except Exception:
+            pass
 
-    def _on_stderr(self):
-        if self.process:
-            output = self.process.readAllStandardError().data().decode()
-            if output:
-                self._append_log(output)
+        # Check if process died unexpectedly
+        if self.process and not self.process.is_alive():
+            self._on_finished()
 
-    def _on_error(self, error):
-        self.status_label.setText(f"Process Error: {error}")
-        self._append_log(f"\n=== Process Error: {error} ===")
-        self.cancel_btn.setText("Close")
-        # Re-enable close button
-        self.setWindowFlags(self.windowFlags() | Qt.WindowCloseButtonHint)
-        self.show()
+    def _on_finished(self):
+        """Handle process completion"""
+        if self.poll_timer:
+            self.poll_timer.stop()
+            self.poll_timer = None
 
-    def _on_finished(self, exit_code, exit_status):
+        exit_code = self.process.exitcode if self.process else -1
         self.process = None
+
         self._append_log(f"\n=== Process finished with exit code {exit_code} ===")
 
         # Check if output was created
@@ -284,13 +321,17 @@ run_conversion(
             self.show()
 
     def _cancel(self):
-        if self.process and self.process.state() == QProcess.Running:
-            self.process.kill()
-            self.process.waitForFinished(1000)
+        if self.poll_timer:
+            self.poll_timer.stop()
+        if self.process and self.process.is_alive():
+            self.process.terminate()
+            self.process.join(timeout=1)
+            if self.process.is_alive():
+                self.process.kill()
         self.reject()
 
     def closeEvent(self, event):
-        if self.process and self.process.state() == QProcess.Running:
+        if self.process and self.process.is_alive():
             event.ignore()
         else:
             super().closeEvent(event)
