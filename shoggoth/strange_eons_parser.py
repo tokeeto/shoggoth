@@ -175,6 +175,11 @@ PORTRAITS = {
 }
 
 
+def print_out(*args, func=logger.info):
+    print(args)
+    func(args)
+
+
 def translate_text(value):
     # make sure javastrings are pystrings
     value = str(value)
@@ -221,7 +226,7 @@ def get_portaits(card):
 
 
 def extract_images(card, collection, image_folder):
-    logger.info(f'extracting images from {card.getName()}')
+    print_out(f'extracting images from {card.getName()}')
     script_name = card.getClassName().split("/")[-1]
     bindings = PORTRAITS.get(script_name)
     if not bindings:
@@ -242,7 +247,7 @@ def extract_images(card, collection, image_folder):
             new_path = image_folder / f'{i}_{portrait_name}'
             i += 1
             if i > 35:
-                logger.warn(f'{card.getName()} failed to find suitable name for image {portrait_name}')
+                print_out(f'{card.getName()} failed to find suitable name for image {portrait_name}', func=logger.error)
                 continue
         collection['images'][source] = str(new_path)
         outputfile = File(str(new_path))
@@ -288,7 +293,7 @@ def run_import(project_path, output_path):
     card_files = []
     for root, dir, files in PROJECT_FOLDER.walk():
         card_files += [root/f for f in files if f.split('.')[-1] == 'eon' and f != 'deck.eon']
-    logger.info(f'Processing {len(card_files)} cards')
+    print_out(f'Processing {len(card_files)} cards')
 
     collection = {
         "name": PROJECT_FOLDER.name,
@@ -309,7 +314,7 @@ def run_import(project_path, output_path):
             thread.join()
         step += 25
 
-    logger.info('Done processing cards. Post processing begins...')
+    print_out('Done processing cards. Post processing begins...')
 
     collection['encounter_sets'] = list(collection['encounter_sets'].values())
     for es in collection['encounter_sets']:
@@ -321,7 +326,7 @@ def run_import(project_path, output_path):
 
     with open(OUTPUT_FILE, 'w') as file:
         json.dump(collection, file, cls=JavaWriter, indent=4)
-    logger.info(f'Done saving.')
+    print_out(f'Done saving.')
 
 
 def parse_card(file:Path, results:dict, image_folder:Path):

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QTreeWidget, QTreeWidgetItem, QLabel, QMenuBar, QMenu,
     QFileDialog, QMessageBox, QStatusBar, QScrollArea, QDialog,
-    QLineEdit, QPushButton, QDialogButtonBox
+    QLineEdit, QPushButton, QDialogButtonBox, QTextBrowser
 )
 from PySide6.QtCore import QUrl, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import (
@@ -2005,10 +2005,6 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_about(self):
         """Show about dialog"""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
-        from PySide6.QtGui import QDesktopServices
-        from PySide6.QtCore import QUrl
-
         # Get version from package metadata
         try:
             from importlib.metadata import version

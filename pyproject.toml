@@ -1,10 +1,10 @@
 [project]
 name = "shoggoth"
-version = "0.1.7"
+version = "0.1.9"
 authors = [{ name = "Toke Ivø", email = "toke.ivo@gmail.com" }]
 description = "A card creator for Arkham Horror: The Card Game"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
