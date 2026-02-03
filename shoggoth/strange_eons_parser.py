@@ -1,3 +1,4 @@
+import logging
 from os import makedirs, remove
 from uuid import uuid4
 import jpype
@@ -6,6 +7,7 @@ import json
 import threading
 from pathlib import Path
 
+logger = logging.getLogger('shoggoth')
 assert jpype.isJVMStarted
 
 from ca.cgjennings.apps.arkham.project import ProjectUtilities
@@ -172,6 +174,7 @@ PORTRAITS = {
     'PackCover.js': [ 'Portrait-Front' ],
 }
 
+
 def translate_text(value):
     # make sure javastrings are pystrings
     value = str(value)
@@ -205,6 +208,7 @@ def translate_text(value):
 
     return value
 
+
 def get_portaits(card):
     script_name = card.getClassName().split("/")[-1]
     bindings = PORTRAITS.get(script_name)
@@ -215,8 +219,9 @@ def get_portaits(card):
         output[str(name)] = card.getPortrait(index)
     return output
 
+
 def extract_images(card, collection, image_folder):
-    print(f'extracting images from {card.getName()}')
+    logger.info(f'extracting images from {card.getName()}')
     script_name = card.getClassName().split("/")[-1]
     bindings = PORTRAITS.get(script_name)
     if not bindings:
@@ -237,11 +242,12 @@ def extract_images(card, collection, image_folder):
             new_path = image_folder / f'{i}_{portrait_name}'
             i += 1
             if i > 35:
-                print(f'{card.getName()} failed to find suitable name for image {portrait_name}')
+                logger.warn(f'{card.getName()} failed to find suitable name for image {portrait_name}')
                 continue
         collection['images'][source] = str(new_path)
         outputfile = File(str(new_path))
         ImageIO.write(portrait.getImage(), portrait_format, outputfile)
+
 
 def determine_encounter_set(card) -> tuple[str|None, str|None]:
     portraits = get_portaits(card)
@@ -282,7 +288,7 @@ def run_import(project_path, output_path):
     card_files = []
     for root, dir, files in PROJECT_FOLDER.walk():
         card_files += [root/f for f in files if f.split('.')[-1] == 'eon' and f != 'deck.eon']
-    print(f'Processing {len(card_files)} cards')
+    logger.info(f'Processing {len(card_files)} cards')
 
     collection = {
         "name": PROJECT_FOLDER.name,
@@ -303,7 +309,7 @@ def run_import(project_path, output_path):
             thread.join()
         step += 25
 
-    print(f'Done processing cards. Post processing begins...')
+    logger.info('Done processing cards. Post processing begins...')
 
     collection['encounter_sets'] = list(collection['encounter_sets'].values())
     for es in collection['encounter_sets']:
@@ -315,13 +321,13 @@ def run_import(project_path, output_path):
 
     with open(OUTPUT_FILE, 'w') as file:
         json.dump(collection, file, cls=JavaWriter, indent=4)
-    print(f'Done saving.')
+    logger.info(f'Done saving.')
 
 
 def parse_card(file:Path, results:dict, image_folder:Path):
     card = ResourceKit.getGameComponentFromFile(File(str(file)), False)
     if not card:
-        print(f'ERROR: {file} appears to have issues loading.')
+        logger.error(f'ERROR: {file} appears to have issues loading.')
         return
     script_name = card.getClassName().split("/")[-1]
     if script_name not in front_types and script_name not in back_types:

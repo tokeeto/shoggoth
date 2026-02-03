@@ -192,7 +192,7 @@ class StrangeEonsConverterDialog(QDialog):
         self.settings['strange_eons_path'] = self.jar_input.text()
 
         # Store paths for the caller
-        self.java_path = self.java_input.text() or 'java'
+        self.java_path = self.java_input.text() or None
         self.jar_path = self.jar_input.text()
         self.project_path = self.project_input.text()
         self.output_path = self.output_input.text()

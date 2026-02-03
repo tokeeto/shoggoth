@@ -1,8 +1,14 @@
+import logging
 import argparse
 import multiprocessing
 from shoggoth.files import asset_dir, root_dir
 import urllib.request
 import zipfile
+
+
+logger = logging.getLogger('shoggoth')
+log_file = root_dir / 'session.log'
+logging.basicConfig(filename=log_file, level=logging.INFO)
 
 
 def version_is_up_to_date() -> bool:
@@ -33,15 +39,15 @@ def run():
 
     # ensure assets directory exists
     if args.refresh or not asset_dir.is_dir() or not version_is_up_to_date():
-        print("Asset pack not found. Downloading assets...")
+        logger.info("Asset pack not found. Downloading assets...")
         # download assets
         url = 'https://www.dropbox.com/scl/fi/0gkgh4tt4cyra6uz83hwc/assets-0-5-2.zip?rlkey=helhanuumy7ng23tvznekxqd3&st=xif3wpav&dl=1'
         filehandle, _ = urllib.request.urlretrieve(url)
         with zipfile.ZipFile(filehandle, 'r') as file:
             file.extractall(root_dir)
-        print("Assets downloaded successfully.")
+        logger.info("Assets downloaded successfully.")
     else:
-        print("Asset pack up to date.")
+        logger.info("Asset pack up to date.")
 
     if args.render:
         from time import time
@@ -59,7 +65,7 @@ def run():
         target_folder = args.out or p.folder
         for card in cards:
             r.export_card_images(card, target_folder, False, bleed=bool(args.bleed), format=args.format, quality=100)
-        print(f'Took {time()-t} seconds.')
+        logger.info(f'Tool.render took {time()-t} seconds.')
         return
     else:
         # Start in normal mode
@@ -68,4 +74,6 @@ def run():
 
 
 if __name__ == '__main__':
+    logger.debug('tool main starting')
     run()
+    logger.debug('tool main ending')
