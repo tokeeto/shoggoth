@@ -24,7 +24,6 @@ from shoggoth.files import defaults_dir, asset_dir, font_dir, overlay_dir, root_
 from shoggoth.preview_widget import ImprovedCardPreview
 from shoggoth.goto_dialog import GotoCardDialog
 from shoggoth.encounter_editor import EncounterSetEditor
-from shoggoth.strange_eons_dialog import run_strange_eons_conversion
 
 
 class DraggableTreeWidget(QTreeWidget):
@@ -2226,9 +2225,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def convert_strange_eons(self):
         """Convert a Strange Eons project"""
-        result_path = run_strange_eons_conversion(self.settings, self)
-        if result_path:
-            self.open_project(result_path)
+        pass
 
     # ==================== FILE MENU ACTIONS ====================
 

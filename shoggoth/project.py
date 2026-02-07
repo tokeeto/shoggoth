@@ -81,7 +81,7 @@ class Project:
 
     def find_file(self, path):
         if (self.folder / path).is_file():
-            return (self.folder / path).absolute()
+            return (self.folder / path).resolve().absolute()
         return False
 
     def __eq__(self, other):

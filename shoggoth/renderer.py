@@ -607,7 +607,12 @@ class CardRenderer:
         """Render the illustration/portrait"""
         # Get illustration path
         illustration_path = side.get('illustration', None)
-        if not illustration_path or not os.path.exists(illustration_path):
+        if not illustration_path:
+            return
+        illustration_path = Path(illustration_path)
+        if not illustration_path.is_absolute():
+            illustration_path = side.card.expansion.find_file(illustration_path)
+        if not illustration_path:
             return
 
         try:

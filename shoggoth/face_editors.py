@@ -55,7 +55,7 @@ class SlotComboBox(NoScrollComboBox):
         self.setIconSize(QSize(24, 24))
 
         # Add empty option first
-        self.addItem('—', userData=None)
+        self.addItem('-', userData=None)
 
         # Discover slot files dynamically
         if overlay_dir.exists():
@@ -640,7 +640,7 @@ class IconComboBox(QComboBox):
         for symbol in self.CONNECTION_SYMBOLS:
             if symbol == 'None':
                 # Empty option - show dash
-                self.addItem('—', userData=None)
+                self.addItem('-', userData=None)
             else:
                 icon_path = overlay_dir / f"location_hi_{symbol}.png"
                 if icon_path.exists():

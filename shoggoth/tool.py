@@ -4,10 +4,13 @@ import multiprocessing
 from shoggoth.files import asset_dir, root_dir
 import urllib.request
 import zipfile
+from os import makedirs
 
 
 logger = logging.getLogger('shoggoth')
 log_file = root_dir / 'session.log'
+if not log_file.exists():
+    makedirs(root_dir, exist_ok=True)
 logging.basicConfig(filename=log_file, level=logging.INFO)
 
 
@@ -16,7 +19,7 @@ def version_is_up_to_date() -> bool:
     if not (asset_dir / 'version.txt').exists():
         return False
     with (asset_dir / 'version.txt').open('r') as f:
-        if not f.read().startswith('0.5.2'):
+        if not f.read().startswith('0.5.3'):
             return False
     return True
 
@@ -41,7 +44,7 @@ def run():
     if args.refresh or not asset_dir.is_dir() or not version_is_up_to_date():
         logger.info("Asset pack not found. Downloading assets...")
         # download assets
-        url = 'https://www.dropbox.com/scl/fi/0gkgh4tt4cyra6uz83hwc/assets-0-5-2.zip?rlkey=helhanuumy7ng23tvznekxqd3&st=xif3wpav&dl=1'
+        url = 'https://www.dropbox.com/scl/fi/31pjo4v8u9r80lewbm91p/assets-0-5-3.zip?rlkey=befxd52uy1mp73sum4926cj4r&st=oiffx5nr&dl=1'
         filehandle, _ = urllib.request.urlretrieve(url)
         with zipfile.ZipFile(filehandle, 'r') as file:
             file.extractall(root_dir)
