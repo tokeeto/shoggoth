@@ -1,7 +1,7 @@
 """
 Settings system for Shoggoth using QSettings
 """
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, QLocale
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QPushButton, QCheckBox, QLabel,
@@ -9,7 +9,32 @@ from PySide6.QtWidgets import (
     QGroupBox, QComboBox, QSpinBox
 )
 from pathlib import Path
-from shoggoth.i18n import tr
+from shoggoth.i18n import tr, get_available_languages
+
+
+def detect_system_language() -> str:
+    """
+    Detect the system language and return the language code if available.
+    
+    Returns:
+        Language code (e.g., 'es', 'en') or 'en' as fallback.
+    """
+    try:
+        # Get system locale using Qt
+        system_locale = QLocale.system()
+        # Get the language code (e.g., 'es', 'en', 'fr')
+        lang_code = system_locale.name().split('_')[0].lower()
+        
+        # Check if this language is available in our translations
+        available = get_available_languages()
+        if lang_code in available:
+            return lang_code
+        
+        # Fallback to English
+        return 'en'
+    except Exception:
+        # Any error, fallback to English
+        return 'en'
 
 
 class SettingsManager:
@@ -41,8 +66,8 @@ class SettingsManager:
             # Update settings
             'auto_check_updates': True,
             'skipped_version': '',
-            # Language settings
-            'language': 'en',
+            # Language settings - detect from system
+            'language': detect_system_language(),
         }
         
         for key, value in defaults.items():

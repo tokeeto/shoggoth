@@ -3,6 +3,7 @@ import os
 import numpy as np
 import re
 from shoggoth.files import font_dir, icon_dir, overlay_dir
+from shoggoth.i18n import tr
 
 #ImageDraw.fontmode = 'L'
 image_regex = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
@@ -201,23 +202,23 @@ class RichTextRenderer:
 
     def get_help_text(self):
         """ Returns a helpful text """
-        text = "Here's a list of special tags you can use in text:\n\n"
-        text += "Formatting tags:\n"
+        text = tr("HELP_SPECIAL_TAGS_INTRO") + "\n\n"
+        text += tr("HELP_FORMATTING_TAGS") + "\n"
         for tag, options in self.formatting_tags.items():
             if options['start']:
                 text += f'{tag}{options.get("font") or options.get("align")}'
             else:
                 text += f'{tag}\n'
 
-        text += "\nReplacement tags - for short hand writing:\n"
+        text += "\n" + tr("HELP_REPLACEMENT_TAGS") + "\n"
         for tag, result in self.replacement_tags.items():
             text += f"{tag} = {result}\n"
 
-        text += "\nIcon tags:\n"
+        text += "\n" + tr("HELP_ICON_TAGS") + "\n"
         for tag in self.font_icon_tags:
             text += f"{tag}\n"
 
-        text += "\nAvailable fonts:\n"
+        text += "\n" + tr("HELP_AVAILABLE_FONTS") + "\n"
         for tag, options in self.fonts.items():
             text += f"{tag}: {options['path']}\n"
         return text
