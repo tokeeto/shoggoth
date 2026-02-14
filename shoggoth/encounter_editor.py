@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, Signal, QSize, QThread
 from PySide6.QtGui import QPixmap, QImage, QCursor
 import threading
 from io import BytesIO
+from shoggoth.i18n import tr
 
 
 class ThumbnailWidget(QFrame):
@@ -34,7 +35,7 @@ class ThumbnailWidget(QFrame):
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setMinimumSize(200, 280)
-        self.image_label.setText("Loading...")
+        self.image_label.setText(tr("LOADING"))
         layout.addWidget(self.image_label)
         
         # Name label
@@ -49,7 +50,7 @@ class ThumbnailWidget(QFrame):
     def set_image(self, image_buffer):
         """Set the thumbnail image from a BytesIO buffer with proper aspect ratio"""
         if not image_buffer:
-            self.image_label.setText("Error")
+            self.image_label.setText(tr("DLG_ERROR"))
             return
         
         try:
@@ -78,7 +79,7 @@ class ThumbnailWidget(QFrame):
                 
         except Exception as e:
             print(f"Error setting thumbnail: {e}")
-            self.image_label.setText("Error")
+            self.image_label.setText(tr("MSG_ERROR"))
     
     def mousePressEvent(self, event):
         """Handle mouse click"""
@@ -143,28 +144,28 @@ class EncounterSetEditor(QWidget):
         header_layout = QVBoxLayout()
         
         # Title
-        title = QLabel(f"Encounter Set: {self.encounter_set.name}")
+        title = QLabel(tr("TITLE_ENCOUNTER_SET").format(name=self.encounter_set.name))
         title.setStyleSheet("font-size: 20pt; font-weight: bold;")
         header_layout.addWidget(title)
         
         # Basic info form
         from shoggoth.editors import LabeledLineEdit
         
-        self.name_input = LabeledLineEdit("Name")
+        self.name_input = LabeledLineEdit(tr("FIELD_NAME"))
         header_layout.addWidget(self.name_input)
         
-        self.code_input = LabeledLineEdit("Code")
+        self.code_input = LabeledLineEdit(tr("FIELD_CODE"))
         header_layout.addWidget(self.code_input)
         
-        self.order_input = LabeledLineEdit("Order")
+        self.order_input = LabeledLineEdit(tr("FIELD_ORDER"))
         header_layout.addWidget(self.order_input)
         
         # Icon selection
         icon_layout = QHBoxLayout()
-        icon_layout.addWidget(QLabel("Icon:"))
+        icon_layout.addWidget(QLabel(tr("FIELD_ICON")))
         self.icon_input = LabeledLineEdit("")
         icon_layout.addWidget(self.icon_input)
-        browse_btn = QPushButton("Browse")
+        browse_btn = QPushButton(tr("BTN_BROWSE"))
         browse_btn.clicked.connect(self.browse_icon)
         icon_layout.addWidget(browse_btn)
         header_layout.addLayout(icon_layout)
@@ -174,7 +175,7 @@ class EncounterSetEditor(QWidget):
         stats_label.setStyleSheet("color: #666; font-style: italic;")
         cards_count = len(self.encounter_set.cards)
         total_amount = sum(card.amount for card in self.encounter_set.cards)
-        stats_label.setText(f"{cards_count} unique cards, {total_amount} total cards in set")
+        stats_label.setText(tr("STATS_CARDS_IN_SET").format(unique=cards_count, total=total_amount))
         header_layout.addWidget(stats_label)
         
         main_layout.addLayout(header_layout)
@@ -186,7 +187,7 @@ class EncounterSetEditor(QWidget):
         main_layout.addWidget(separator)
         
         # Cards section label
-        cards_label = QLabel("Cards in this set:")
+        cards_label = QLabel(tr("LABEL_CARDS_IN_SET"))
         cards_label.setStyleSheet("font-size: 14pt; font-weight: bold; margin-top: 10px;")
         main_layout.addWidget(cards_label)
         
@@ -209,13 +210,13 @@ class EncounterSetEditor(QWidget):
         # Action buttons
         button_layout = QHBoxLayout()
         
-        new_card_btn = QPushButton("Add New Card")
+        new_card_btn = QPushButton(tr("BTN_NEW_CARD"))
         new_card_btn.clicked.connect(self.add_new_card)
         button_layout.addWidget(new_card_btn)
         
         button_layout.addStretch()
         
-        delete_btn = QPushButton("Delete Encounter Set")
+        delete_btn = QPushButton(tr("BTN_DELETE_ENCOUNTER_SET"))
         delete_btn.setStyleSheet("background-color: #d32f2f; color: white;")
         delete_btn.clicked.connect(self.delete_encounter_set)
         button_layout.addWidget(delete_btn)
@@ -317,17 +318,15 @@ class EncounterSetEditor(QWidget):
         """Delete this encounter set"""
         reply = QMessageBox.question(
             self,
-            "Delete Encounter Set",
-            f"Are you sure you want to delete the encounter set '{self.encounter_set.name}'?\n\n"
-            f"This will also delete all {len(self.encounter_set.cards)} cards in this set.\n"
-            f"This action cannot be undone.",
+            tr("DLG_DELETE_ENCOUNTER_SET"),
+            tr("CONFIRM_DELETE_ENCOUNTER_SET").format(name=self.encounter_set.name, count=len(self.encounter_set.cards)),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
         
         if reply == QMessageBox.Yes:
             # TODO: Implement deletion
-            QMessageBox.information(self, "Not Implemented", "Encounter set deletion not yet implemented")
+            QMessageBox.information(self, tr("DLG_NOT_IMPLEMENTED"), tr("MSG_ENCOUNTER_SET_DELETION_NOT_IMPLEMENTED"))
     
     def cleanup(self):
         """Cleanup resources when editor is closed"""

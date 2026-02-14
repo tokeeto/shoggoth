@@ -14,6 +14,7 @@ from PySide6.QtGui import (
 
 import re
 from pathlib import Path
+from shoggoth.i18n import tr
 
 
 class HTMLHighlighter(QSyntaxHighlighter):
@@ -240,26 +241,26 @@ class GuideEditor(QWidget):
         editor_layout = QVBoxLayout()
 
         # Title
-        title = QLabel(f"Guide: {self.guide.name}")
+        title = QLabel(tr("TITLE_GUIDE", name=self.guide.name))
         title.setStyleSheet("font-size: 16pt; font-weight: bold;")
         editor_layout.addWidget(title)
 
         # Front page image
         front_page_layout = QHBoxLayout()
-        front_page_layout.addWidget(QLabel("Front Page Image:"))
+        front_page_layout.addWidget(QLabel(tr("LABEL_FRONT_PAGE_IMAGE")))
         self.front_page_input = QTextEdit()
         self.front_page_input.setMaximumHeight(30)
         self.front_page_input.setPlainText(self.guide.front_page)
         self.front_page_input.textChanged.connect(self.on_front_page_changed)
         front_page_layout.addWidget(self.front_page_input)
 
-        browse_btn = QPushButton("Browse")
+        browse_btn = QPushButton(tr("BTN_BROWSE"))
         browse_btn.clicked.connect(self.browse_front_page)
         front_page_layout.addWidget(browse_btn)
         editor_layout.addLayout(front_page_layout)
 
         # HTML editor
-        html_label = QLabel("HTML Content:")
+        html_label = QLabel(tr("LABEL_HTML_CONTENT"))
         html_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         editor_layout.addWidget(html_label)
 
@@ -279,7 +280,7 @@ class GuideEditor(QWidget):
         # Action buttons
         button_layout = QHBoxLayout()
 
-        export_btn = QPushButton("Export PDF")
+        export_btn = QPushButton(tr("BTN_EXPORT_PDF"))
         export_btn.clicked.connect(self.export_pdf)
         button_layout.addWidget(export_btn)
 
@@ -295,7 +296,7 @@ class GuideEditor(QWidget):
         preview_layout = QVBoxLayout()
 
         # Preview title
-        preview_title = QLabel("Preview")
+        preview_title = QLabel(tr("TAB_PREVIEW"))
         preview_title.setStyleSheet("font-size: 14pt; font-weight: bold;")
         preview_layout.addWidget(preview_title)
 
@@ -307,7 +308,7 @@ class GuideEditor(QWidget):
         zoom_out_btn.clicked.connect(self.zoom_out)
         zoom_toolbar.addWidget(zoom_out_btn)
 
-        zoom_reset_btn = QPushButton("100%")
+        zoom_reset_btn = QPushButton(tr("BTN_ZOOM_100"))
         zoom_reset_btn.setMaximumWidth(60)
         zoom_reset_btn.clicked.connect(self.reset_zoom)
         zoom_toolbar.addWidget(zoom_reset_btn)
@@ -327,13 +328,13 @@ class GuideEditor(QWidget):
         # Page controls
         page_controls = QHBoxLayout()
 
-        prev_btn = QPushButton("◀ Previous")
+        prev_btn = QPushButton(tr("BTN_PREVIOUS"))
         prev_btn.clicked.connect(self.previous_page)
         page_controls.addWidget(prev_btn)
 
         page_controls.addStretch()
 
-        page_controls.addWidget(QLabel("Page:"))
+        page_controls.addWidget(QLabel(tr("LABEL_PAGE")))
         self.page_spin = QSpinBox()
         self.page_spin.setMinimum(1)
         self.page_spin.setMaximum(999)
@@ -341,12 +342,12 @@ class GuideEditor(QWidget):
         self.page_spin.valueChanged.connect(self.on_page_changed)
         page_controls.addWidget(self.page_spin)
 
-        self.page_label = QLabel("of ?")
+        self.page_label = QLabel(tr("LABEL_OF_PAGES"))
         page_controls.addWidget(self.page_label)
 
         page_controls.addStretch()
 
-        next_btn = QPushButton("Next ▶")
+        next_btn = QPushButton(tr("BTN_NEXT"))
         next_btn.clicked.connect(self.next_page)
         page_controls.addWidget(next_btn)
 
@@ -450,7 +451,7 @@ class GuideEditor(QWidget):
     def export_pdf(self):
         """Export guide to PDF file"""
         self.guide.render_to_file(html=self.html_editor.toPlainText())
-        QMessageBox.information(self, "Export Complete", f"PDF exported to:\n{self.guide.target_path}")
+        QMessageBox.information(self, tr("DLG_EXPORT_COMPLETE"), tr("MSG_PDF_EXPORTED").format(path=self.guide.target_path))
 
     def cleanup(self):
         """Cleanup resources"""
