@@ -1397,16 +1397,19 @@ class ShoggothMainWindow(QMainWindow):
 
         # Check for unsaved changes in this project
         if self._project_has_unsaved_changes(project):
-            reply = QMessageBox.question(
-                self,
-                tr("DLG_UNSAVED_CHANGES"),
-                tr("CONFIRM_SAVE_BEFORE_CLOSE").format(name=project['name']),
-                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
-                QMessageBox.Save
-            )
-            if reply == QMessageBox.Save:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle(tr("DLG_UNSAVED_CHANGES"))
+            msg_box.setText(tr("CONFIRM_SAVE_BEFORE_CLOSE").format(name=project['name']))
+            msg_box.setIcon(QMessageBox.Question)
+            save_btn = msg_box.addButton(tr("DLG_SAVE"), QMessageBox.AcceptRole)
+            discard_btn = msg_box.addButton(tr("DLG_DISCARD"), QMessageBox.DestructiveRole)
+            cancel_btn = msg_box.addButton(tr("DLG_CANCEL"), QMessageBox.RejectRole)
+            msg_box.setDefaultButton(save_btn)
+            msg_box.exec()
+            
+            if msg_box.clickedButton() == save_btn:
                 project.save()
-            elif reply == QMessageBox.Cancel:
+            elif msg_box.clickedButton() == cancel_btn:
                 return
 
         # Remove from open projects
@@ -2112,18 +2115,20 @@ class ShoggothMainWindow(QMainWindow):
         self.save_settings()
 
         if self.has_unsaved_changes():
-            reply = QMessageBox.question(
-                self,
-                tr("DLG_UNSAVED_CHANGES"),
-                tr("CONFIRM_SAVE_BEFORE_EXIT"),
-                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
-                QMessageBox.Save
-            )
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle(tr("DLG_UNSAVED_CHANGES"))
+            msg_box.setText(tr("CONFIRM_SAVE_BEFORE_EXIT"))
+            msg_box.setIcon(QMessageBox.Question)
+            save_btn = msg_box.addButton(tr("DLG_SAVE"), QMessageBox.AcceptRole)
+            discard_btn = msg_box.addButton(tr("DLG_DISCARD"), QMessageBox.DestructiveRole)
+            cancel_btn = msg_box.addButton(tr("DLG_CANCEL"), QMessageBox.RejectRole)
+            msg_box.setDefaultButton(save_btn)
+            msg_box.exec()
 
-            if reply == QMessageBox.Save:
+            if msg_box.clickedButton() == save_btn:
                 self.save_changes()
                 event.accept()
-            elif reply == QMessageBox.Discard:
+            elif msg_box.clickedButton() == discard_btn:
                 event.accept()
             else:  # Cancel
                 event.ignore()

@@ -78,6 +78,7 @@
   "DLG_CLOSE": "Close",
   "DLG_BROWSE": "Browse",
   "DLG_DELETE": "Delete",
+  "DLG_DISCARD": "Discard",
   "DLG_SAVE": "Save",
   "BTN_BROWSE": "Browse",
   "BTN_CANCEL": "Cancel",
