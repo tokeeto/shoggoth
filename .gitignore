@@ -9,3 +9,5 @@
 uv.lock
 /assets/
 shoggoth.ini
+settings.json
+.vscode/settings.json
