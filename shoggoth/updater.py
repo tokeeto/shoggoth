@@ -236,13 +236,13 @@ class UpdateDialog(QDialog):
 
         # Version info
         version_layout = QFormLayout()
-        version_layout.addRow(tr("LBL_CURRENT_VERSION"), QLabel(self.current_version))
-        version_layout.addRow(tr("LBL_NEW_VERSION"), QLabel(f"<b>{self.version_info.version}</b>"))
+        version_layout.addRow(tr("LABEL_CURRENT_VERSION"), QLabel(self.current_version))
+        version_layout.addRow(tr("LABEL_NEW_VERSION"), QLabel(f"<b>{self.version_info.version}</b>"))
         layout.addLayout(version_layout)
 
         # Release notes
         if self.version_info.release_notes:
-            notes_label = QLabel(tr("LBL_RELEASE_NOTES"))
+            notes_label = QLabel(tr("LABEL_RELEASE_NOTES"))
             notes_label.setStyleSheet("margin-top: 10px; font-weight: bold;")
             layout.addWidget(notes_label)
 
