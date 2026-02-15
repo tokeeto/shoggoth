@@ -2061,26 +2061,18 @@ class ShoggothMainWindow(QMainWindow):
         about_html = f"""
         <div style="text-align: center;">
             <h1 style="font-size: 32pt; margin-bottom: 5px;">Shoggoth</h1>
-            <p style="font-size: 14pt; color: #666;">Version {app_version}</p>
+            <p style="font-size: 14pt; color: #666;">{tr("ABOUT_VERSION").format(version=app_version)}</p>
         </div>
         <hr>
-        <p>Created by <b>Toke Ivø</b></p>
-        <p>
-            You can support the development of Shoggoth by
-            <a href="{urls['contrib']}">contributing</a>,
-            <a href="{urls['patreon']}">donating on Patreon</a>, or
-            <a href="{urls['tips']}">leaving a tip</a>.
-        </p>
-        <p>Various images and templates by the <b>Mythos Busters</b> community - especially <b>Coldtoes</b> and <b>Hauke</b>.</p>
-        <p>
-            Thanks to <b>CGJennings</b> for creating Strange Eons, and
-            <b>pilunte23/JaqenZann</b> for the original AHLCG plugin,
-            without which we'd all be so much more bored.
-        </p>
-        <p>
-            Special thanks to <b>Coldtoes</b>, <b>felice</b>, <b>Chr1Z</b>,
-            <b>MickeyTheQ</b> and <b>Morvael</b> for helping this project become a reality.
-        </p>
+        <p>{tr("ABOUT_CREATED_BY")}</p>
+        <p>{tr("ABOUT_SUPPORT_TEXT").format(
+            contributing=f'<a href="{urls["contrib"]}">{tr("ABOUT_CONTRIBUTING")}</a>',
+            donating=f'<a href="{urls["patreon"]}">{tr("ABOUT_DONATING")}</a>',
+            tipping=f'<a href="{urls["tips"]}">{tr("ABOUT_TIPPING")}</a>'
+        )}</p>
+        <p>{tr("ABOUT_IMAGES_CREDIT")}</p>
+        <p>{tr("ABOUT_THANKS_SE")}</p>
+        <p>{tr("ABOUT_SPECIAL_THANKS")}</p>
         """
 
         dialog = QDialog(self)

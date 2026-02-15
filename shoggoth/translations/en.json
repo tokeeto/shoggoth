@@ -508,9 +508,13 @@
   "DLG_ABOUT": "About Shoggoth",
   "ABOUT_VERSION": "Version {version}",
   "ABOUT_CREATED_BY": "Created by <b>Toke Ivø</b>",
+  "ABOUT_SUPPORT_TEXT": "You can support the development of Shoggoth by {contributing}, {donating}, or {tipping}.",
   "ABOUT_CONTRIBUTING": "contributing",
   "ABOUT_DONATING": "donating on Patreon",
   "ABOUT_TIPPING": "leaving a tip",
+  "ABOUT_IMAGES_CREDIT": "Various images and templates by the <b>Mythos Busters</b> community - especially <b>Coldtoes</b> and <b>Hauke</b>.",
+  "ABOUT_THANKS_SE": "Thanks to <b>CGJennings</b> for creating Strange Eons, and <b>pilunte23/JaqenZann</b> for the original AHLCG plugin, without which we'd all be so much more bored.",
+  "ABOUT_SPECIAL_THANKS": "Special thanks to <b>Coldtoes</b>, <b>felice</b>, <b>Chr1Z</b>, <b>MickeyTheQ</b> and <b>Morvael</b> for helping this project become a reality.",
 
   "// ===== TEXT OPTIONS DIALOG =====": "",
   "DLG_TEXT_OPTIONS": "Text Options",
