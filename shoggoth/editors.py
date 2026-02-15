@@ -301,7 +301,7 @@ class IconsWidget(QWidget):
         layout.setSpacing(12)
 
         # Label
-        icons_label = QLabel(tr("Icons"))
+        icons_label = QLabel(tr("LABEL_ICONS"))
         icons_label.setMinimumWidth(50)
         layout.addWidget(icons_label)
 

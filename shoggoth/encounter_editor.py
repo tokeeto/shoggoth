@@ -260,9 +260,9 @@ class EncounterSetEditor(QWidget):
         
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Icon",
+            tr("DLG_SELECT_ICON"),
             str(Path.home()),
-            "Images (*.png *.jpg *.jpeg)"
+            tr("FILTER_IMAGES")
         )
         if file_path:
             self.icon_input.input.setText(file_path)

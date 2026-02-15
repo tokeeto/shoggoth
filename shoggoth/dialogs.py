@@ -222,9 +222,9 @@ class NewProjectDialog(QDialog):
         suggested_name = self.name_input.text() or "project"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Save Project As",
+            tr("DLG_SAVE_PROJECT_AS"),
             str(Path.home() / f"{suggested_name}.json"),
-            "JSON Files (*.json)"
+            tr("FILTER_JSON_FILES")
         )
         if file_path:
             self.file_path = file_path

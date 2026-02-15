@@ -947,7 +947,7 @@ class ShoggothMainWindow(QMainWindow):
 
         # Preview container (detachable)
         from PySide6.QtWidgets import QDockWidget
-        self.preview_dock = QDockWidget("Card Preview", self)
+        self.preview_dock = QDockWidget(tr("CARD_PREVIEW"), self)
         self.preview_dock.setFeatures(
             QDockWidget.DockWidgetFloatable |
             QDockWidget.DockWidgetMovable |
@@ -1357,9 +1357,9 @@ class ShoggothMainWindow(QMainWindow):
         """Show dialog to open a project"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Open Project",
+            tr("DLG_OPEN_PROJECT"),
             str(Path.home()),
-            "JSON Files (*.json)"
+            tr("FILTER_SHOGGOTH_PROJECTS")
         )
         if file_path:
             self.open_project(file_path)
