@@ -528,12 +528,11 @@ class CardRenderer:
             overlay_image = overlay_image.resize(overlay_region.size)
             card_image.paste(overlay_image, overlay_region.pos, overlay_image)
 
-        icon_path = side.get('encounter_icon', None)
-        if side.card.encounter and not icon_path:
-            icon_path = side.card.encounter.icon
+        icon_path = side.get('encounter_icon', side.card.encounter.icon)
 
-        if not Path(icon_path).is_file():
-            icon_path = icon_dir / icon_path
+        if not Path(icon_path).is_absolute():
+            icon_path = Path(side.card.expansion.file_path).parent / Path(icon_path)
+            icon_path = icon_path.absolute()
 
         icon = Image.open(icon_path).convert("RGBA")
         scale = min(region.width/icon.width, region.height/icon.height)

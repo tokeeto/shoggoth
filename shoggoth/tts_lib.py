@@ -1,4 +1,5 @@
 import json
+from logging import currentframe
 import os
 import shoggoth
 from shoggoth import files
@@ -22,22 +23,78 @@ wrapper_template = {
     "LuaScript": "",
     "LuaScriptState": "",
     "XmlUI": "",
-    "ObjectStates": []
+    "ObjectStates": [{
+        "Name": "Bag",
+        "Nickname": "Shoggoth bag",
+        "Transform": {
+            "posX": 0.0,
+            "posY": 0.0,
+            "posZ": 0.0,
+            "rotX": 0.0,
+            "rotY": 270.0,
+            "rotZ": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "scaleZ": 1.0
+        },
+        "Locked": False,
+        "Grid": True,
+        "Snap": True,
+        "IgnoreFoW": False,
+        "MeasureMovement": False,
+        "DragSelectable": True,
+        "Autoraise": True,
+        "Sticky": True,
+        "Tooltip": True,
+        "GridProjection": False,
+        "Hands": True,
+        "DeckIDs": [],
+        "ContainedObjects": []
+    }],
+}
+
+encounter_template = {
+    "Name": "Bag",
+    "Nickname": "",
+    "Transform": {
+        "posX": 0.0,
+        "posY": 0.0,
+        "posZ": 0.0,
+        "rotX": 0.0,
+        "rotY": 270.0,
+        "rotZ": 0.0,
+        "scaleX": 1.0,
+        "scaleY": 1.0,
+        "scaleZ": 1.0
+    },
+    "Locked": False,
+    "Grid": True,
+    "Snap": True,
+    "IgnoreFoW": False,
+    "MeasureMovement": False,
+    "DragSelectable": True,
+    "Autoraise": True,
+    "Sticky": True,
+    "Tooltip": True,
+    "GridProjection": False,
+    "Hands": True,
+    "ContainedObjects": [],
+    "GUID": "e0005d"
+}
+
+inner_card_template = {
+    "BackIsHidden": True,
+    "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/2342503777940352139/A2D42E7E5C43D045D72CE5CFC907E4F886C8C690/",
+    "FaceURL": "",
+    "NumHeight": 1,
+    "NumWidth": 1,
+    "Type": 0,
+    "UniqueBack": True
 }
 
 card_template = {
     "CardID": 552100,
-    "CustomDeck": {
-        "5521": {
-            "BackIsHidden": True,
-            "BackURL": "https://steamusercontent-a.akamaihd.net/ugc/2342503777940352139/A2D42E7E5C43D045D72CE5CFC907E4F886C8C690/",
-            "FaceURL": "",
-            "NumHeight": 1,
-            "NumWidth": 1,
-            "Type": 0,
-            "UniqueBack": True
-        }
-    },
+    "CustomDeck": {},
     "Description": "Card 1",
     "GMNotes_path": None,
     "GUID": "427b4e28",
@@ -127,23 +184,53 @@ campaign_box_template = {
   "XmlUI": ""
 }
 
-def get_image_path(card):
-    export = Path(shoggoth.app.current_project.file_path).parent / f'export_of_{shoggoth.app.current_project.name}' / f'{card.name}_front.png'
+def get_image_path(card, side, number):
+    export = Path(shoggoth.app.current_project.file_path).parent / f'Export of {shoggoth.app.current_project.name}' / f'{card.id}_{side}_{number}.webp'
     return export
 
 
-def card_to_tts(card):
+def card_to_tts(card, id, number):
     data = deepcopy(card_template)
-    data['CustomDeck']['5521']['FaceURL'] = f'file:///{get_image_path(card)}'
+    data['CustomDeck'][id] = deepcopy(inner_card_template)
+    data['Tags'] = []
+    if card.front.get('type', '') == 'player':
+        data['Tags'].append('PlayerCard')
+        data['CustomDeck'][id]['FaceURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
+    elif card.front.get('type', '') == 'encounter':
+        data['Tags'].append('EncounterCard')
+        data['CustomDeck'][id]['FaceURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
+    else:
+        data['CustomDeck'][id]['FaceURL'] = f'file:///{get_image_path(card, 'front', number)}'
+
+    if card.back.get('type', '') == 'player':
+        data['Tags'].append('PlayerCard')
+        data['CustomDeck'][id]['BackURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
+    elif card.back.get('type', '') == 'encounter':
+        data['Tags'].append('EncounterCard')
+        data['CustomDeck'][id]['BackURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
+    else:
+        data['CustomDeck'][id]['BackURL'] = f'file:///{get_image_path(card, 'back', number)}'
+
+    # type tags
+    if 'location' in (card.front.get('type', ''), card.back.get('type', '')):
+        data['Tags'].append('Location')
+    if 'asset' in (card.front.get('type', ''), card.back.get('type', '')):
+        data['Tags'].append('Asset')
+    if 'Act' in (card.front.get('type', ''), card.back.get('type', '')):
+        data['Tags'].append('Act')
+    if 'Agenda' in (card.front.get('type', ''), card.back.get('type', '')):
+        data['Tags'].append('Agenda')
+
     data['Description'] = card.name
+    data['Nickname'] = card.name
     data['GUID'] = card.id
-    data['Tags'] = ["Asset", "PlayerCard"]
+    data['CardID'] = id * 100
     return data
 
 
 def export_card(card):
     wrapper = deepcopy(wrapper_template)
-    data = card_to_tts(card)
+    data = card_to_tts(card, 8000)
     wrapper['ObjectStates'].append(data)
 
     if files.tts_dir:
@@ -157,25 +244,35 @@ def export_card(card):
 
 def export_campaign(expansion):
     wrapper = deepcopy(wrapper_template)
+    current_id = 6000
     for encounter in expansion.encounter_sets:
-        encounter_wrapper = deepcopy(wrapper_template)
+        encounter_wrapper = deepcopy(encounter_template)
+        wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
+        encounter_wrapper["DeckIDs"] = []
+        encounter_wrapper['Nickname'] = encounter.name
         for card in encounter.cards:
-            encounter_wrapper['ObjectStates'].append(card_to_tts(card))
-        wrapper['ObjectStates'].append(encounter_wrapper)
+            for variant in range(card.amount):
+                encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, variant))
+                current_id += 1
+                encounter_wrapper["DeckIDs"].append(current_id)
 
     if files.tts_dir:
         output_path = files.tts_dir / f"{shoggoth.app.current_project.name} campaign.json"
     else:
         output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} campaign.json"
 
+    print('Writing TTS to:', str(output_path))
     with open(output_path, 'w') as file:
         json.dump(wrapper, file, indent=4)
 
 
 def export_player_cards(cards):
     wrapper = deepcopy(wrapper_template)
+    current_id = 6000
     for card in cards:
-        wrapper['ObjectStates'].append(card_to_tts(card))
+        for variant in range(card.amount):
+            wrapper['ObjectStates'].append(card_to_tts(card, current_id, variant))
+            current_id += 1
 
     if files.tts_dir:
         output_path = files.tts_dir / f"{shoggoth.app.current_project.name} player cards.json"
