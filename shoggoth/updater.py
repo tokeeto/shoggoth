@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QTextBrowser, QProgressBar,
     QPlainTextEdit, QMessageBox, QApplication
 )
+from shoggoth.i18n import tr
 
 # Constants
 GITHUB_API_URL = "https://api.github.com/repos/tokeeto/shoggoth/releases/latest"
@@ -218,7 +219,7 @@ class UpdateDialog(QDialog):
         self.current_version = current_version
         self.result_action = self.NOT_NOW
 
-        self.setWindowTitle("Update Available")
+        self.setWindowTitle(tr("DLG_UPDATE_AVAILABLE"))
         self.setMinimumWidth(500)
         self.setMinimumHeight(300)
 
@@ -229,19 +230,19 @@ class UpdateDialog(QDialog):
         layout = QVBoxLayout()
 
         # Header
-        header = QLabel("A new version of Shoggoth is available!")
+        header = QLabel(tr("MSG_NEW_VERSION_AVAILABLE"))
         header.setStyleSheet("font-size: 14pt; font-weight: bold; margin-bottom: 10px;")
         layout.addWidget(header)
 
         # Version info
         version_layout = QFormLayout()
-        version_layout.addRow("Current version:", QLabel(self.current_version))
-        version_layout.addRow("New version:", QLabel(f"<b>{self.version_info.version}</b>"))
+        version_layout.addRow(tr("LABEL_CURRENT_VERSION"), QLabel(self.current_version))
+        version_layout.addRow(tr("LABEL_NEW_VERSION"), QLabel(f"<b>{self.version_info.version}</b>"))
         layout.addLayout(version_layout)
 
         # Release notes
         if self.version_info.release_notes:
-            notes_label = QLabel("Release Notes:")
+            notes_label = QLabel(tr("LABEL_RELEASE_NOTES"))
             notes_label.setStyleSheet("margin-top: 10px; font-weight: bold;")
             layout.addWidget(notes_label)
 
@@ -255,16 +256,16 @@ class UpdateDialog(QDialog):
         # Buttons
         button_layout = QHBoxLayout()
 
-        update_btn = QPushButton("Update Now")
+        update_btn = QPushButton(tr("BTN_UPDATE_NOW"))
         update_btn.setDefault(True)
         update_btn.clicked.connect(self._on_update_now)
         button_layout.addWidget(update_btn)
 
-        later_btn = QPushButton("Not Now")
+        later_btn = QPushButton(tr("BTN_NOT_NOW"))
         later_btn.clicked.connect(self._on_not_now)
         button_layout.addWidget(later_btn)
 
-        skip_btn = QPushButton("Skip This Version")
+        skip_btn = QPushButton(tr("BTN_SKIP_VERSION"))
         skip_btn.clicked.connect(self._on_skip_version)
         button_layout.addWidget(skip_btn)
 
@@ -295,7 +296,7 @@ class UpdateProgressDialog(QDialog):
         self.process = None
         self.download_path = None
 
-        self.setWindowTitle("Updating Shoggoth")
+        self.setWindowTitle(tr("DLG_UPDATING"))
         self.setMinimumWidth(500)
         self.setMinimumHeight(300)
         self.setModal(True)
@@ -307,7 +308,7 @@ class UpdateProgressDialog(QDialog):
         layout = QVBoxLayout()
 
         # Status label
-        self.status_label = QLabel("Preparing update...")
+        self.status_label = QLabel(tr("MSG_STARTING_UPDATE"))
         self.status_label.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.status_label)
 
@@ -329,11 +330,11 @@ class UpdateProgressDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn = QPushButton(tr("BTN_CANCEL"))
         self.cancel_btn.clicked.connect(self._on_cancel)
         button_layout.addWidget(self.cancel_btn)
 
-        self.close_btn = QPushButton("Close")
+        self.close_btn = QPushButton(tr("BTN_CLOSE"))
         self.close_btn.clicked.connect(self.accept)
         self.close_btn.setVisible(False)
         button_layout.addWidget(self.close_btn)
@@ -351,7 +352,7 @@ class UpdateProgressDialog(QDialog):
 
     def _start_pip_upgrade(self):
         """Run pip upgrade for PyPI installation"""
-        self.status_label.setText("Installing update via pip...")
+        self.status_label.setText(tr("MSG_INSTALLING_VIA_PIP"))
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
 
         self.process = QProcess(self)
@@ -382,24 +383,24 @@ class UpdateProgressDialog(QDialog):
         self.close_btn.setVisible(True)
 
         if exit_code == 0:
-            self.status_label.setText("Update complete! Please restart Shoggoth.")
-            self.output_log.appendPlainText("\n--- Update successful ---")
+            self.status_label.setText(tr("MSG_UPDATE_COMPLETE_RESTART"))
+            self.output_log.appendPlainText(tr("MSG_UPDATE_SUCCESSFUL"))
         else:
-            self.status_label.setText("Update failed. See log for details.")
-            self.output_log.appendPlainText(f"\n--- Update failed (exit code {exit_code}) ---")
-            self.output_log.appendPlainText("You can try manually: pip install --upgrade shoggoth")
+            self.status_label.setText(tr("MSG_UPDATE_FAILED"))
+            self.output_log.appendPlainText(tr("MSG_UPDATE_FAILED_CODE").format(code=exit_code))
+            self.output_log.appendPlainText(tr("MSG_TRY_MANUAL_PIP"))
 
     def _start_binary_download(self):
         """Download binary update"""
         if not self.version_info.download_url:
-            self.status_label.setText("No download available for your platform.")
-            self.output_log.appendPlainText("Could not find a compatible download.")
-            self.output_log.appendPlainText(f"Please visit: https://github.com/tokeeto/shoggoth/releases/latest")
+            self.status_label.setText(tr("MSG_NO_DOWNLOAD_PLATFORM"))
+            self.output_log.appendPlainText(tr("MSG_NO_COMPATIBLE_DOWNLOAD"))
+            self.output_log.appendPlainText(tr("MSG_PLEASE_VISIT_URL").format(url="https://github.com/tokeeto/shoggoth/releases/latest"))
             self.cancel_btn.setVisible(False)
             self.close_btn.setVisible(True)
             return
 
-        self.status_label.setText("Downloading update...")
+        self.status_label.setText(tr("MSG_DOWNLOADING_UPDATE"))
 
         # Download in background thread
         thread = threading.Thread(target=self._download_binary, daemon=True)
@@ -439,28 +440,28 @@ class UpdateProgressDialog(QDialog):
         self.progress_bar.setValue(percent)
         mb_downloaded = downloaded / (1024 * 1024)
         mb_total = total / (1024 * 1024)
-        self.status_label.setText(f"Downloading... {mb_downloaded:.1f} / {mb_total:.1f} MB")
+        self.status_label.setText(tr("MSG_DOWNLOADING_PROGRESS").format(downloaded=f"{mb_downloaded:.1f}", total=f"{mb_total:.1f}"))
 
     def _on_download_complete(self):
         """Handle download completion"""
         self.progress_bar.setValue(100)
-        self.status_label.setText("Download complete!")
+        self.status_label.setText(tr("MSG_DOWNLOAD_COMPLETE"))
         self.cancel_btn.setVisible(False)
         self.close_btn.setVisible(True)
 
-        self.output_log.appendPlainText(f"Downloaded to: {self.download_path}")
-        self.output_log.appendPlainText("\nClick 'Run Installer' to install the update.")
+        self.output_log.appendPlainText(tr("MSG_DOWNLOADED_TO").format(path=self.download_path))
+        self.output_log.appendPlainText("\n" + tr("MSG_CLICK_RUN_INSTALLER"))
 
         # Add run installer button
-        run_btn = QPushButton("Run Installer")
+        run_btn = QPushButton(tr("BTN_RUN_INSTALLER"))
         run_btn.clicked.connect(self._run_installer)
         self.layout().itemAt(self.layout().count() - 1).layout().insertWidget(0, run_btn)
 
     def _on_download_error(self, error: str):
         """Handle download error"""
-        self.status_label.setText("Download failed")
-        self.output_log.appendPlainText(f"Error: {error}")
-        self.output_log.appendPlainText(f"\nPlease download manually from:")
+        self.status_label.setText(tr("MSG_DOWNLOAD_FAILED"))
+        self.output_log.appendPlainText(tr("MSG_ERROR_DETAIL").format(error=error))
+        self.output_log.appendPlainText(tr("MSG_DOWNLOAD_MANUALLY"))
         self.output_log.appendPlainText(f"https://github.com/tokeeto/shoggoth/releases/latest")
         self.cancel_btn.setVisible(False)
         self.close_btn.setVisible(True)
@@ -486,8 +487,8 @@ class UpdateProgressDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "Error",
-                f"Could not run installer:\n{e}\n\nPlease run it manually from:\n{self.download_path}"
+                tr("DLG_ERROR"),
+                f"{tr('ERR_UPDATE_OCCURRED')}:\n{e}\n\n{tr('MSG_DOWNLOAD_MANUALLY_FROM')}\n{self.download_path}"
             )
 
     def _on_cancel(self):
@@ -539,9 +540,8 @@ class UpdateManager(QObject):
         if self.checker.installation_type == InstallationType.DEVELOPMENT:
             QMessageBox.information(
                 self.parent_widget,
-                "Development Mode",
-                "Update checking is disabled in development mode.\n\n"
-                "You are running Shoggoth from source code."
+                tr("DLG_DEVELOPMENT_MODE"),
+                tr("MSG_UPDATES_DISABLED_DEV")
             )
             return
 
@@ -552,8 +552,8 @@ class UpdateManager(QObject):
         if not has_update and self._is_manual_check:
             QMessageBox.information(
                 self.parent_widget,
-                "Up to Date",
-                f"Shoggoth is already up to date.\n\nCurrent version: {self.checker.current_version}"
+                tr("DLG_UP_TO_DATE"),
+                tr("MSG_LATEST_VERSION")
             )
 
     def _on_update_available(self, version_info: VersionInfo):
@@ -579,8 +579,8 @@ class UpdateManager(QObject):
         if self._is_manual_check:
             QMessageBox.warning(
                 self.parent_widget,
-                "Update Check Failed",
-                f"Could not check for updates:\n{error}"
+                tr("DLG_UPDATE_CHECK_FAILED"),
+                tr("MSG_CHECK_FAILED_RETRY")
             )
 
     def _perform_update(self, version_info: VersionInfo):

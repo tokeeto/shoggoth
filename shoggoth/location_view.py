@@ -1,6 +1,7 @@
 """
 Location View - Visual editor for location connections in encounter sets
 """
+from shoggoth.i18n import tr
 from PySide6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsPixmapItem,
     QGraphicsPathItem, QGraphicsEllipseItem, QWidget, QVBoxLayout,
@@ -507,8 +508,8 @@ class LocationView(QGraphicsView):
             location_name = target_node.card.name
             QMessageBox.warning(
                 self,
-                "Cannot Connect",
-                f"Location \"{location_name}\" has no connection icon.\n\n"
+                tr("DLG_CANNOT_CONNECT"),
+                tr("MSG_NO_CONNECTION_ICON", location_name=location_name)
             )
             return
 
@@ -573,7 +574,7 @@ class LocationView(QGraphicsView):
     def _show_arrow_context_menu(self, arrow, global_pos):
         """Show context menu for connection arrow"""
         menu = QMenu(self)
-        remove_action = menu.addAction("Remove Connection")
+        remove_action = menu.addAction(tr("CTX_REMOVE_CONNECTION"))
         action = menu.exec_(global_pos)
 
         if action == remove_action:
@@ -757,35 +758,35 @@ class LocationViewWidget(QWidget):
         # Toolbar
         toolbar = QHBoxLayout()
 
-        title = QLabel(f"<b>Locations: {encounter_set.name}</b>")
+        title = QLabel(f"<b>{tr('TITLE_LOCATIONS').format(name=encounter_set.name)}</b>")
         toolbar.addWidget(title)
 
         toolbar.addStretch()
 
-        help_label = QLabel("Drag nodes to arrange | Right-drag to connect | Click arrow to remove")
+        help_label = QLabel(tr("HELP_LOCATION_VIEW"))
         help_label.setStyleSheet("color: #888;")
         toolbar.addWidget(help_label)
 
         # Icon mode checkbox
-        self.icon_mode_cb = QCheckBox("Icons")
-        self.icon_mode_cb.setToolTip("Show locations as connection symbols instead of card images")
+        self.icon_mode_cb = QCheckBox(tr("LABEL_ICONS"))
+        self.icon_mode_cb.setToolTip(tr("TOOLTIP_ICON_MODE"))
         self.icon_mode_cb.toggled.connect(self._toggle_icon_mode)
         toolbar.addWidget(self.icon_mode_cb)
 
         # Simulation toggle button
-        self.simulate_btn = QPushButton("Simulate")
+        self.simulate_btn = QPushButton(tr("BTN_SIMULATE"))
         self.simulate_btn.setCheckable(True)
-        self.simulate_btn.setToolTip("Toggle force-directed layout simulation (30 steps/second)")
+        self.simulate_btn.setToolTip(tr("TOOLTIP_SIMULATE"))
         self.simulate_btn.toggled.connect(self._toggle_simulation)
         toolbar.addWidget(self.simulate_btn)
 
         # Screenshot button
-        screenshot_btn = QPushButton("Screenshot")
-        screenshot_btn.setToolTip("Copy layout image to clipboard (transparent background)")
+        screenshot_btn = QPushButton(tr("BTN_SCREENSHOT"))
+        screenshot_btn.setToolTip(tr("TOOLTIP_SCREENSHOT"))
         screenshot_btn.clicked.connect(self._take_screenshot)
         toolbar.addWidget(screenshot_btn)
 
-        refresh_btn = QPushButton("Refresh")
+        refresh_btn = QPushButton(tr("BTN_REFRESH"))
         refresh_btn.clicked.connect(self._refresh)
         toolbar.addWidget(refresh_btn)
 
@@ -807,11 +808,11 @@ class LocationViewWidget(QWidget):
     def _toggle_simulation(self, enabled):
         """Toggle the simulation on/off"""
         if enabled:
-            self.simulate_btn.setText("Stop")
+            self.simulate_btn.setText(tr("BTN_STOP"))
             self.location_view.init_simulation()
             self._sim_timer.start()
         else:
-            self.simulate_btn.setText("Simulate")
+            self.simulate_btn.setText(tr("BTN_SIMULATE"))
             self._sim_timer.stop()
             # Save positions when stopping
             self.location_view.save_all_positions()
@@ -833,4 +834,4 @@ class LocationViewWidget(QWidget):
             # Show brief confirmation in status bar if available
             import shoggoth
             if shoggoth.app:
-                shoggoth.app.status_bar.showMessage("Screenshot copied to clipboard", 3000)
+                shoggoth.app.status_bar.showMessage(tr("MSG_SCREENSHOT_COPIED"), 3000)

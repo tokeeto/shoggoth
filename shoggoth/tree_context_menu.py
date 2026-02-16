@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QMenu
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction
 import json
+from shoggoth.i18n import tr
 
 
 class TreeContextMenu:
@@ -54,40 +55,40 @@ class TreeContextMenu:
     def _create_card_menu(self, menu, card):
         """Create context menu for a card"""
         # Copy
-        copy_action = QAction("Copy", self.parent)
+        copy_action = QAction(tr("CTX_COPY"), self.parent)
         copy_action.triggered.connect(lambda: self.copy_card(card))
         menu.addAction(copy_action)
         
         # Duplicate
-        duplicate_action = QAction("Duplicate", self.parent)
+        duplicate_action = QAction(tr("CTX_DUPLICATE"), self.parent)
         duplicate_action.triggered.connect(lambda: self.duplicate_card(card))
         menu.addAction(duplicate_action)
         
         menu.addSeparator()
         
         # Delete
-        delete_action = QAction("Delete", self.parent)
+        delete_action = QAction(tr("CTX_DELETE"), self.parent)
         delete_action.triggered.connect(lambda: self.delete_card(card))
         menu.addAction(delete_action)
     
     def _create_encounter_menu(self, menu, encounter):
         """Create context menu for an encounter set"""
         # New Card
-        new_card_action = QAction("New Card", self.parent)
+        new_card_action = QAction(tr("CTX_NEW_CARD"), self.parent)
         new_card_action.triggered.connect(lambda: self.new_card_in_encounter(encounter))
         menu.addAction(new_card_action)
         
         # Paste (if we have something in clipboard)
         if self.clipboard:
             menu.addSeparator()
-            paste_action = QAction("Paste Card", self.parent)
+            paste_action = QAction(tr("CTX_PASTE_CARD"), self.parent)
             paste_action.triggered.connect(lambda: self.paste_card(encounter, None))
             menu.addAction(paste_action)
         
         menu.addSeparator()
         
         # Delete Encounter Set
-        delete_action = QAction("Delete Encounter Set", self.parent)
+        delete_action = QAction(tr("CTX_DELETE_ENCOUNTER_SET"), self.parent)
         delete_action.triggered.connect(lambda: self.delete_encounter(encounter))
         menu.addAction(delete_action)
     
@@ -97,37 +98,37 @@ class TreeContextMenu:
 
         # Set as Active (only show if not already active)
         if shoggoth.app and shoggoth.app.active_project != project:
-            set_active_action = QAction("Set as Active", self.parent)
+            set_active_action = QAction(tr("CTX_SET_ACTIVE"), self.parent)
             set_active_action.triggered.connect(lambda: self.set_active_project(project))
             menu.addAction(set_active_action)
             menu.addSeparator()
 
         # New Encounter Set
-        new_encounter_action = QAction("New Encounter Set", self.parent)
+        new_encounter_action = QAction(tr("CTX_NEW_ENCOUNTER_SET"), self.parent)
         new_encounter_action.triggered.connect(lambda: self.new_encounter_set(project))
         menu.addAction(new_encounter_action)
 
         # New Player Card
-        new_player_action = QAction("New Player Card", self.parent)
+        new_player_action = QAction(tr("CTX_NEW_PLAYER_CARD"), self.parent)
         new_player_action.triggered.connect(lambda: self.new_player_card(project))
         menu.addAction(new_player_action)
 
         menu.addSeparator()
 
         # Close Project
-        close_action = QAction("Close Project", self.parent)
+        close_action = QAction(tr("CTX_CLOSE_PROJECT"), self.parent)
         close_action.triggered.connect(lambda: self.close_project(project))
         menu.addAction(close_action)
 
     def _create_campaign_cards_menu(self, menu, project):
         """Create context menu for Campaign cards node"""
-        new_encounter_action = QAction("New Encounter Set", self.parent)
+        new_encounter_action = QAction(tr("CTX_NEW_ENCOUNTER_SET"), self.parent)
         new_encounter_action.triggered.connect(lambda: self.new_encounter_set(project))
         menu.addAction(new_encounter_action)
 
     def _create_player_cards_menu(self, menu, project):
         """Create context menu for Player cards node"""
-        new_card_action = QAction("New Card", self.parent)
+        new_card_action = QAction(tr("CTX_NEW_CARD"), self.parent)
         new_card_action.triggered.connect(lambda: self.new_player_card(project))
         menu.addAction(new_card_action)
     
@@ -138,14 +139,14 @@ class TreeContextMenu:
 
         if class_type == 'investigators':
             # Investigators node - add new investigator option
-            new_inv_action = QAction("New Investigator", self.parent)
+            new_inv_action = QAction(tr("CTX_NEW_INVESTIGATOR"), self.parent)
             new_inv_action.triggered.connect(self.new_investigator)
             menu.addAction(new_inv_action)
             return
 
         if class_type == 'other':
             # Other node - add new card option
-            new_card_action = QAction("New Card", self.parent)
+            new_card_action = QAction(tr("CTX_NEW_CARD"), self.parent)
             new_card_action.triggered.connect(lambda: self.new_player_card(None))
             menu.addAction(new_card_action)
             return
@@ -153,7 +154,7 @@ class TreeContextMenu:
         if class_type in ('guardian', 'seeker', 'rogue', 'mystic', 'survivor', 'neutral'):
             # Class nodes - add asset/event/skill options
             for card_type in ['Asset', 'Event', 'Skill']:
-                action = QAction(f"New {card_type}", self.parent)
+                action = QAction(tr("CTX_NEW_CARD_TYPE", card_type=card_type), self.parent)
                 action.triggered.connect(
                     lambda checked=False, ct=card_type.lower(), cls=class_type: self.new_class_card(cls, ct)
                 )
@@ -162,7 +163,7 @@ class TreeContextMenu:
             # Paste (if we have something in clipboard)
             if self.clipboard:
                 menu.addSeparator()
-                paste_action = QAction("Paste Card", self.parent)
+                paste_action = QAction(tr("CTX_PASTE_CARD"), self.parent)
                 paste_action.triggered.connect(
                     lambda: self.paste_class_card(class_type)
                 )
@@ -173,7 +174,7 @@ class TreeContextMenu:
         template = self._get_template_for_category(category_name, parent_data)
 
         if template:
-            new_card_action = QAction(f"New {category_name} Card", self.parent)
+            new_card_action = QAction(tr("CTX_NEW_CATEGORY_CARD", category_name=category_name), self.parent)
             new_card_action.triggered.connect(
                 lambda: self.new_card_with_template(parent_data.get('data'), template)
             )
@@ -182,7 +183,7 @@ class TreeContextMenu:
             # Paste (if we have something in clipboard)
             if self.clipboard:
                 menu.addSeparator()
-                paste_action = QAction("Paste Card", self.parent)
+                paste_action = QAction(tr("CTX_PASTE_CARD"), self.parent)
                 paste_action.triggered.connect(
                     lambda: self.paste_card(parent_data.get('data'), template)
                 )
@@ -267,8 +268,8 @@ class TreeContextMenu:
         
         reply = QMessageBox.question(
             self.parent,
-            "Delete Card",
-            f"Are you sure you want to delete '{card.name}'?\n\nThis cannot be undone.",
+            tr("DLG_DELETE_CARD"),
+            tr("MSG_DELETE_CARD_CONFIRM", card_name=card.name),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
@@ -382,8 +383,8 @@ class TreeContextMenu:
         
         name, ok = QInputDialog.getText(
             self.parent,
-            "New Encounter Set",
-            "Encounter Set Name:"
+            tr("DLG_NEW_ENCOUNTER_SET"),
+            tr("MSG_ENTER_ENCOUNTER_SET")
         )
         
         if ok and name:
@@ -403,10 +404,8 @@ class TreeContextMenu:
         
         reply = QMessageBox.question(
             self.parent,
-            "Delete Encounter Set",
-            f"Are you sure you want to delete '{encounter.name}'?\n\n"
-            f"This will delete all {len(encounter.cards)} cards in this set.\n"
-            f"This cannot be undone.",
+            tr("DLG_DELETE_ENCOUNTER_SET"),
+            tr("MSG_DELETE_ENCOUNTER_CONFIRM", name=encounter.name, count=len(encounter.cards)),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )

@@ -1,6 +1,7 @@
 """
 Improved card preview widget with zoom, pan, and tabs
 """
+from shoggoth.i18n import tr
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QLabel, QScrollArea,
     QSizePolicy
@@ -306,8 +307,8 @@ class ImprovedCardPreview(QWidget):
             lambda d: self.illustration_scale_changed.emit('back', d)
         )
 
-        self.tabs.addTab(self.front_tab, "Front")
-        self.tabs.addTab(self.back_tab, "Back")
+        self.tabs.addTab(self.front_tab, tr("TAB_FRONT"))
+        self.tabs.addTab(self.back_tab, tr("TAB_BACK"))
 
         layout.addWidget(self.tabs)
 

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont
+from shoggoth.i18n import tr
 
 
 def fuzzy_match(pattern, text):
@@ -124,7 +125,7 @@ class GotoCardDialog(QDialog):
         self.all_cards = []
         self.filtered_cards = []
         
-        self.setWindowTitle("Go to Card")
+        self.setWindowTitle(tr("DLG_GOTO_CARD"))
         self.setModal(True)
         self.resize(600, 400)
         
@@ -146,7 +147,7 @@ class GotoCardDialog(QDialog):
         
         # Search input
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Type to search cards... (fuzzy matching)")
+        self.search_input.setPlaceholderText(tr("MSG_TYPE_TO_SEARCH"))
         self.search_input.textChanged.connect(self.on_search_changed)
         
         # Make search input larger
@@ -169,7 +170,7 @@ class GotoCardDialog(QDialog):
         
         # Instructions
         instructions = QLabel(
-            "↑↓ Navigate | Enter Select | Esc Close"
+            tr("MSG_GOTO_INSTRUCTIONS")
         )
         instructions.setStyleSheet("color: #999999; font-size: 9pt; padding: 5px;")
         instructions.setAlignment(Qt.AlignCenter)
@@ -269,9 +270,9 @@ class GotoCardDialog(QDialog):
         total = len([c for c, p in self.all_cards])
         shown = len(results)
         if search_term:
-            self.count_label.setText(f"Showing {shown} of {total} cards")
+            self.count_label.setText(tr("MSG_SHOWING_CARDS").format(shown=shown, total=total))
         else:
-            self.count_label.setText(f"{total} cards")
+            self.count_label.setText(tr("MSG_TOTAL_CARDS").format(total=total))
         
         # Add results to list
         for card, path, score in results:

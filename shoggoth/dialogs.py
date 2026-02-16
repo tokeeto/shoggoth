@@ -14,6 +14,7 @@ from uuid import uuid4
 import shoggoth
 from shoggoth.card import Card, TEMPLATES
 from shoggoth.project import Project
+from shoggoth.i18n import tr
 
 
 class NewCardDialog(QDialog):
@@ -21,7 +22,7 @@ class NewCardDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("New Card")
+        self.setWindowTitle(tr("DLG_NEW_CARD"))
         self.setMinimumWidth(500)
         
         self.selected_template = 'asset'
@@ -46,8 +47,8 @@ class NewCardDialog(QDialog):
         
         # Card name
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Enter card name")
-        form.addRow("Name:", self.name_input)
+        self.name_input.setPlaceholderText(tr("PLACEHOLDER_ENTER_CARD_NAME"))
+        form.addRow(tr("FIELD_NAME"), self.name_input)
         
         # Template selection
         self.template_combo = QComboBox()
@@ -58,18 +59,18 @@ class NewCardDialog(QDialog):
         ]
         self.template_combo.addItems(templates)
         self.template_combo.currentTextChanged.connect(self.on_template_changed)
-        form.addRow("Template:", self.template_combo)
+        form.addRow(tr("FIELD_TEMPLATE"), self.template_combo)
         
         # Encounter set selection
         self.encounter_combo = QComboBox()
-        self.encounter_combo.addItem("Player Card", None)
+        self.encounter_combo.addItem(tr("TYPE_PLAYER_CARD"), None)
         
         if shoggoth.app.current_project:
             for encounter in shoggoth.app.current_project.encounter_sets:
                 self.encounter_combo.addItem(encounter.name, encounter)
         
         self.encounter_combo.currentIndexChanged.connect(self.on_encounter_changed)
-        form.addRow("Encounter Set:", self.encounter_combo)
+        form.addRow(tr("FIELD_ENCOUNTER_SET"), self.encounter_combo)
         
         layout.addLayout(form)
         
@@ -101,7 +102,7 @@ class NewCardDialog(QDialog):
         name = self.name_input.text().strip()
         
         if not name:
-            self.error_label.setText("You must enter a card name")
+            self.error_label.setText(tr("MSG_ENTER_CARD_NAME"))
             return
         
         try:
@@ -127,7 +128,7 @@ class NewCardDialog(QDialog):
             
             self.accept()
         except Exception as e:
-            self.error_label.setText(f"Error creating card: {e}")
+            self.error_label.setText(tr("ERR_CREATING_CARD").format(error=e))
 
 
 class NewProjectDialog(QDialog):
@@ -135,7 +136,7 @@ class NewProjectDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("New Project")
+        self.setWindowTitle(tr("DLG_NEW_PROJECT"))
         self.setMinimumWidth(500)
         
         self.file_path = None
@@ -152,40 +153,40 @@ class NewProjectDialog(QDialog):
         
         # Project code
         self.code_input = QLineEdit()
-        self.code_input.setPlaceholderText("e.g., TDL")
+        self.code_input.setPlaceholderText(tr("PLACEHOLDER_ABC"))
         self.code_input.setMaxLength(5)
-        form.addRow("Abbreviation:", self.code_input)
+        form.addRow(tr("FIELD_ABBREVIATION"), self.code_input)
         
         # Project name
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("e.g., The Dunwich Legacy")
-        form.addRow("Name:", self.name_input)
+        self.name_input.setPlaceholderText(tr("PLACEHOLDER_EXAMPLE_PROJECT"))
+        form.addRow(tr("FIELD_NAME"), self.name_input)
         
         # Icon
         icon_layout = QHBoxLayout()
         self.icon_display = QLineEdit()
         self.icon_display.setReadOnly(True)
-        self.icon_display.setPlaceholderText("No icon selected")
+        self.icon_display.setPlaceholderText(tr("PLACEHOLDER_NO_ICON"))
         icon_layout.addWidget(self.icon_display)
         
-        icon_btn = QPushButton("Browse")
+        icon_btn = QPushButton(tr("BTN_BROWSE"))
         icon_btn.clicked.connect(self.browse_icon)
         icon_layout.addWidget(icon_btn)
         
-        form.addRow("Icon:", icon_layout)
+        form.addRow(tr("FIELD_ICON"), icon_layout)
         
         # File location
         file_layout = QHBoxLayout()
         self.file_display = QLineEdit()
         self.file_display.setReadOnly(True)
-        self.file_display.setPlaceholderText("No location selected")
+        self.file_display.setPlaceholderText(tr("PLACEHOLDER_NO_LOCATION"))
         file_layout.addWidget(self.file_display)
         
-        file_btn = QPushButton("Browse")
+        file_btn = QPushButton(tr("BTN_BROWSE"))
         file_btn.clicked.connect(self.browse_file)
         file_layout.addWidget(file_btn)
         
-        form.addRow("Save Location:", file_layout)
+        form.addRow(tr("FIELD_SAVE_LOCATION"), file_layout)
         
         layout.addLayout(form)
         
@@ -208,9 +209,9 @@ class NewProjectDialog(QDialog):
         """Browse for icon file"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Icon",
+            tr("DLG_SELECT_ICON"),
             str(Path.home()),
-            "Images (*.png *.jpg *.jpeg *.webp)"
+            tr("FILTER_IMAGES")
         )
         if file_path:
             self.icon_path = file_path
@@ -221,9 +222,9 @@ class NewProjectDialog(QDialog):
         suggested_name = self.name_input.text() or "project"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Save Project As",
+            tr("DLG_SAVE_PROJECT_AS"),
             str(Path.home() / f"{suggested_name}.json"),
-            "JSON Files (*.json)"
+            tr("FILTER_JSON_FILES")
         )
         if file_path:
             self.file_path = file_path
@@ -235,15 +236,15 @@ class NewProjectDialog(QDialog):
         code = self.code_input.text().strip()
         
         if not name:
-            self.error_label.setText("You must enter a project name")
+            self.error_label.setText(tr("MSG_ENTER_PROJECT_NAME"))
             return
         
         if not code:
-            self.error_label.setText("You must enter an abbreviation")
+            self.error_label.setText(tr("MSG_ENTER_ABBREVIATION"))
             return
         
         if not self.file_path:
-            self.error_label.setText("You must select a save location")
+            self.error_label.setText(tr("MSG_SELECT_SAVE_LOCATION"))
             return
         
         try:
@@ -263,4 +264,4 @@ class NewProjectDialog(QDialog):
             
             self.accept()
         except Exception as e:
-            self.error_label.setText(f"Error creating project: {e}")
+            self.error_label.setText(tr("ERR_CREATING_PROJECT").format(error=e))

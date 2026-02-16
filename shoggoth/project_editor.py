@@ -13,6 +13,7 @@ from pathlib import Path
 import threading
 
 import shoggoth
+from shoggoth.i18n import tr
 
 
 class ProjectEditor(QWidget):
@@ -45,44 +46,44 @@ class ProjectEditor(QWidget):
         layout = QVBoxLayout()
 
         # Project info section
-        info_group = QGroupBox("Project Information")
+        info_group = QGroupBox(tr("TITLE_PROJECT_INFORMATION"))
         info_layout = QFormLayout()
 
         # Name
         self.name_input = QLineEdit()
         self.name_input.textChanged.connect(lambda: self.on_field_changed('name'))
-        info_layout.addRow("Name:", self.name_input)
+        info_layout.addRow(tr("FIELD_NAME"), self.name_input)
 
         # Code
         self.code_input = QLineEdit()
-        self.code_input.setPlaceholderText("Short code for file naming")
+        self.code_input.setPlaceholderText(tr("PLACEHOLDER_SHORT_CODE"))
         self.code_input.textChanged.connect(lambda: self.on_field_changed('code'))
-        info_layout.addRow("Code:", self.code_input)
+        info_layout.addRow(tr("FIELD_CODE"), self.code_input)
 
         # Default copyright
         self.copyright_input = QLineEdit()
-        self.copyright_input.setPlaceholderText("Default copyright text for cards")
+        self.copyright_input.setPlaceholderText(tr("PLACEHOLDER_COPYRIGHT"))
         self.copyright_input.textChanged.connect(lambda: self.on_field_changed('default_copyright'))
-        info_layout.addRow("Default Copyright:", self.copyright_input)
+        info_layout.addRow(tr("FIELD_DEFAULT_COPYRIGHT"), self.copyright_input)
 
         # Icon
         icon_layout = QHBoxLayout()
         self.icon_input = QLineEdit()
         self.icon_input.textChanged.connect(lambda: self.on_field_changed('icon'))
         icon_layout.addWidget(self.icon_input)
-        browse_btn = QPushButton("Browse")
+        browse_btn = QPushButton(tr("BTN_BROWSE"))
         browse_btn.clicked.connect(self.browse_icon)
         icon_layout.addWidget(browse_btn)
-        info_layout.addRow("Icon:", icon_layout)
+        info_layout.addRow(tr("FIELD_ICON"), icon_layout)
 
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
 
         # Actions section
-        actions_group = QGroupBox("Actions")
+        actions_group = QGroupBox(tr("TITLE_ACTIONS"))
         actions_layout = QHBoxLayout()
 
-        add_encounter_btn = QPushButton("Add Encounter Set")
+        add_encounter_btn = QPushButton(tr("BTN_ADD_ENCOUNTER_SET"))
         add_encounter_btn.clicked.connect(self.add_encounter_set)
         actions_layout.addWidget(add_encounter_btn)
 
@@ -92,23 +93,23 @@ class ProjectEditor(QWidget):
         layout.addWidget(actions_group)
 
         # Statistics section
-        stats_group = QGroupBox("Statistics")
+        stats_group = QGroupBox(tr("TITLE_STATISTICS"))
         stats_layout = QFormLayout()
 
         self.encounter_count_label = QLabel("0")
-        stats_layout.addRow("Encounter Sets:", self.encounter_count_label)
+        stats_layout.addRow(tr("FIELD_ENCOUNTER_SETS"), self.encounter_count_label)
 
         self.card_count_label = QLabel("0")
-        stats_layout.addRow("Total Cards:", self.card_count_label)
+        stats_layout.addRow(tr("FIELD_TOTAL_CARDS"), self.card_count_label)
 
         self.player_card_count_label = QLabel("0")
-        stats_layout.addRow("Player Cards:", self.player_card_count_label)
+        stats_layout.addRow(tr("FIELD_PLAYER_CARDS"), self.player_card_count_label)
 
         stats_group.setLayout(stats_layout)
         layout.addWidget(stats_group)
 
         # Card thumbnails section
-        thumbnails_group = QGroupBox("Card Overview")
+        thumbnails_group = QGroupBox(tr("TITLE_CARD_OVERVIEW"))
         thumbnails_layout = QVBoxLayout()
 
         # Scroll area for thumbnails
@@ -167,9 +168,9 @@ class ProjectEditor(QWidget):
         """Browse for icon file"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Icon",
+            tr("DLG_SELECT_ICON"),
             str(Path.home()),
-            "Images (*.png *.jpg *.jpeg *.webp)"
+            tr("FILTER_IMAGES")
         )
         if file_path:
             self.icon_input.setText(file_path)
@@ -178,8 +179,8 @@ class ProjectEditor(QWidget):
         """Add a new encounter set to the project"""
         name, ok = QInputDialog.getText(
             self,
-            "New Encounter Set",
-            "Enter encounter set name:"
+            tr("DLG_NEW_ENCOUNTER_SET"),
+            tr("PROMPT_ENCOUNTER_SET_NAME")
         )
         if ok and name:
             try:
@@ -187,14 +188,14 @@ class ProjectEditor(QWidget):
                 self.load_data()  # Refresh stats
                 QMessageBox.information(
                     self,
-                    "Success",
-                    f"Encounter set '{name}' created."
+                    tr("DLG_SUCCESS"),
+                    tr("MSG_ENCOUNTER_SET_CREATED", name=name)
                 )
             except Exception as e:
                 QMessageBox.critical(
                     self,
-                    "Error",
-                    f"Failed to create encounter set: {e}"
+                    tr("DLG_ERROR"),
+                    tr("ERR_CREATE_ENCOUNTER_SET", error=str(e))
                 )
 
     def load_thumbnails(self):

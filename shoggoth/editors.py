@@ -14,6 +14,7 @@ from shoggoth.text_editor import ArkhamTextEdit, ArkhamTextHighlighter
 from shoggoth.files import overlay_dir
 from shoggoth.floating_label_widget import FloatingLabelTextEdit, FloatingLabelLineEdit
 from shoggoth import face_editors
+from shoggoth.i18n import tr
 
 # Known traits for autocomplete (loaded from highlighter)
 KNOWN_TRAITS = sorted(ArkhamTextHighlighter(None).known_traits)
@@ -300,7 +301,7 @@ class IconsWidget(QWidget):
         layout.setSpacing(12)
 
         # Label
-        icons_label = QLabel("Icons")
+        icons_label = QLabel(tr("LABEL_ICONS"))
         icons_label.setMinimumWidth(50)
         layout.addWidget(icons_label)
 
@@ -404,33 +405,32 @@ class IllustrationWidget(QWidget):
 
         # Image path
         path_layout = QHBoxLayout()
-        self.path_input = LabeledLineEdit("Image Path")
+        self.path_input = LabeledLineEdit(tr("FIELD_IMAGE_PATH"))
         path_layout.addWidget(self.path_input)
-        browse_btn = QPushButton("Browse")
+        browse_btn = QPushButton(tr("BTN_BROWSE"))
         browse_btn.clicked.connect(self.browse_image)
-        path_layout.addWidget(browse_btn)
-        layout.addLayout(path_layout)
+        path_layout.addLayout(path_layout)
 
         # Pan and scale with edit button
         pan_scale_layout = QHBoxLayout()
-        self.pan_y_input = LabeledLineEdit("Pan Y")
-        self.pan_x_input = LabeledLineEdit("Pan X")
-        self.scale_input = LabeledLineEdit("Scale")
+        self.pan_y_input = LabeledLineEdit(tr("FIELD_PAN_Y"))
+        self.pan_x_input = LabeledLineEdit(tr("FIELD_PAN_X"))
+        self.scale_input = LabeledLineEdit(tr("FIELD_SCALE"))
         pan_scale_layout.addWidget(self.pan_y_input)
         pan_scale_layout.addWidget(self.pan_x_input)
         pan_scale_layout.addWidget(self.scale_input)
 
         # Edit position button
-        self.edit_position_btn = QPushButton("Edit Position")
+        self.edit_position_btn = QPushButton(tr("BTN_EDIT_POSITION"))
         self.edit_position_btn.setCheckable(True)
-        self.edit_position_btn.setToolTip("Drag on preview to position image, scroll to scale")
+        self.edit_position_btn.setToolTip(tr("TOOLTIP_DRAG_PREVIEW"))
         self.edit_position_btn.clicked.connect(self.toggle_illustration_mode)
         pan_scale_layout.addWidget(self.edit_position_btn)
 
         layout.addLayout(pan_scale_layout)
 
         # Artist
-        self.artist_input = LabeledLineEdit("Artist")
+        self.artist_input = LabeledLineEdit(tr("FIELD_ARTIST"))
         layout.addWidget(self.artist_input)
 
         self.setLayout(layout)
@@ -439,10 +439,10 @@ class IllustrationWidget(QWidget):
         """Toggle illustration positioning mode"""
         self.illustration_mode = checked
         if checked:
-            self.edit_position_btn.setText("Done")
+            self.edit_position_btn.setText(tr("BTN_DONE"))
             self.edit_position_btn.setStyleSheet("background-color: #4a9eff; color: white;")
         else:
-            self.edit_position_btn.setText("Edit Position")
+            self.edit_position_btn.setText(tr("BTN_EDIT_POSITION"))
             self.edit_position_btn.setStyleSheet("")
         self.illustration_mode_changed.emit(checked, self.face_side)
 
@@ -477,9 +477,9 @@ class IllustrationWidget(QWidget):
 
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Image",
+            tr("DLG_SELECT_IMAGE"),
             str(Path.home()),
-            "Images (*.png *.jpg *.jpeg *.webp)"
+            tr("FILTER_IMAGES_WEBP")
         )
         if file_path:
             self.path_input.setText(file_path)
@@ -512,14 +512,14 @@ class CardEditor(QWidget):
         header_row = QHBoxLayout()
         header_row.setContentsMargins(0, 0, 0, 0)
 
-        self.name_input = LabeledLineEdit("Name")
+        self.name_input = LabeledLineEdit(tr("FIELD_NAME"))
         header_row.addWidget(self.name_input)
 
         self.basic_toggle_btn = QPushButton("\u25b6")  # Right arrow
         self.basic_toggle_btn.setFixedWidth(28)
         self.basic_toggle_btn.setCheckable(True)
         self.basic_toggle_btn.setChecked(False)
-        self.basic_toggle_btn.setToolTip("Show/hide basic card info")
+        self.basic_toggle_btn.setToolTip(tr("TOOLTIP_TOGGLE_BASIC_INFO"))
         self.basic_toggle_btn.clicked.connect(self.toggle_basic_info)
         header_row.addWidget(self.basic_toggle_btn)
 
@@ -530,23 +530,23 @@ class CardEditor(QWidget):
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.copyright_input = LabeledLineEdit("Copyright")
+        self.copyright_input = LabeledLineEdit(tr("FIELD_COPYRIGHT"))
         content_layout.addWidget(self.copyright_input)
 
         # Numbers
         numbers_layout = QHBoxLayout()
-        self.amount_input = LabeledLineEdit("Amount in set")
-        self.collection_input = LabeledLineEdit("Collection #")
-        self.encounter_input = LabeledLineEdit("Encounter Set #")
+        self.amount_input = LabeledLineEdit(tr("FIELD_AMOUNT_IN_SET"))
+        self.collection_input = LabeledLineEdit(tr("FIELD_COLLECTION_NUM"))
+        self.encounter_input = LabeledLineEdit(tr("FIELD_ENCOUNTER_SET_NUM"))
         numbers_layout.addWidget(self.amount_input)
         numbers_layout.addWidget(self.collection_input)
         numbers_layout.addWidget(self.encounter_input)
         content_layout.addLayout(numbers_layout)
 
-        self.investigator_input = LabeledLineEdit("Investigator Link")
+        self.investigator_input = LabeledLineEdit(tr("FIELD_INVESTIGATOR_LINK"))
         content_layout.addWidget(self.investigator_input)
 
-        self.id_input = LabeledLineEdit("ID")
+        self.id_input = LabeledLineEdit(tr("ID"))
         self.id_input.input.setReadOnly(True)
         content_layout.addWidget(self.id_input)
 
@@ -564,7 +564,7 @@ class CardEditor(QWidget):
 
         # Add JSON view toggle at card level
         json_button_row = QHBoxLayout()
-        self.json_view_btn = QPushButton("📝 View Card as JSON")
+        self.json_view_btn = QPushButton(tr("BTN_VIEW_JSON"))
         self.json_view_btn.setMaximumWidth(200)
         self.json_view_btn.clicked.connect(self.toggle_json_view)
         json_button_row.addWidget(self.json_view_btn)
@@ -607,7 +607,7 @@ class CardEditor(QWidget):
                 item.widget().deleteLater()
 
         # Front face editor
-        front_group = QGroupBox("Front")
+        front_group = QGroupBox(tr("TAB_FRONT"))
         self.front_layout = QVBoxLayout()
         self.front_editor = None
         self.create_front_editor()
@@ -615,7 +615,7 @@ class CardEditor(QWidget):
         self.editor_layout.addWidget(front_group)
 
         # Back face editor
-        back_group = QGroupBox("Back")
+        back_group = QGroupBox(tr("TAB_BACK"))
         self.back_layout = QVBoxLayout()
         self.back_editor = None
         self.create_back_editor()
@@ -631,11 +631,11 @@ class CardEditor(QWidget):
                 item.widget().deleteLater()
 
         # Create JSON editor group
-        json_group = QGroupBox("Card JSON")
+        json_group = QGroupBox(tr("CARD_DATA_JSON"))
         json_layout = QVBoxLayout()
 
         # Info
-        info = QLabel("Edit the entire card data as JSON. Changes update automatically when valid.")
+        info = QLabel(tr("HELP_EDIT_CARD_JSON"))
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; padding: 5px;")
         json_layout.addWidget(info)
@@ -660,11 +660,11 @@ class CardEditor(QWidget):
 
         # Buttons
         button_row = QHBoxLayout()
-        format_btn = QPushButton("Format JSON")
+        format_btn = QPushButton(tr("BTN_FORMAT_JSON"))
         format_btn.clicked.connect(self.format_json)
         button_row.addWidget(format_btn)
 
-        validate_btn = QPushButton("Validate")
+        validate_btn = QPushButton(tr("BTN_VALIDATE"))
         validate_btn.clicked.connect(self.validate_json)
         button_row.addWidget(validate_btn)
 
@@ -682,10 +682,10 @@ class CardEditor(QWidget):
         self.showing_json = not self.showing_json
 
         if self.showing_json:
-            self.json_view_btn.setText("View as Form")
+            self.json_view_btn.setText(tr("BTN_VIEW_FORM"))
             self.create_json_editor()
         else:
-            self.json_view_btn.setText("View Card as JSON")
+            self.json_view_btn.setText(tr("BTN_VIEW_JSON"))
             self.create_form_editors()
 
     def toggle_basic_info(self, checked):
@@ -725,10 +725,10 @@ class CardEditor(QWidget):
 
             json_text = json.dumps(card_data, indent=2)
             self.json_editor.setPlainText(json_text)
-            self.json_status.setText("✓ JSON loaded")
+            self.json_status.setText(tr("STATUS_JSON_LOADED"))
             self.json_status.setStyleSheet("color: green; padding: 5px;")
         except Exception as e:
-            self.json_status.setText(f"✗ Load error: {e}")
+            self.json_status.setText(tr("STATUS_LOAD_ERROR").format(error=e))
             self.json_status.setStyleSheet("color: red; padding: 5px;")
 
     def on_json_changed(self):
@@ -764,11 +764,11 @@ class CardEditor(QWidget):
             # Emit signal for preview update
             self.data_changed.emit()
 
-            self.json_status.setText("✓ Saved")
+            self.json_status.setText(tr("STATUS_JSON_SAVED"))
             self.json_status.setStyleSheet("color: green; padding: 5px;")
 
         except json.JSONDecodeError as e:
-            self.json_status.setText(f"✗ Invalid JSON: {str(e)[:50]}...")
+            self.json_status.setText(tr("STATUS_JSON_INVALID").format(error=str(e)[:50]))
             self.json_status.setStyleSheet("color: red; padding: 5px;")
 
     def format_json(self):
@@ -779,10 +779,10 @@ class CardEditor(QWidget):
                 data = json.loads(text)
                 formatted = json.dumps(data, indent=2)
                 self.json_editor.setPlainText(formatted)
-                self.json_status.setText("✓ Formatted")
+                self.json_status.setText(tr("STATUS_JSON_FORMATTED"))
                 self.json_status.setStyleSheet("color: green; padding: 5px;")
         except json.JSONDecodeError as e:
-            self.json_status.setText(f"✗ Invalid JSON: {e}")
+            self.json_status.setText(tr("STATUS_JSON_INVALID").format(error=e))
             self.json_status.setStyleSheet("color: red; padding: 5px;")
 
     def validate_json(self):
@@ -791,13 +791,13 @@ class CardEditor(QWidget):
             text = self.json_editor.toPlainText()
             if text.strip():
                 json.loads(text)
-                self.json_status.setText("✓ Valid JSON")
+                self.json_status.setText(tr("STATUS_JSON_VALID"))
                 self.json_status.setStyleSheet("color: green; padding: 5px;")
             else:
-                self.json_status.setText("⚠ Empty")
+                self.json_status.setText(tr("STATUS_JSON_EMPTY"))
                 self.json_status.setStyleSheet("color: orange; padding: 5px;")
         except json.JSONDecodeError as e:
-            self.json_status.setText(f"✗ Invalid: {e}")
+            self.json_status.setText(tr("STATUS_JSON_INVALID").format(error=e))
             self.json_status.setStyleSheet("color: red; padding: 5px;")
 
     def create_front_editor(self):

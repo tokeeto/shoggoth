@@ -24,6 +24,7 @@ from shoggoth.files import defaults_dir, asset_dir, font_dir, overlay_dir, root_
 from shoggoth.preview_widget import ImprovedCardPreview
 from shoggoth.goto_dialog import GotoCardDialog
 from shoggoth.encounter_editor import EncounterSetEditor
+from shoggoth.i18n import get_available_languages, load_language, get_current_language, tr
 
 
 class DraggableTreeWidget(QTreeWidget):
@@ -237,7 +238,7 @@ class FileBrowser(QWidget):
         layout = QVBoxLayout()
 
         # Title
-        title = QLabel("Cards")
+        title = QLabel(tr("TREE_CARDS"))
         title.setStyleSheet("font-size: 20pt; font-weight: bold;")
         layout.addWidget(title)
 
@@ -406,7 +407,7 @@ class FileBrowser(QWidget):
         if has_encounters and has_player_cards:
             campaign_spec = {
                 'node_id': f'category:campaign_cards:{project.file_path}',
-                'text': 'Campaign cards',
+                'text': tr('TREE_CAMPAIGN_CARDS'),
                 'type': 'campaign_cards',
                 'data': project,
                 'icon': None,
@@ -414,7 +415,7 @@ class FileBrowser(QWidget):
             }
             player_spec = {
                 'node_id': f'category:player_cards:{project.file_path}',
-                'text': 'Player cards',
+                'text': tr('TREE_PLAYER_CARDS'),
                 'type': 'player_cards',
                 'data': project,
                 'icon': None,
@@ -438,7 +439,7 @@ class FileBrowser(QWidget):
 
             story_spec = {
                 'node_id': f'category:{encounter_set.name}:story',
-                'text': 'Story',
+                'text': tr('TREE_STORY'),
                 'type': 'category',
                 'data': encounter_set,
                 'icon': None,
@@ -446,7 +447,7 @@ class FileBrowser(QWidget):
             }
             location_spec = {
                 'node_id': f'locations:{encounter_set.name}',
-                'text': 'Locations',
+                'text': tr('TREE_LOCATIONS'),
                 'type': 'locations',
                 'data': encounter_set,
                 'icon': None,
@@ -454,7 +455,7 @@ class FileBrowser(QWidget):
             }
             encounter_cat_spec = {
                 'node_id': f'category:{encounter_set.name}:encounter',
-                'text': 'Encounter',
+                'text': tr('TREE_ENCOUNTER'),
                 'type': 'category',
                 'data': encounter_set,
                 'icon': None,
@@ -481,14 +482,14 @@ class FileBrowser(QWidget):
 
         # Add player cards
         class_labels = {
-            'investigators': 'Investigators',
-            'seeker': 'Seeker',
-            'rogue': 'Rogue',
-            'guardian': 'Guardian',
-            'mystic': 'Mystic',
-            'survivor': 'Survivor',
-            'neutral': 'Neutral',
-            'other': 'Other',
+            'investigators': tr('TREE_INVESTIGATORS'),
+            'seeker': tr('CLASS_SEEKER'),
+            'rogue': tr('CLASS_ROGUE'),
+            'guardian': tr('CLASS_GUARDIAN'),
+            'mystic': tr('CLASS_MYSTIC'),
+            'survivor': tr('CLASS_SURVIVOR'),
+            'neutral': tr('CLASS_NEUTRAL'),
+            'other': tr('CLASS_OTHER'),
         }
         classes_with_icons = {'guardian', 'seeker', 'rogue', 'mystic', 'survivor'}
 
@@ -540,7 +541,7 @@ class FileBrowser(QWidget):
         if project.guides:
             guide_parent = {
                 'node_id': f'category:guides:{project.file_path}',
-                'text': 'Guides',
+                'text': tr('TREE_GUIDES'),
                 'type': 'category',
                 'data': project,
                 'icon': None,
@@ -858,7 +859,7 @@ class ShoggothMainWindow(QMainWindow):
 
         shoggoth.app = self
 
-        self.setWindowTitle("Shoggoth Card Creator")
+        self.setWindowTitle(tr("APP_TITLE"))
         self.setMinimumSize(1400, 900)
 
         # Set application icon
@@ -940,13 +941,13 @@ class ShoggothMainWindow(QMainWindow):
         # Editor container
         self.editor_container = QScrollArea()
         self.editor_container.setWidgetResizable(True)
-        self.editor_widget = QLabel("Open or create a project to get started")
+        self.editor_widget = QLabel(tr("MSG_OPEN_OR_CREATE"))
         self.editor_widget.setAlignment(Qt.AlignCenter)
         self.editor_container.setWidget(self.editor_widget)
 
         # Preview container (detachable)
         from PySide6.QtWidgets import QDockWidget
-        self.preview_dock = QDockWidget("Card Preview", self)
+        self.preview_dock = QDockWidget(tr("CARD_PREVIEW"), self)
         self.preview_dock.setFeatures(
             QDockWidget.DockWidgetFloatable |
             QDockWidget.DockWidgetMovable |
@@ -968,7 +969,7 @@ class ShoggothMainWindow(QMainWindow):
         # Status bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ready")
+        self.status_bar.showMessage(tr("STATUS_READY"))
 
         # Setup global shortcuts
         self.setup_shortcuts()
@@ -984,7 +985,7 @@ class ShoggothMainWindow(QMainWindow):
     def show_goto_dialog(self):
         """Show the Go to Card dialog"""
         if not self.active_project:
-            QMessageBox.information(self, "No Project", "Please open a project first")
+            QMessageBox.information(self, tr("DLG_NO_PROJECT"), tr("MSG_OPEN_PROJECT_FIRST"))
             return
 
         dialog = GotoCardDialog(self.active_project, self)
@@ -1038,40 +1039,40 @@ class ShoggothMainWindow(QMainWindow):
         menubar = self.menuBar()
 
         # ==================== FILE MENU ====================
-        file_menu = menubar.addMenu("&File")
+        file_menu = menubar.addMenu(tr("MENU_FILE"))
 
         # Open Project
-        open_action = QAction("&Open Project", self)
+        open_action = QAction(tr("MENU_OPEN_PROJECT"), self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self.open_project_dialog)
         file_menu.addAction(open_action)
 
         # New Project
-        new_action = QAction("&New Project", self)
+        new_action = QAction(tr("MENU_NEW_PROJECT"), self)
         new_action.triggered.connect(self.new_project_dialog)
         file_menu.addAction(new_action)
 
         # Close Project
-        close_project_action = QAction("Close &Project", self)
+        close_project_action = QAction(tr("MENU_CLOSE_PROJECT"), self)
         close_project_action.triggered.connect(lambda: self.close_project())
         file_menu.addAction(close_project_action)
 
         file_menu.addSeparator()
 
         # Save
-        save_action = QAction("&Save (Ctrl+S)", self)
+        save_action = QAction(tr("MENU_SAVE"), self)
         save_action.setShortcut("Ctrl+S")
         save_action.triggered.connect(self.save_changes)
         file_menu.addAction(save_action)
 
         # New Card
-        new_card_action = QAction("New &Card (Ctrl+N)", self)
+        new_card_action = QAction(tr("MENU_NEW_CARD"), self)
         new_card_action.setShortcut("Ctrl+N")
         new_card_action.triggered.connect(self.new_card_dialog)
         file_menu.addAction(new_card_action)
 
         # Go to Card
-        goto_card_action = QAction("&Go to Card... (Ctrl+P)", self)
+        goto_card_action = QAction(tr("MENU_GOTO_CARD"), self)
         goto_card_action.setShortcut("Ctrl+P")
         goto_card_action.triggered.connect(self.show_goto_dialog)
         file_menu.addAction(goto_card_action)
@@ -1079,24 +1080,24 @@ class ShoggothMainWindow(QMainWindow):
         file_menu.addSeparator()
 
         # Gather images
-        gather_action = QAction("Gather images", self)
+        gather_action = QAction(tr("MENU_GATHER_IMAGES"), self)
         gather_action.triggered.connect(self.gather_images)
         file_menu.addAction(gather_action)
 
-        gather_update_action = QAction("Gather images and update", self)
+        gather_update_action = QAction(tr("MENU_GATHER_UPDATE"), self)
         gather_update_action.triggered.connect(lambda: self.gather_images(update=True))
         file_menu.addAction(gather_update_action)
 
         file_menu.addSeparator()
 
         # Export Current Card
-        export_current = QAction("Export &Current Card (Ctrl+E)", self)
+        export_current = QAction(tr("MENU_EXPORT_CURRENT"), self)
         export_current.setShortcut("Ctrl+E")
         export_current.triggered.connect(self.export_current)
         file_menu.addAction(export_current)
 
         # Export All Cards
-        export_all = QAction("Export &All Cards (Ctrl+Shift+E)", self)
+        export_all = QAction(tr("MENU_EXPORT_ALL"), self)
         export_all.setShortcut("Ctrl+Shift+E")
         export_all.triggered.connect(self.export_all)
         file_menu.addAction(export_all)
@@ -1104,121 +1105,137 @@ class ShoggothMainWindow(QMainWindow):
         file_menu.addSeparator()
 
         # Settings
-        settings_action = QAction("Se&ttings", self)
+        settings_action = QAction(tr("MENU_SETTINGS"), self)
         settings_action.triggered.connect(self.open_settings)
         file_menu.addAction(settings_action)
 
         file_menu.addSeparator()
 
         # Exit
-        exit_action = QAction("E&xit", self)
+        exit_action = QAction(tr("MENU_EXIT"), self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # ==================== PROJECT MENU ====================
-        project_menu = menubar.addMenu("&Project")
+        project_menu = menubar.addMenu(tr("MENU_PROJECT"))
 
         # Add Guide
-        add_guide_action = QAction("Add &Guide", self)
+        add_guide_action = QAction(tr("MENU_ADD_GUIDE"), self)
         add_guide_action.triggered.connect(self.add_guide)
         project_menu.addAction(add_guide_action)
 
         # Add Scenario template
-        add_scenario_action = QAction("Add &Scenario template", self)
+        add_scenario_action = QAction(tr("MENU_ADD_SCENARIO"), self)
         add_scenario_action.triggered.connect(self.add_scenario_template)
         project_menu.addAction(add_scenario_action)
 
         # Add Campaign template
-        add_campaign_action = QAction("Add &Campaign template", self)
+        add_campaign_action = QAction(tr("MENU_ADD_CAMPAIGN"), self)
         add_campaign_action.triggered.connect(self.add_campaign_template)
         project_menu.addAction(add_campaign_action)
 
         # Add Investigator template
-        add_investigator_action = QAction("Add &Investigator template", self)
+        add_investigator_action = QAction(tr("MENU_ADD_INVESTIGATOR"), self)
         add_investigator_action.triggered.connect(self.add_investigator_template)
         project_menu.addAction(add_investigator_action)
 
         # Add Investigator Expansion template
-        add_inv_exp_action = QAction("Add Investigator &Expansion template", self)
+        add_inv_exp_action = QAction(tr("MENU_ADD_INV_EXPANSION"), self)
         add_inv_exp_action.triggered.connect(self.add_investigator_expansion_template)
         project_menu.addAction(add_inv_exp_action)
 
         # ==================== EXPORT MENU ====================
-        export_menu = menubar.addMenu("E&xport")
+        export_menu = menubar.addMenu(tr("MENU_EXPORT"))
 
         # Card To PDF
-        card_pdf_action = QAction("Card To &PDF", self)
+        card_pdf_action = QAction(tr("MENU_CARD_TO_PDF"), self)
         card_pdf_action.triggered.connect(self.export_card_to_pdf)
         export_menu.addAction(card_pdf_action)
 
         # Cards To PDF
-        cards_pdf_action = QAction("Cards To PDF", self)
+        cards_pdf_action = QAction(tr("MENU_CARDS_TO_PDF"), self)
         cards_pdf_action.triggered.connect(self.export_cards_to_pdf)
         export_menu.addAction(cards_pdf_action)
 
         # Project To PDF
-        project_pdf_action = QAction("&Project To PDF", self)
+        project_pdf_action = QAction(tr("MENU_PROJECT_TO_PDF"), self)
         project_pdf_action.triggered.connect(self.export_project_to_pdf)
         export_menu.addAction(project_pdf_action)
 
         export_menu.addSeparator()
 
         # Export card to TTS object
-        tts_card_action = QAction("Export card to &TTS object", self)
+        tts_card_action = QAction(tr("MENU_EXPORT_TTS_CARD"), self)
         tts_card_action.triggered.connect(self.export_card_to_tts)
         export_menu.addAction(tts_card_action)
 
         # Export all campaign cards to TTS object
-        tts_campaign_action = QAction("Export all &campaign cards to TTS object", self)
+        tts_campaign_action = QAction(tr("MENU_EXPORT_TTS_CAMPAIGN"), self)
         tts_campaign_action.triggered.connect(self.export_campaign_to_tts)
         export_menu.addAction(tts_campaign_action)
 
         # Export all player cards to TTS object
-        tts_player_action = QAction("Export all &player cards to TTS object", self)
+        tts_player_action = QAction(tr("MENU_EXPORT_TTS_PLAYER"), self)
         tts_player_action.triggered.connect(self.export_player_to_tts)
         export_menu.addAction(tts_player_action)
 
         # ==================== TOOLS MENU ====================
-        tools_menu = menubar.addMenu("&Tools")
+        tools_menu = menubar.addMenu(tr("MENU_TOOLS"))
 
         # Convert SE Project
-        convert_se_action = QAction("&Convert Strange Eons Project", self)
+        convert_se_action = QAction(tr("MENU_CONVERT_SE"), self)
         convert_se_action.triggered.connect(self.convert_strange_eons)
         tools_menu.addAction(convert_se_action)
 
         tools_menu.addSeparator()
 
         # Check for Updates
-        check_updates_action = QAction("Check for &Updates...", self)
+        check_updates_action = QAction(tr("MENU_CHECK_UPDATES"), self)
         check_updates_action.triggered.connect(self.update_manager.check_for_updates_manual)
         tools_menu.addAction(check_updates_action)
 
         # ==================== HELP MENU ====================
-        help_menu = menubar.addMenu("&Help")
+        help_menu = menubar.addMenu(tr("MENU_HELP"))
 
         # Text options
-        text_options_action = QAction("&Text options", self)
+        text_options_action = QAction(tr("MENU_TEXT_OPTIONS"), self)
         text_options_action.triggered.connect(self.show_text_options)
         help_menu.addAction(text_options_action)
 
         # About
-        about_action = QAction("&About", self)
+        about_action = QAction(tr("MENU_ABOUT"), self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
-        asset_location_action = QAction("&Asset file location", self)
+        asset_location_action = QAction(tr("MENU_ASSET_LOCATION"), self)
         asset_location_action.triggered.connect(self.open_asset_location)
         help_menu.addAction(asset_location_action)
 
         # View menu
-        view_menu = menubar.addMenu("&View")
+        view_menu = menubar.addMenu(tr("MENU_VIEW"))
 
         # Toggle Preview
-        self.toggle_preview_action = QAction("Show Card &Preview", self)
+        self.toggle_preview_action = QAction(tr("MENU_SHOW_PREVIEW"), self)
         self.toggle_preview_action.setCheckable(True)
         self.toggle_preview_action.setChecked(False)
         self.toggle_preview_action.triggered.connect(self.toggle_preview)
         view_menu.addAction(self.toggle_preview_action)
+
+        # ==================== LANGUAGE MENU ====================
+        language_menu = menubar.addMenu(tr("MENU_LANGUAGE"))
+        self.language_actions = []
+        
+        available_languages = get_available_languages()
+        current_lang = self.config.get('Shoggoth', 'language', 'en')
+        
+        for lang_code, lang_name in available_languages.items():
+            action = QAction(lang_name, self)
+            action.setCheckable(True)
+            action.setChecked(lang_code == current_lang)
+            action.setData(lang_code)
+            action.triggered.connect(lambda checked, code=lang_code: self.change_language(code))
+            language_menu.addAction(action)
+            self.language_actions.append(action)
 
     def toggle_preview(self, checked):
         """Toggle the preview dock visibility"""
@@ -1226,6 +1243,26 @@ class ShoggothMainWindow(QMainWindow):
             self.preview_dock.show()
         else:
             self.preview_dock.hide()
+
+    def change_language(self, lang_code: str):
+        """Change the application language"""
+        # Update checkmarks in menu
+        for action in self.language_actions:
+            action.setChecked(action.data() == lang_code)
+        
+        # Save setting
+        self.config.set('Shoggoth', 'language', lang_code)
+        self.config.save()
+        
+        # Load the new language
+        load_language(lang_code)
+        
+        # Show restart message
+        QMessageBox.information(
+            self,
+            tr("DLG_LANGUAGE_CHANGED"),
+            tr("MSG_RESTART_FOR_LANGUAGE")
+        )
 
     def load_settings(self):
         """Load application settings"""
@@ -1320,9 +1357,9 @@ class ShoggothMainWindow(QMainWindow):
         """Show dialog to open a project"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Open Project",
+            tr("DLG_OPEN_PROJECT"),
             str(Path.home()),
-            "JSON Files (*.json)"
+            tr("FILTER_SHOGGOTH_PROJECTS")
         )
         if file_path:
             self.open_project(file_path)
@@ -1335,7 +1372,7 @@ class ShoggothMainWindow(QMainWindow):
                 if project.file_path == file_path:
                     # Already open - just make it active
                     self.file_browser.set_active_project(project)
-                    self.status_bar.showMessage(f"Switched to: {project['name']}")
+                    self.status_bar.showMessage(tr("STATUS_SWITCHED_TO").format(name=project['name']))
                     return
 
             # Load new project
@@ -1347,9 +1384,9 @@ class ShoggothMainWindow(QMainWindow):
             # Clear navigation history for new project
             self._nav_history.clear()
             self._nav_index = -1
-            self.status_bar.showMessage(f"Opened: {project['name']}")
+            self.status_bar.showMessage(tr("STATUS_OPENED").format(name=project['name']))
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to open project: {e}")
+            QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_OPEN_PROJECT").format(error=e))
 
     def close_project(self, project=None):
         """Close a project"""
@@ -1360,16 +1397,19 @@ class ShoggothMainWindow(QMainWindow):
 
         # Check for unsaved changes in this project
         if self._project_has_unsaved_changes(project):
-            reply = QMessageBox.question(
-                self,
-                "Unsaved Changes",
-                f"'{project['name']}' has unsaved changes. Save before closing?",
-                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
-                QMessageBox.Save
-            )
-            if reply == QMessageBox.Save:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle(tr("DLG_UNSAVED_CHANGES"))
+            msg_box.setText(tr("CONFIRM_SAVE_BEFORE_CLOSE").format(name=project['name']))
+            msg_box.setIcon(QMessageBox.Question)
+            save_btn = msg_box.addButton(tr("DLG_SAVE"), QMessageBox.AcceptRole)
+            discard_btn = msg_box.addButton(tr("DLG_DISCARD"), QMessageBox.DestructiveRole)
+            cancel_btn = msg_box.addButton(tr("DLG_CANCEL"), QMessageBox.RejectRole)
+            msg_box.setDefaultButton(save_btn)
+            msg_box.exec()
+            
+            if msg_box.clickedButton() == save_btn:
                 project.save()
-            elif reply == QMessageBox.Cancel:
+            elif msg_box.clickedButton() == cancel_btn:
                 return
 
         # Remove from open projects
@@ -1384,7 +1424,7 @@ class ShoggothMainWindow(QMainWindow):
             self.active_project = self.open_projects[0] if self.open_projects else None
 
         self._save_session()
-        self.status_bar.showMessage(f"Closed: {project['name']}")
+        self.status_bar.showMessage(tr("STATUS_CLOSED").format(name=project['name']))
 
     def _project_has_unsaved_changes(self, project):
         """Check if a specific project has unsaved changes"""
@@ -1397,7 +1437,7 @@ class ShoggothMainWindow(QMainWindow):
         """Handle active project change from file browser"""
         self.active_project = project
         if project:
-            self.status_bar.showMessage(f"Active: {project['name']}")
+            self.status_bar.showMessage(tr("STATUS_ACTIVE").format(name=project['name']))
 
     @property
     def current_project(self):
@@ -1458,9 +1498,9 @@ class ShoggothMainWindow(QMainWindow):
             # Update tree to remove dirty indicators
             self.file_browser.refresh()
 
-            self.status_bar.showMessage("Project saved", 3000)
+            self.status_bar.showMessage(tr("STATUS_SAVED"), 3000)
         except Exception as e:
-            QMessageBox.critical(self, "Save Error", f"Failed to save project:\n{e}")
+            QMessageBox.critical(self, tr("DLG_SAVE_ERROR"), tr("ERR_SAVE_PROJECT").format(error=e))
 
     def save_current(self):
         """Save only the current card"""
@@ -1470,14 +1510,14 @@ class ShoggothMainWindow(QMainWindow):
         try:
             self.current_card.save()
             # Note: Card.save() already clears dirty flags and updates tree node
-            self.status_bar.showMessage(f"Saved: {self.current_card.name}", 3000)
+            self.status_bar.showMessage(tr("STATUS_SAVED_NAME").format(name=self.current_card.name), 3000)
         except Exception as e:
-            QMessageBox.critical(self, "Save Error", f"Failed to save card:\n{e}")
+            QMessageBox.critical(self, tr("DLG_SAVE_ERROR"), tr("ERR_SAVE_CARD").format(error=e))
 
     def export_all(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export all cards in the project using settings from preferences"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project loaded")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
             return
 
         # Use settings if not explicitly provided
@@ -1499,7 +1539,7 @@ class ShoggothMainWindow(QMainWindow):
             # Show progress
             from PySide6.QtWidgets import QProgressDialog
             progress = QProgressDialog(
-                "Exporting cards...", "Cancel", 0, len(cards), self
+                tr("STATUS_EXPORTING"), tr("BTN_CANCEL"), 0, len(cards), self
             )
             progress.setWindowModality(Qt.WindowModal)
 
@@ -1511,7 +1551,7 @@ class ShoggothMainWindow(QMainWindow):
                     break
 
                 progress.setValue(i)
-                progress.setLabelText(f"Exporting {card.name}...")
+                progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
 
                 # Export in thread
                 thread = threading.Thread(
@@ -1536,16 +1576,16 @@ class ShoggothMainWindow(QMainWindow):
 
             QMessageBox.information(
                 self,
-                "Export Complete",
-                f"Exported {len(cards)} cards to:\n{export_folder}"
+                tr("DLG_EXPORT_COMPLETE"),
+                tr("MSG_EXPORTED_CARDS").format(count=len(cards), folder=export_folder)
             )
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export cards:\n{e}")
+            QMessageBox.critical(self, tr("DLG_EXPORT_ERROR"), tr("ERR_EXPORT_CARDS").format(error=e))
 
     def new_card_dialog(self):
         """Show dialog to create a new card"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
 
         from shoggoth.dialogs import NewCardDialog
@@ -1693,7 +1733,7 @@ class ShoggothMainWindow(QMainWindow):
         self.content_layout.addWidget(scroll)
 
         # Update status
-        self.status_bar.showMessage(f"Editing encounter set: {encounter.name}")
+        self.status_bar.showMessage(tr("STATUS_EDITING_ENCOUNTER_SET").format(name=encounter.name))
 
     def show_encounter_set(self, encounter_set):
         """Show encounter set editor (alias for show_encounter)"""
@@ -1726,7 +1766,7 @@ class ShoggothMainWindow(QMainWindow):
         scroll.setWidget(editor)
 
         self.content_layout.addWidget(scroll)
-        self.status_bar.showMessage(f"Editing project: {project['name']}")
+        self.status_bar.showMessage(tr("STATUS_EDITING_PROJECT").format(name=project['name']))
 
     def show_guide(self, guide):
         """Display guide editor"""
@@ -1783,7 +1823,7 @@ class ShoggothMainWindow(QMainWindow):
         self.location_view.card_selected.connect(self.show_card)
         self.content_layout.addWidget(self.location_view)
 
-        self.status_bar.showMessage(f"Editing locations: {encounter_set.name}")
+        self.status_bar.showMessage(tr("STATUS_EDITING_LOCATIONS").format(name=encounter_set.name))
 
     def schedule_preview_update(self):
         """Schedule a debounced preview update (400ms delay)"""
@@ -1828,7 +1868,7 @@ class ShoggothMainWindow(QMainWindow):
         if front_image is not None:
             self.card_preview.set_card_images(front_image, back_image)
         else:
-            self.status_bar.showMessage("Error rendering card")
+            self.status_bar.showMessage(tr("ERR_RENDER_CARD"))
 
     def update_card_preview(self):
         """Update the card preview immediately (synchronous, for initial load)"""
@@ -1846,7 +1886,7 @@ class ShoggothMainWindow(QMainWindow):
             )
             self.card_preview.set_card_images(front_image, back_image)
         except Exception as e:
-            self.status_bar.showMessage(f"Error rendering card: {e}")
+            self.status_bar.showMessage(tr("ERR_RENDER_CARD_DETAIL").format(error=e))
 
     def goto_card(self, card_id):
         """Navigate to a specific card by ID"""
@@ -1947,7 +1987,7 @@ class ShoggothMainWindow(QMainWindow):
     def export_current(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export the current card using settings from preferences"""
         if not self.current_card:
-            QMessageBox.warning(self, "Error", "No card selected")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
             return
 
         # Use settings if not explicitly provided
@@ -1977,11 +2017,11 @@ class ShoggothMainWindow(QMainWindow):
 
             QMessageBox.information(
                 self,
-                "Export Complete",
-                f"Card exported to:\n{export_folder}"
+                tr("DLG_EXPORT_COMPLETE"),
+                tr("MSG_CARD_EXPORTED").format(folder=export_folder)
             )
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export card:\n{e}")
+            QMessageBox.critical(self, tr("DLG_EXPORT_ERROR"), tr("ERR_EXPORT_CARD").format(error=e))
 
     def on_file_changed(self, file_path):
         """Called from file monitor (background thread) - emit signal for main thread handling"""
@@ -2021,30 +2061,22 @@ class ShoggothMainWindow(QMainWindow):
         about_html = f"""
         <div style="text-align: center;">
             <h1 style="font-size: 32pt; margin-bottom: 5px;">Shoggoth</h1>
-            <p style="font-size: 14pt; color: #666;">Version {app_version}</p>
+            <p style="font-size: 14pt; color: #666;">{tr("ABOUT_VERSION").format(version=app_version)}</p>
         </div>
         <hr>
-        <p>Created by <b>Toke Ivø</b></p>
-        <p>
-            You can support the development of Shoggoth by
-            <a href="{urls['contrib']}">contributing</a>,
-            <a href="{urls['patreon']}">donating on Patreon</a>, or
-            <a href="{urls['tips']}">leaving a tip</a>.
-        </p>
-        <p>Various images and templates by the <b>Mythos Busters</b> community - especially <b>Coldtoes</b> and <b>Hauke</b>.</p>
-        <p>
-            Thanks to <b>CGJennings</b> for creating Strange Eons, and
-            <b>pilunte23/JaqenZann</b> for the original AHLCG plugin,
-            without which we'd all be so much more bored.
-        </p>
-        <p>
-            Special thanks to <b>Coldtoes</b>, <b>felice</b>, <b>Chr1Z</b>,
-            <b>MickeyTheQ</b> and <b>Morvael</b> for helping this project become a reality.
-        </p>
+        <p>{tr("ABOUT_CREATED_BY")}</p>
+        <p>{tr("ABOUT_SUPPORT_TEXT").format(
+            contributing=f'<a href="{urls["contrib"]}">{tr("ABOUT_CONTRIBUTING")}</a>',
+            donating=f'<a href="{urls["patreon"]}">{tr("ABOUT_DONATING")}</a>',
+            tipping=f'<a href="{urls["tips"]}">{tr("ABOUT_TIPPING")}</a>'
+        )}</p>
+        <p>{tr("ABOUT_IMAGES_CREDIT")}</p>
+        <p>{tr("ABOUT_THANKS_SE")}</p>
+        <p>{tr("ABOUT_SPECIAL_THANKS")}</p>
         """
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("About Shoggoth")
+        dialog.setWindowTitle(tr("DLG_ABOUT_TITLE"))
         dialog.setMinimumSize(450, 350)
 
         layout = QVBoxLayout()
@@ -2075,18 +2107,20 @@ class ShoggothMainWindow(QMainWindow):
         self.save_settings()
 
         if self.has_unsaved_changes():
-            reply = QMessageBox.question(
-                self,
-                "Unsaved Changes",
-                "You have unsaved changes. Do you want to save before exiting?",
-                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
-                QMessageBox.Save
-            )
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle(tr("DLG_UNSAVED_CHANGES"))
+            msg_box.setText(tr("CONFIRM_SAVE_BEFORE_EXIT"))
+            msg_box.setIcon(QMessageBox.Question)
+            save_btn = msg_box.addButton(tr("DLG_SAVE"), QMessageBox.AcceptRole)
+            discard_btn = msg_box.addButton(tr("DLG_DISCARD"), QMessageBox.DestructiveRole)
+            cancel_btn = msg_box.addButton(tr("DLG_CANCEL"), QMessageBox.RejectRole)
+            msg_box.setDefaultButton(save_btn)
+            msg_box.exec()
 
-            if reply == QMessageBox.Save:
+            if msg_box.clickedButton() == save_btn:
                 self.save_changes()
                 event.accept()
-            elif reply == QMessageBox.Discard:
+            elif msg_box.clickedButton() == discard_btn:
                 event.accept()
             else:  # Cancel
                 event.ignore()
@@ -2113,113 +2147,113 @@ class ShoggothMainWindow(QMainWindow):
     def add_guide(self):
         """Add a guide to the project"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
         self.active_project.add_guide()
         self.file_browser.refresh()
-        self.status_bar.showMessage("Guide added")
+        self.status_bar.showMessage(tr("STATUS_GUIDE_ADDED"))
 
     def add_scenario_template(self):
         """Add a scenario template"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
-        name, ok = self.get_text_input("Scenario Name", "Enter scenario name:", "Placeholder")
+        name, ok = self.get_text_input(tr("DLG_SCENARIO_NAME"), tr("MSG_ENTER_SCENARIO"), tr("PLACEHOLDER_SCENARIO"))
         if ok and name:
             self.active_project.create_scenario(name)
             self.file_browser.refresh()
-            self.status_bar.showMessage(f"Scenario '{name}' created")
+            self.status_bar.showMessage(tr("STATUS_SCENARIO_CREATED").format(name=name))
 
     def add_campaign_template(self):
         """Add a campaign template"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
         self.active_project.create_campaign()
         self.file_browser.refresh()
-        self.status_bar.showMessage("Campaign template created")
+        self.status_bar.showMessage(tr("STATUS_CAMPAIGN_CREATED"))
 
     def add_investigator_template(self):
         """Add an investigator template"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
-        name, ok = self.get_text_input("Investigator Name", "Enter investigator name:", "John Doe")
+        name, ok = self.get_text_input(tr("DLG_INVESTIGATOR_NAME"), tr("MSG_ENTER_INVESTIGATOR"), tr("PLACEHOLDER_ROLAN"))
         if ok and name:
             self.active_project.add_investigator_set(name)
             self.file_browser.refresh()
-            self.status_bar.showMessage(f"Investigator '{name}' created")
+            self.status_bar.showMessage(tr("STATUS_INVESTIGATOR_CREATED").format(name=name))
 
     def add_investigator_expansion_template(self):
         """Add an investigator expansion template"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
         self.active_project.create_player_expansion()
         self.file_browser.refresh()
-        self.status_bar.showMessage("Player expansion template created")
+        self.status_bar.showMessage(tr("STATUS_EXPANSION_CREATED"))
 
     # ==================== EXPORT MENU ACTIONS ====================
 
     def export_card_to_pdf(self):
         """Export current card to PDF"""
         if not self.current_card:
-            QMessageBox.warning(self, "Error", "No card selected")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
             return
         # TODO: Implement PDF export
-        QMessageBox.information(self, "TODO", "PDF export not yet implemented")
+        QMessageBox.information(self, tr("DLG_TODO"), tr("MSG_PDF_NOT_IMPLEMENTED"))
 
     def export_cards_to_pdf(self):
         """Export all cards to PDF"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
         # TODO: Implement PDF export
-        QMessageBox.information(self, "TODO", "PDF export not yet implemented")
+        QMessageBox.information(self, tr("DLG_TODO"), tr("MSG_PDF_NOT_IMPLEMENTED"))
 
     def export_project_to_pdf(self):
         """Export entire project to PDF"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
         # TODO: Implement PDF export
-        QMessageBox.information(self, "TODO", "PDF export not yet implemented")
+        QMessageBox.information(self, tr("DLG_TODO"), tr("MSG_PDF_NOT_IMPLEMENTED"))
 
     def export_card_to_tts(self):
         """Export card to Tabletop Simulator"""
         if not self.current_card:
-            QMessageBox.warning(self, "Error", "No card selected")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
             return
         try:
             from shoggoth import tts_lib
             tts_lib.export_card(self.current_card)
-            self.status_bar.showMessage("Card exported to TTS")
+            self.status_bar.showMessage(tr("STATUS_TTS_CARD_EXPORTED"))
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to export to TTS: {e}")
+            QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_EXPORT_TTS").format(error=e))
 
     def export_campaign_to_tts(self):
         """Export campaign cards to Tabletop Simulator"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
         try:
             from shoggoth import tts_lib
             tts_lib.export_campaign(self.active_project)
-            self.status_bar.showMessage("Campaign exported to TTS")
+            self.status_bar.showMessage(tr("STATUS_TTS_CAMPAIGN_EXPORTED"))
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to export to TTS: {e}")
+            QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_EXPORT_TTS").format(error=e))
 
     def export_player_to_tts(self):
         """Export player cards to Tabletop Simulator"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
         try:
             from shoggoth import tts_lib
             tts_lib.export_player_cards(self.active_project.player_cards)
-            self.status_bar.showMessage("Player cards exported to TTS")
+            self.status_bar.showMessage(tr("STATUS_TTS_PLAYER_EXPORTED"))
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to export to TTS: {e}")
+            QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_EXPORT_TTS").format(error=e))
 
     # ==================== TOOLS MENU ACTIONS ====================
 
@@ -2232,16 +2266,16 @@ class ShoggothMainWindow(QMainWindow):
     def gather_images(self, update=False):
         """Gather all images from the project"""
         if not self.active_project:
-            QMessageBox.warning(self, "Error", "No project open")
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
 
         try:
             self.active_project.gather_images(update=update)
-            action = "gathered and updated" if update else "gathered"
-            self.status_bar.showMessage(f"Images {action}")
-            QMessageBox.information(self, "Success", f"Images {action} successfully")
+            action = tr("ACTION_GATHERED_UPDATED") if update else tr("ACTION_GATHERED")
+            self.status_bar.showMessage(tr("STATUS_IMAGES_ACTION").format(action=action))
+            QMessageBox.information(self, tr("DLG_SUCCESS"), tr("MSG_IMAGES_SUCCESS").format(action=action))
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to gather images: {e}")
+            QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_GATHER_IMAGES").format(error=e))
 
     def open_settings(self):
         """Open settings dialog"""
@@ -2255,8 +2289,8 @@ class ShoggothMainWindow(QMainWindow):
         """Show text formatting options"""
         help_text = self.card_renderer.rich_text.get_help_text()
         msg = QMessageBox(self)
-        msg.setWindowTitle("Text Options")
-        msg.setText("Rich text formatting options:")
+        msg.setWindowTitle(tr("DLG_TEXT_OPTIONS"))
+        msg.setText(tr("MSG_RICH_TEXT_OPTIONS"))
         msg.setDetailedText(help_text)
         msg.exec()
 

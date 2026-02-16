@@ -12,6 +12,7 @@ import json
 
 # Import helper widgets from editors.py
 from shoggoth import editors
+from shoggoth.i18n import tr
 
 
 # All available card types
@@ -99,9 +100,9 @@ class SlotsWidget(QWidget):
         self.slot1_combo.currentIndexChanged.connect(self._on_changed)
         self.slot2_combo.currentIndexChanged.connect(self._on_changed)
 
-        layout.addWidget(QLabel("Slot 1:"))
+        layout.addWidget(QLabel(tr("FIELD_SLOT") + " 1:"))
         layout.addWidget(self.slot1_combo)
-        layout.addWidget(QLabel("Slot 2:"))
+        layout.addWidget(QLabel(tr("FIELD_SLOT") + " 2:"))
         layout.addWidget(self.slot2_combo)
         layout.addStretch()
 
@@ -171,14 +172,14 @@ class FaceEditor(QWidget):
     def add_type_selector(self):
         """Add type combobox - shown in all editors"""
         type_layout = QHBoxLayout()
-        type_label = QLabel("Type")
+        type_label = QLabel(tr("FIELD_TYPE"))
         type_label.setMinimumWidth(110)
 
         self.type_combo = NoScrollComboBox()
         self.type_combo.setEditable(True)
         self.type_combo.setInsertPolicy(QComboBox.NoInsert)
         self.type_combo.addItems(ALL_CARD_TYPES)
-        self.type_combo.addItem("--- fullart variants ---")
+        self.type_combo.addItem(tr("FULLART_VARIANTS"))
         self.type_combo.addItems(FULLART_CARD_TYPES)
 
         # Add autocomplete
@@ -298,8 +299,10 @@ class FaceEditor(QWidget):
         self.main_layout.addWidget(widget)
         return widget
 
-    def add_trait_field(self, label="Traits", field_name="traits"):
+    def add_trait_field(self, label=None, field_name="traits"):
         """Helper to add a trait field with autocomplete"""
+        if label is None:
+            label = tr("FIELD_TRAITS")
         widget = editors.LabeledTraitEdit(label)
         widget.input.textChanged.connect(lambda: self.on_field_changed(field_name))
         self.fields[field_name] = widget.input
@@ -321,13 +324,13 @@ class FaceEditor(QWidget):
         row_layout.setContentsMargins(0, 0, 0, 0)
 
         # Copyright field
-        copyright_input = editors.LabeledLineEdit("Copyright")
+        copyright_input = editors.LabeledLineEdit(tr("FIELD_COPYRIGHT"))
         copyright_input.input.textChanged.connect(lambda: self.on_field_changed('copyright'))
         self.fields['copyright'] = copyright_input.input
         row_layout.addWidget(copyright_input)
 
         # Collection field
-        collection_input = editors.LabeledLineEdit("Collection")
+        collection_input = editors.LabeledLineEdit(tr("FIELD_COLLECTION"))
         collection_input.input.textChanged.connect(lambda: self.on_field_changed('collection'))
         self.fields['collection'] = collection_input.input
         row_layout.addWidget(collection_input)
@@ -373,8 +376,8 @@ class AssetEditor(FaceEditor):
 
     def setup_ui(self):
         # Basic fields
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Subtitle", "subtitle")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
 
         # Traits with autocomplete
         self.add_trait_field()
@@ -384,24 +387,24 @@ class AssetEditor(FaceEditor):
         grid_layout = QFormLayout()
 
         # Classes
-        classes_input = editors.LabeledLineEdit("Classes")
-        classes_input.input.setPlaceholderText("Comma-separated")
+        classes_input = editors.LabeledLineEdit(tr("FIELD_CLASSES"))
+        classes_input.input.setPlaceholderText(tr("PLACEHOLDER_COMMA_SEPARATED"))
         classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_input.input
         grid_layout.addRow(classes_input)
 
         # Cost
-        cost_input = editors.LabeledLineEdit("Cost")
+        cost_input = editors.LabeledLineEdit(tr("FIELD_COST"))
         cost_input.input.textChanged.connect(lambda: self.on_field_changed('cost'))
         self.fields['cost'] = cost_input.input
         grid_layout.addRow(cost_input)
 
         # Level
         level_combo = QComboBox()
-        level_combo.addItems(['None', '0', '1', '2', '3', '4', '5', 'Custom'])
+        level_combo.addItems([tr('OPTION_NONE'), '0', '1', '2', '3', '4', '5', tr('OPTION_CUSTOM')])
         level_combo.currentTextChanged.connect(lambda: self.on_field_changed('level'))
         self.fields['level'] = level_combo
-        grid_layout.addRow("Level", level_combo)
+        grid_layout.addRow(tr("FIELD_LEVEL"), level_combo)
 
         grid_widget.setLayout(grid_layout)
         self.main_layout.addWidget(grid_widget)
@@ -416,13 +419,13 @@ class AssetEditor(FaceEditor):
         grid_layout2 = QFormLayout()
 
         # Health
-        health_input = editors.LabeledLineEdit("Health")
+        health_input = editors.LabeledLineEdit(tr("FIELD_HEALTH"))
         health_input.input.textChanged.connect(lambda: self.on_field_changed('health'))
         self.fields['health'] = health_input.input
         grid_layout2.addRow(health_input)
 
         # Sanity
-        sanity_input = editors.LabeledLineEdit("Sanity")
+        sanity_input = editors.LabeledLineEdit(tr("FIELD_SANITY"))
         sanity_input.input.textChanged.connect(lambda: self.on_field_changed('sanity'))
         self.fields['sanity'] = sanity_input.input
         grid_layout2.addRow(sanity_input)
@@ -436,8 +439,8 @@ class AssetEditor(FaceEditor):
         self.main_layout.addWidget(self.slots_widget)
 
         # Text fields
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
         # Illustration
         self.add_illustration_widget()
@@ -477,8 +480,8 @@ class EventEditor(FaceEditor):
     """Editor for event cards"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Subtitle", "subtitle")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
 
         # Traits with autocomplete
         self.add_trait_field()
@@ -487,21 +490,21 @@ class EventEditor(FaceEditor):
         grid_widget = QWidget()
         grid_layout = QFormLayout()
 
-        classes_input = editors.LabeledLineEdit("Classes")
+        classes_input = editors.LabeledLineEdit(tr("FIELD_CLASSES"))
         classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_input.input
         grid_layout.addRow(classes_input)
 
-        cost_input = editors.LabeledLineEdit("Cost")
+        cost_input = editors.LabeledLineEdit(tr("FIELD_COST"))
         cost_input.input.textChanged.connect(lambda: self.on_field_changed('cost'))
         self.fields['cost'] = cost_input.input
         grid_layout.addRow(cost_input)
 
         level_combo = QComboBox()
-        level_combo.addItems(['None', '0', '1', '2', '3', '4', '5'])
+        level_combo.addItems([tr('OPTION_NONE'), '0', '1', '2', '3', '4', '5'])
         level_combo.currentTextChanged.connect(lambda: self.on_field_changed('level'))
         self.fields['level'] = level_combo
-        grid_layout.addRow("Level", level_combo)
+        grid_layout.addRow(tr("FIELD_LEVEL"), level_combo)
 
         grid_widget.setLayout(grid_layout)
         self.main_layout.addWidget(grid_widget)
@@ -511,8 +514,8 @@ class EventEditor(FaceEditor):
         self.icons_widget.iconsChanged.connect(self.on_icons_changed)
         self.main_layout.addWidget(self.icons_widget)
 
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
         # Copyright and collection
@@ -545,8 +548,8 @@ class EnemyEditor(FaceEditor):
     """Editor for enemy cards"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Subtitle", "subtitle")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
 
         # Traits with autocomplete
         self.add_trait_field()
@@ -555,13 +558,13 @@ class EnemyEditor(FaceEditor):
         grid_layout = QFormLayout()
 
         for field, label in [
-            ("classes", "Classes"),
-            ("attack", "Attack"),
-            ("health", "Health"),
-            ("evade", "Evade"),
-            ("damage", "Damage"),
-            ("horror", "Horror"),
-            ("victory", "Victory"),
+            ("classes", tr("FIELD_CLASSES")),
+            ("attack", tr("FIELD_ATTACK")),
+            ("health", tr("FIELD_HEALTH")),
+            ("evade", tr("FIELD_EVADE")),
+            ("damage", tr("FIELD_DAMAGE")),
+            ("horror", tr("FIELD_HORROR")),
+            ("victory", tr("FIELD_VICTORY")),
         ]:
             widget = editors.LabeledLineEdit(label)
             self.fields[field] = widget.input
@@ -574,8 +577,8 @@ class EnemyEditor(FaceEditor):
         grid_widget.setLayout(grid_layout)
         self.main_layout.addWidget(grid_widget)
 
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
         # Copyright and collection
@@ -588,14 +591,14 @@ class TreacheryEditor(FaceEditor):
     """Editor for treachery cards"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Subtitle", "subtitle")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
         self.add_trait_field()
-        self.add_labeled_line("Classes", "classes")
-        self.add_labeled_line("Victory", "victory")
+        self.add_labeled_line(tr("FIELD_CLASSES"), "classes")
+        self.add_labeled_line(tr("FIELD_VICTORY"), "victory")
 
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
         # Copyright and collection
@@ -691,7 +694,7 @@ class LocationEditor(FaceEditor):
     def setup_ui(self):
         # Connection symbol (this location's own symbol)
         conn_layout = QHBoxLayout()
-        conn_label = QLabel("Connection Symbol")
+        conn_label = QLabel(tr("FIELD_CONNECTION_SYMBOL"))
         conn_label.setMinimumWidth(110)
 
         self.connection_combo = IconComboBox()
@@ -706,17 +709,17 @@ class LocationEditor(FaceEditor):
         self.main_layout.addWidget(conn_widget)
 
         # Basic fields
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Subtitle", "subtitle")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
 
-        self.add_labeled_line("Shroud", "shroud")
+        self.add_labeled_line(tr("FIELD_SHROUD"), "shroud")
         self.add_trait_field()
-        self.add_labeled_line("Clues", "clues")
-        self.add_labeled_line("Victory", "victory")
+        self.add_labeled_line(tr("FIELD_CLUES"), "clues")
+        self.add_labeled_line(tr("FIELD_VICTORY"), "victory")
 
         # Connections section - single row of icon dropdowns
         connections_row = QHBoxLayout()
-        connections_label = QLabel("Connections")
+        connections_label = QLabel(tr("FIELD_CONNECTIONS"))
         connections_label.setMinimumWidth(110)
         connections_row.addWidget(connections_label)
 
@@ -735,8 +738,8 @@ class LocationEditor(FaceEditor):
         self.main_layout.addWidget(connections_widget)
 
         # Text fields
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
         # Copyright and collection
@@ -808,11 +811,11 @@ class JsonEditor(FaceEditor):
 
     def setup_ui(self):
         # Add a header explaining this is raw JSON mode
-        header = QLabel("<b>Raw JSON Editor</b>")
+        header = QLabel(tr("JSON_EDITOR_HEADER"))
         header.setStyleSheet("font-size: 14pt; padding: 5px;")
         self.main_layout.addWidget(header)
 
-        info = QLabel("Edit the card face data directly as JSON. Changes update automatically when valid.")
+        info = QLabel(tr("JSON_EDITOR_INFO"))
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; padding: 5px;")
         self.main_layout.addWidget(info)
@@ -839,11 +842,11 @@ class JsonEditor(FaceEditor):
         # Format button
         button_row = QHBoxLayout()
 
-        format_btn = QPushButton("Format JSON")
+        format_btn = QPushButton(tr("BTN_FORMAT_JSON"))
         format_btn.clicked.connect(self.format_json)
         button_row.addWidget(format_btn)
 
-        validate_btn = QPushButton("Validate")
+        validate_btn = QPushButton(tr("BTN_VALIDATE"))
         validate_btn.clicked.connect(self.validate_json)
         button_row.addWidget(validate_btn)
 
@@ -861,10 +864,10 @@ class JsonEditor(FaceEditor):
                 data = json.loads(text)
                 formatted = json.dumps(data, indent=2)
                 self.json_editor.setPlainText(formatted)
-                self.status_label.setText("✓ JSON formatted")
+                self.status_label.setText(tr("STATUS_FORMATTED"))
                 self.status_label.setStyleSheet("color: green; padding: 5px;")
         except json.JSONDecodeError as e:
-            self.status_label.setText(f"✗ Invalid JSON: {e}")
+            self.status_label.setText(tr("STATUS_JSON_INVALID").format(error=e))
             self.status_label.setStyleSheet("color: red; padding: 5px;")
 
     def validate_json(self):
@@ -873,13 +876,13 @@ class JsonEditor(FaceEditor):
             text = self.json_editor.toPlainText()
             if text.strip():
                 json.loads(text)
-                self.status_label.setText("✓ Valid JSON")
+                self.status_label.setText(tr("STATUS_VALID_JSON"))
                 self.status_label.setStyleSheet("color: green; padding: 5px;")
             else:
-                self.status_label.setText("⚠ Empty JSON")
+                self.status_label.setText(tr("STATUS_EMPTY"))
                 self.status_label.setStyleSheet("color: orange; padding: 5px;")
         except json.JSONDecodeError as e:
-            self.status_label.setText(f"✗ Invalid JSON: {e}")
+            self.status_label.setText(tr("STATUS_JSON_INVALID").format(error=e))
             self.status_label.setStyleSheet("color: red; padding: 5px;")
 
     def load_data(self):
@@ -889,11 +892,11 @@ class JsonEditor(FaceEditor):
         try:
             json_text = json.dumps(self.face.data, indent=2)
             self.json_editor.setPlainText(json_text)
-            self.status_label.setText("✓ JSON loaded")
+            self.status_label.setText(tr("STATUS_JSON_LOADED"))
             self.status_label.setStyleSheet("color: green; padding: 5px;")
         except Exception as e:
-            self.json_editor.setPlainText(f"# Error loading JSON: {e}")
-            self.status_label.setText(f"✗ Load error: {e}")
+            self.json_editor.setPlainText(tr("STATUS_ERROR_LOADING_JSON").format(error=e))
+            self.status_label.setText(tr("STATUS_LOAD_ERROR").format(error=e))
             self.status_label.setStyleSheet("color: red; padding: 5px;")
         self.updating = False
 
@@ -911,10 +914,10 @@ class JsonEditor(FaceEditor):
                 # Emit type_changed if type changed (to potentially switch editor)
                 if 'type' in data and data['type'] != self.face.get('type'):
                     self.type_changed.emit()
-                self.status_label.setText("✓ Saved")
+                self.status_label.setText(tr("STATUS_SAVED"))
                 self.status_label.setStyleSheet("color: green; padding: 5px;")
         except json.JSONDecodeError as e:
-            self.status_label.setText(f"✗ Invalid JSON: {str(e)[:50]}...")
+            self.status_label.setText(tr("STATUS_JSON_INVALID").format(error=str(e)[:50]))
             self.status_label.setStyleSheet("color: red; padding: 5px;")
 
 
@@ -923,12 +926,12 @@ class ActEditor(FaceEditor):
     """Editor for act cards (front side)"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Index", "index")
-        self.add_labeled_line("Clues", "clues")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_INDEX"), "index")
+        self.add_labeled_line(tr("FIELD_CLUES"), "clues")
 
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
         # Copyright and collection
@@ -941,11 +944,11 @@ class ActBackEditor(FaceEditor):
     """Editor for act cards (back side)"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Index", "index")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_INDEX"), "index")
 
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
         # Copyright and collection
         self.add_copyright_collection_row()
@@ -957,12 +960,12 @@ class AgendaEditor(FaceEditor):
     """Editor for agenda cards (front side)"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Index", "index")
-        self.add_labeled_line("Doom", "doom")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_INDEX"), "index")
+        self.add_labeled_line(tr("FIELD_DOOM"), "doom")
 
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
         # Copyright and collection
@@ -975,11 +978,11 @@ class AgendaBackEditor(FaceEditor):
     """Editor for agenda cards (back side)"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Index", "index")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_INDEX"), "index")
 
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
         # Copyright and collection
         self.add_copyright_collection_row()
@@ -991,12 +994,12 @@ class InvestigatorEditor(FaceEditor):
     """Editor for investigator cards (front side)"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Subtitle", "subtitle")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
         self.add_trait_field()
 
         # Classes
-        classes_input = editors.LabeledLineEdit("Classes")
+        classes_input = editors.LabeledLineEdit(tr("FIELD_CLASSES"))
         classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_input.input
         self.main_layout.addWidget(classes_input)
@@ -1006,10 +1009,10 @@ class InvestigatorEditor(FaceEditor):
         box_layout = QHBoxLayout()
 
         for field, label in [
-            ("willpower", "Willpower"),
-            ("intellect", "Intellect"),
-            ("combat", "Combat"),
-            ("agility", "Agility"),
+            ("willpower", tr("FIELD_WILLPOWER")),
+            ("intellect", tr("FIELD_INTELLECT")),
+            ("combat", tr("FIELD_COMBAT")),
+            ("agility", tr("FIELD_AGILITY")),
         ]:
             widget = editors.LabeledLineEdit(label)
             self.fields[field] = widget.input
@@ -1026,8 +1029,8 @@ class InvestigatorEditor(FaceEditor):
         box_widget = QWidget()
         box_layout = QHBoxLayout()
         for field, label in [
-            ("health", "Health"),
-            ("sanity", "Sanity"),
+            ("health", tr("FIELD_HEALTH")),
+            ("sanity", tr("FIELD_SANITY")),
         ]:
             widget = editors.LabeledLineEdit(label)
             self.fields[field] = widget.input
@@ -1041,8 +1044,8 @@ class InvestigatorEditor(FaceEditor):
         self.main_layout.addWidget(box_widget)
 
         # Text fields
-        self.add_labeled_text("Text", "text", use_arkham=True)
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
         # Illustration
         self.add_illustration_widget()
@@ -1059,19 +1062,19 @@ class InvestigatorBackEditor(FaceEditor):
     NUM_ENTRIES = 8
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Subtitle", "subtitle")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
         self.add_trait_field()
 
         # Classes
-        classes_input = editors.LabeledLineEdit("Classes")
-        classes_input.input.setPlaceholderText("Comma-separated")
+        classes_input = editors.LabeledLineEdit(tr("FIELD_CLASSES"))
+        classes_input.input.setPlaceholderText(tr("PLACEHOLDER_COMMA_SEPARATED"))
         classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_input.input
         self.main_layout.addWidget(classes_input)
 
         # Deck building entries section
-        entries_group = QGroupBox("Deck Building Options")
+        entries_group = QGroupBox(tr("GROUP_DECK_BUILDING_OPTIONS"))
         entries_layout = QVBoxLayout()
         entries_layout.setSpacing(15)
         entries_layout.setContentsMargins(6, 6, 6, 6)
@@ -1085,13 +1088,13 @@ class InvestigatorBackEditor(FaceEditor):
 
             # Header input (narrow)
             header_input = QLineEdit()
-            header_input.setPlaceholderText(f"Header {i+1}")
+            header_input.setPlaceholderText(tr("PLACEHOLDER_HEADER").format(n=i+1))
             header_input.textChanged.connect(self.on_entries_changed)
             entry_layout.addWidget(header_input)
 
             # Value input (multi-line text field)
             value_input = QPlainTextEdit()
-            value_input.setPlaceholderText(f"Value {i+1}")
+            value_input.setPlaceholderText(tr("PLACEHOLDER_VALUE").format(n=i+1))
             value_input.setFixedHeight(54)  # ~3 lines
             value_input.textChanged.connect(self.on_entries_changed)
             entry_layout.addWidget(value_input)
@@ -1105,7 +1108,7 @@ class InvestigatorBackEditor(FaceEditor):
         self.main_layout.addWidget(entries_group)
 
         # Flavor text
-        self.add_labeled_text("Flavor", "flavor_text")
+        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
         # Illustration
         self.add_illustration_widget()
@@ -1192,10 +1195,10 @@ class ChaosEditor(FaceEditor):
     NUM_ENTRIES = 10
 
     def setup_ui(self):
-        self.add_labeled_line("Difficulty", "difficulty")
+        self.add_labeled_line(tr("FIELD_DIFFICULTY"), "difficulty")
 
         # Entries section
-        entries_group = QGroupBox("Chaos Bag Entries")
+        entries_group = QGroupBox(tr("GROUP_CHAOS_BAG_ENTRIES"))
         entries_layout = QVBoxLayout()
         entries_layout.setSpacing(8)
         entries_layout.setContentsMargins(6, 6, 6, 6)
@@ -1209,14 +1212,14 @@ class ChaosEditor(FaceEditor):
 
             # Token input (comma-separated list of tokens)
             token_input = QLineEdit()
-            token_input.setPlaceholderText(f"Tokens (e.g. -1, -2)")
+            token_input.setPlaceholderText(tr("PLACEHOLDER_TOKENS"))
             token_input.setMaximumWidth(150)
             token_input.textChanged.connect(self.on_entries_changed)
             entry_layout.addWidget(token_input)
 
             # Text input
             text_input = QLineEdit()
-            text_input.setPlaceholderText(f"Effect text")
+            text_input.setPlaceholderText(tr("PLACEHOLDER_EFFECT_TEXT"))
             text_input.textChanged.connect(self.on_entries_changed)
             entry_layout.addWidget(text_input)
 
@@ -1297,11 +1300,11 @@ class CustomizableEditor(FaceEditor):
     NUM_ENTRIES = 12
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_text("Text", "text", use_arkham=True)
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
 
         # Entries section (customization options)
-        entries_group = QGroupBox("Customization Options")
+        entries_group = QGroupBox(tr("GROUP_CUSTOMIZATION_OPTIONS"))
         entries_layout = QVBoxLayout()
         entries_layout.setSpacing(6)
         entries_layout.setContentsMargins(6, 6, 6, 6)
@@ -1318,20 +1321,20 @@ class CustomizableEditor(FaceEditor):
             cost_input = QSpinBox()
             cost_input.setRange(0, 10)
             cost_input.setFixedWidth(50)
-            cost_input.setToolTip("XP Cost")
+            cost_input.setToolTip(tr("TOOLTIP_XP_COST"))
             cost_input.valueChanged.connect(self.on_entries_changed)
             entry_layout.addWidget(cost_input)
 
             # Name input
             name_input = QLineEdit()
-            name_input.setPlaceholderText(f"Option name")
+            name_input.setPlaceholderText(tr("PLACEHOLDER_OPTION_NAME"))
             name_input.setMaximumWidth(150)
             name_input.textChanged.connect(self.on_entries_changed)
             entry_layout.addWidget(name_input)
 
             # Text input
             text_input = QLineEdit()
-            text_input.setPlaceholderText(f"Option effect")
+            text_input.setPlaceholderText(tr("PLACEHOLDER_OPTION_EFFECT"))
             text_input.textChanged.connect(self.on_entries_changed)
             entry_layout.addWidget(text_input)
 
@@ -1406,10 +1409,10 @@ class StoryEditor(FaceEditor):
     """Editor for story cards"""
 
     def setup_ui(self):
-        self.add_labeled_line("Name", "name")
-        self.add_labeled_line("Classes", "classes")
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.add_labeled_line(tr("FIELD_CLASSES"), "classes")
 
-        self.add_labeled_text("Text", "text", use_arkham=True)
+        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
 
         # Copyright and collection
         self.add_copyright_collection_row()
