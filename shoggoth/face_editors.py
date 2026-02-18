@@ -245,7 +245,7 @@ class FaceEditor(QWidget):
         elif isinstance(widget, QTextEdit):
             return widget.toPlainText().strip()
         elif isinstance(widget, QComboBox):
-            return widget.currentText().strip()
+            return widget.currentData() or widget.currentText().strip()
         return ''
 
     # Fields that require type conversion
@@ -402,6 +402,8 @@ class AssetEditor(FaceEditor):
         # Level
         level_combo = QComboBox()
         level_combo.addItems([tr('OPTION_NONE'), '0', '1', '2', '3', '4', '5', tr('OPTION_CUSTOM')])
+        level_combo.setItemData(0, 'None')
+        level_combo.setItemData(7, 'Custom')
         level_combo.currentTextChanged.connect(lambda: self.on_field_changed('level'))
         self.fields['level'] = level_combo
         grid_layout.addRow(tr("FIELD_LEVEL"), level_combo)
