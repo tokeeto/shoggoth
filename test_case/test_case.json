@@ -1,0 +1,347 @@
+{
+    "name": "test_case",
+    "code": "TEST",
+    "icon": "",
+    "encounter_sets": [
+        {
+            "name": "Locked Doors",
+            "icon": "",
+            "cards": [],
+            "id": "cb7b130b-e001-44c0-aa8c-8fbe153eea64"
+        },
+        {
+            "name": "The Gathering",
+            "icon": "",
+            "cards": [],
+            "id": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6"
+        }
+    ],
+    "cards": [
+        {
+            "name": "Roland Banks",
+            "id": "b5cf4499-f3f9-48c9-9035-5078960dd9cd",
+            "amount": 1,
+            "front": {
+                "type": "investigator",
+                "subtitle": "The Fed",
+                "traits": "Agency. Detective.",
+                "combat": "4",
+                "agility": "2",
+                "health": "9",
+                "sanity": "5",
+                "text": "<reaction> After you defeat an enemy: Discover 1 clue at your location. (Limit once per round.)\n<elder_sign> effect: +1 for each clue on your location.",
+                "flavor_text": "Everything by the book: every \"i\" dotted, every \"t\" crossed. It has worked, until now.",
+                "copyright": "<copyright> 2020 FFG",
+                "illustrator": "Magali Villeneuve"
+            },
+            "back": {
+                "type": "investigator_back",
+                "entries": [
+                    [
+                        "<b>Deck Size:</b>",
+                        "30."
+                    ],
+                    [
+                        "<b>Secondary Class Choice:</b>",
+                        ""
+                    ],
+                    [
+                        "<b>Deckbuilding Options:</b>",
+                        "Guardian cards (<guardian>) level 0-5, Seeker cards (<seeker>) level 0-2, Neutral cards level 0-5."
+                    ],
+                    [
+                        "<b>Deckbuilding Requirements</b></b> (do not count toward deck size):",
+                        "Roland's .38 Special, Cover Up, 1 random basic weakness."
+                    ],
+                    [
+                        "<b>Deckbuilding Restrictions:</b>",
+                        ""
+                    ]
+                ],
+                "classes": [
+                    "guardian"
+                ],
+                "text": "<b><b>Deck Size:</b></b> 30.\n<b><b>Deckbuilding Options:</b></b> Guardian cards (<guardian>) level 0-5, Seeker cards (<seeker>) level 0-2, Neutral cards level 0-5.\n<b><b>Deckbuilding Requirements</b></b> (do not count toward deck size):</b> Roland's .38 Special, Cover Up, 1 random basic weakness.",
+                "flavor_text": "Roland had always taken comfort in procedure and rules. As an agent in the Bureau, he was relieved to have guidelines to follow in any given situation. But lately, his Federal Agent's Handbook had been entirely unhelpful given the cases he'd been assigned. Try as he might, Roland could find no mention of what to do when confronted with strange creatures, gates through time and space, or magic spells. If he hadn't seen it with his own eyes, he would never have believed it... and there's no way his superiors would understand. Roland knew he would have to handle this one himself."
+            },
+            "investigator": "Roland Banks",
+            "expansion_number": "1"
+        },
+        {
+            "name": "Roland's .38 Special",
+            "id": "3fd29b46-bfae-4903-8789-e6a70dbacfc4",
+            "amount": 1,
+            "front": {
+                "type": "asset",
+                "name": "<unique><name>",
+                "classes": [
+                    "neutral"
+                ],
+                "level": "None",
+                "icons": "CAQ",
+                "traits": "Item. Weapon. Firearm.",
+                "slots": [
+                    "hand"
+                ],
+                "text": "Roland Banks deck only.\nUses (4 ammo).\n<action> Spend 1 ammo: <b>Fight.</b> You get +1 <combat> for this attack (if there are 1 or more clues on your location, you get +3 <com>, instead). This attack deals +1 damage.",
+                "cost": "3",
+                "illustrator": "Tiziano Baracchi"
+            },
+            "back": {
+                "type": "player"
+            },
+            "copyright": "FFG",
+            "investigator": "Roland Banks",
+            "expansion_number": "6"
+        },
+        {
+            "name": "Cover Up",
+            "id": "3c66a543-c4a6-48e3-9e90-81ff723ca324",
+            "amount": 1,
+            "front": {
+                "type": "treachery",
+                "classes": [
+                    "weakness"
+                ],
+                "traits": "Task.",
+                "text": "<b> Revelation </b> -- Put Cover Up into play in your threat area, with 3 clues on it.\n<reaction> When you would discover 1 or more clues at your location: Discard that many clues from Cover Up instead.\n<b> Forced </b> -- When the game ends, if there are any clues on Cover Up: You suffer 1 mental trauma.",
+                "illustrator": "Marcin Jakubowski"
+            },
+            "back": {
+                "type": "player"
+            },
+            "copyright": "FFG",
+            "investigator": "Roland Banks",
+            "expansion_number": "7"
+        },
+        {
+            "id": "8b4c5161-a69d-4ba6-bf9e-4dce011149d2",
+            "name": ".45 Automatic",
+            "front": {
+                "type": "asset",
+                "classes": [
+                    "guardian"
+                ],
+                "traits": "Item. Weapon. Firearm.",
+                "cost": "4",
+                "slots": [
+                    "hand"
+                ],
+                "text": "Uses (4 ammo).\n<action> Spend 1 ammo: <b>Fight.</b> You get +1 <com> for this attack. This attack deals +1 damage.",
+                "icons": "A",
+                "illustrator": "John Pacer"
+            },
+            "back": {
+                "type": "player"
+            },
+            "amount": 2,
+            "expansion_number": "16"
+        },
+        {
+            "id": "4d9bc1bb-3787-4749-acc3-0f9123fabc5e",
+            "name": "Evidence!",
+            "front": {
+                "type": "event",
+                "classes": [
+                    "guardian"
+                ],
+                "traits": "Insight.",
+                "text": "Fast. Play after you defeat an enemy.\nDiscover 1 clue at your location.",
+                "flavor_text": "Just as I suspected!",
+                "level": "0",
+                "illustrator": "Mark Behm",
+                "cost": "1",
+                "icons": "II"
+            },
+            "back": {
+                "type": "player"
+            },
+            "expansion_number": "22",
+            "amount": 2
+        },
+        {
+            "id": "d8b1a51d-dc84-4923-b44a-f98f0ab5ef34",
+            "name": "Vicious Blow",
+            "front": {
+                "type": "skill",
+                "classes": [
+                    "guardian"
+                ],
+                "traits": "Practiced.",
+                "level": "Keine",
+                "text": "If this skill test is successful during an attack, that attack deals +1 damage.",
+                "flavor_text": "With a sickening smack, he struck the abomination over and over... until at last, it stopped moving.",
+                "illustrator": "JB Casacop"
+            },
+            "back": {
+                "type": "player"
+            },
+            "amount": 1,
+            "expansion_number": "25"
+        },
+        {
+            "name": "The Gathering",
+            "id": "a9807cf0-7209-456e-b870-00f45e9088ca",
+            "amount": 1,
+            "front": {
+                "type": "chaos",
+                "entries": [
+                    {
+                        "token": [
+                            "skull"
+                        ],
+                        "text": "--X. X is the number of <b>Ghoul</b> enemies at your location."
+                    },
+                    {
+                        "token": [
+                            "cultist"
+                        ],
+                        "text": "--1. If you fail, take 1 horror."
+                    },
+                    {
+                        "token": [
+                            "tablet"
+                        ],
+                        "text": "--2. If there is a <b>Ghoul</b> enemy at your location, take 1 damage."
+                    }
+                ]
+            },
+            "back": {
+                "type": "chaos",
+                "entries": [
+                    {
+                        "token": [
+                            "skull"
+                        ],
+                        "text": "--2. If you fail, after this skill test, search the encounter deck and discard pile for a <b>Ghoul</b> enemy, and draw it. Shuffle the encounter deck."
+                    },
+                    {
+                        "token": [
+                            "cultist"
+                        ],
+                        "text": "Reveal another token. If you fail, take 2 horror."
+                    },
+                    {
+                        "token": [
+                            "tablet"
+                        ],
+                        "text": "--4. If there is a <b>Ghoul</b> enemy at your location, take 1 damage and 1 horror."
+                    }
+                ],
+                "difficulty": "Hard/Expert"
+            },
+            "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
+            "copyright": "FFG",
+            "encounter_number": "1",
+            "expansion_number": "104"
+        },
+        {
+            "id": "c132f918-d095-4dad-8496-24cf58905f62",
+            "name": "What's Going On?",
+            "front": {
+                "type": "agenda",
+                "flavor_text": "It is late at night. You are holed up in your study, researching the bloody disappearances that have been taking place in the region. A few hours into your research, you hear the sound of strange chanting coming from your parlor, down the hall. At the same time, you hear dirt churning, as if something were digging beneath the floor.",
+                "illustrator": "Mark Molnar",
+                "doom": "3"
+            },
+            "back": {
+                "type": "agenda_back",
+                "name": "A Lapse in Time",
+                "text": "<blockquote>Your house continues to change before your very eyes. The walls have decayed, and the ground in many rooms has turned to dirt. It is almost as if you have been transported somewhere else entirely, although every now and again you recognize elements of your former home. </blockquote>\nThe lead investigator must decide (choose one): Either each investigator discards 1 card at random from his or her hand, or the lead investigator takes 2 horror."
+            },
+            "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
+            "expansion_number": "105",
+            "encounter_number": "2"
+        },
+        {
+            "id": "1a68e72d-1de8-457e-9f1e-14a650a87411",
+            "name": "Trapped",
+            "front": {
+                "type": "act",
+                "flavor_text": "As you leap to investigate, the door to your study vanishes before your eyes, leaving behind only solid wall. You're trapped inside your study until you can find another way out.",
+                "illustrator": "Jose Vega",
+                "clues": "2<per>"
+            },
+            "back": {
+                "type": "act_back",
+                "name": "The Doorf on the Floor",
+                "flavor_text": "You notice that the edges of your newly purchased rug are tattered and mud-stained. Finding this odd, you shift the furniture aside and pull back the rug. To your surprise, you see the door leading out of your study. You slowly turn the knob, and the door swings open, revealing your hallway below.\nYou jump through the doorway, landing on your feet on soft dirt. The door to the study slams shut above you. The smell of burning wood fills the narrow hall, intermingled with the scent of rot and decay.",
+                "text": "Put into play the set-aside Hallway, Cellar, Attic, and Parlor.\nDiscard each enemy in the Study.\nPlace each investigator in the Hallway.\nRemove the Study from the game."
+            },
+            "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
+            "expansion_number": "108",
+            "encounter_number": "5"
+        },
+        {
+            "id": "1ae46910-80d8-4167-aa6f-be02f6ba3ceb",
+            "front": {
+                "type": "location",
+                "connection": "circle_alt",
+                "shroud": "2",
+                "clues": "2<per>",
+                "flavor_text": "The door to your study has vanished.",
+                "illustrator": "Yoann Boissonnet"
+            },
+            "back": {
+                "type": "location_back",
+                "illustrator": "Yoann Boissonnet",
+                "flavor_text": "You've been investigating the strange events occurring in Arkham for several days now. Your deck in covered in newspaper articles, police reports, and witness accounts."
+            },
+            "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
+            "name": "Study",
+            "expansion_number": "111",
+            "encounter_number": "8"
+        },
+        {
+            "name": "Ghoul Priest",
+            "id": "ecbf6a5b-16f0-4af5-8e5c-5db5ffb13530",
+            "amount": 3,
+            "front": {
+                "type": "enemy",
+                "traits": "Humanoid. Monster. Ghoul. Elite.",
+                "attack": "4",
+                "health": "5<per>",
+                "evade": "4",
+                "damage": "2",
+                "horror": "2",
+                "victory": "Victory 2.",
+                "flavor_text": "A figure in red robes wearing a bone mask. It gibbers and snarls before leaping to attack.",
+                "text": "<b>Prey</b> - Highest <com>.\nHunter. Retaliate.",
+                "illustrator": "Chun Lo"
+            },
+            "back": {
+                "type": "encounter"
+            },
+            "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
+            "copyright": "FFG",
+            "encounter_number": "116",
+            "expansion_number": "13"
+        },
+        {
+            "id": "d1784b88-8251-498e-9ada-8143e03dc2cb",
+            "amount": 2,
+            "front": {
+                "type": "treachery",
+                "traits": "Obstacle.",
+                "text": "<b>Revelation</b> -- Attach to the location in play with the most clues, and without a Locked Door attached.\nThe attached location cannot be investigated.\n<action>: Test <com> (4) to break down the door or <agility> (4) to pick the lock. If you succeed, discard Locked Door.",
+                "illustrator": "Dimitri Bielak"
+            },
+            "back": {
+                "type": "encounter"
+            },
+            "encounter_set": "cb7b130b-e001-44c0-aa8c-8fbe153eea64",
+            "copyright": "FFG",
+            "name": "Locked Door",
+            "expansion_number": "174",
+            "encounter_number": "1"
+        }
+    ],
+    "id": "9835f4dd-eced-4e25-8f3e-ee306751f21a",
+    "default_copyright": "FFG",
+    "meta": {
+        "dirty": [
+            "9835f4dd-eced-4e25-8f3e-ee306751f21a",
+            "d1784b88-8251-498e-9ada-8143e03dc2cb"
+        ]
+    }
+}
