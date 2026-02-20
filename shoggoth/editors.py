@@ -296,24 +296,23 @@ class IconsWidget(QWidget):
         self.labels = {}
         self._updating = False
 
-        layout = QHBoxLayout()
+        layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(2)
 
         # Label
         icons_label = QLabel(tr("LABEL_ICONS"))
-        icons_label.setMinimumWidth(50)
         layout.addWidget(icons_label)
 
-        # Create +/- controls for each icon
+        # Create one row per icon
         for letter, name in self.ICONS:
-            icon_layout = QHBoxLayout()
-            icon_layout.setSpacing(2)
+            row = QHBoxLayout()
+            row.setSpacing(4)
 
             # Icon image
             icon_label = QLabel()
             icon_label.setToolTip(name)
-            icon_path = overlay_dir / f"skill_icon_{letter}.png"
+            icon_path = overlay_dir / 'svg' / f"skill_icon_{letter}.svg"
             if icon_path.exists():
                 pixmap = QPixmap(str(icon_path)).scaled(
                     20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation
@@ -322,30 +321,34 @@ class IconsWidget(QWidget):
             else:
                 icon_label.setText(letter)
             icon_label.setFixedSize(20, 20)
-            icon_layout.addWidget(icon_label)
+            row.addWidget(icon_label)
 
             # Minus button
             minus_btn = QPushButton("-")
             minus_btn.setFixedSize(24, 24)
             minus_btn.clicked.connect(lambda checked, l=letter: self.decrement(l))
-            icon_layout.addWidget(minus_btn)
+            row.addWidget(minus_btn)
 
             # Count label
             count_label = QLabel("0")
             count_label.setAlignment(Qt.AlignCenter)
             count_label.setFixedWidth(20)
             self.labels[letter] = count_label
-            icon_layout.addWidget(count_label)
+            row.addWidget(count_label)
 
             # Plus button
             plus_btn = QPushButton("+")
             plus_btn.setFixedSize(24, 24)
             plus_btn.clicked.connect(lambda checked, l=letter: self.increment(l))
-            icon_layout.addWidget(plus_btn)
+            row.addWidget(plus_btn)
 
-            layout.addLayout(icon_layout)
+            # Name label
+            name_label = QLabel(name)
+            row.addWidget(name_label)
 
-        layout.addStretch()
+            row.addStretch()
+            layout.addLayout(row)
+
         self.setLayout(layout)
 
     def increment(self, letter):
@@ -409,7 +412,8 @@ class IllustrationWidget(QWidget):
         path_layout.addWidget(self.path_input)
         browse_btn = QPushButton(tr("BTN_BROWSE"))
         browse_btn.clicked.connect(self.browse_image)
-        path_layout.addLayout(path_layout)
+        path_layout.addWidget(browse_btn)
+        layout.addLayout(path_layout)
 
         # Pan and scale with edit button
         pan_scale_layout = QHBoxLayout()

@@ -416,6 +416,8 @@
   "HELP_BLEED_AREA": "El área de sangrado es el margen de error en el corte/impresión",
   "LABEL_BLEED_DISPLAY": "Mostrar Sangrado:",
   "GROUP_EXPORT_FORMAT": "Formato de Exportación",
+  "LABEL_EXPORT_SIZE": "Tamaño:",
+  "HELP_EXPORT_SIZE": "Resolución de las imágenes de carta exportadas",
   "LABEL_FORMAT": "Formato:",
   "HELP_FORMAT_OPTIONS": "PNG: Sin pérdida, mejor calidad\nJPEG: Con pérdida, archivos más pequeños\nWebP: Formato moderno, buena compresión",
   "LABEL_QUALITY": "Calidad:",

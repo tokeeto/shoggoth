@@ -39,10 +39,7 @@ class NoScrollComboBox(QComboBox):
     """ComboBox that ignores wheel events when not focused."""
 
     def wheelEvent(self, event):
-        if self.hasFocus():
-            super().wheelEvent(event)
-        else:
-            event.ignore()
+        event.ignore()
 
 
 class SlotComboBox(NoScrollComboBox):
@@ -173,7 +170,7 @@ class FaceEditor(QWidget):
         """Add type combobox - shown in all editors"""
         type_layout = QHBoxLayout()
         type_label = QLabel(tr("FIELD_TYPE"))
-        type_label.setMinimumWidth(110)
+        type_label.setMinimumWidth(50)
 
         self.type_combo = NoScrollComboBox()
         self.type_combo.setEditable(True)
@@ -1163,7 +1160,7 @@ class InvestigatorBackEditor(FaceEditor):
                 entries.append([header, value])
                 # Only add to text if BOTH header and value have content
                 if header and value:
-                    text_parts.append(f"<b>{header}</b> {value}")
+                    text_parts.append(f"{header} {value}")
 
         # Save entries list
         if entries:

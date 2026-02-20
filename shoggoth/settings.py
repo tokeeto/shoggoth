@@ -11,6 +11,13 @@ from PySide6.QtWidgets import (
 from pathlib import Path
 from shoggoth.i18n import tr, get_available_languages
 
+# Available export sizes: (display label, size dict)
+EXPORT_SIZES = [
+    ('1500×2100 px', {'width': 1500, 'height': 2100, 'bleed': 72}),
+    ('750×1050 px (Default)', {'width': 750, 'height': 1050, 'bleed': 36}),
+    ('375×525 px', {'width': 375, 'height': 525, 'bleed': 18}),
+]
+
 
 def detect_system_language() -> str:
     """
@@ -59,6 +66,7 @@ class SettingsManager:
             'java': 'java',
             'show_bleed': True,
             # Export settings
+            'export_size': 1,
             'export_format': 'png',
             'export_quality': 95,
             'export_bleed': True,
@@ -263,6 +271,12 @@ class SettingsDialog(QDialog):
         format_group = QGroupBox(tr("GROUP_EXPORT_FORMAT"))
         format_layout = QFormLayout()
 
+        # Size dropdown
+        self.export_size_combo = QComboBox()
+        self.export_size_combo.addItems([label for label, _ in EXPORT_SIZES])
+        self.export_size_combo.setToolTip(tr("HELP_EXPORT_SIZE"))
+        format_layout.addRow(tr("LABEL_EXPORT_SIZE"), self.export_size_combo)
+
         # Format dropdown
         self.export_format_combo = QComboBox()
         self.export_format_combo.addItems(['png', 'jpeg', 'webp'])
@@ -402,6 +416,10 @@ class SettingsDialog(QDialog):
         )
 
         # Export settings
+        self.export_size_combo.setCurrentIndex(
+            self.settings.getint('Shoggoth', 'export_size', 1)
+        )
+
         export_format = self.settings.get('Shoggoth', 'export_format', 'png')
         index = self.export_format_combo.findText(export_format)
         if index >= 0:
@@ -432,6 +450,7 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
 
         # Export settings
+        self.settings.set('Shoggoth', 'export_size', self.export_size_combo.currentIndex())
         self.settings.set('Shoggoth', 'export_format', self.export_format_combo.currentText())
         self.settings.set('Shoggoth', 'export_quality', self.export_quality_spin.value())
         self.settings.set('Shoggoth', 'export_bleed', self.export_bleed_checkbox.isChecked())

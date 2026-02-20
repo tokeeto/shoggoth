@@ -416,6 +416,8 @@
   "HELP_BLEED_AREA": "The bleed area is the margin for error in cutting/printing",
   "LABEL_BLEED_DISPLAY": "Bleed Display:",
   "GROUP_EXPORT_FORMAT": "Export Format",
+  "LABEL_EXPORT_SIZE": "Size:",
+  "HELP_EXPORT_SIZE": "Resolution of exported card images",
   "LABEL_FORMAT": "Format:",
   "HELP_FORMAT_OPTIONS": "PNG: Lossless, best quality\nJPEG: Lossy, smaller files\nWebP: Modern format, good compression",
   "LABEL_QUALITY": "Quality:",
