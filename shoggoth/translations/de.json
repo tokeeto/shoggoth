@@ -120,8 +120,7 @@
   "FILTER_JSON_FILES": "JSON-Dateien (*.json)",
   "DLG_SAVE_PROJECT_AS": "Speichere Projekt als",
   "DLG_SELECT_ICON": "Wähle Icon",
-  "FILTER_IMAGES_WEBP": "Bilder (*.png *.jpg *.jpeg *.webp)",
-  "FILTER_IMAGES": "Bilder (*.png *.jpg *.jpeg)",
+  "FILTER_IMAGES": "Bilder (*.png *.jpg *.jpeg *.webp *.svg)",
   "DLG_SELECT_IMAGE": "Wähle ein Bild",
 
   "// ===== DIALOGS - NEW CARD =====": "",
