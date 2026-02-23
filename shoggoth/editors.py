@@ -483,7 +483,7 @@ class IllustrationWidget(QWidget):
             self,
             tr("DLG_SELECT_IMAGE"),
             str(Path.home()),
-            tr("FILTER_IMAGES_WEBP")
+            tr("FILTER_IMAGES")
         )
         if file_path:
             self.path_input.setText(file_path)

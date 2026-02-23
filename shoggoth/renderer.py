@@ -12,26 +12,30 @@ logging.getLogger('pillow').setLevel(logging.ERROR)
 
 
 class Region:
-    bleed: tuple[int, int] = (36, 36)
     x: int
     y: int
     width: int
     height: int
-    scale: int = 1
+    SCALE: float = 1
 
     def __init__(self, data):
         if not data:
             data = {}
-        self.x = data.get('x', 0)
-        self.y = data.get('y', 0)
-        if Region.bleed:
-            self.x += Region.bleed[0]
-            self.y += Region.bleed[1]
-        self.width = data.get('width', 0)
-        self.height = data.get('height', 0)
+        self.x = int(data.get('x', 0) * Region.SCALE)
+        self.y = int(data.get('y', 0) * Region.SCALE)
+        self.width = int(data.get('width', 0) * Region.SCALE)
+        self.height = int(data.get('height', 0) * Region.SCALE)
         self.is_attached = bool(data.get('is_attached', False))
         self.attach_before = data.get('attach_before')
         self.attach_after = data.get('attach_after')
+
+    @staticmethod
+    def unscaled(data):
+        s = Region.SCALE
+        Region.SCALE = 1
+        r = Region(data)
+        Region.SCALE = s
+        return r
 
     @property
     def size(self):
@@ -239,6 +243,11 @@ class CardRenderer:
 
     def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72):
         """Render one side of a card"""
+        if width == 750:
+            Region.SCALE = .5
+        if width == 375:
+            Region.SCALE = .25
+
         height, width = height + bleed * 2, width + bleed * 2
         if side.get('orientation', 'vertical') == 'horizontal':
             width, height = height, width
@@ -370,16 +379,16 @@ class CardRenderer:
                 font = side.get(f'{field}_font', {})
                 polygon = side.get(f'{field}_polygon', None)
                 if polygon:
-                    polygon = [(point[0]+self.CARD_BLEED/2, point[1]+self.CARD_BLEED/2) for point in polygon]
+                    polygon = [(point[0]*Region.SCALE, point[1]*Region.SCALE) for point in polygon]
 
                 if font.get('rotation'):
                     temp_image = Image.new('RGBA', region.size, (0, 0, 0, 0))
                     self.rich_text.render_text(
                         temp_image,
                         value,
-                        Region({'x': -36, 'y': -36, 'height': region.height, 'width': region.width}),
+                        Region({'x': 0, 'y': 0, 'height': card_image.height, 'width': card_image.width}),
                         font=font.get('font', 'regular'),
-                        font_size=font.get('size', 20),
+                        font_size=font.get('size', 20)*Region.SCALE,
                         fill=font.get('color', '#231f20'),
                         outline=font.get('outline'),
                         outline_fill=font.get('outline_color'),
@@ -394,7 +403,7 @@ class CardRenderer:
                         value,
                         region,
                         font=font.get('font', 'regular'),
-                        font_size=font.get('size', 20),
+                        font_size=font.get('size', 20)*Region.SCALE,
                         fill=font.get('color', '#231f20'),
                         outline=font.get('outline'),
                         outline_fill=font.get('outline_color'),
@@ -440,30 +449,33 @@ class CardRenderer:
             card_image.paste(overlay_icon, (region.x, region.y+(index*entry_height)), overlay_icon)
 
     def render_connection_icons(self, card_image, side):
-        base_image = Image.open(self.overlays_path/f"location_hi_base.png").convert("RGBA")
+        try:
+            base_image = Image.open(self.overlays_path/f"location_hi_base.png").convert("RGBA")
 
-        # own icon
-        value = side.get('connection')
+            # own icon
+            value = side.get('connection')
 
-        if value and value != "None":
-            region = Region(side.get('connection_region'))
-            connection_image = Image.open(self.overlays_path/f"location_hi_{value}.png").convert("RGBA")
-            card_image.paste(base_image, region.pos, base_image)
-            card_image.paste(connection_image, (region.x+6, region.y+6), connection_image)
+            if value and value != "None":
+                region = Region(side.get('connection_region'))
+                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection-{value}.svg", region.size)
+                card_image.paste(base_image, region.pos, base_image)
+                card_image.paste(connection_image, (region.x+int(12*Region.SCALE), region.y+int(12*Region.SCALE)), connection_image)
 
-        # outgoing connections
-        value = side.get('connections')
+            # outgoing connections
+            value = side.get('connections')
 
-        if not value:
-            return
+            if not value:
+                return
 
-        # grab and paint each icon
-        for index, icon in enumerate(value):
-            if not icon or icon == "None":
-                continue
-            region = Region(side.get(f'connection_{index+1}_region'))
-            connection_image = Image.open(self.overlays_path/f"location_hi_{icon}.png").convert("RGBA")
-            card_image.paste(connection_image, (region.x+6, region.y+6), connection_image)
+            # grab and paint each icon
+            for index, icon in enumerate(value):
+                if not icon or icon == "None":
+                    continue
+                region = Region(side.get(f'connection_{index+1}_region'))
+                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection-{icon}.svg", region.size)
+                card_image.paste(connection_image, (region.x+int(12*Region.SCALE), region.y+int(12*Region.SCALE)), connection_image)
+        except Exception as e:
+            print('error in connection', e)
 
     def render_icons(self, card_image, side):
         """ Renders commit icons """
@@ -475,9 +487,9 @@ class CardRenderer:
         box_image = Image.open(box_path).convert("RGBA")
         for index, icon in enumerate(value):
             icon_path = self.overlays_path / 'svg' / f"skill_icon_{icon}.svg"
-            icon_image = self.get_resized_cached(icon_path, (55, 55))
-            card_image.paste(box_image, (0, index * 84 + 175 + 36), box_image)
-            card_image.paste(icon_image, (25 + 36, index * 84 + 187 + 36), icon_image)
+            icon_image = self.get_resized_cached(icon_path, (51, 51))
+            card_image.paste(box_image, (10, index * 82 + 162 + 36), box_image)
+            card_image.paste(icon_image, (31 + 36, index * 82 + 177 + 36), icon_image)
 
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """
@@ -570,18 +582,21 @@ class CardRenderer:
 
     def render_enemy_stats(self, card_image, side):
         """Render Damage and horror."""
-        for token in ('damage', 'horror'):
-            value = int(side.get(token, "0"))
-            if not value:
-                continue
-            icon_path = self.overlays_path/f"{token}.png"
-            raw_icon = Image.open(icon_path).convert("RGBA")
-            for i in range(value):
-                region = Region(side[f'{token}{i+1}_region'])
-                if not region:
+        try:
+            for token in ('damage', 'horror'):
+                value = int(side.get(token, "0"))
+                if not value:
                     continue
-                icon = raw_icon.resize((region.width, region.height))
-                card_image.paste(icon, (region.x, region.y), icon)
+                icon_path = self.overlays_path/f"{token}.png"
+                raw_icon = self.get_cached(icon_path)
+                raw_icon = self.get_resized_cached(icon_path, (int(raw_icon.width*Region.SCALE), int(raw_icon.height*Region.SCALE)))
+                for i in range(value):
+                    region = Region(side[f'{token}{i+1}_region'])
+                    if not region:
+                        continue
+                    card_image.paste(raw_icon, (region.x, region.y), raw_icon)
+        except Exception as e:
+            print('error in enemy:', e)
 
     def render_template(self, card_image, side, bleed, include_bleed):
         """Render a template image onto a card"""
@@ -625,19 +640,15 @@ class CardRenderer:
             return
 
         try:
-            # Load illustration
             illustration = self.get_cached(illustration_path)
-
-            # Get clip region
-            clip_region = Region(side['illustration_region'])
+            region = Region(side['illustration_region'])
 
             # Calculate scaling
             illustration_scale = float(side.get('illustration_scale', 0))
             if not illustration_scale:
-                if illustration.width > illustration.height:
-                    illustration_scale = clip_region.height / illustration.height
-                else:
-                    illustration_scale = clip_region.width / illustration.width
+                illustration_scale = region.height / illustration.height
+                if region.width / illustration.width > illustration_scale:
+                    illustration_scale = region.width / illustration.width
 
             # Resize illustration
             new_width = int(illustration.width * illustration_scale)
@@ -649,8 +660,8 @@ class CardRenderer:
                 illustration = illustration.rotate(float(rotation))
 
             # Apply panning
-            pan_x = side.get('illustration_pan_x', clip_region.x)
-            pan_y = side.get('illustration_pan_y', clip_region.y)
+            pan_x = side.get('illustration_pan_x', region.x)
+            pan_y = side.get('illustration_pan_y', region.y)
 
             # Position and paste
             card_image.paste(
@@ -715,7 +726,7 @@ class CardRenderer:
             tokens = entry['token']
             y = int(region.y + region.height/len(entries)*index)
 
-            if type(tokens) != list:
+            if isinstance(tokens, list):
                 tokens = [tokens]
 
             for token_index, token in enumerate(tokens):
@@ -736,9 +747,9 @@ class CardRenderer:
             self.rich_text.render_text(
                 card_image,
                 entry['text'],
-                Region({'x': (region.x+region.width//3)-32, 'y': y-32, 'height': region.height//len(entries), 'width': (2*region.width)//3}),
+                Region.unscaled({'x': (region.x+region.width//3), 'y': y, 'height': region.height//len(entries), 'width': (2*region.width)//3}),
                 font=font.get('font', 'regular'),
-                font_size=font.get('size', 32),
+                font_size=font.get('size', 32)*Region.SCALE,
                 fill=font.get('color', '#231f20'),
                 outline=font.get('outline'),
                 outline_fill=font.get('outline_color'),
