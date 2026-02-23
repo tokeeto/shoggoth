@@ -238,6 +238,9 @@ class RichTextRenderer:
 
     def load_icon(self, icon_path, height):
         """Load an image icon and resize to match text height"""
+        if str(icon_path)[-4:] == '.svg':
+            return self.card_renderer.get_resized_cached(icon_path, (height, height))
+
         if (icon_path, height) in self.icon_cache:
             return self.icon_cache[(icon_path, height)]
 

@@ -25,6 +25,7 @@ from shoggoth.preview_widget import ImprovedCardPreview
 from shoggoth.goto_dialog import GotoCardDialog
 from shoggoth.encounter_editor import EncounterSetEditor
 from shoggoth.i18n import get_available_languages, load_language, get_current_language, tr
+from shoggoth.editors import CardEditor
 
 
 class DraggableTreeWidget(QTreeWidget):
@@ -1093,7 +1094,7 @@ class ShoggothMainWindow(QMainWindow):
         # Export Current Card
         export_current = QAction(tr("MENU_EXPORT_CURRENT"), self)
         export_current.setShortcut("Ctrl+E")
-        export_current.triggered.connect(self.export_current)
+        export_current.triggered.connect(lambda: self.export_current())
         file_menu.addAction(export_current)
 
         # Export All Cards
@@ -1118,6 +1119,12 @@ class ShoggothMainWindow(QMainWindow):
 
         # ==================== PROJECT MENU ====================
         project_menu = menubar.addMenu(tr("MENU_PROJECT"))
+
+        # Add Guide
+        auto_enumerate_action = QAction(tr("MENU_AUTO_ENUMERATE"), self)
+        auto_enumerate_action.setShortcut("Ctrl+M")
+        auto_enumerate_action.triggered.connect(self.auto_enumerate)
+        project_menu.addAction(auto_enumerate_action)
 
         # Add Guide
         add_guide_action = QAction(tr("MENU_ADD_GUIDE"), self)
@@ -1514,6 +1521,13 @@ class ShoggothMainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, tr("DLG_SAVE_ERROR"), tr("ERR_SAVE_CARD").format(error=e))
 
+    def _get_export_size(self):
+        """Return the size dict selected in export settings."""
+        from shoggoth.settings import EXPORT_SIZES
+        index = self.config.getint('Shoggoth', 'export_size', 1)
+        index = min(index, len(EXPORT_SIZES) - 1)
+        return EXPORT_SIZES[index][1]
+
     def export_all(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export all cards in the project using settings from preferences"""
         if not self.active_project:
@@ -1558,6 +1572,7 @@ class ShoggothMainWindow(QMainWindow):
                     target=self.card_renderer.export_card_images,
                     args=(card, str(export_folder)),
                     kwargs={
+                        'size': self._get_export_size(),
                         'include_backs': False,
                         'bleed': bleed,
                         'format': format,
@@ -1620,7 +1635,6 @@ class ShoggothMainWindow(QMainWindow):
         card_splitter = QSplitter(Qt.Horizontal)
 
         # Load card editor
-        from shoggoth.editors import CardEditor
         editor = CardEditor(card)
         self.current_editor = editor
 
@@ -1642,7 +1656,7 @@ class ShoggothMainWindow(QMainWindow):
         self.toggle_preview_action.setChecked(True)
 
         # Set splitter sizes (60% editor, 40% would be preview but it's docked)
-        card_splitter.setSizes([600, 400])
+        card_splitter.setSizes([200, 200])
 
         # Add splitter to content area
         self.content_layout.addWidget(card_splitter)
@@ -1847,7 +1861,9 @@ class ShoggothMainWindow(QMainWindow):
 
         def render_task():
             try:
-                front_image, back_image = renderer.get_card_textures(card, bleed=bleed)
+                front_image, back_image = renderer.get_card_textures(
+                    card, {'width': 750, 'height': 1050, 'bleed': 36}, bleed=bleed
+                )
                 # Emit result signal (will be handled on main thread)
                 self.render_result_signal.emit(version, front_image, back_image)
             except Exception as e:
@@ -1882,7 +1898,7 @@ class ShoggothMainWindow(QMainWindow):
                 bleed = 'mark'
 
             front_image, back_image = self.card_renderer.get_card_textures(
-                self.current_card, bleed=bleed
+                self.current_card, {'width': 750, 'height': 1050, 'bleed': 36}, bleed=bleed
             )
             self.card_preview.set_card_images(front_image, back_image)
         except Exception as e:
@@ -2008,6 +2024,7 @@ class ShoggothMainWindow(QMainWindow):
             self.card_renderer.export_card_images(
                 self.current_card,
                 str(export_folder),
+                size=self._get_export_size(),
                 include_backs=False,
                 bleed=bleed,
                 format=format,
@@ -2143,6 +2160,14 @@ class ShoggothMainWindow(QMainWindow):
         return False
 
     # ==================== PROJECT MENU ACTIONS ====================
+
+    def auto_enumerate(self):
+        """Add a guide to the project"""
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+            return
+        self.active_project.assign_card_numbers()
+        self.status_bar.showMessage(tr("STATUS_PROJECT_ENUMERATED"))
 
     def add_guide(self):
         """Add a guide to the project"""

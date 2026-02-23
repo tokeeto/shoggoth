@@ -16,23 +16,23 @@ def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
-    
+
     app = QApplication(sys.argv)
     app.setApplicationName("Shoggoth")
     app.setOrganizationName("Shoggoth")
-    
+
     # Load saved language setting
     settings = SettingsManager()
     saved_language = settings.get('Shoggoth', 'language', 'en')
     load_language(saved_language)
-    
+
     # Set application style
     app.setStyle("Fusion")
-    
+
     # Create and show main window
     window = ShoggothMainWindow()
     window.show()
-    
+
     sys.exit(app.exec())
 
 
