@@ -587,7 +587,7 @@ class FileBrowser(QWidget):
         item = QTreeWidgetItem([spec['text']])
 
         # Build user data
-        user_data = {'type': spec['type'], 'data': spec['data']}
+        user_data = {'type': spec['type'], 'data': spec['data'], 'node_id': spec['node_id']}
         if 'class' in spec:
             user_data['class'] = spec['class']
         if 'investigator' in spec:
@@ -618,7 +618,7 @@ class FileBrowser(QWidget):
             item.setText(0, spec['text'])
 
         # Update user data
-        user_data = {'type': spec['type'], 'data': spec['data']}
+        user_data = {'type': spec['type'], 'data': spec['data'], 'node_id': spec['node_id']}
         if 'class' in spec:
             user_data['class'] = spec['class']
         if 'investigator' in spec:
@@ -678,6 +678,10 @@ class FileBrowser(QWidget):
         data = item.data(0, Qt.UserRole)
         if not data:
             return None
+
+        # Use the stored node_id if available (avoids depending on translated display text)
+        if 'node_id' in data:
+            return data['node_id']
 
         item_type = data.get('type')
         item_data = data.get('data')
