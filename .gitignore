@@ -11,3 +11,6 @@ uv.lock
 shoggoth.ini
 settings.json
 .vscode/settings.json
+/test_case/*.jpeg
+/test_case/*.png
+/test_case/*.webp
