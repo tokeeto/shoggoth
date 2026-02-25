@@ -395,7 +395,7 @@ class CardRenderer:
                     self.rich_text.render_text(
                         temp_image,
                         value,
-                        Region({'x': 0, 'y': 0, 'height': card_image.height, 'width': card_image.width}),
+                        Region({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
                         font=font.get('font', 'regular'),
                         font_size=font.get('size', 20)*Region.SCALE,
                         fill=font.get('color', '#231f20'),
@@ -459,7 +459,6 @@ class CardRenderer:
 
     def render_connection_icons(self, card_image, side):
         try:
-            base_image = Image.open(self.overlays_path/f"location_hi_base.png").convert("RGBA")
 
             # own icon
             value = side.get('connection')
@@ -467,6 +466,12 @@ class CardRenderer:
             if value and value != "None":
                 region = Region(side.get('connection_region'))
                 connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection-{value}.svg", region.size)
+
+                padding = int(24*Region.SCALE)
+                base_image = self.get_resized_cached(
+                    self.overlays_path / "location_hi_base.png",
+                    (region.width + padding, region.height + padding)
+                )
                 card_image.paste(base_image, region.pos, base_image)
                 card_image.paste(connection_image, (region.x+int(12*Region.SCALE), region.y+int(12*Region.SCALE)), connection_image)
 

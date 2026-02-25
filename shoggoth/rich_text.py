@@ -552,7 +552,7 @@ class RichTextRenderer:
                 current_size -= 1
             if percentage < .3:
                 current_size -= 1
-               
+
 
     def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20', alignment='left'):
         """
@@ -678,11 +678,11 @@ class RichTextRenderer:
             if quote or quote_last:
                 indent = 20
                 if not quote:
-                    draw.line((x, y_pos, x, y_pos+font_size*.8), fill=fill)
-                    draw.line((x+5, y_pos, x+5, y_pos+font_size*.8), fill=fill)
+                    draw.line((x, y_pos, x, y_pos+font_size*.8), fill=fill, width=2)
+                    draw.line((x+10, y_pos, x+10, y_pos+font_size*.8), fill=fill, width=2)
                 else:
-                    draw.line((x, y_pos, x, y_pos+line_height), fill=fill)
-                    draw.line((x+5, y_pos, x+5, y_pos+line_height), fill=fill)
+                    draw.line((x, y_pos, x, y_pos+line_height), fill=fill, width=2)
+                    draw.line((x+10, y_pos, x+10, y_pos+line_height), fill=fill, width=2)
 
             x_pos = get_line_start_x(line, y_pos)
             x_pos += indent
