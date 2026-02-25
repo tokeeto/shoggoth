@@ -4,12 +4,17 @@ from io import BytesIO
 from shoggoth.rich_text import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir
 from pathlib import Path
-from cairosvg import svg2png
+import pyvips
 
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('pillow').setLevel(logging.ERROR)
 
+
+def scale(x: int | None):
+    if not x:
+        return x
+    return int(x * Region.SCALE)
 
 class Region:
     x: int
@@ -83,26 +88,28 @@ class CardRenderer:
     def get_cached(self, path) -> Image.Image:
         if path not in self.cache:
             if str(path).endswith('.svg'):
-                from cairosvg import svg2png
-                with open(path, 'r') as file:
-                    buffer = BytesIO()
-                    svg2png(bytestring=file.read(), output_width=512, output_height=512, write_to=buffer)
-                    buffer.seek(0)
-                image = Image.open(buffer).convert('RGBA')
+                vips_image = pyvips.Image.new_from_file(str(path))
+                image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
             else:
                 image = Image.open(path).convert('RGBA')
             self.cache[path] = image
         return self.cache[path]
 
     def get_resized_cached(self, path, size) -> Image.Image:
+        if size[0] * size[1] > 24_000_000:
+            raise Exception('image too big, dangerous')
         if (path, size) not in self.resized_cache:
-            # svgs are always loaded directly as resized due to how cairo works
             if str(path).endswith('.svg'):
-                with open(path, 'r') as file:
-                    buffer = BytesIO()
-                    svg2png(bytestring=file.read(), output_width=size[0], output_height=size[1], write_to=buffer)
-                    buffer.seek(0)
-                image = Image.open(buffer).convert('RGBA')
+                vips_image = pyvips.Image.new_from_file(str(path))
+                scale = size[0]/vips_image.width
+                if scale > (size[1]/vips_image.height):
+                    scale = size[1]/vips_image.height
+                vips_image = pyvips.Image.new_from_file(str(path), scale=scale)
+                image = Image.frombytes(
+                    'RGBA',
+                    (vips_image.width, vips_image.height),
+                    vips_image.write_to_memory()
+                )
                 self.resized_cache[(path, size)] = image
             else:
                 img = self.get_cached(path)
@@ -243,6 +250,8 @@ class CardRenderer:
 
     def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72):
         """Render one side of a card"""
+        if width == 1500:
+            Region.SCALE = 1
         if width == 750:
             Region.SCALE = .5
         if width == 375:
@@ -403,9 +412,9 @@ class CardRenderer:
                         value,
                         region,
                         font=font.get('font', 'regular'),
-                        font_size=font.get('size', 20)*Region.SCALE,
+                        font_size=scale(font.get('size', 20)),
                         fill=font.get('color', '#231f20'),
-                        outline=font.get('outline'),
+                        outline=scale(font.get('outline')),
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
                         polygon=polygon,
@@ -484,12 +493,14 @@ class CardRenderer:
             return
 
         box_path = self.overlays_path/f"skill_box_{side.get_class()}.png"
-        box_image = Image.open(box_path).convert("RGBA")
+        box_image = self.get_cached(box_path)
+        box_image = box_image.resize((int(box_image.width * Region.SCALE * 2), int(box_image.height * Region.SCALE * 2)))
+
         for index, icon in enumerate(value):
             icon_path = self.overlays_path / 'svg' / f"skill_icon_{icon}.svg"
-            icon_image = self.get_resized_cached(icon_path, (51, 51))
-            card_image.paste(box_image, (10, index * 82 + 162 + 36), box_image)
-            card_image.paste(icon_image, (31 + 36, index * 82 + 177 + 36), icon_image)
+            icon_image = self.get_resized_cached(icon_path, (scale(102), scale(102)))
+            card_image.paste(box_image, (0, scale(index * 164 + 324 + 72)), box_image)
+            card_image.paste(icon_image, (scale(72+40), scale(index * 164 + 352 + 72)), icon_image)
 
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """
@@ -556,9 +567,9 @@ class CardRenderer:
             icon_path = Path(side.card.expansion.file_path).parent / Path(icon_path)
             icon_path = icon_path.absolute()
 
-        icon = Image.open(icon_path).convert("RGBA")
+        icon = self.get_cached(icon_path)
         scale = min(region.width/icon.width, region.height/icon.height)
-        icon = icon.resize((int(icon.width*scale), int(icon.height*scale)))
+        icon = self.get_resized_cached(icon_path, (int(icon.width*scale), int(icon.height*scale)))
         card_image.paste(icon, (region.x + (region.width-icon.width)//2, region.y + (region.height-icon.height)//2), icon)
 
     def render_slots(self, card_image, side):
@@ -639,38 +650,35 @@ class CardRenderer:
         if not illustration_path:
             return
 
-        try:
-            illustration = self.get_cached(illustration_path)
-            region = Region(side['illustration_region'])
+        illustration = self.get_cached(illustration_path)
+        region = Region(side['illustration_region'])
 
-            # Calculate scaling
-            illustration_scale = float(side.get('illustration_scale', 0))
-            if not illustration_scale:
-                illustration_scale = region.height / illustration.height
-                if region.width / illustration.width > illustration_scale:
-                    illustration_scale = region.width / illustration.width
+        # Calculate scaling
+        illustration_scale = float(side.get('illustration_scale', 0)) * Region.SCALE
+        if not illustration_scale:
+            illustration_scale = region.height / illustration.height
+            if region.width / illustration.width > illustration_scale:
+                illustration_scale = region.width / illustration.width
 
-            # Resize illustration
-            new_width = int(illustration.width * illustration_scale)
-            new_height = int(illustration.height * illustration_scale)
-            illustration = self.get_resized_cached(illustration_path, (new_width, new_height))
+        # Resize illustration
+        new_width = int(illustration.width * illustration_scale)
+        new_height = int(illustration.height * illustration_scale)
+        illustration = self.get_resized_cached(illustration_path, (new_width, new_height))
 
-            rotation = side.get('illustration_rotation', 0)
-            if rotation:
-                illustration = illustration.rotate(float(rotation))
+        rotation = side.get('illustration_rotation', 0)
+        if rotation:
+            illustration = illustration.rotate(float(rotation))
 
-            # Apply panning
-            pan_x = side.get('illustration_pan_x', region.x)
-            pan_y = side.get('illustration_pan_y', region.y)
+        # Apply panning
+        pan_x = int(side.get('illustration_pan_x', 0) * Region.SCALE) or region.x
+        pan_y = int(side.get('illustration_pan_y', 0) * Region.SCALE) or region.y
 
-            # Position and paste
-            card_image.paste(
-                illustration,
-                (pan_x, pan_y),
-                illustration
-            )
-        except Exception as e:
-            print(f"Error rendering illustration: {str(e)}")
+        # Position and paste
+        card_image.paste(
+            illustration,
+            (pan_x, pan_y),
+            illustration
+        )
 
     def render_level(self, card_image, side):
         """Render the card level"""
@@ -702,11 +710,10 @@ class CardRenderer:
 
         # Render each class symbol
         for index, cls in enumerate(classes):
-            symbol_path = self.overlays_path/f"class_symbol_{cls}.png"
+            symbol_path = self.overlays_path / f"class_symbol_{cls}.png"
             region = Region(side.get(f"class_symbol_{index+1}_region"))
 
-            symbol = Image.open(symbol_path).convert("RGBA")
-            #symbol = symbol.resize((symbol.width, symbol.height))
+            symbol = self.get_resized_cached(symbol_path, region.size)
             card_image.paste(symbol, (region.x, region.y), symbol)
 
     def render_chaos(self, card_image, side):
@@ -726,13 +733,14 @@ class CardRenderer:
             tokens = entry['token']
             y = int(region.y + region.height/len(entries)*index)
 
-            if isinstance(tokens, list):
+            if not isinstance(tokens, list):
                 tokens = [tokens]
 
             for token_index, token in enumerate(tokens):
                 try:
-                    token_image = Image.open(overlay_dir / f"chaos_{token}.png")
-                except:
+                    token_image = self.get_cached(overlay_dir / f"chaos_{token}.png")
+                except Exception as e:
+                    print(e)
                     continue
 
                 size = min(
@@ -741,7 +749,7 @@ class CardRenderer:
                 )
 
                 token_image = token_image.resize((int(size), int(size)))
-                x = int(region.x + token_image.width*token_index)
+                x = int(region.x + token_image.width * token_index)
                 card_image.paste(token_image, (x, y), token_image)
 
             self.rich_text.render_text(
@@ -749,9 +757,9 @@ class CardRenderer:
                 entry['text'],
                 Region.unscaled({'x': (region.x+region.width//3), 'y': y, 'height': region.height//len(entries), 'width': (2*region.width)//3}),
                 font=font.get('font', 'regular'),
-                font_size=font.get('size', 32)*Region.SCALE,
+                font_size=int(font.get('size', 32)*Region.SCALE),
                 fill=font.get('color', '#231f20'),
-                outline=font.get('outline'),
+                outline=int(font.get('outline', 0)*Region.SCALE),
                 outline_fill=font.get('outline_color'),
                 alignment=font.get('alignment', 'left'),
             )

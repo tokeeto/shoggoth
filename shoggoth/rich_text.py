@@ -812,7 +812,7 @@ class RichTextRenderer:
                 # if this is a bullet, at the start of a new line, indent it
                 if token['value'] == 'b' and not current_line:
                     current_indent = token_width + get_token_width(
-                        {'type': 'text', 'value': "   ", 'font': current_font}
+                        {'type': 'text', 'value': " ", 'font': current_font}
                     )
 
                 # Check if adding this icon would exceed the max width

@@ -246,8 +246,8 @@ class FaceEditor(QWidget):
         return ''
 
     # Fields that require type conversion
-    INTEGER_FIELDS = {'illustration_pan_x', 'illustration_pan_y'}
-    FLOAT_FIELDS = {'illustration_scale'}
+    INTEGER_FIELDS = {}
+    FLOAT_FIELDS = {'illustration_scale', 'illustration_pan_x', 'illustration_pan_y'}
     LIST_FIELDS = {'classes'}  # Fields stored as lists but displayed as comma-separated
 
     def on_field_changed(self, field_name):

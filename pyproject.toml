@@ -1,6 +1,6 @@
 [project]
 name = "shoggoth"
-version = "0.3.1"
+version = "0.3.2"
 authors = [{ name = "Toke Ivø", email = "toke.ivo@gmail.com" }]
 description = "A card creator for Arkham Horror: The Card Game"
 readme = "README.md"
@@ -19,10 +19,9 @@ dependencies = [
     "pygments>=2.19.1",
     "pymupdf>=1.26.5",
     "pillow>=11.2.1",
-    "cairosvg>=2.8.2",
-    "weasyprint>=66.0",
     "pyside6>=6.10.1",
     "requests>=2.32.5",
+    "pyvips[binary]>=3.1.1",
 ]
 
 [project.urls]
