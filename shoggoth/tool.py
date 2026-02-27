@@ -3,8 +3,7 @@ import argparse
 import multiprocessing
 from shoggoth.files import asset_dir, root_dir
 from shoggoth.settings import EXPORT_SIZES
-import urllib.request
-import zipfile
+from shoggoth import updater
 from os import makedirs
 
 
@@ -13,16 +12,6 @@ log_file = root_dir / 'session.log'
 if not log_file.exists():
     makedirs(root_dir, exist_ok=True)
 logging.basicConfig(filename=log_file, level=logging.INFO)
-
-
-def version_is_up_to_date() -> bool:
-    """ Parses the asset pack version """
-    if not (asset_dir / 'version.txt').exists():
-        return False
-    with (asset_dir / 'version.txt').open('r') as f:
-        if not f.read().startswith('1.0.0'):
-            return False
-    return True
 
 
 def run():
@@ -44,17 +33,11 @@ def run():
     root_dir.mkdir(parents=True, exist_ok=True)
 
     # ensure assets directory exists
-    if args.refresh or not asset_dir.is_dir() or not version_is_up_to_date():
-        logger.info("Asset pack not found. Downloading assets...")
-        # download assets
-        url = 'https://www.dropbox.com/scl/fi/6430x09x1ex7oh05qsr9j/assets-1-0-0.zip?rlkey=un15ovgndos0xf0z6bw53etc0&st=3cqmhex5&dl=1'
-        filehandle, _ = urllib.request.urlretrieve(url)
-        with zipfile.ZipFile(filehandle, 'r') as file:
-            file.extractall(root_dir)
-        logger.info("Assets downloaded successfully.")
-    else:
-        logger.info("Asset pack up to date.")
+    if args.refresh:
+        (asset_dir / updater.ASSETS_STATE_FILE).unlink(missing_ok=True)
+    updater.ensure_assets_current()
 
+    # flag for using shoggoth as a cli tool
     if args.render:
         from time import time
         t = time()
@@ -81,6 +64,8 @@ def run():
             )
         logger.info(f'Tool.render took {time()-t} seconds.')
         return
+
+    # run the test cases
     if args.test:
         from time import time
         t = time()
@@ -123,10 +108,10 @@ def run():
 
         print(f'Tool.test took {time()-t} seconds.')
         return
-    else:
-        # Start in normal mode
-        from shoggoth.main_qt import main
-        main()
+
+    # Start in normal mode
+    from shoggoth.main_qt import main
+    main()
 
 
 if __name__ == '__main__':

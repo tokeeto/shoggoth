@@ -895,7 +895,7 @@ class ShoggothMainWindow(QMainWindow):
         self.load_settings()
 
         # Initialize update manager (before setup_ui so menu can reference it)
-        from shoggoth.updater import UpdateManager
+        from shoggoth.updater_ui import UpdateManager
         self.update_manager = UpdateManager(self.config, self)
 
         # Setup UI
