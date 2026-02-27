@@ -26,7 +26,7 @@ def run():
     parser.add_argument('-f', '--format', metavar='STRING', help='--render mode option. Should be one of jpeg, png or webp. Other formats might be supported, as per PIL documentation.', default='jpeg')
     parser.add_argument('-s', '--size', metavar='INT', type=int, help='--render mode option. Should be one of 0, 1 or 2, for either full, half or quater resolution.', default=0)
     parser.add_argument('-re', '--refresh', metavar='FLAG', help='Re-downloads the asset files. Use in case of corrupt asset folder, or in case of new version.')
-    parser.add_argument('test', help='Runs the test case, and exports the text project.')
+    parser.add_argument('--test', help='Runs the test case, and exports the text project.', action='store_true')
     args = parser.parse_args()
 
     # ensure directories exist
