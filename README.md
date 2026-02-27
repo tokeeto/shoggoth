@@ -7,25 +7,21 @@ Under development. Viewermode probably out of date. Lots of stuff has only been 
 Shoggoth allows you to create homebrew cards for Arkham Horror: The Card Game. It features a sensible templating system with inheritance, that makes it easy to define new cards in very few rules.
 
 ## Installation:
-**Recommended**
-It's recommended to install Shoggoth as a python tool. If this scares you, check out the "easy" option below.
-1. Install [python](https://python.org).
-2. Install Shoggoth as a python tool, using `pipx install shoggoth` (or `uvx shoggoth` if you use uv). 
+The easiest way is to head to [releases](https://github.com/tokeeto/shoggoth/releases/latest) and grab the file for your system.
 
-**Easy installation**
-1. Download the build for releases for your system.
-2. Run the application.
+If you're on linux, or are comfortable around python, you can install Shoggoth as a python tool, using `pipx install shoggoth` (or `uvx shoggoth` if you use uv).
+
 Note, that due to this being a hobby project, I'm not going to spend resources on obtaining a Apple developer license, and as such, Mac will complain about the application being unsigned, insecure or unknown. That is expected.
 
 **Security and false positives in virus detection**
 Windows defender has on ocassion reported Shoggoth as being harmful.
 Shoggoth is not malware, but it does a lot of the same things as malware - it downloads files from the internet without asking you (asset files), unpacks them, and parse arbitrary files (projects/cards) on your system.
-All of this is intended and expected. That being said, Shoggoth is not reviewed for security, and you shouldn't try to run files from people you don't trust. I can't give you any guarantee that the standard python json module doesn't have some exploit, that will allow someone take over your system. Most software can't make that guarantee.
+All of this is intended and expected. That being said, Shoggoth is not reviewed for security, and you shouldn't try to run files from people you don't trust. I can't give you any guarantee that the standard python json module doesn't have some exploit that will allow someone take over your system. Most software can't make that guarantee.
 
 ## Usage
-You can either start Shoggoth in UI mode using `shoggoth`, or you can run it in "viewer mode" using `shoggoth -v path/to/project_file.json`.
+Simply start Shoggoth for the UI mode.
 In UI mode, you'll have an experience similar to other card designers, where the UI will help guide you along to create cards similar to official cards.
-In viewer mode, you can use your favorite json/text editor to edit the project file, and the viewer will refresh on each and every file save, while jumping straight to first detected change - effectively showing you the card you're working on, live while you write it.
+You can also use shoggoth as a cli tool. Run `shoggoth --help` for more information.
 
 ## Card and data design
 Shoggoth is built for Arkham Horror: The Card Game (trademarked by Fantasy Flight Games. No affiliation, nor endorsement whatsoever).
