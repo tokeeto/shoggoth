@@ -113,6 +113,8 @@
   "MSG_NO_CARD_SELECTED": "No card selected",
   "MSG_NO_PROJECT_LOADED": "No project loaded",
   "MSG_NO_PROJECT_OPEN": "No project open",
+  "STATUS_PROJECT_ENUMERATED": "All cards have been enumerated.",
+  "MENU_AUTO_ENUMERATE": "Enumerate all cards.",
 
   "// ===== DIALOGS - FILE DIALOGS =====": "",
   "DLG_OPEN_PROJECT": "Open Project",
@@ -622,5 +624,9 @@
   "CTX_NEW_CARD_TYPE": "New {card_type}",
   "CTX_NEW_CATEGORY_CARD": "New {category_name} Card",
   "PROMPT_ENTER_CARD_NAME": "Enter card name",
-  "CTX_PLAYER_CARD": "Player Card"
+  "CTX_PLAYER_CARD": "Player Card",
+
+  "// ====== TRANSLATION CLASS =====": "",
+  "ERROR_TRANSLATION_MISSING_LANGUAGE": "Error: Translation file doesn't define language.",
+  "ERROR_TRANSLATION_MISSING_PROJECT": "Error: Translation file doesn't define parent project."
 }

@@ -14,6 +14,7 @@ from PySide6.QtGui import (
     QCursor, QImage
 )
 from io import BytesIO
+from shoggoth.files import overlay_dir
 
 
 class ConnectionArrow(QGraphicsPathItem):
@@ -220,8 +221,7 @@ class LocationNode(QGraphicsItem):
         """Load the connection symbol icon"""
         connection = self.face.get('connection')
         if connection:
-            from shoggoth.files import overlay_dir
-            icon_path = overlay_dir / f"location_hi_{connection}.png"
+            icon_path = overlay_dir / 'svg' / f"connection_{connection}.svg"
             if icon_path.exists():
                 self._connection_icon = QPixmap(str(icon_path))
 

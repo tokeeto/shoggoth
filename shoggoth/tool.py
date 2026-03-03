@@ -110,7 +110,7 @@ def run():
         return
 
     # Start in normal mode
-    from shoggoth.main_qt import main
+    from shoggoth.ui.app import main
     main()
 
 

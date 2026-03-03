@@ -28,7 +28,7 @@ class Face:
         try:
             with defaults_path.open('r') as f:
                 fallback = json.load(f)
-                if 'parent' in fallback and fallback['parent']:
+                if fallback.get('parent'):
                     parent = self.__build_fallback(fallback['parent'])
                     fallback = parent | fallback
         except Exception as e:
@@ -240,7 +240,7 @@ class Card:
 
     def save(self):
         print('Saving card', self.id)
-        self.expansion.save_card(self)
+        self.expansion.writer.save_card(self)
         self.dirty = False
         # Update tree to remove dirty indicator
         if shoggoth.app:

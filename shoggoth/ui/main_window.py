@@ -17,15 +17,15 @@ import threading
 from io import BytesIO
 
 import shoggoth
-from shoggoth.project import Project
+from shoggoth.project import Project, Translation
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import CardFileMonitor
 from shoggoth.files import defaults_dir, asset_dir, font_dir, overlay_dir, root_dir
-from shoggoth.preview_widget import ImprovedCardPreview
-from shoggoth.goto_dialog import GotoCardDialog
-from shoggoth.encounter_editor import EncounterSetEditor
+from shoggoth.ui.preview_widget import ImprovedCardPreview
+from shoggoth.ui.goto_dialog import GotoCardDialog
+from shoggoth.ui.encounter_editor import EncounterSetEditor
 from shoggoth.i18n import get_available_languages, load_language, get_current_language, tr
-from shoggoth.editors import CardEditor
+from shoggoth.ui.card_editor import CardEditor
 
 
 class DraggableTreeWidget(QTreeWidget):
@@ -257,7 +257,7 @@ class FileBrowser(QWidget):
         self._node_map = {}  # Maps node_id -> QTreeWidgetItem for fast lookup
 
         # Context menu handler
-        from shoggoth.tree_context_menu import TreeContextMenu
+        from shoggoth.ui.tree_context_menu import TreeContextMenu
         self.context_menu = TreeContextMenu(self)
 
     @property
@@ -391,10 +391,15 @@ class FileBrowser(QWidget):
         if not project:
             return None
 
-        # Root node
+        # Root node — translation projects get a distinct node_id and label
+        node_id_path = getattr(project, '_node_id_path', project.file_path)
+        translation = getattr(project, '_translation', None)
+        label = (f"{translation.language} translation of {project['name']}"
+                 if translation else project['name'])
+
         root_spec = {
-            'node_id': f'project:{project.file_path}',
-            'text': project['name'],
+            'node_id': f'project:{node_id_path}',
+            'text': label,
             'type': 'project',
             'data': project,
             'icon': None,
@@ -895,7 +900,7 @@ class ShoggothMainWindow(QMainWindow):
         self.load_settings()
 
         # Initialize update manager (before setup_ui so menu can reference it)
-        from shoggoth.updater_ui import UpdateManager
+        from shoggoth.ui.updater_ui import UpdateManager
         self.update_manager = UpdateManager(self.config, self)
 
         # Setup UI
@@ -1155,6 +1160,17 @@ class ShoggothMainWindow(QMainWindow):
         add_inv_exp_action.triggered.connect(self.add_investigator_expansion_template)
         project_menu.addAction(add_inv_exp_action)
 
+        # ── Translation ──────────────────────────────────────────────────────
+        project_menu.addSeparator()
+
+        add_translation_action = QAction("Add Translation...", self)
+        add_translation_action.triggered.connect(self.add_translation_dialog)
+        project_menu.addAction(add_translation_action)
+
+        load_translation_action = QAction("Load Translation...", self)
+        load_translation_action.triggered.connect(self.load_translation_dialog)
+        project_menu.addAction(load_translation_action)
+
         # ==================== EXPORT MENU ====================
         export_menu = menubar.addMenu(tr("MENU_EXPORT"))
 
@@ -1300,10 +1316,13 @@ class ShoggothMainWindow(QMainWindow):
 
         # Support for multiple open projects
         open_project_paths = session.get('open_projects', [])
+        open_translation_paths = session.get('open_translations', [])
         active_project_path = session.get('active_project', session.get('project'))
 
-        # Fallback to single project if no list exists
-        if not open_project_paths and active_project_path:
+        # Fallback for old sessions that stored only a single project path.
+        # Only apply when there are no translations recorded; if the active path
+        # matches a translation we must not open it as a plain project.
+        if not open_project_paths and not open_translation_paths and active_project_path:
             open_project_paths = [active_project_path]
 
         for project_path in open_project_paths:
@@ -1312,10 +1331,18 @@ class ShoggothMainWindow(QMainWindow):
             except Exception as e:
                 print(f"Error restoring project {project_path}: {e}")
 
-        # Set the active project
+        for trans_path in open_translation_paths:
+            try:
+                self.open_translation(trans_path)
+            except Exception as e:
+                print(f"Error restoring translation {trans_path}: {e}")
+
+        # Set the active project — match by _node_id_path for translations,
+        # file_path for regular projects.
         if active_project_path:
             for project in self.open_projects:
-                if project.file_path == active_project_path:
+                path = getattr(project, '_node_id_path', project.file_path)
+                if path == active_project_path:
                     self.file_browser.set_active_project(project)
                     break
 
@@ -1326,10 +1353,17 @@ class ShoggothMainWindow(QMainWindow):
 
     def _save_session(self):
         """Save current session state"""
-        self.settings['session']['open_projects'] = [p.file_path for p in self.open_projects]
-        self.settings['session']['active_project'] = self.active_project.file_path if self.active_project else None
+        regular = [p.file_path for p in self.open_projects
+                   if not getattr(p, '_translation', None)]
+        trans = [p._node_id_path for p in self.open_projects
+                 if getattr(p, '_translation', None)]
+        active_path = (getattr(self.active_project, '_node_id_path', self.active_project.file_path)
+                       if self.active_project else None)
+        self.settings['session']['open_projects'] = regular
+        self.settings['session']['open_translations'] = trans
+        self.settings['session']['active_project'] = active_path
         # Keep legacy 'project' key for backward compatibility
-        self.settings['session']['project'] = self.active_project.file_path if self.active_project else None
+        self.settings['session']['project'] = active_path
         self.save_settings()
 
     def _restore_last_element(self, element_id, element_type):
@@ -1457,7 +1491,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def new_project_dialog(self):
         """Show dialog to create a new project"""
-        from shoggoth.dialogs import NewProjectDialog
+        from shoggoth.ui.dialogs import NewProjectDialog
         dialog = NewProjectDialog(self)
         dialog.exec()
 
@@ -1607,7 +1641,7 @@ class ShoggothMainWindow(QMainWindow):
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
 
-        from shoggoth.dialogs import NewCardDialog
+        from shoggoth.ui.dialogs import NewCardDialog
         dialog = NewCardDialog(self)
         dialog.exec()
 
@@ -1658,6 +1692,10 @@ class ShoggothMainWindow(QMainWindow):
         # Show preview dock
         self.preview_dock.show()
         self.toggle_preview_action.setChecked(True)
+
+        # Enter translation mode if this card belongs to a translation project
+        if card.expansion.data.get('project'):
+            editor.enter_translation_mode()
 
         # Set splitter sizes (60% editor, 40% would be preview but it's docked)
         card_splitter.setSizes([200, 200])
@@ -1775,7 +1813,7 @@ class ShoggothMainWindow(QMainWindow):
                 item.widget().setParent(None)
 
         # Create project editor
-        from shoggoth.project_editor import ProjectEditor
+        from shoggoth.ui.project_editor import ProjectEditor
         editor = ProjectEditor(project, self.card_renderer)
 
         # Wrap in scroll area
@@ -1808,7 +1846,7 @@ class ShoggothMainWindow(QMainWindow):
                 item.widget().setParent(None)
 
         # Create and add guide editor
-        from shoggoth.guide_editor import GuideEditor
+        from shoggoth.ui.guide_editor import GuideEditor
         editor = GuideEditor(guide)
         self.content_layout.addWidget(editor)
 
@@ -1836,12 +1874,89 @@ class ShoggothMainWindow(QMainWindow):
                 item.widget().setParent(None)
 
         # Create and add location view
-        from shoggoth.location_view import LocationViewWidget
+        from shoggoth.ui.location_view import LocationViewWidget
         self.location_view = LocationViewWidget(encounter_set, self.card_renderer)
         self.location_view.card_selected.connect(self.show_card)
         self.content_layout.addWidget(self.location_view)
 
         self.status_bar.showMessage(tr("STATUS_EDITING_LOCATIONS").format(name=encounter_set.name))
+
+    # ── Translation management ────────────────────────────────────────────────
+
+    def add_translation_dialog(self):
+        """Prompt for a language code and create a new translation sidecar file."""
+        if not self.active_project:
+            return
+        from PySide6.QtWidgets import QInputDialog
+        lang, ok = QInputDialog.getText(
+            self, "Add Translation", "Language code (e.g. dk, de, fr):"
+        )
+        if not ok or not lang.strip():
+            return
+        lang = lang.strip().lower()
+        if lang in self.active_project.data.get('translations', {}):
+            QMessageBox.warning(self, "Add Translation", f"Translation '{lang}' already exists.")
+            return
+
+        from pathlib import Path
+        project_path = Path(self.active_project.file_path)
+        translation_path = project_path.parent / f"{project_path.stem}_{lang}.json"
+        data = Translation.new(project_path, lang)
+        tr_obj = Translation(translation_path, data, lang)
+        tr_obj.save()
+
+        self.active_project.add_translation(lang, translation_path.name)
+        self.active_project.save_all()
+        self.status_bar.showMessage(f"Translation '{lang}' added: {translation_path.name}")
+
+        # Auto-open the new translation project
+        self.open_project(str(translation_path))
+
+    def load_translation_dialog(self):
+        """Show dialog to load an existing registered translation."""
+        if not self.active_project:
+            QMessageBox.information(self, "Load Translation", "Open a project first.")
+            return
+        translations = self.active_project.translations  # {lang: Path}
+        if not translations:
+            QMessageBox.information(self, "Load Translation",
+                "This project has no registered translations.")
+            return
+        from PySide6.QtWidgets import QInputDialog
+        choices = [f"{lang}  ({path.name})" for lang, path in translations.items()]
+        choice, ok = QInputDialog.getItem(
+            self, "Load Translation", "Choose a translation:", choices, 0, False)
+        if not ok:
+            return
+        lang = choice.split("  ")[0]
+        self.open_translation(str(translations[lang]))
+
+    def open_translation(self, file_path):
+        """Open a translation file and add its translated project to the tree."""
+        try:
+            # Avoid duplicate opens — keyed by translation file path
+            for project in self.open_projects:
+                if getattr(project, '_node_id_path', None) == file_path:
+                    self.file_browser.set_active_project(project)
+                    self.status_bar.showMessage(
+                        f"Switched to {project._translation.language} translation")
+                    return
+
+            translation = Translation.load(file_path)
+            project = translation.project
+            project._translation = translation      # ephemeral: language reference
+            project._node_id_path = file_path       # ephemeral: unique node key
+
+            self.open_projects.append(project)
+            self.active_project = project
+            self.file_browser.add_project(project)
+            self._save_session()
+            self.status_bar.showMessage(
+                f"Opened {translation.language} translation of {project['name']}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Could not open translation:\n{e}")
+
+    # ── Preview ───────────────────────────────────────────────────────────────
 
     def schedule_preview_update(self):
         """Schedule a debounced preview update (400ms delay)"""

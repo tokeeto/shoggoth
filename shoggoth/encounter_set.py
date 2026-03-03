@@ -69,3 +69,23 @@ class EncounterSet:
     def set(self, key, value):
         self.data[key] = value
         self.dirty = True
+
+
+class EncounterSetTranslation(EncounterSet):
+    def __init__(self, data, translation_data, expansion):
+        self.translation_data = translation_data
+        super().__init__(data, expansion)
+        self.name = self.translation_data.get('name', self.name)
+
+    @property
+    def cards(self):
+        result = []
+        for c in self.expansion.cards:
+            if c.get('encounter_set') == self.id:
+                result.append(c)
+        result.sort(key=lambda c: c.name)
+        return result
+
+    def set(self, key, value):
+        self.translation_data[key] = value
+        self.dirty = True

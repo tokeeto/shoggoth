@@ -5,7 +5,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 
-from shoggoth.main_window import ShoggothMainWindow
+from shoggoth.ui.main_window import ShoggothMainWindow
 from shoggoth.settings import SettingsManager
 from shoggoth.i18n import load_language
 

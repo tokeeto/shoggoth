@@ -465,7 +465,7 @@ class CardRenderer:
 
             if value and value != "None":
                 region = Region(side.get('connection_region'))
-                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection-{value}.svg", region.size)
+                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{value}.svg", region.size)
 
                 padding = int(24*Region.SCALE)
                 base_image = self.get_resized_cached(
@@ -486,7 +486,7 @@ class CardRenderer:
                 if not icon or icon == "None":
                     continue
                 region = Region(side.get(f'connection_{index+1}_region'))
-                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection-{icon}.svg", region.size)
+                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{icon}.svg", region.size)
                 card_image.paste(connection_image, (region.x+int(12*Region.SCALE), region.y+int(12*Region.SCALE)), connection_image)
         except Exception as e:
             print('error in connection', e)

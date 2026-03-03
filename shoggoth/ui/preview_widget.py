@@ -43,14 +43,14 @@ class ZoomableImageLabel(QLabel):
 
         # Enable mouse tracking for panning
         self.setMouseTracking(True)
-    
+
     def setPixmap(self, pixmap):
         """Set the pixmap and reset zoom/pan"""
         self.original_pixmap = pixmap
         self.zoom_factor = 1.0
         self.current_offset = QPoint(0, 0)
         self.update_display()
-    
+
     def update_display(self):
         """Update the displayed image with current zoom and pan"""
         if not self.original_pixmap:
@@ -86,7 +86,7 @@ class ZoomableImageLabel(QLabel):
         )
 
         super().setPixmap(scaled_pixmap)
-    
+
     def set_illustration_mode(self, enabled):
         """Enable or disable illustration positioning mode"""
         self.illustration_mode = enabled
@@ -161,29 +161,29 @@ class ZoomableImageLabel(QLabel):
                 self.current_offset += delta
                 # Note: For true panning, we'd need to use QGraphicsView
                 # For now, zoom is the main feature
-    
+
     def resizeEvent(self, event):
         """Handle resize to update display"""
         super().resizeEvent(event)
         if self.original_pixmap:
             self.update_display()
-    
+
     def reset_zoom(self):
         """Reset zoom to 100%"""
         self.zoom_factor = 1.0
         self.current_offset = QPoint(0, 0)
         self.update_display()
-    
+
     def zoom_in(self):
         """Zoom in"""
         self.zoom_factor = min(self.max_zoom, self.zoom_factor + self.zoom_step)
         self.update_display()
-    
+
     def zoom_out(self):
         """Zoom out"""
         self.zoom_factor = max(self.min_zoom, self.zoom_factor - self.zoom_step)
         self.update_display()
-    
+
     def fit_to_window(self):
         """Fit image to window"""
         self.zoom_factor = 1.0

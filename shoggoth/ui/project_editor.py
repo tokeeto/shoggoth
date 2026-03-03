@@ -43,6 +43,13 @@ class ProjectEditor(QWidget):
 
     def setup_ui(self):
         """Setup the user interface"""
+        if self.project.data.get('project'):
+            self._setup_translation_ui()
+        else:
+            self._setup_project_ui()
+
+    def _setup_project_ui(self):
+        """Full editor for normal projects"""
         layout = QVBoxLayout()
 
         # Project info section
@@ -108,6 +115,13 @@ class ProjectEditor(QWidget):
         stats_group.setLayout(stats_layout)
         layout.addWidget(stats_group)
 
+        # Translations section
+        self.translations_group = QGroupBox("Translations")
+        self.translations_layout = QVBoxLayout()
+        self.translations_layout.setContentsMargins(8, 8, 8, 8)
+        self.translations_group.setLayout(self.translations_layout)
+        layout.addWidget(self.translations_group)
+
         # Card thumbnails section
         thumbnails_group = QGroupBox(tr("TITLE_CARD_OVERVIEW"))
         thumbnails_layout = QVBoxLayout()
@@ -130,20 +144,82 @@ class ProjectEditor(QWidget):
 
         self.setLayout(layout)
 
+    def _setup_translation_ui(self):
+        """Simplified view for translation projects"""
+        layout = QVBoxLayout()
+
+        # Info section: parent project and language
+        info_group = QGroupBox("Translation")
+        info_layout = QFormLayout()
+
+        parent_label = QLabel(self.project.data.get('project', ''))
+        parent_label.setStyleSheet('color: grey;')
+        info_layout.addRow("Parent project:", parent_label)
+
+        lang_label = QLabel(self.project.data.get('language', '').upper())
+        info_layout.addRow("Language:", lang_label)
+
+        self.card_count_label = QLabel("0")
+        info_layout.addRow(tr("FIELD_TOTAL_CARDS"), self.card_count_label)
+
+        info_group.setLayout(info_layout)
+        layout.addWidget(info_group)
+
+        # Card thumbnails section
+        thumbnails_group = QGroupBox(tr("TITLE_CARD_OVERVIEW"))
+        thumbnails_layout = QVBoxLayout()
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setMinimumHeight(300)
+
+        self.thumbnail_container = QWidget()
+        self.thumbnail_grid = QGridLayout()
+        self.thumbnail_grid.setSpacing(10)
+        self.thumbnail_container.setLayout(self.thumbnail_grid)
+
+        scroll.setWidget(self.thumbnail_container)
+        thumbnails_layout.addWidget(scroll)
+
+        thumbnails_group.setLayout(thumbnails_layout)
+        layout.addWidget(thumbnails_group)
+
+        self.setLayout(layout)
+
     def load_data(self):
         """Load project data into fields"""
         self._updating = True
 
-        self.name_input.setText(self.project.get('name', ''))
-        self.code_input.setText(self.project.get('code', ''))
-        self.copyright_input.setText(self.project.get('default_copyright', ''))
-        self.icon_input.setText(self.project.get('icon', ''))
+        if self.project.data.get('project'):
+            # Translation project: only show card count
+            self.card_count_label.setText(str(len(self.project.get_all_cards())))
+        else:
+            self.name_input.setText(self.project.get('name', ''))
+            self.code_input.setText(self.project.get('code', ''))
+            self.copyright_input.setText(self.project.get('default_copyright', ''))
+            self.icon_input.setText(self.project.get('icon', ''))
 
-        # Update statistics
-        encounter_sets = list(self.project.encounter_sets)
-        self.encounter_count_label.setText(str(len(encounter_sets)))
-        self.card_count_label.setText(str(len(self.project.get_all_cards())))
-        self.player_card_count_label.setText(str(len(self.project.player_cards)))
+            # Update statistics
+            encounter_sets = list(self.project.encounter_sets)
+            self.encounter_count_label.setText(str(len(encounter_sets)))
+            self.card_count_label.setText(str(len(self.project.get_all_cards())))
+            self.player_card_count_label.setText(str(len(self.project.player_cards)))
+
+            # Refresh translations list
+            while self.translations_layout.count():
+                item = self.translations_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+
+            translations = self.project.data.get('translations', {})
+            if translations:
+                from PySide6.QtWidgets import QFormLayout
+                form = QFormLayout()
+                for lang, path in translations.items():
+                    form.addRow(QLabel(lang.upper()), QLabel(path))
+                self.translations_layout.addLayout(form)
+            else:
+                self.translations_layout.addWidget(QLabel("No translations registered."))
 
         self._updating = False
 
@@ -208,7 +284,7 @@ class ProjectEditor(QWidget):
         for index, card in enumerate(cards):
             try:
                 # Render thumbnail
-                front_image, _ = self.card_renderer.get_card_textures(card, bleed=False)
+                front_image, _ = self.card_renderer.get_card_textures(card, {'width': 750, 'height': 1050, 'bleed': 36}, bleed=False)
 
                 # Convert to QPixmap
                 front_image.seek(0)

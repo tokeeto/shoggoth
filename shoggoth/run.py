@@ -10,7 +10,7 @@ parent_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(parent_dir))
 
 # Now we can import and run the Qt version
-from shoggoth.main_qt import main
+from shoggoth.ui.app import main
 
 if __name__ == "__main__":
     main()

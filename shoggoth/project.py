@@ -6,8 +6,11 @@ from pathlib import Path
 import shoggoth
 from shoggoth.card import TEMPLATES, Card
 from shoggoth.encounter_set import EncounterSet
-from shoggoth.files import asset_dir, guide_dir
+from shoggoth.files import guide_dir
 from shoggoth.guide import Guide
+from shoggoth.i18n import tr
+from shoggoth.project_writer import Writer, TranslationWriter
+
 
 type_order = {
     "scenario": 0,
@@ -51,12 +54,14 @@ class Project:
 
         Projects are ultimately just representations of json files.
     """
+
     def __init__(self, file_path, data):
         self.file_path = file_path
         self.data = data
         if 'id' not in self.data:
             self.data['id'] = str(uuid4())
         self.id = data['id']
+        self.writer = Writer(self)
 
     @property
     def dirty(self):
@@ -93,12 +98,37 @@ class Project:
     def get(self, key, default=None):
         return self.data.get(key, default)
 
+    @property
+    def translations(self):
+        """Return a dict of {language: Translation} for all registered translations."""
+        result = {}
+        for lang, rel_path in self.data.get('translations', {}).items():
+            full_path = self.folder / rel_path
+            result[lang] = full_path
+        print(result)
+        return result
+
+    def add_translation(self, language, file_path):
+        """Register a translation file. *file_path* may be absolute or relative."""
+        rel = Path(file_path).relative_to(self.folder) if Path(file_path).is_absolute() else Path(file_path)
+        if 'translations' not in self.data:
+            self.data['translations'] = {}
+        self.data['translations'][language] = str(rel)
+        self.dirty = True
+
+    def save_all(self):
+        self.writer.save_all()
+
+    def save(self):
+        # self.writer.save_project(self)
+        self.writer.save_all()
+
     def get_card(self, id):
         for entry in self.data.get('cards', []):
-            if 'id' in entry and entry['id'] == id:
+            if entry.get('id') == id:
                 return Card(entry, expansion=self)
 
-    @property 
+    @property
     def guides(self):
         result = []
         for entry in self.data.get('guides', []):
@@ -117,7 +147,7 @@ class Project:
 
     @property
     def player_cards(self):
-        c = [Card(card, expansion=self) for card in self.data['cards'] if 'encounter_set' not in card]
+        c = [Card(card, expansion=self) for card in self.data.get('cards', []) if 'encounter_set' not in card]
         sort_cards(c)
         return c
 
@@ -227,39 +257,6 @@ class Project:
     def remove_encounter_set(self, index):
         self.data['encounter_sets'].pop(index)
 
-    def save(self):
-        """Save data to file"""
-        with open(self.file_path, 'r') as f:
-            orig_data = json.load(f)
-        for key in self.data:
-            if key in ('cards', 'encounter_sets', 'guides'):
-                continue
-            orig_data[key] = self.data[key]
-
-        with open(self.file_path, 'w') as f:
-            json.dump(self.data, f, indent=4)
-        self.dirty = False
-
-    def save_card(self, card):
-        print('saving card of project', card.id)
-        with open(self.file_path, 'r') as f:
-            orig_data = json.load(f)
-        index = None
-        for key, value in enumerate(orig_data['cards']):
-            if value['id'] == card.id:
-                index = key
-                break
-        if index:
-            orig_data['cards'][index] = card.data
-        with open(self.file_path, 'w') as f:
-            json.dump(orig_data, f, indent=4)
-        self.set_dirty(card.id, False)
-
-    def save_all(self):
-        """Save data to file"""
-        self.clear_dirty()
-        with open(self.file_path, 'w') as f:
-            json.dump(self.data, f, indent=4)
 
     @staticmethod
     def new(name, code, icon):
@@ -272,14 +269,14 @@ class Project:
             'cards': [],
         }
 
-    def add_guide(self):
+    def add_guide(self, name='Guide', file_name='guide'):
         default_guide = guide_dir / 'guide_template.html'
-        shutil.copyfile(default_guide, self.folder / 'guide.html')
+        shutil.copyfile(default_guide, self.folder / f'{file_name}.html')
         if 'guides' not in self.data:
             self.data['guides'] = []
         self.data['guides'].append({
-            'path': str(self.folder / 'guide.html'),
-            'name': 'Guide',
+            'path': str(self.folder / f'{file_name}.html'),
+            'name': name,
             'id': str(uuid4()),
         })
         shoggoth.app.refresh_tree()
@@ -442,3 +439,69 @@ class Project:
         for card in cards:
             self.add_card(card)
         shoggoth.app.refresh_tree()
+
+
+def update(d, u):
+    import collections.abc
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
+
+class Translation:
+    """ A translated version of a project.
+        Only really supports work and changes to the translation of
+        the project. Any changes to cards should happen in the Project
+        itself.
+    """
+
+    def __init__(self, file_path, data):
+        self.file_path = str(file_path)
+        self.data = data
+        if 'language' not in self.data:
+            raise Exception(tr("ERROR_TRANSLATION_MISSING_LANGUAGE"))
+        self.language = data['language']
+        if 'project' not in self.data:
+            raise Exception(tr("ERROR_TRANSLATION_MISSING_PROJECT"))
+        self.project_path = Path(self.file_path).parent / Path(data['project'])
+        self.project = Project.load(self.project_path)
+        self.apply()
+
+    @classmethod
+    def load(cls, file_path):
+        """Load data from JSON file"""
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        return cls(file_path, data)
+
+    def apply(self):
+        """ Translates the project and overwrites the Writer of the project """
+        self.project.writer = TranslationWriter(self)
+
+        # project
+        self.project.data['name'] = self.data.get('project_name', self.project.name)
+
+        # encounter sets
+        for encounter_id in self.data.get('encounter_sets', {}):
+            encounter = self.project.get_card(encounter_id)
+            if not encounter:
+                continue
+            encounter.data['name'] = self.data['encounter_sets'][encounter_id]['name']
+
+        # cards
+        for card_id, card_data in self.data.get('cards', {}).items():
+            card = self.project.get_card(card_id)
+            if not card:
+                continue
+            card.data['name'] = card_data.get('name', card.name)
+            for field, value in card_data.get('front', {}).items():
+                card.data['front'][field] = value
+            for field, value in card_data.get('back', {}).items():
+                card.data['back'][field] = value
+
+        # guides
+        # overwrites the guides to hide non-translated guides
+        self.project.data['guides'] = self.data.get('guides', [])
