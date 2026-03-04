@@ -126,7 +126,7 @@ class DraggableTreeWidget(QTreeWidget):
 
         if card_ids:
             mime_data.setData('application/x-shoggoth-card',
-                            QByteArray(','.join(card_ids).encode()))
+                              QByteArray(','.join(card_ids).encode()))
         return mime_data
 
     def dragEnterEvent(self, event):
@@ -844,7 +844,6 @@ class FileBrowser(QWidget):
             self.context_menu.show_context_menu(item, global_pos)
 
 
-
 class ShoggothMainWindow(QMainWindow):
     """Main window for Shoggoth application"""
 
@@ -1251,10 +1250,10 @@ class ShoggothMainWindow(QMainWindow):
         # ==================== LANGUAGE MENU ====================
         language_menu = menubar.addMenu(tr("MENU_LANGUAGE"))
         self.language_actions = []
-        
+
         available_languages = get_available_languages()
         current_lang = self.config.get('Shoggoth', 'language', 'en')
-        
+
         for lang_code, lang_name in available_languages.items():
             action = QAction(lang_name, self)
             action.setCheckable(True)
@@ -1276,14 +1275,14 @@ class ShoggothMainWindow(QMainWindow):
         # Update checkmarks in menu
         for action in self.language_actions:
             action.setChecked(action.data() == lang_code)
-        
+
         # Save setting
         self.config.set('Shoggoth', 'language', lang_code)
         self.config.save()
-        
+
         # Load the new language
         load_language(lang_code)
-        
+
         # Show restart message
         QMessageBox.information(
             self,
@@ -1451,7 +1450,7 @@ class ShoggothMainWindow(QMainWindow):
             cancel_btn = msg_box.addButton(tr("DLG_CANCEL"), QMessageBox.RejectRole)
             msg_box.setDefaultButton(save_btn)
             msg_box.exec()
-            
+
             if msg_box.clickedButton() == save_btn:
                 project.save()
             elif msg_box.clickedButton() == cancel_btn:
@@ -1898,19 +1897,25 @@ class ShoggothMainWindow(QMainWindow):
             QMessageBox.warning(self, "Add Translation", f"Translation '{lang}' already exists.")
             return
 
-        from pathlib import Path
         project_path = Path(self.active_project.file_path)
         translation_path = project_path.parent / f"{project_path.stem}_{lang}.json"
-        data = Translation.new(project_path, lang)
-        tr_obj = Translation(translation_path, data, lang)
-        tr_obj.save()
+        data = {
+            'language': lang,
+            'project': project_path.name,
+            'project_name': self.active_project.name,
+            'encounter_sets': {},
+            'cards': {},
+            'guides': self.active_project.data.get('guides', []),
+        }
+        with open(translation_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
 
         self.active_project.add_translation(lang, translation_path.name)
         self.active_project.save_all()
         self.status_bar.showMessage(f"Translation '{lang}' added: {translation_path.name}")
 
         # Auto-open the new translation project
-        self.open_project(str(translation_path))
+        self.open_translation(str(translation_path))
 
     def load_translation_dialog(self):
         """Show dialog to load an existing registered translation."""
@@ -1920,7 +1925,7 @@ class ShoggothMainWindow(QMainWindow):
         translations = self.active_project.translations  # {lang: Path}
         if not translations:
             QMessageBox.information(self, "Load Translation",
-                "This project has no registered translations.")
+                                    "This project has no registered translations.")
             return
         from PySide6.QtWidgets import QInputDialog
         choices = [f"{lang}  ({path.name})" for lang, path in translations.items()]
