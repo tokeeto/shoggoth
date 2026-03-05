@@ -2,7 +2,7 @@
 import os
 
 # Files to include
-datas = []
+datas = [('shoggoth/translations/*', 'shoggoth/translations/')]
 
 # windows needs to manually download a version of sdl2
 # if platform.system() == 'Windows':
