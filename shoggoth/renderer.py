@@ -238,6 +238,30 @@ class CardRenderer:
 
         return value
 
+    _STORY_PLAYER_TYPES = {'asset', 'event', 'treachery', 'enemy', 'investigator', 'investigator_back'}
+    _STORY_CLASSES = {'story', 'storyweakness'}
+
+    def _get_side_classes(self, side):
+        classes = side.get('classes', [])
+        if not classes and side.get('type') == 'investigator_back':
+            classes = side.card.front.get('classes', [])
+        if isinstance(classes, str):
+            classes = [classes]
+        return {cls for cls in classes if cls}
+
+    def is_story_player_card(self, side):
+        """Return True when a card's class is 'story' or 'storyweakness', indicating
+        it should use the neutral template + story_event_overlay instead of a faction frame."""
+        if side.get('type') not in self._STORY_PLAYER_TYPES:
+            return False
+        return bool(self._get_side_classes(side) & self._STORY_CLASSES)
+
+    def _story_base_class(self, side):
+        """Return the base class name to substitute for story-class cards:
+        'weakness' for storyweakness, 'neutral' for all others."""
+        classes = self._get_side_classes(side)
+        return 'weakness' if 'storyweakness' in classes else 'neutral'
+
     def render_card_side_without_illustration(self, card, side, include_bleed=True):
         from shoggoth.card import Card
         if card in self.card_wo_illus_cache[card]:
@@ -550,23 +574,55 @@ class CardRenderer:
 
     def render_encounter_icon(self, card_image, side):
         """Render the encounter icon """
-        if not side.card.encounter and not side.get('encounter_icon', None):
-            return
+        is_story_card = self.is_story_player_card(side)
 
-        region = Region(side.get('encounter_icon_region'))
-        if not region:
+        encounter_icon = None
+        if side.card.encounter:
+            encounter_icon = side.card.encounter.icon
+        else:
+            encounter_set_id = side.card.get('encounter_set')
+            if encounter_set_id:
+                encounter_set = side.card.expansion.get_encounter_set(encounter_set_id)
+                if encounter_set:
+                    encounter_icon = encounter_set.icon
+
+        icon_path = side.get('encounter_icon', encounter_icon)
+
+        # Render icon when one of these is true:
+        # - story/storyweakness player cards
+        # - explicit encounter_icon override
+        # - a linked encounter set on the card (act/agenda/scenario/etc.)
+        if not is_story_card and not icon_path:
             return
 
         overlay = side.get('encounter_overlay')
+        if not overlay and is_story_card:
+            overlay = 'story_event_overlay.png'
+
+        if not icon_path and not overlay:
+            return
+
+        icon_region_data = side.get('encounter_icon_region_story') if is_story_card else side.get('encounter_icon_region')
+        if not icon_region_data:
+            icon_region_data = side.get('encounter_icon_region')
+        if not icon_region_data and is_story_card:
+            icon_region_data = side.get('class_symbol_1_region')
+        region = Region(icon_region_data)
+        if not region:
+            return
+
         if overlay:
             if not Path(overlay).is_file():
-                overlay = overlay_dir / overlay
+                overlay = self.overlays_path / overlay
             overlay_image = Image.open(overlay).convert("RGBA")
             overlay_region = Region(side.get('encounter_overlay_region'))
+            if not overlay_region:
+                overlay_region = Region(side.get('class_symbol_1_region'))
             overlay_image = overlay_image.resize(overlay_region.size)
             card_image.paste(overlay_image, overlay_region.pos, overlay_image)
 
-        icon_path = side.get('encounter_icon', side.card.encounter.icon)
+        if not icon_path:
+            return
 
         if not Path(icon_path).is_absolute():
             icon_path = Path(side.card.expansion.file_path).parent / Path(icon_path)
@@ -623,6 +679,10 @@ class CardRenderer:
         if '<class>' in template_value:
             side_class = side.get('classes', ['guardian'])
             card_class = side_class[0] if len(side_class) == 1 else 'multi'
+            # Story-class assets/events use neutral or weakness templates.
+            # Story investigators have dedicated investigator_story templates and should keep their class.
+            if self.is_story_player_card(side) and side.get('type') in ('asset', 'event'):
+                card_class = self._story_base_class(side)
             template_value = template_value.replace('<class>', card_class)
         if '<subtitle>' in template_value:
             sub = side.get('subtitle', '')
@@ -697,6 +757,8 @@ class CardRenderer:
             level = 'no_level'
 
         card_class = side.get_class()
+        if self.is_story_player_card(side):
+            card_class = self._story_base_class(side)
         is_skill = 'skill_' if side.get('type', '') == 'skill' else ''
 
         if is_skill and level != 'Custom':

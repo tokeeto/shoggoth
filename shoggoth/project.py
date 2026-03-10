@@ -73,7 +73,15 @@ class Project:
 
     @property
     def icon(self):
-        return self.data.get('icon', '')
+        icon = self.data.get('icon', '')
+        if not icon:
+            return ''
+
+        icon_path = Path(icon)
+        if icon_path.is_absolute():
+            return str(icon_path)
+
+        return str((self.folder / icon_path).resolve())
 
     @icon.setter
     def icon(self, value):
