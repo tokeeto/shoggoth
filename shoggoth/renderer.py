@@ -734,12 +734,26 @@ class CardRenderer:
 
         region = Region(side['chaos_region'])
         font = side.get("chaos_font", {})
+        slot_count = max(4, len(entries))
+        entry_height = region.height / slot_count
+        target_icon_size = card_image.width * 0.10
+        icon_offset_x = card_image.width / 40
+        text_gap_x = card_image.width / 70
         for index, entry in enumerate(entries):
             tokens = entry['token']
-            y = int(region.y + region.height/len(entries)*index)
+            row_y = region.y + entry_height * index
 
             if not isinstance(tokens, list):
                 tokens = [tokens]
+
+            size = min(
+                target_icon_size,
+                entry_height,
+                (region.width/3)/len(tokens)
+            )
+            size_int = int(size)
+            icon_y = int(row_y + (entry_height - size) / 2)
+            icon_start_x = int(region.x + icon_offset_x)
 
             for token_index, token in enumerate(tokens):
                 try:
@@ -748,19 +762,27 @@ class CardRenderer:
                     print(e)
                     continue
 
-                size = min(
-                    region.height/5.1,
-                    (region.width/3)/len(tokens)
-                )
+                token_image = token_image.resize((size_int, size_int))
+                x = int(icon_start_x + token_image.width * token_index)
+                card_image.paste(token_image, (x, icon_y), token_image)
 
-                token_image = token_image.resize((int(size), int(size)))
-                x = int(region.x + token_image.width * token_index)
-                card_image.paste(token_image, (x, y), token_image)
+            icon_group_width = size_int * len(tokens)
+            text_x = int(icon_start_x + icon_group_width + text_gap_x)
+            text_width = int(region.x + region.width - text_x)
+            if text_width <= 0:
+                continue
 
+            text = str(entry.get('text', ''))
+            text = text.replace('\r\n', '\n').replace('\r', '\n')
+
+            icon_center_y = icon_y + size_int / 2
+            max_text_height = int(entry_height)
+
+            temp_image = Image.new('RGBA', (text_width, max_text_height), (0, 0, 0, 0))
             self.rich_text.render_text(
-                card_image,
-                entry['text'],
-                Region.unscaled({'x': (region.x+region.width//3), 'y': y, 'height': region.height//len(entries), 'width': (2*region.width)//3}),
+                temp_image,
+                text,
+                Region.unscaled({'x': 0, 'y': 0, 'height': max_text_height, 'width': text_width}),
                 font=font.get('font', 'regular'),
                 font_size=int(font.get('size', 32)*Region.SCALE),
                 fill=font.get('color', '#231f20'),
@@ -768,6 +790,14 @@ class CardRenderer:
                 outline_fill=font.get('outline_color'),
                 alignment=font.get('alignment', 'left'),
             )
+
+            bbox = temp_image.getbbox()
+            if bbox:
+                actual_height = bbox[3] - bbox[1]
+                cropped = temp_image.crop(bbox)
+                text_y_pos = int(icon_center_y - actual_height / 2)
+                text_y_pos = max(int(row_y), min(text_y_pos, int(row_y + entry_height - actual_height)))
+                card_image.paste(cropped, (text_x, text_y_pos), cropped)
 
     def render_customizable(self, card_image, side):
         """ Renders the scenario reference cards.
