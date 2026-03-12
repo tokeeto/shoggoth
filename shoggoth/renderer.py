@@ -734,40 +734,90 @@ class CardRenderer:
 
         region = Region(side['chaos_region'])
         font = side.get("chaos_font", {})
-        slot_count = max(4, len(entries))
-        entry_height = region.height / slot_count
+
+        # Calculate slots needed for each entry based on token count
+        entry_slots = []
+        for entry in entries:
+            tokens = entry['token']
+            if not isinstance(tokens, list):
+                tokens = [tokens]
+            entry_slots.append(max(1, len(tokens)))
+
+        # Ensure minimum of 4 total slots
+        total_slots = max(4, sum(entry_slots))
+        base_height = region.height / total_slots
+
         target_icon_size = card_image.width * 0.10
         icon_offset_x = card_image.width / 40
         text_gap_x = card_image.width / 70
+        line_width = max(1, int(2 * Region.SCALE))
+
+        row_y = region.y
         for index, entry in enumerate(entries):
             tokens = entry['token']
-            row_y = region.y + entry_height * index
+            num_slots = entry_slots[index]
+            entry_height = base_height * num_slots
 
             if not isinstance(tokens, list):
                 tokens = [tokens]
 
-            size = min(
-                target_icon_size,
-                entry_height,
-                (region.width/3)/len(tokens)
-            )
-            size_int = int(size)
-            icon_y = int(row_y + (entry_height - size) / 2)
-            icon_start_x = int(region.x + icon_offset_x)
+            num_tokens = len(tokens)
 
-            for token_index, token in enumerate(tokens):
-                try:
-                    token_image = self.get_cached(overlay_dir / f"chaos_{token}.png")
-                except Exception as e:
-                    print(e)
-                    continue
+            if num_tokens >= 2:
+                # Stack tokens vertically with gap between them
+                size_int = int(target_icon_size)
+                icon_gap = int(size_int * 0.15)
+                icon_start_x = int(region.x + icon_offset_x)
+                stack_height = size_int * num_tokens + icon_gap * (num_tokens - 1)
+                stack_top_y = int(row_y + (entry_height - stack_height) / 2)
 
-                token_image = token_image.resize((size_int, size_int))
-                x = int(icon_start_x + token_image.width * token_index)
-                card_image.paste(token_image, (x, icon_y), token_image)
+                for token_index, token in enumerate(tokens):
+                    try:
+                        token_image = self.get_cached(overlay_dir / f"chaos_{token}.png")
+                    except Exception as e:
+                        print(e)
+                        continue
 
-            icon_group_width = size_int * len(tokens)
-            text_x = int(icon_start_x + icon_group_width + text_gap_x)
+                    token_image = token_image.resize((size_int, size_int))
+                    y = int(stack_top_y + token_index * (size_int + icon_gap))
+                    card_image.paste(token_image, (icon_start_x, y), token_image)
+
+                # Draw vertical line next to stack with extra offset to the right
+                extra_offset = card_image.width / 100
+                line_x = icon_start_x + size_int + int(text_gap_x / 2) + int(extra_offset)
+                line_y_top = int(stack_top_y)
+                line_y_bottom = int(stack_top_y + stack_height)
+                draw = ImageDraw.Draw(card_image)
+                draw.line([(line_x, line_y_top), (line_x, line_y_bottom)], fill=font.get('color', '#231f20'), width=line_width)
+
+                text_x = int(line_x + text_gap_x)
+                icon_center_y = stack_top_y + stack_height / 2
+            else:
+                # Single token - keep original layout
+                size = min(
+                    target_icon_size,
+                    entry_height,
+                    (region.width/3)/len(tokens)
+                )
+                size_int = int(size)
+                icon_y = int(row_y + (entry_height - size) / 2)
+                icon_start_x = int(region.x + icon_offset_x)
+
+                for token_index, token in enumerate(tokens):
+                    try:
+                        token_image = self.get_cached(overlay_dir / f"chaos_{token}.png")
+                    except Exception as e:
+                        print(e)
+                        continue
+
+                    token_image = token_image.resize((size_int, size_int))
+                    x = int(icon_start_x + token_image.width * token_index)
+                    card_image.paste(token_image, (x, icon_y), token_image)
+
+                icon_group_width = size_int * len(tokens)
+                text_x = int(icon_start_x + icon_group_width + text_gap_x)
+                icon_center_y = icon_y + size_int / 2
+
             text_width = int(region.x + region.width - text_x)
             if text_width <= 0:
                 continue
@@ -775,7 +825,6 @@ class CardRenderer:
             text = str(entry.get('text', ''))
             text = text.replace('\r\n', '\n').replace('\r', '\n')
 
-            icon_center_y = icon_y + size_int / 2
             max_text_height = int(entry_height)
 
             temp_image = Image.new('RGBA', (text_width, max_text_height), (0, 0, 0, 0))
@@ -798,6 +847,8 @@ class CardRenderer:
                 text_y_pos = int(icon_center_y - actual_height / 2)
                 text_y_pos = max(int(row_y), min(text_y_pos, int(row_y + entry_height - actual_height)))
                 card_image.paste(cropped, (text_x, text_y_pos), cropped)
+
+            row_y += entry_height
 
     def render_customizable(self, card_image, side):
         """ Renders the scenario reference cards.
