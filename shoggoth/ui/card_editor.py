@@ -243,7 +243,7 @@ class CardEditor(QWidget):
                 'name': self.card.name,
                 'id': self.card.id,
                 'amount': self.card.amount,
-                'expansion_number': self.card.expansion_number,
+                'project_number': self.card.project_number,
                 'encounter_number': self.card.encounter_number,
                 'investigator': self.card.get('investigator'),
                 'front': self.card.front.data,
@@ -277,8 +277,8 @@ class CardEditor(QWidget):
                 self.card.set('name', data['name'])
             if 'amount' in data:
                 self.card.set('amount', data['amount'])
-            if 'expansion_number' in data:
-                self.card.expansion_number = data['expansion_number']
+            if 'project_number' in data:
+                self.card.project_number = data['project_number']
             if 'encounter_number' in data:
                 self.card.encounter_number = data['encounter_number']
             if 'investigator' in data:
@@ -368,7 +368,7 @@ class CardEditor(QWidget):
             FieldWidget(self.name_input.input, 'name'),
             FieldWidget(self.copyright_input.input, 'copyright'),
             FieldWidget(self.amount_input.input, 'amount', int),
-            FieldWidget(self.collection_input.input, 'expansion_number'),
+            FieldWidget(self.collection_input.input, 'project_number'),
             FieldWidget(self.encounter_input.input, 'encounter_number'),
             FieldWidget(self.investigator_input.input, 'investigator'),
             FieldWidget(self.id_input.input, 'id'),

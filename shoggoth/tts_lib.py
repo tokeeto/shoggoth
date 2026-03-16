@@ -3,6 +3,7 @@ from logging import currentframe
 import os
 import shoggoth
 from shoggoth import files
+from shoggoth.export_helpers import build_gm_notes_string
 from copy import deepcopy
 from pathlib import Path
 
@@ -96,7 +97,7 @@ card_template = {
     "CardID": 552100,
     "CustomDeck": {},
     "Description": "Card 1",
-    "GMNotes_path": None,
+    "GMNotes": "",
     "GUID": "427b4e28",
     "Name": "Card",
     "Nickname": "A card",
@@ -225,6 +226,7 @@ def card_to_tts(card, id, number):
     data['Nickname'] = card.name
     data['GUID'] = card.id
     data['CardID'] = id * 100
+    data['GMNotes'] = build_gm_notes_string(card)
     return data
 
 
@@ -242,10 +244,10 @@ def export_card(card):
         json.dump(wrapper, file, indent=4)
 
 
-def export_campaign(expansion):
+def export_campaign(project):
     wrapper = deepcopy(wrapper_template)
     current_id = 6000
-    for encounter in expansion.encounter_sets:
+    for encounter in project.encounter_sets:
         encounter_wrapper = deepcopy(encounter_template)
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
         encounter_wrapper["DeckIDs"] = []

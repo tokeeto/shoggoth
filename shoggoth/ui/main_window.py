@@ -695,8 +695,8 @@ class FileBrowser(QWidget):
         project_path = ''
         if item_data and hasattr(item_data, 'file_path'):
             project_path = item_data.file_path
-        elif item_data and hasattr(item_data, 'expansion') and item_data.expansion:
-            project_path = item_data.expansion.file_path
+        elif item_data and hasattr(item_data, 'project') and item_data.project:
+            project_path = item_data.project.file_path
 
         if item_type == 'card' and item_data:
             return f'card:{item_data.id}'
@@ -752,15 +752,15 @@ class FileBrowser(QWidget):
         if current_order == desired_order:
             return
 
-        # Remove all children while preserving expansion state
-        children_with_expansion = []
+        # Remove all children while preserving project state
+        children_with_project = []
         while parent_item.childCount() > 0:
             child = parent_item.takeChild(0)
             node_id = self._get_node_id_from_item(child)
-            children_with_expansion.append((node_id, child, child.isExpanded()))
+            children_with_project.append((node_id, child, child.isExpanded()))
 
         # Create lookup
-        child_lookup = {node_id: (child, expanded) for node_id, child, expanded in children_with_expansion}
+        child_lookup = {node_id: (child, expanded) for node_id, child, expanded in children_with_project}
 
         # Re-add in correct order
         for node_id in desired_order:
@@ -1155,8 +1155,8 @@ class ShoggothMainWindow(QMainWindow):
         project_menu.addAction(add_investigator_action)
 
         # Add Investigator Expansion template
-        add_inv_exp_action = QAction(tr("MENU_ADD_INV_EXPANSION"), self)
-        add_inv_exp_action.triggered.connect(self.add_investigator_expansion_template)
+        add_inv_exp_action = QAction(tr("MENU_ADD_INV_PROJECT"), self)
+        add_inv_exp_action.triggered.connect(self.add_investigator_project_template)
         project_menu.addAction(add_inv_exp_action)
 
         # ── Translation ──────────────────────────────────────────────────────
@@ -1693,7 +1693,7 @@ class ShoggothMainWindow(QMainWindow):
         self.toggle_preview_action.setChecked(True)
 
         # Enter translation mode if this card belongs to a translation project
-        if card.expansion.data.get('project'):
+        if card.project.data.get('project'):
             editor.enter_translation_mode()
 
         # Set splitter sizes (60% editor, 40% would be preview but it's docked)
@@ -2333,14 +2333,14 @@ class ShoggothMainWindow(QMainWindow):
             self.file_browser.refresh()
             self.status_bar.showMessage(tr("STATUS_INVESTIGATOR_CREATED").format(name=name))
 
-    def add_investigator_expansion_template(self):
-        """Add an investigator expansion template"""
+    def add_investigator_project_template(self):
+        """Add an investigator project template"""
         if not self.active_project:
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
-        self.active_project.create_player_expansion()
+        self.active_project.create_player_project()
         self.file_browser.refresh()
-        self.status_bar.showMessage(tr("STATUS_EXPANSION_CREATED"))
+        self.status_bar.showMessage(tr("STATUS_PROJECT_CREATED"))
 
     # ==================== EXPORT MENU ACTIONS ====================
 

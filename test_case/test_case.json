@@ -65,7 +65,7 @@
                 "flavor_text": "Roland had always taken comfort in procedure and rules. As an agent in the Bureau, he was relieved to have guidelines to follow in any given situation. But lately, his Federal Agent's Handbook had been entirely unhelpful given the cases he'd been assigned. Try as he might, Roland could find no mention of what to do when confronted with strange creatures, gates through time and space, or magic spells. If he hadn't seen it with his own eyes, he would never have believed it... and there's no way his superiors would understand. Roland knew he would have to handle this one himself."
             },
             "investigator": "Roland Banks",
-            "expansion_number": "1"
+            "project_number": "1"
         },
         {
             "name": "Roland's .38 Special",
@@ -92,7 +92,7 @@
             },
             "copyright": "FFG",
             "investigator": "Roland Banks",
-            "expansion_number": "6"
+            "project_number": "6"
         },
         {
             "name": "Cover Up",
@@ -112,7 +112,7 @@
             },
             "copyright": "FFG",
             "investigator": "Roland Banks",
-            "expansion_number": "7"
+            "project_number": "7"
         },
         {
             "id": "8b4c5161-a69d-4ba6-bf9e-4dce011149d2",
@@ -135,7 +135,7 @@
                 "type": "player"
             },
             "amount": 2,
-            "expansion_number": "16"
+            "project_number": "16"
         },
         {
             "id": "4d9bc1bb-3787-4749-acc3-0f9123fabc5e",
@@ -156,7 +156,7 @@
             "back": {
                 "type": "player"
             },
-            "expansion_number": "22",
+            "project_number": "22",
             "amount": 2
         },
         {
@@ -177,7 +177,7 @@
                 "type": "player"
             },
             "amount": 1,
-            "expansion_number": "25"
+            "project_number": "25"
         },
         {
             "name": "The Gathering",
@@ -233,7 +233,7 @@
             "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
             "copyright": "FFG",
             "encounter_number": "1",
-            "expansion_number": "104"
+            "project_number": "104"
         },
         {
             "id": "c132f918-d095-4dad-8496-24cf58905f62",
@@ -250,7 +250,7 @@
                 "text": "<blockquote>Your house continues to change before your very eyes. The walls have decayed, and the ground in many rooms has turned to dirt. It is almost as if you have been transported somewhere else entirely, although every now and again you recognize elements of your former home. </blockquote>\nThe lead investigator must decide (choose one): Either each investigator discards 1 card at random from his or her hand, or the lead investigator takes 2 horror."
             },
             "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
-            "expansion_number": "105",
+            "project_number": "105",
             "encounter_number": "2"
         },
         {
@@ -269,7 +269,7 @@
                 "text": "Put into play the set-aside Hallway, Cellar, Attic, and Parlor.\nDiscard each enemy in the Study.\nPlace each investigator in the Hallway.\nRemove the Study from the game."
             },
             "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
-            "expansion_number": "108",
+            "project_number": "108",
             "encounter_number": "5"
         },
         {
@@ -289,7 +289,7 @@
             },
             "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
             "name": "Study",
-            "expansion_number": "111",
+            "project_number": "111",
             "encounter_number": "8"
         },
         {
@@ -315,7 +315,7 @@
             "encounter_set": "cdb8f520-ec5c-4dd0-9d8b-1d2e9715b0f6",
             "copyright": "FFG",
             "encounter_number": "116",
-            "expansion_number": "13"
+            "project_number": "13"
         },
         {
             "id": "d1784b88-8251-498e-9ada-8143e03dc2cb",
@@ -332,7 +332,7 @@
             "encounter_set": "cb7b130b-e001-44c0-aa8c-8fbe153eea64",
             "copyright": "FFG",
             "name": "Locked Door",
-            "expansion_number": "174",
+            "project_number": "174",
             "encounter_number": "1"
         }
     ],

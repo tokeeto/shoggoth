@@ -2,7 +2,6 @@ from pathlib import Path
 import pymupdf
 from io import BytesIO
 import subprocess
-from subprocess import PIPE
 from shoggoth import files
 
 
@@ -63,6 +62,7 @@ class Guide:
         html = html.replace("{{a4_title}}", str(files.guide_dir/'guide_a4_title.webp'))
         html = html.replace("{{resolution_glyph_top}}", str(files.guide_dir/'resolution_glyph_top.png'))
         html = html.replace("{{resolution_glyph_bottom}}", str(files.guide_dir/'resolution_glyph_bottom.png'))
+        html = html.replace("{{project.icon}}", (self.project.folder / self.project.icon).resolve())
         return html
 
     def get_page(self, page, html: str = ''):

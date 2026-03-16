@@ -206,31 +206,26 @@ class CardRenderer:
 
     def text_replacement(self, field, value, side):
         """ handles advanced text replacement fields """
-        # <name>
         value = value.replace('<name>', side.card.name)
         if side == side.card.front:
             other_side = side.card.back
         else:
             other_side = side.card.front
         value = value.replace('<copy>', other_side.get(field, '<copy>'))
-        if side.card.expansion.icon:
-            value = value.replace(
-                '<exi>',
-                f'<image src="{side.card.expansion.icon}">'
-            )
+        if side.card.project.icon:
+            path = side.card.project.find_file(side.card.project.icon)
+            value = value.replace('<exi>', f'<image src="{path}">')
         else:
             value = value.replace('<exi>', '')
-        value = value.replace('<exn>', str(side.card.expansion_number))
+        value = value.replace('<exn>', str(side.card.project_number))
         value = value.replace('<esn>', str(side.card.encounter_number))
         if side.card.encounter and '<est>' in value:
             value = value.replace('<est>', str(side.card.encounter.total_cards))
         else:
             value = value.replace('<est>', '')
         if side.card.encounter and side.card.encounter.icon:
-            value = value.replace(
-                '<esi>',
-                f'<image src="{side.card.encounter.icon}">'
-            )
+            path = side.card.project.find_file(side.card.project.icon)
+            value = value.replace('<esi>', f'<image src="{path}">')
         else:
             value = value.replace('<esi>', '')
 
@@ -243,7 +238,7 @@ class CardRenderer:
         if card in self.card_wo_illus_cache[card]:
             return self.card_wo_illus_cache[card]
 
-        c = Card(card.data, expansion=card.expansion, encounter=card.encounter)
+        c = Card(card.data, project=card.project, encounter=card.encounter)
         c.set('illustration', None)
         self.card_wo_illus_cache[card] = self.render_card_side(c, side, include_bleed)
         return self.card_wo_illus_cache[card]
@@ -290,7 +285,7 @@ class CardRenderer:
         for func in [
             self.render_level,
             self.render_encounter_icon,
-            self.render_expansion_icon,
+            self.render_project_icon,
             self.render_icons,
             self.render_connection_icons,
             self.render_tokens,
@@ -497,7 +492,12 @@ class CardRenderer:
         if not value:
             return
 
-        box_path = self.overlays_path/f"skill_box_{side.get_class()}.png"
+        box_path = side.get('icons_box', None)
+        if not box_path:
+            box_path = self.overlays_path / f"skill_box_{side.get_class()}.png"
+        else:
+            box_path = self.overlays_path / box_path
+
         box_image = self.get_cached(box_path)
         box_image = box_image.resize((int(box_image.width * Region.SCALE * 2), int(box_image.height * Region.SCALE * 2)))
 
@@ -525,17 +525,17 @@ class CardRenderer:
             center_y = region.y - 15
             card_image.paste(overlay_icon, (center_x, center_y), overlay_icon)
 
-    def render_expansion_icon(self, card_image, side):
+    def render_project_icon(self, card_image, side):
         """Render the encounter icon """
         region = Region(side.get('collection_portrait_clip_region'))
         if not region:
             return
 
-        icon = side.card.expansion.icon
+        icon = side.card.project.icon
         if not icon:
             return
 
-        icon = Image.open(side.card.expansion.icon, formats=['png', 'jpg']).convert('RGBA')
+        icon = Image.open(side.card.project.icon, formats=['png', 'jpg']).convert('RGBA')
         if icon.width > icon.height:
             icon = icon.resize((region.width, int(region.height*(icon.height/icon.width))))
         else:
@@ -569,7 +569,7 @@ class CardRenderer:
         icon_path = side.get('encounter_icon', side.card.encounter.icon)
 
         if not Path(icon_path).is_absolute():
-            icon_path = Path(side.card.expansion.file_path).parent / Path(icon_path)
+            icon_path = Path(side.card.project.file_path).parent / Path(icon_path)
             icon_path = icon_path.absolute()
 
         icon = self.get_cached(icon_path)
@@ -651,7 +651,7 @@ class CardRenderer:
             return
         illustration_path = Path(illustration_path)
         if not illustration_path.is_absolute():
-            illustration_path = side.card.expansion.find_file(illustration_path)
+            illustration_path = side.card.project.find_file(illustration_path)
         if not illustration_path:
             return
 
@@ -696,13 +696,17 @@ class CardRenderer:
         if level is None or level == '' or level == 'None':
             level = 'no_level'
 
-        card_class = side.get_class()
-        is_skill = 'skill_' if side.get('type', '') == 'skill' else ''
+        level_overlay_format = side.get('level_overlay', None)
+        if not level_overlay_format:
+            return
 
-        if is_skill and level != 'Custom':
-            path = overlay_dir / 'levels' / f'skill_{level}.png'
-        else:
-            path = overlay_dir / 'levels' / f'{card_class}_{is_skill}{level}.png'
+        level_overlay_path = level_overlay_format.format(
+            card_class=side.get_class(),
+            level=level
+        )
+        path = side.card.project.find_file(level_overlay_path)
+        if not path:
+            path = overlay_dir / 'levels' / level_overlay_path
 
         level_icon = self.get_resized_cached(path, region.size)
         card_image.paste(level_icon, region.pos, level_icon)
@@ -734,33 +738,26 @@ class CardRenderer:
 
         region = Region(side['chaos_region'])
         font = side.get("chaos_font", {})
-        for index, entry in enumerate(entries):
-            tokens = entry['token']
-            y = int(region.y + region.height/len(entries)*index)
+        size = 200*Region.SCALE  # pixel size of token icons
+        surfaces = []
 
+        for entry in entries:
+            if not entry['token'] and not entry['text']:
+                continue
+            tokens = entry['token']
             if not isinstance(tokens, list):
                 tokens = [tokens]
 
+            token_surface = Image.new('RGBA', (int(size), int(region.height)), (255, 255, 255, 0))
             for token_index, token in enumerate(tokens):
-                try:
-                    token_image = self.get_cached(overlay_dir / f"chaos_{token}.png")
-                except Exception as e:
-                    print(e)
-                    continue
+                token_image = self.get_resized_cached(overlay_dir / f"chaos_{token}.png", (int(size), int(size)))
+                token_surface.paste(token_image, (0, int(size*1.1) * token_index), token_image)
 
-                size = min(
-                    region.height/5.1,
-                    (region.width/3)/len(tokens)
-                )
-
-                token_image = token_image.resize((int(size), int(size)))
-                x = int(region.x + token_image.width * token_index)
-                card_image.paste(token_image, (x, y), token_image)
-
+            text_surface = Image.new('RGBA', region.size, (255, 255, 255, 0))
             self.rich_text.render_text(
-                card_image,
+                text_surface,
                 entry['text'],
-                Region.unscaled({'x': (region.x+region.width//3), 'y': y, 'height': region.height//len(entries), 'width': (2*region.width)//3}),
+                Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-size*2}),
                 font=font.get('font', 'regular'),
                 font_size=int(font.get('size', 32)*Region.SCALE),
                 fill=font.get('color', '#231f20'),
@@ -768,6 +765,18 @@ class CardRenderer:
                 outline_fill=font.get('outline_color'),
                 alignment=font.get('alignment', 'left'),
             )
+            surfaces.append((token_surface, text_surface))
+
+        weights = [max(n.getbbox()[3], m.getbbox()[3]) for n,m in surfaces]
+        weight_pixels = region.height/sum(weights)
+
+        for index, weight in enumerate(weights):
+            chaos, text = surfaces[index]
+            height = weight_pixels * weight
+            y = region.y + int(sum(weights[:index]) * weight_pixels)
+
+            card_image.paste(chaos, (region.x, y + int(height/2 - chaos.getbbox()[3]/2)), chaos)
+            card_image.paste(text, (region.x + int(size*1.3), y + int(height/2 - text.getbbox()[3]/2)), text)
 
     def render_customizable(self, card_image, side):
         """ Renders the scenario reference cards.

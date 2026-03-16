@@ -2,12 +2,13 @@
 import importlib.util;
 from pathlib import Path
 
+datas = [('shoggoth/translations/*', 'shoggoth/translations/')]
 
 a = Analysis(
     ['shoggoth/tool.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

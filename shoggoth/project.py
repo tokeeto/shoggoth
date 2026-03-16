@@ -85,9 +85,12 @@ class Project:
         return Path(self.file_path).parent
 
     def find_file(self, path):
-        if (self.folder / path).is_file():
-            return (self.folder / path).resolve().absolute()
-        return False
+        path = Path(path)
+        if path.exists():
+            return path.resolve()
+        if (self.folder / path).exists():
+            return (self.folder / path).resolve()
+        return None
 
     def __eq__(self, other):
         return self.data == other.data
@@ -105,7 +108,6 @@ class Project:
         for lang, rel_path in self.data.get('translations', {}).items():
             full_path = self.folder / rel_path
             result[lang] = full_path
-        print(result)
         return result
 
     def add_translation(self, language, file_path):
@@ -126,7 +128,7 @@ class Project:
     def get_card(self, id):
         for entry in self.data.get('cards', []):
             if entry.get('id') == id:
-                return Card(entry, expansion=self)
+                return Card(entry, project=self)
 
     @property
     def guides(self):
@@ -141,13 +143,13 @@ class Project:
 
     @property
     def cards(self):
-        c = [Card(card, expansion=self) for card in self.data.get('cards', [])]
+        c = [Card(card, project=self) for card in self.data.get('cards', [])]
         sort_cards(c)
         return c
 
     @property
     def player_cards(self):
-        c = [Card(card, expansion=self) for card in self.data.get('cards', []) if 'encounter_set' not in card]
+        c = [Card(card, project=self) for card in self.data.get('cards', []) if 'encounter_set' not in card]
         sort_cards(c)
         return c
 
@@ -160,7 +162,7 @@ class Project:
         ))
 
         for e in self.data['encounter_sets']:
-            yield EncounterSet(e, expansion=self)
+            yield EncounterSet(e, project=self)
 
     def get_encounter_set(self, id):
         for es in self.encounter_sets:
@@ -179,10 +181,10 @@ class Project:
         for encounter_set in self.encounter_sets:
             encounter_set.assign_card_numbers()
             for card in encounter_set.cards:
-                card.expansion_number = current_number
+                card.project_number = current_number
                 current_number += 1
         for card in self.player_cards:
-            card.expansion_number = current_number
+            card.project_number = current_number
             current_number += 1
 
     def add_card(self, card):
@@ -252,7 +254,7 @@ class Project:
         self.data['encounter_sets'].append(encounter_data)
         shoggoth.app.refresh_tree()
         self.dirty = True
-        return EncounterSet(encounter_data, expansion=self)
+        return EncounterSet(encounter_data, project=self)
 
     def remove_encounter_set(self, index):
         self.data['encounter_sets'].pop(index)
@@ -373,13 +375,13 @@ class Project:
         for index, name in enumerate(scenario_names):
             self.create_scenario(name, order=index+1)
 
-    def create_player_expansion(self):
+    def create_player_project(self):
         """ Creates a set of placeholder cards
             aligning with the usual distribution of cards
-            in an investigator expansion.
+            in an investigator project.
 
-            An investigator expansion usually has around:
-                ~130 unique cards in an expansion.
+            An investigator project usually has around:
+                ~130 unique cards in an project.
                 5 investigators
                 50 level 0
                 50 level 1-5

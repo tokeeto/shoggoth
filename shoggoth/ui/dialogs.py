@@ -114,7 +114,7 @@ class NewCardDialog(QDialog):
             project = shoggoth.app.current_project
             new_card = Card(
                 data=template,
-                expansion=project,
+                project=project,
                 encounter=self.selected_encounter
             )
             

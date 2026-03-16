@@ -44,4 +44,4 @@ Every project is a json file, and every card is a json object. That means it's v
 Shoggoth supports exporting to images, pdf, arkham.build and TTS.
 
 ## Converting existing projects
-There's a tool for converting existing SE projects into Shoggoth projects. It requires that you've installed openjdk 11 on your machine, and you then need to point shoggoth towards your installation.
+As a seperate project, I've created an SE script that will export existing cards to a Shoggoth project file.

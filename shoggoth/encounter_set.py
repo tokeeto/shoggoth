@@ -3,10 +3,10 @@ from shoggoth.card import Card
 
 
 class EncounterSet:
-    def __init__(self, data, expansion):
+    def __init__(self, data, project):
         self.name = data['name']
         self.data = data
-        self.expansion = expansion
+        self.project = project
         if 'id' not in self.data:
             self.data['id'] = str(uuid4())
         self.get = self.data.get
@@ -23,9 +23,9 @@ class EncounterSet:
     @property
     def cards(self):
         result = []
-        for c in self.expansion.data['cards']:
+        for c in self.project.data['cards']:
             if c.get('encounter_set') == self.id:
-                result.append(Card(c, encounter=self, expansion=self.expansion))
+                result.append(Card(c, encounter=self, project=self.project))
         result.sort(key=lambda c: c.name)
         return result
 
@@ -72,15 +72,15 @@ class EncounterSet:
 
 
 class EncounterSetTranslation(EncounterSet):
-    def __init__(self, data, translation_data, expansion):
+    def __init__(self, data, translation_data, project):
         self.translation_data = translation_data
-        super().__init__(data, expansion)
+        super().__init__(data, project)
         self.name = self.translation_data.get('name', self.name)
 
     @property
     def cards(self):
         result = []
-        for c in self.expansion.cards:
+        for c in self.project.cards:
             if c.get('encounter_set') == self.id:
                 result.append(c)
         result.sort(key=lambda c: c.name)

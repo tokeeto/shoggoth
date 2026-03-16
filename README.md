@@ -27,9 +27,9 @@ You can also use shoggoth as a cli tool. Run `shoggoth --help` for more informat
 Shoggoth is built for Arkham Horror: The Card Game (trademarked by Fantasy Flight Games. No affiliation, nor endorsement whatsoever).
 In theory, there's only 7 card types in AHTCG, but over time, there has been so many variations and exceptions. This has led to Shoggoth adopting the following design:
 
-All Cards are contained within a Project, or Expansion - the two terms will be used interchangably. Technically, and expansion signifies a big project, whereas a project could be a small set of 1 to 4 cards, but in technical terms it's the same thing.
+All Cards are contained within a Project - what's typically called an "expansion". A project could be as small as 1 card, or over 600 cards.
 
-A Project can have cards directly or Encounter Sets that contain cards. Player cards will typically belong directly to an expansion, whereas encounter cards are grouped by Encounter Sets.
+A Project can have cards directly or Encounter Sets that contain cards. Player cards will typically belong directly to a project, whereas encounter cards are grouped by Encounter Sets.
 
 All Cards are built from some standard information, and 2 Faces, the front and back. All faces are identical in fields - there's no feature available for one face that's not available for every other. Enemies can have Shroud, Clues, Doom, and locations can have Attack, Health and Horror.
 The UI makes it easy to generate standard compliant cards, but if you edit the json data directly, you have full control.
@@ -54,7 +54,7 @@ Encounter Set
     "code": "NoS",  // Shorthand code for set
     "card_amount": 40,  // automatically calculated, stored for convinience
     "id": "random-generated-guid",
-    "order": 1  // manual order, such as scenario order, in the expansion
+    "order": 1  // manual order, such as scenario order, in the project
 }```
 
 Cards
@@ -64,7 +64,7 @@ Cards
     "front": {},  // Front side of the card.
     "back": {},
     "encounter_number": "10",  // Number in the encounter set, if any. This can be given as a range "10-15" or a single number.
-    "expansion_number": 50,  // Card number in the expansion.
+    "project_number": 50,  // Card number in the project.
     "id": "0a1b2a69-b55f-4571-8b20-90eaa2fea43b",  // random guid
     "encounter_set": "c959bdf0-6833-4e10-b1ee-7af118b18f15",  // id of the containing encounter set.
     "investigator": "Astrid"  // Mainly for player cards - used for grouping cards related to an investigator, such as signatures and weakness together with the investigator.

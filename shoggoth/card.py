@@ -19,11 +19,10 @@ class Face:
     def __build_fallback(self, name):
         """ Builds the fallback recursively """
         fallback = {}
-        if path := self.card.expansion.find_file(name):
+        if path := self.card.project.find_file(name):
             defaults_path = path
         else:
-            defaults_file = f'{name}.json'
-            defaults_path = defaults_dir / defaults_file
+            defaults_path = defaults_dir / f'{name}.json'
 
         try:
             with defaults_path.open('r') as f:
@@ -62,6 +61,11 @@ class Face:
             return result
         except KeyError:
             return default
+
+    def get_path(self, key, default=''):
+        res = self.get(key, default)
+        if res:
+            return self.card.project.find_file(Path(res))
 
     def set(self, key, value):
         # invalidate cached fallback if fallback should change
@@ -107,13 +111,13 @@ class Card:
     def __init__(
         self,
         data: Dict[str, Any],
-        expansion,
+        project,
         encounter=None,
     ):
         self.data = data
         if encounter:
             self.data['encounter_set'] = encounter.id
-        self.expansion = expansion
+        self.project = project
         if 'id' not in data:
             data['id'] = str(uuid4())
 
@@ -128,17 +132,17 @@ class Card:
 
     @property
     def dirty(self):
-        return self.expansion.is_dirty(self.id)
+        return self.project.is_dirty(self.id)
 
     @dirty.setter
     def dirty(self, value):
-        self.expansion.set_dirty(self.id, value)
+        self.project.set_dirty(self.id, value)
 
     @property
     def encounter(self):
         if 'encounter_set' not in self.data or not self.data['encounter_set']:
             return None
-        return self.expansion.get_encounter_set(self.data['encounter_set'])
+        return self.project.get_encounter_set(self.data['encounter_set'])
 
     def reload_fallback(self):
         """ Invalidates the fallback cache, forcing a reload of the file """
@@ -158,12 +162,12 @@ class Card:
         return self.data['id']
 
     @property
-    def expansion_number(self):
-        return self.data.get('expansion_number', -1)
+    def project_number(self):
+        return self.data.get('project_number', -1)
 
-    @expansion_number.setter
-    def expansion_number(self, value):
-        self.data['expansion_number'] = value
+    @project_number.setter
+    def project_number(self, value):
+        self.data['project_number'] = value
 
     @property
     def encounter_number(self):
@@ -184,15 +188,15 @@ class Card:
             return
         r = self.encounter_number.split('-')
         for n in range(int(r[0]), int(r[1]) + 1):
-            cp = Card(self.data.copy(), self.expansion, self.encounter)
+            cp = Card(self.data.copy(), self.project, self.encounter)
             cp.encounter_number = n
             yield cp
 
     @property
     def code(self):
         if self.encounter:
-            return f'{self.expansion.code}_{self.encounter.code}_{self.name}'
-        return f'{self.expansion.code}_{self.expansion_number}_{self.name}'
+            return f'{self.project.code}_{self.encounter.code}_{self.name}'
+        return f'{self.project.code}_{self.project_number}_{self.name}'
 
     def __eq__(self, other):
         return other is not None and self.data == other.data
@@ -240,7 +244,7 @@ class Card:
 
     def save(self):
         print('Saving card', self.id)
-        self.expansion.writer.save_card(self)
+        self.project.writer.save_card(self)
         self.dirty = False
         # Update tree to remove dirty indicator
         if shoggoth.app:

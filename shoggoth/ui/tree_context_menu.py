@@ -254,7 +254,7 @@ class TreeContextMenu:
         new_data['name'] = f"{card.name} (Copy)"
         
         # Add to project
-        card.expansion.add_card(new_data)
+        card.project.add_card(new_data)
         
         print(f"Duplicated card: {card.name}")
         
@@ -276,7 +276,7 @@ class TreeContextMenu:
         
         if reply == QMessageBox.Yes:
             # Remove from project
-            card.expansion.data['cards'].remove(card.data)
+            card.project.data['cards'].remove(card.data)
             
             print(f"Deleted card: {card.name}")
             
@@ -332,7 +332,7 @@ class TreeContextMenu:
         
         # Create card
         from shoggoth.card import Card
-        new_card = Card(data=template, expansion=shoggoth.app.current_project, encounter=encounter)
+        new_card = Card(data=template, project=shoggoth.app.current_project, encounter=encounter)
         
         # Add to project
         shoggoth.app.current_project.add_card(new_card)
@@ -373,7 +373,7 @@ class TreeContextMenu:
         
         # Find and show the new card
         from shoggoth.card import Card
-        new_card = Card(new_data, expansion=project, encounter=target if isinstance(target, EncounterSet) else None)
+        new_card = Card(new_data, project=project, encounter=target if isinstance(target, EncounterSet) else None)
         shoggoth.app.show_card(new_card)
         shoggoth.app.select_item_in_tree(new_card.id)
     
