@@ -271,24 +271,7 @@ class CardEditor(QWidget):
                 return
 
             data = json.loads(text)
-
-            # Update card data
-            if 'name' in data:
-                self.card.set('name', data['name'])
-            if 'amount' in data:
-                self.card.set('amount', data['amount'])
-            if 'project_number' in data:
-                self.card.project_number = data['project_number']
-            if 'encounter_number' in data:
-                self.card.encounter_number = data['encounter_number']
-            if 'investigator' in data:
-                self.card.set('investigator', data['investigator'])
-
-            # Update face data
-            if 'front' in data:
-                self.card.front.data = data['front']
-            if 'back' in data:
-                self.card.back.data = data['back']
+            self.card.data.update(data)
 
             # Emit signal for preview update
             self.data_changed.emit()

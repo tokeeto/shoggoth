@@ -13,23 +13,35 @@ from shoggoth.i18n import tr
 
 
 class IconsWidget(QWidget):
-    """Widget for skill icons with +/- buttons for each icon type (WICAQ)"""
+    """Widget for skill icons with +/- buttons for each icon type.
 
-    # Icon order and their full names
+    Each icon has a single signed count. Positive counts map to the positive
+    letter (W, I, C, A, Q); negative counts map to the negative letter
+    (V, H, B, Z, P). The user just sees a number going from negative to positive.
+
+    If a card's icons string contains both the positive AND negative letter for
+    the same icon type (e.g. "WWVV"), that is an unsupported GUI state and the
+    widget is disabled — the user should edit it via JSON directly.
+    """
+
+    # (positive_letter, negative_letter, display_name)
     ICONS = [
-        ('W', 'Willpower'),
-        ('I', 'Intellect'),
-        ('C', 'Combat'),
-        ('A', 'Agility'),
-        ('Q', 'Wild'),
+        ('W', 'V', 'Willpower'),
+        ('I', 'H', 'Intellect'),
+        ('C', 'B', 'Combat'),
+        ('A', 'Z', 'Agility'),
+        ('Q', 'P', 'Wild'),
     ]
+    # Map negative letters back to their canonical (positive) key
+    NEG_TO_POS = {'V': 'W', 'H': 'I', 'B': 'C', 'Z': 'A', 'P': 'Q'}
     MAX_COUNT = 8
 
     iconsChanged = Signal(str)
 
     def __init__(self):
         super().__init__()
-        self.counts = {letter: 0 for letter, _ in self.ICONS}
+        # Signed counts keyed by the positive letter (W, I, C, A, Q)
+        self.counts = {pos: 0 for pos, neg, _ in self.ICONS}
         self.labels = {}
         self._updating = False
 
@@ -37,96 +49,127 @@ class IconsWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
-        # Label
         icons_label = QLabel(tr("LABEL_ICONS"))
         layout.addWidget(icons_label)
 
-        # Create one row per icon
-        for letter, name in self.ICONS:
+        self._conflict_label = QLabel(tr("ICONS_CONFLICT_WARNING"))
+        self._conflict_label.setStyleSheet("color: orange;")
+        self._conflict_label.setVisible(False)
+        layout.addWidget(self._conflict_label)
+
+        # Container for interactive rows (disabled as a unit when conflict)
+        self._rows_widget = QWidget()
+        rows_layout = QVBoxLayout()
+        rows_layout.setContentsMargins(0, 0, 0, 0)
+        rows_layout.setSpacing(2)
+
+        for pos, neg, name in self.ICONS:
             row = QHBoxLayout()
             row.setSpacing(4)
 
             # Icon image
             icon_label = QLabel()
             icon_label.setToolTip(name)
-            icon_path = overlay_dir / 'svg' / f"skill_icon_{letter}.svg"
+            icon_path = overlay_dir / 'svg' / f"skill_icon_{pos}.svg"
             if icon_path.exists():
                 pixmap = QPixmap(str(icon_path)).scaled(
                     20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation
                 )
                 icon_label.setPixmap(pixmap)
             else:
-                icon_label.setText(letter)
+                icon_label.setText(pos)
             icon_label.setFixedSize(20, 20)
             row.addWidget(icon_label)
 
-            # Minus button
             minus_btn = QPushButton("-")
             minus_btn.setFixedSize(24, 24)
-            minus_btn.clicked.connect(lambda checked, l=letter: self.decrement(l))
+            minus_btn.clicked.connect(lambda checked, k=pos: self._decrement(k))
             row.addWidget(minus_btn)
 
-            # Count label
             count_label = QLabel("0")
             count_label.setAlignment(Qt.AlignCenter)
-            count_label.setFixedWidth(20)
-            self.labels[letter] = count_label
+            count_label.setFixedWidth(24)
+            self.labels[pos] = count_label
             row.addWidget(count_label)
 
-            # Plus button
             plus_btn = QPushButton("+")
             plus_btn.setFixedSize(24, 24)
-            plus_btn.clicked.connect(lambda checked, l=letter: self.increment(l))
+            plus_btn.clicked.connect(lambda checked, k=pos: self._increment(k))
             row.addWidget(plus_btn)
 
-            # Name label
             name_label = QLabel(name)
             row.addWidget(name_label)
 
             row.addStretch()
-            layout.addLayout(row)
+            rows_layout.addLayout(row)
 
+        self._rows_widget.setLayout(rows_layout)
+        layout.addWidget(self._rows_widget)
         self.setLayout(layout)
 
-    def increment(self, letter):
-        """Increment count for an icon"""
-        if self.counts[letter] < self.MAX_COUNT:
-            self.counts[letter] += 1
-            self.labels[letter].setText(str(self.counts[letter]))
+    def _update_label(self, key):
+        v = self.counts[key]
+        self.labels[key].setText(str(v))
+        self.labels[key].setStyleSheet("color: #cc4444;" if v < 0 else "")
+
+    def _increment(self, key):
+        if self.counts[key] < self.MAX_COUNT:
+            self.counts[key] += 1
+            self._update_label(key)
             if not self._updating:
                 self.iconsChanged.emit(self.get_icons_string())
 
-    def decrement(self, letter):
-        """Decrement count for an icon"""
-        if self.counts[letter] > 0:
-            self.counts[letter] -= 1
-            self.labels[letter].setText(str(self.counts[letter]))
+    def _decrement(self, key):
+        if self.counts[key] > -self.MAX_COUNT:
+            self.counts[key] -= 1
+            self._update_label(key)
             if not self._updating:
                 self.iconsChanged.emit(self.get_icons_string())
 
     def get_icons_string(self):
-        """Get the icons as an ordered string like 'WWICQQ'"""
+        """Return icons as an ordered string.
+
+        Positive counts produce the positive letter repeated (W, I, C, A, Q).
+        Negative counts produce the negative letter repeated (V, H, B, Z, P).
+        """
         result = ''
-        for letter, _ in self.ICONS:
-            result += letter * self.counts[letter]
+        for pos, neg, _ in self.ICONS:
+            v = self.counts[pos]
+            if v > 0:
+                result += pos * v
+            elif v < 0:
+                result += neg * (-v)
         return result
 
     def set_icons_string(self, icons_str):
-        """Set icons from a string like 'WWICQQ'"""
-        self._updating = True
-        # Reset all counts
-        for letter, _ in self.ICONS:
-            self.counts[letter] = 0
+        """Set icons from a string.
 
-        # Count occurrences of each letter
+        Disables the widget if both the positive and negative letter for any
+        icon type appear in the string simultaneously (unsupported GUI state).
+        """
+        self._updating = True
+
+        pos_set = {pos for pos, neg, _ in self.ICONS}
+
+        # Count raw occurrences of each letter
+        raw_pos = {pos: 0 for pos, neg, _ in self.ICONS}
+        raw_neg = {pos: 0 for pos, neg, _ in self.ICONS}
         if icons_str:
             for char in icons_str.upper():
-                if char in self.counts:
-                    self.counts[char] = min(self.counts[char] + 1, self.MAX_COUNT)
+                if char in pos_set:
+                    raw_pos[char] = min(raw_pos[char] + 1, self.MAX_COUNT)
+                elif char in self.NEG_TO_POS:
+                    key = self.NEG_TO_POS[char]
+                    raw_neg[key] = min(raw_neg[key] + 1, self.MAX_COUNT)
 
-        # Update labels
-        for letter, _ in self.ICONS:
-            self.labels[letter].setText(str(self.counts[letter]))
+        conflict = any(raw_pos[pos] > 0 and raw_neg[pos] > 0 for pos, neg, _ in self.ICONS)
+
+        for pos, neg, _ in self.ICONS:
+            self.counts[pos] = raw_pos[pos] - raw_neg[pos]
+            self._update_label(pos)
+
+        self._conflict_label.setVisible(conflict)
+        self._rows_widget.setEnabled(not conflict)
 
         self._updating = False
 

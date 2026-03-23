@@ -196,7 +196,10 @@ class Project:
             self.data['cards'].append(card)
 
         if not card.get('copyright') and 'default_copyright' in self.data:
-            card.set('copyright', self.data['default_copyright'])
+            if isinstance(card, Card):
+                card.set('copyright', self.data['default_copyright'])
+            else:
+                card['copyright'] = self.data['default_copyright']
         self.dirty = True
 
     def get_all_cards(self):
@@ -290,13 +293,16 @@ class Project:
         investigator['investigator'] = name
         signature = TEMPLATES.ASSET()
         signature['name'] = 'signature'
-        signature['front']['text'] = f'{name} deck only.'
+        signature['front']['text'] = f'<:{investigator["id"]} name> deck only.'
         signature['investigator'] = name
         weakness = TEMPLATES.BASE()
         weakness['name'] = 'weakness'
         weakness['front']['type'] = 'weakness_treachery'
         weakness['back']['type'] = 'player'
         weakness['investigator'] = name
+
+        investigator['back']['entries'][3] = "<:{signature['id']} name>, <:{weakness['id']} name>, 1 random basic weakness."
+
         self.add_card(investigator)
         self.add_card(signature)
         self.add_card(weakness)

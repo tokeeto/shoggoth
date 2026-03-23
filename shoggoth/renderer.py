@@ -5,10 +5,14 @@ from shoggoth.rich_text import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir
 from pathlib import Path
 import pyvips
+import re
 
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('pillow').setLevel(logging.ERROR)
+
+
+card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
 
 
 def scale(x: int | None):
@@ -204,6 +208,19 @@ class CardRenderer:
         buffer.seek(0)
         return buffer
 
+    def card_value(self, project, id, field):
+        path = field.split('.')
+        val = project.get_card(id)
+        if len(path) > 1:
+            if path[0] == 'front':
+                val = val.front
+            if path[0] == 'back':
+                val = val.back
+            path = path[1:]
+        val = val.get(path[0])
+
+        return val
+
     def text_replacement(self, field, value, side):
         """ handles advanced text replacement fields """
         value = value.replace('<name>', side.card.name)
@@ -230,6 +247,11 @@ class CardRenderer:
             value = value.replace('<esi>', '')
 
         value = value.replace('<copyright>', side.card.get('copyright') or '')
+
+        # card reference
+        references = re.findall(card_value_pattern, value)
+        for match in references:
+            value = value.replace(match[0], self.card_value(side.card.project, match[1], match[2]))
 
         return value
 
@@ -390,11 +412,11 @@ class CardRenderer:
                     self.rich_text.render_text(
                         temp_image,
                         value,
-                        Region({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
+                        Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
                         font=font.get('font', 'regular'),
-                        font_size=font.get('size', 20)*Region.SCALE,
+                        font_size=scale(font.get('size', 20)),
                         fill=font.get('color', '#231f20'),
-                        outline=font.get('outline'),
+                        outline=scale(font.get('outline', 0)),
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
                         polygon=polygon,
@@ -656,7 +678,7 @@ class CardRenderer:
             return
 
         illustration = self.get_cached(illustration_path)
-        region = Region(side['illustration_region'])
+        region = Region(side.get('illustration_region'))
 
         # Calculate scaling
         illustration_scale = float(side.get('illustration_scale', 0)) * Region.SCALE

@@ -185,14 +185,15 @@ campaign_box_template = {
   "XmlUI": ""
 }
 
-def get_image_path(card, side, number):
-    export = Path(shoggoth.app.current_project.file_path).parent / f'Export of {shoggoth.app.current_project.name}' / f'{card.id}_{side}_{number}.webp'
-    return export
+def get_image_path(card, side, number, image_folder):
+    return image_folder / f'{card.id}_{side}_{number}.webp'
 
 
-def card_to_tts(card, id, number):
+def card_to_tts(card, id, number, image_folder):
+    print('1')
     data = deepcopy(card_template)
     data['CustomDeck'][id] = deepcopy(inner_card_template)
+    print('2')
     data['Tags'] = []
     if card.front.get('type', '') == 'player':
         data['Tags'].append('PlayerCard')
@@ -201,7 +202,8 @@ def card_to_tts(card, id, number):
         data['Tags'].append('EncounterCard')
         data['CustomDeck'][id]['FaceURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
     else:
-        data['CustomDeck'][id]['FaceURL'] = f'file:///{get_image_path(card, 'front', number)}'
+        data['CustomDeck'][id]['FaceURL'] = f'file:///{get_image_path(card, 'front', number, image_folder)}'
+    print('3')
 
     if card.back.get('type', '') == 'player':
         data['Tags'].append('PlayerCard')
@@ -210,7 +212,8 @@ def card_to_tts(card, id, number):
         data['Tags'].append('EncounterCard')
         data['CustomDeck'][id]['BackURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
     else:
-        data['CustomDeck'][id]['BackURL'] = f'file:///{get_image_path(card, 'back', number)}'
+        data['CustomDeck'][id]['BackURL'] = f'file:///{get_image_path(card, 'back', number, image_folder)}'
+    print('4')
 
     # type tags
     if 'location' in (card.front.get('type', ''), card.back.get('type', '')):
@@ -221,18 +224,26 @@ def card_to_tts(card, id, number):
         data['Tags'].append('Act')
     if 'Agenda' in (card.front.get('type', ''), card.back.get('type', '')):
         data['Tags'].append('Agenda')
+    print('5')
+    print(card.name, card.id)
 
     data['Description'] = card.name
     data['Nickname'] = card.name
     data['GUID'] = card.id
     data['CardID'] = id * 100
+    print(card.name, card.id)
     data['GMNotes'] = build_gm_notes_string(card)
+    print('6')
     return data
 
 
-def export_card(card):
+def export_all(project, image_folder):
+    pass
+
+
+def export_card(card, image_folder):
     wrapper = deepcopy(wrapper_template)
-    data = card_to_tts(card, 8000)
+    data = card_to_tts(card, 8000, 0, image_folder)
     wrapper['ObjectStates'].append(data)
 
     if files.tts_dir:
@@ -244,7 +255,8 @@ def export_card(card):
         json.dump(wrapper, file, indent=4)
 
 
-def export_campaign(project):
+def export_campaign(project, image_folder):
+    print('exporting campaign', project.encounter_sets)
     wrapper = deepcopy(wrapper_template)
     current_id = 6000
     for encounter in project.encounter_sets:
@@ -252,13 +264,21 @@ def export_campaign(project):
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
         encounter_wrapper["DeckIDs"] = []
         encounter_wrapper['Nickname'] = encounter.name
+        print('sets', len(encounter.cards))
         for card in encounter.cards:
-            for variant in range(card.amount):
-                encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, variant))
+            print('encounter cards', card.amount, card.name, card.versions)
+            for variant in card.versions:
+                print('variants')
+                encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, variant, image_folder))
+                print('variants 2')
                 current_id += 1
                 encounter_wrapper["DeckIDs"].append(current_id)
+                print('variants 3')
 
+    print('still going strong')
+    return_status = 0
     if files.tts_dir:
+        return_status = 1
         output_path = files.tts_dir / f"{shoggoth.app.current_project.name} campaign.json"
     else:
         output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} campaign.json"
@@ -266,20 +286,27 @@ def export_campaign(project):
     print('Writing TTS to:', str(output_path))
     with open(output_path, 'w') as file:
         json.dump(wrapper, file, indent=4)
+    print('still going strong')
+
+    return return_status, output_path
 
 
-def export_player_cards(cards):
+def export_player_cards(cards, image_folder):
     wrapper = deepcopy(wrapper_template)
     current_id = 6000
     for card in cards:
         for variant in range(card.amount):
-            wrapper['ObjectStates'].append(card_to_tts(card, current_id, variant))
+            wrapper['ObjectStates'].append(card_to_tts(card, current_id, variant, image_folder))
             current_id += 1
 
+    return_status = 0
     if files.tts_dir:
+        return_status = 1
         output_path = files.tts_dir / f"{shoggoth.app.current_project.name} player cards.json"
     else:
         output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} player cards.json"
 
     with open(output_path, 'w') as file:
         json.dump(wrapper, file, indent=4)
+
+    return return_status, output_path

@@ -260,8 +260,8 @@ def _sced_icon_counts(face):
 
 def _sced_slot(face):
     """Return SCED slot string (pipe-separated, title case), or None."""
-    slots = face.get('slots', [face.get('slot')])
-    sced = [_SLOT_TO_SCED.get(s.lower()) for s in slots if s]
+    slots = face.get('slots', [face.get('slot', '')])
+    sced = [_SLOT_TO_SCED.get(s.lower(), s) for s in slots if s]
     return '|'.join(sced) if sced else None
 
 
@@ -270,20 +270,22 @@ def _sced_location_data(face):
     data = {}
 
     data['icons'] = face.get('connection', '')
-    connections = [c.replace('_a', 'A') for c in face.get('connections', [])]
-    try:
-        data['connections'] = '|'.join(connections)
-    except Exception:
-        pass
 
-    victory = face.get('victory', '')
+    if face.get('connections'):
+        connections = [c.replace('_a', 'A') for c in face.get('connections')]
+        try:
+            data['connections'] = '|'.join(connections)
+        except Exception:
+            pass
+
+    victory = face.get('victory')
     if victory:
         try:
             data['victory'] = _try_int(victory)
         except (ValueError, TypeError):
             pass
 
-    if face.get('clues', ''):
+    if face.get('clues'):
         data['uses'] = [{
             "type": "Clue",
             "token": "clue"
@@ -292,7 +294,6 @@ def _sced_location_data(face):
             data['uses'][0]['countPerInvestigator'] = _try_int(face.get('clues').split('<')[0])
         else:
             data['uses'][0]['count'] = _try_int(face.get('clues'))
-
     return data or None
 
 
@@ -334,12 +335,11 @@ def build_gm_notes(card):
     if traits:
         notes['traits'] = traits
 
-    # --- type-specific fields ---
     if card.front.get('cost'):
         notes['cost'] = _try_int(card.front.get('cost'))
     notes.update(_sced_icon_counts(card.front))
 
-    if 'Permanent.' in card.front.get('text'):
+    if card.front.get('text') and 'Permanent.' in card.front.get('text'):
         notes['permanent'] = True
 
     # weakness detection via class field
@@ -381,7 +381,7 @@ def build_gm_notes(card):
     if victory is not None:
         notes['victory'] = victory
 
-    if 'Hidden.' in card.front.get('text'):
+    if card.front.get('text') and 'Hidden.' in card.front.get('text'):
         notes['hidden'] = True
 
     loc_front = _sced_location_data(card.front)

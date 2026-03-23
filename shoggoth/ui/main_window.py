@@ -28,6 +28,24 @@ from shoggoth.i18n import get_available_languages, load_language, get_current_la
 from shoggoth.ui.card_editor import CardEditor
 
 
+def _make_inverted_icon(icon_path, project_file_path, size=16):
+    """Load an icon, invert its RGB (preserve alpha), return a QIcon."""
+    path = Path(icon_path)
+    if not path.is_absolute():
+        path = Path(project_file_path).parent / path
+    if not path.exists():
+        return None
+    image = QImage(str(path))
+    if image.isNull():
+        return None
+    image = image.convertToFormat(QImage.Format_ARGB32)
+    image.invertPixels(QImage.InvertRgb)
+    pixmap = QPixmap.fromImage(image).scaled(
+        size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
+    )
+    return QIcon(pixmap)
+
+
 class DraggableTreeWidget(QTreeWidget):
     """Tree widget with custom drag and drop for card organization"""
 
@@ -434,12 +452,15 @@ class FileBrowser(QWidget):
 
         # Add encounter sets
         for encounter_set in project.encounter_sets:
+            e_icon = None
+            if encounter_set.icon:
+                e_icon = _make_inverted_icon(encounter_set.icon, project.file_path)
             e_spec = {
                 'node_id': f'encounter:{encounter_set.name}',
                 'text': encounter_set.name,
                 'type': 'encounter',
                 'data': encounter_set,
-                'icon': None,
+                'icon': e_icon,
                 'children': []
             }
 
@@ -601,7 +622,8 @@ class FileBrowser(QWidget):
 
         # Set icon if specified
         if spec.get('icon'):
-            item.setIcon(0, QIcon(spec['icon']))
+            icon = spec['icon']
+            item.setIcon(0, icon if isinstance(icon, QIcon) else QIcon(icon))
 
         # Store in node map for fast lookup
         self._node_map[spec['node_id']] = item
@@ -621,6 +643,13 @@ class FileBrowser(QWidget):
         # Update text if changed
         if item.text(0) != spec['text']:
             item.setText(0, spec['text'])
+
+        # Update icon
+        if spec.get('icon'):
+            icon = spec['icon']
+            item.setIcon(0, icon if isinstance(icon, QIcon) else QIcon(icon))
+        else:
+            item.setIcon(0, QIcon())
 
         # Update user data
         user_data = {'type': spec['type'], 'data': spec['data'], 'node_id': spec['node_id']}
@@ -1190,20 +1219,9 @@ class ShoggothMainWindow(QMainWindow):
 
         export_menu.addSeparator()
 
-        # Export card to TTS object
-        tts_card_action = QAction(tr("MENU_EXPORT_TTS_CARD"), self)
-        tts_card_action.triggered.connect(self.export_card_to_tts)
-        export_menu.addAction(tts_card_action)
-
-        # Export all campaign cards to TTS object
-        tts_campaign_action = QAction(tr("MENU_EXPORT_TTS_CAMPAIGN"), self)
-        tts_campaign_action.triggered.connect(self.export_campaign_to_tts)
-        export_menu.addAction(tts_campaign_action)
-
-        # Export all player cards to TTS object
-        tts_player_action = QAction(tr("MENU_EXPORT_TTS_PLAYER"), self)
-        tts_player_action.triggered.connect(self.export_player_to_tts)
-        export_menu.addAction(tts_player_action)
+        tts_action = QAction(tr("MENU_EXPORT_TTS"), self)
+        tts_action.triggered.connect(self.open_tts_export_dialog)
+        export_menu.addAction(tts_action)
 
         # ==================== TOOLS MENU ====================
         tools_menu = menubar.addMenu(tr("MENU_TOOLS"))
@@ -1646,6 +1664,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_card(self, card):
         """Display a card in the editor"""
+        self.file_browser.set_active_project(card.project)
         self._push_nav_history('card', card.id)
 
         # Clean up previous editor
@@ -1757,6 +1776,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_encounter(self, encounter):
         """Display an encounter set in the editor"""
+        self.file_browser.set_active_project(encounter.project)
         self._push_nav_history('encounter', encounter.id)
 
         # Clear current editor
@@ -1796,6 +1816,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_project(self, project):
         """Display project editor"""
+        self.file_browser.set_active_project(project)
         self._push_nav_history('project', project.file_path)
 
         # Clear current editor
@@ -1825,6 +1846,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_guide(self, guide):
         """Display guide editor"""
+        self.file_browser.set_active_project(guide.project)
         self._push_nav_history('guide', guide.id)
 
         # Clear current editor
@@ -1850,9 +1872,11 @@ class ShoggothMainWindow(QMainWindow):
         self.content_layout.addWidget(editor)
 
         self.current_guide = guide
+        self.current_guide_editor = editor
 
     def show_locations(self, encounter_set):
         """Display location connection editor for an encounter set"""
+        self.file_browser.set_active_project(encounter_set.project)
         self._push_nav_history('locations', encounter_set.id)
 
         # Clear current editor
@@ -2368,41 +2392,14 @@ class ShoggothMainWindow(QMainWindow):
         # TODO: Implement PDF export
         QMessageBox.information(self, tr("DLG_TODO"), tr("MSG_PDF_NOT_IMPLEMENTED"))
 
-    def export_card_to_tts(self):
-        """Export card to Tabletop Simulator"""
-        if not self.current_card:
-            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
-            return
-        try:
-            from shoggoth import tts_lib
-            tts_lib.export_card(self.current_card)
-            self.status_bar.showMessage(tr("STATUS_TTS_CARD_EXPORTED"))
-        except Exception as e:
-            QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_EXPORT_TTS").format(error=e))
-
-    def export_campaign_to_tts(self):
-        """Export campaign cards to Tabletop Simulator"""
+    def open_tts_export_dialog(self):
+        """Open the TTS export modal dialog."""
         if not self.active_project:
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
-        try:
-            from shoggoth import tts_lib
-            tts_lib.export_campaign(self.active_project)
-            self.status_bar.showMessage(tr("STATUS_TTS_CAMPAIGN_EXPORTED"))
-        except Exception as e:
-            QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_EXPORT_TTS").format(error=e))
-
-    def export_player_to_tts(self):
-        """Export player cards to Tabletop Simulator"""
-        if not self.active_project:
-            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
-            return
-        try:
-            from shoggoth import tts_lib
-            tts_lib.export_player_cards(self.active_project.player_cards)
-            self.status_bar.showMessage(tr("STATUS_TTS_PLAYER_EXPORTED"))
-        except Exception as e:
-            QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_EXPORT_TTS").format(error=e))
+        from shoggoth.ui.tts_export_dialog import TTSExportDialog
+        dialog = TTSExportDialog(self.active_project, self.card_renderer, parent=self)
+        dialog.exec()
 
     # ==================== TOOLS MENU ACTIONS ====================
 

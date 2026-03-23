@@ -30,6 +30,7 @@ class ProjectEditor(QWidget):
         self.project = project
         self.card_renderer = card_renderer
         self._updating = False
+        self._stop_thumbnails = False
 
         # Connect thumbnail signal
         self.thumbnail_ready.connect(self._add_thumbnail)
@@ -77,10 +78,16 @@ class ProjectEditor(QWidget):
         icon_layout = QHBoxLayout()
         self.icon_input = QLineEdit()
         self.icon_input.textChanged.connect(lambda: self.on_field_changed('icon'))
+        self.icon_input.textChanged.connect(self._update_icon_preview)
         icon_layout.addWidget(self.icon_input)
         browse_btn = QPushButton(tr("BTN_BROWSE"))
         browse_btn.clicked.connect(self.browse_icon)
         icon_layout.addWidget(browse_btn)
+        self.icon_preview = QLabel()
+        self.icon_preview.setFixedSize(64, 64)
+        self.icon_preview.setAlignment(Qt.AlignCenter)
+        self.icon_preview.setStyleSheet("border: 1px solid #aaa; background: #d4c3a0;")
+        icon_layout.addWidget(self.icon_preview)
         info_layout.addRow(tr("FIELD_ICON"), icon_layout)
 
         info_group.setLayout(info_layout)
@@ -240,6 +247,20 @@ class ProjectEditor(QWidget):
         self.project.dirty = True
         self.data_changed.emit()
 
+    def _update_icon_preview(self, path_text):
+        path = Path(path_text.strip()) if path_text.strip() else None
+        if path and not path.is_absolute():
+            path = Path(self.project.file_path).parent / path
+        if path and path.exists():
+            pixmap = QPixmap(str(path))
+            if not pixmap.isNull():
+                self.icon_preview.setPixmap(
+                    pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                )
+                return
+        self.icon_preview.setPixmap(QPixmap())
+        self.icon_preview.setText("")
+
     def browse_icon(self):
         """Browse for icon file"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -282,28 +303,31 @@ class ProjectEditor(QWidget):
         cards = self.project.get_all_cards()
 
         for index, card in enumerate(cards):
+            if self._stop_thumbnails:
+                break
             try:
-                # Render thumbnail
                 front_image, _ = self.card_renderer.get_card_textures(card, {'width': 750, 'height': 1050, 'bleed': 36}, bleed=False)
 
-                # Convert to QPixmap
                 front_image.seek(0)
                 image_data = front_image.read()
                 qimage = QImage.fromData(image_data)
                 pixmap = QPixmap.fromImage(qimage)
 
-                # Scale to thumbnail size
                 thumbnail = pixmap.scaled(
                     150, 210,
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 )
 
-                # Emit signal to add thumbnail in main thread
-                self.thumbnail_ready.emit(thumbnail, card.name, index)
+                if not self._stop_thumbnails:
+                    self.thumbnail_ready.emit(thumbnail, card.name, index)
 
             except Exception as e:
                 print(f"Error rendering thumbnail for {card.name}: {e}")
+
+    def cleanup(self):
+        """Stop background thumbnail generation"""
+        self._stop_thumbnails = True
 
     @Slot(QPixmap, str, int)
     def _add_thumbnail(self, pixmap, card_name, index):

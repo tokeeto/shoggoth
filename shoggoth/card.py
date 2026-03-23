@@ -58,6 +58,8 @@ class Face:
             result = self.__getitem__(key)
             if result == '<copy>':
                 return self.other_side[key]
+            if result is None:
+                return default
             return result
         except KeyError:
             return default
@@ -183,14 +185,16 @@ class Card:
 
     @property
     def versions(self):
-        if not self.encounter_number or '-' not in self.encounter_number:
-            yield self
-            return
+        if not isinstance(self.encounter_number, str) or '-' not in self.encounter_number:
+            return [self]
+
+        versions = []
         r = self.encounter_number.split('-')
         for n in range(int(r[0]), int(r[1]) + 1):
             cp = Card(self.data.copy(), self.project, self.encounter)
             cp.encounter_number = n
-            yield cp
+            versions.append(cp)
+        return versions
 
     @property
     def code(self):
@@ -369,9 +373,9 @@ class TEMPLATES:
         card = cls.BASE()
         card['amount'] = 1
         card['front']['type'] = 'chaos'
-        card['front']['difficulty'] = 'Easy/Standard'
+        card['front']['difficulty'] = 'EASY/STANDARD'
         card['back']['type'] = 'chaos'
-        card['back']['difficulty'] = 'Hard/Expert'
+        card['back']['difficulty'] = 'HARD/EXPERT'
         return card
 
     @classmethod
