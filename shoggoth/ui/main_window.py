@@ -2322,7 +2322,12 @@ class ShoggothMainWindow(QMainWindow):
         if not self.active_project:
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
-        self.active_project.add_guide()
+        from shoggoth.ui.dialogs import NewGuideDialog
+        dialog = NewGuideDialog(self.active_project.folder, parent=self)
+        if dialog.exec() != NewGuideDialog.Accepted:
+            return
+        name, file_path = dialog.get_result()
+        self.active_project.add_guide(name=name, file_location=file_path)
         self.file_browser.refresh()
         self.status_bar.showMessage(tr("STATUS_GUIDE_ADDED"))
 

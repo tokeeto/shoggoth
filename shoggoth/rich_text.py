@@ -578,6 +578,10 @@ class RichTextRenderer:
         quote = False
         quote_last = False
 
+        # some run-on-line states
+        previous_bullet = 0
+        bullet_indent = False
+
         # Word wrapping data
         current_line = []
         line_height = int(font_size * 1.30)  # Line height with spacing
@@ -686,6 +690,11 @@ class RichTextRenderer:
 
             x_pos = get_line_start_x(line, y_pos)
             x_pos += indent
+            if bullet_indent:
+                nonlocal previous_bullet
+                if previous_bullet:
+                    x_pos = previous_bullet
+                previous_bullet = x_pos
 
             if not line:
                 return
@@ -783,7 +792,6 @@ class RichTextRenderer:
 
             elif token['type'] == 'newline':
                 # Render current line and start a new one
-                current_indent_x = 0
                 if current_line:
                     render_line(current_line, y, indent=(current_indent if indent_current else 0))
                     current_indent = 0
@@ -793,8 +801,8 @@ class RichTextRenderer:
                 # Move to next line
                 y += line_height
                 if polygon:
-                    l,r = polygon_width_at_y(y, polygon)
-                    max_width = r-l
+                    l, r = polygon_width_at_y(y, polygon)
+                    max_width = r - l
                 current_line = []
                 current_line_width = 0
 
@@ -810,10 +818,10 @@ class RichTextRenderer:
                 token_width = token['width']
 
                 # if this is a bullet, at the start of a new line, indent it
-                if token['value'] == 'b' and not current_line:
-                    current_indent = token_width + get_token_width(
-                        {'type': 'text', 'value': " ", 'font': current_font}
-                    )
+                if token['value'] == 'b':
+                    current_indent = current_line_width + token_width
+                    indent_current = True
+                    bullet_indent = True
 
                 # Check if adding this icon would exceed the max width
                 if current_line_width + token_width > max_width:

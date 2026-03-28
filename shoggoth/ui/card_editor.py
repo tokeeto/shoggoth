@@ -238,21 +238,7 @@ class CardEditor(QWidget):
     def load_json_data(self):
         """Load card data into JSON editor"""
         try:
-            # Get entire card data
-            card_data = {
-                'name': self.card.name,
-                'id': self.card.id,
-                'amount': self.card.amount,
-                'project_number': self.card.project_number,
-                'encounter_number': self.card.encounter_number,
-                'investigator': self.card.get('investigator'),
-                'front': self.card.front.data,
-                'back': self.card.back.data,
-            }
-            # Remove None values
-            card_data = {k: v for k, v in card_data.items() if v is not None}
-
-            json_text = json.dumps(card_data, indent=2)
+            json_text = json.dumps(self.card.data, indent=2)
             self.json_editor.setPlainText(json_text)
             self.json_status.setText(tr("STATUS_JSON_LOADED"))
             self.json_status.setStyleSheet("color: green; padding: 5px;")
@@ -271,9 +257,23 @@ class CardEditor(QWidget):
                 return
 
             data = json.loads(text)
-            self.card.data.update(data)
 
-            # Emit signal for preview update
+            # Update front/back face dicts in-place so that Face.data references
+            # remain valid (the renderer and editors hold references to those dicts).
+            for face_key, face in (('front', self.card.front), ('back', self.card.back)):
+                if face_key in data and isinstance(data[face_key], dict):
+                    face.data.clear()
+                    face.data.update(data[face_key])
+
+            # Sync all other top-level keys, including any custom properties the
+            # user may have added.  Keys absent from the edited JSON are removed.
+            incoming_top = {k: v for k, v in data.items() if k not in ('front', 'back')}
+            for key in [k for k in list(self.card.data) if k not in ('front', 'back')]:
+                if key not in incoming_top:
+                    del self.card.data[key]
+            self.card.data.update(incoming_top)
+
+            self.card.dirty = True
             self.data_changed.emit()
 
             self.json_status.setText(tr("STATUS_JSON_SAVED"))

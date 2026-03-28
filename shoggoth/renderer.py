@@ -534,7 +534,7 @@ class CardRenderer:
         for stat in ['health', 'sanity']:
             if side.get(f'draw_{stat}_overlay', True) is False:
                 continue
-            value = side.get(stat)
+            value = side.get(stat, None)
             region = Region(side.get(f'{stat}_region'))
             if not side.get(f'draw_{stat}_overlay', False):
                 if (not region) or value is None:
@@ -544,7 +544,7 @@ class CardRenderer:
             overlay_icon = Image.open(overlay_path).convert("RGBA")
             overlay_icon = overlay_icon.resize((region.width, region.height))
             center_x = region.x
-            center_y = region.y - 15
+            center_y = region.y - (scale(23) if stat == 'health' else scale(15))
             card_image.paste(overlay_icon, (center_x, center_y), overlay_icon)
 
     def render_project_icon(self, card_image, side):

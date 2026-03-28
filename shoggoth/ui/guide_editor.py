@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSpinBox, QTextEdit, QSplitter, QFileDialog, QScrollArea,
     QFrame, QMessageBox, QLineEdit, QStackedWidget, QSizePolicy,
-    QListWidget, QListWidgetItem,
+    QListWidget, QListWidgetItem, QComboBox,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer
 from PySide6.QtGui import (
@@ -16,7 +16,8 @@ from PySide6.QtGui import (
 import re
 from pathlib import Path
 from shoggoth.i18n import tr
-from shoggoth.guide import SECTION_TYPES, GuideSection
+from bs4 import BeautifulSoup
+from shoggoth.guide import SECTION_TYPES, GuideSection, SECTION_FIELDS
 
 # ── Display labels ────────────────────────────────────────────────────────────
 
@@ -244,295 +245,266 @@ def _strip_tags(html: str) -> str:
     return re.sub(r'<[^>]+>', '', html)
 
 
-# ── Type-specific section forms ───────────────────────────────────────────────
+# ── Field editor widgets ───────────────────────────────────────────────────────
 
-class BaseSectionForm(QWidget):
-    def to_html(self) -> str:
-        raise NotImplementedError
+class FieldEditorWidget(QFrame):
+    """Base widget for editing one predefined section field."""
 
-    def from_html(self, html: str):
-        raise NotImplementedError
-
-
-class ScenarioForm(BaseSectionForm):
-    def __init__(self, parent=None):
+    def __init__(self, field_def, parent=None):
         super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        self.field_def = field_def
+        self._status = 'ok'  # 'ok' | 'missing' | 'ambiguous'
+        self.setFrameStyle(QFrame.StyledPanel)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(8, 6, 8, 6)
+        outer.setSpacing(4)
+        header_row = QHBoxLayout()
+        self._header_lbl = QLabel(f'<b>{field_def.label}</b>')
+        header_row.addWidget(self._header_lbl)
+        self._status_lbl = QLabel()
+        self._status_lbl.setStyleSheet('font-size: 8pt; font-style: italic;')
+        header_row.addWidget(self._status_lbl)
+        header_row.addStretch()
+        outer.addLayout(header_row)
+        self._warn_lbl = QLabel()
+        self._warn_lbl.setWordWrap(True)
+        self._warn_lbl.setStyleSheet('color: #cc4400; font-size: 8pt;')
+        self._warn_lbl.hide()
+        outer.addWidget(self._warn_lbl)
+        self._build_editor(outer)
 
-        layout.addWidget(QLabel("Title:"))
-        self.title_edit = QLineEdit()
-        layout.addWidget(self.title_edit)
+    def _build_editor(self, layout):
+        pass
 
-        layout.addWidget(QLabel("Story / Flavor text:"))
-        hint = QLabel("Italic flavor text. Separate paragraphs with a blank line.")
-        hint.setStyleSheet("color: gray; font-size: 8pt;")
+    def get_value(self) -> str:
+        """Return the full HTML element string for this field."""
+        return ''
+
+    def set_value(self, html_fragment: str):
+        """Populate editor from the matched element's outer HTML."""
+
+    def load_from_soup(self, wrapper):
+        """Locate the field element in *wrapper* and configure widget state."""
+        matches = self.field_def.locate(wrapper)
+        if len(matches) == 0:
+            self._status = 'missing'
+            self.setStyleSheet('QFrame { border-left: 3px solid #aa7700; }')
+            self._status_lbl.setText('(not in HTML — will be appended on save)')
+            self._status_lbl.setStyleSheet('color: #aa7700; font-size: 8pt; font-style: italic;')
+            self.set_value(self.field_def.default_html)
+        elif len(matches) > 1:
+            self._status = 'ambiguous'
+            self.setStyleSheet('QFrame { border-left: 3px solid #cc4400; }')
+            self._status_lbl.setText(f'ambiguous ({len(matches)} matches)')
+            self._status_lbl.setStyleSheet('color: #cc4400; font-size: 8pt; font-weight: bold;')
+            self._warn_lbl.setText(
+                'Multiple elements match — this field is disabled. Edit raw HTML to resolve.'
+            )
+            self._warn_lbl.show()
+            self.setEnabled(False)
+        else:
+            self._status = 'ok'
+            self.setStyleSheet('QFrame { border-left: 3px solid #3d5a8a; }')
+            self._status_lbl.clear()
+            self._warn_lbl.hide()
+            self.setEnabled(True)
+            self.set_value(str(matches[0]))
+
+    def apply_to_soup(self, wrapper):
+        """Write current value back into *wrapper* (surgical update)."""
+        if self._status == 'ambiguous':
+            return
+        matches = self.field_def.locate(wrapper)
+        new_tag = BeautifulSoup(self.get_value(), 'html.parser').find()
+        if new_tag is None:
+            return
+        if not matches:
+            wrapper.append(new_tag)
+        else:
+            matches[0].replace_with(new_tag)
+
+
+class LineFieldWidget(FieldEditorWidget):
+    """Single-line plain text (e.g. h1 header)."""
+
+    def _build_editor(self, layout):
+        self._edit = QLineEdit()
+        self._edit.setPlaceholderText(f'{self.field_def.label}...')
+        layout.addWidget(self._edit)
+
+    def get_value(self) -> str:
+        tag = self.field_def.selector_tag
+        return f'<{tag}>{self._edit.text()}</{tag}>'
+
+    def set_value(self, html_fragment: str):
+        m = re.search(r'<[^>]+>(.*?)</[^>]+>', html_fragment, re.DOTALL)
+        self._edit.setText(_strip_tags(m.group(1)) if m else '')
+
+
+class StoryFieldWidget(FieldEditorWidget):
+    """Multi-paragraph italic story/flavour text (div.story)."""
+
+    def _build_editor(self, layout):
+        hint = QLabel('Blank line = new paragraph. Text will be italicised.')
+        hint.setStyleSheet('color: gray; font-size: 8pt;')
         layout.addWidget(hint)
-        self.story_edit = QTextEdit()
-        self.story_edit.setMinimumHeight(100)
-        layout.addWidget(self.story_edit)
+        self._edit = QTextEdit()
+        self._edit.setMinimumHeight(80)
+        self._edit.setMaximumHeight(200)
+        layout.addWidget(self._edit)
 
-        layout.addWidget(QLabel("Setup steps:"))
-        self.setup_list = EditableListWidget()
-        layout.addWidget(self.setup_list)
+    def get_value(self) -> str:
+        text = self._edit.toPlainText().strip()
+        paras = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()] or ['']
+        inner = '\n'.join(f'<p><em>{p}</em></p>' for p in paras)
+        css = self.field_def.selector_class
+        return f'<div class="{css}">\n{inner}\n</div>'
 
-        layout.addWidget(QLabel("Resolution:"))
-        res_hint = QLabel("Resolution text / outcomes. Raw HTML accepted.")
-        res_hint.setStyleSheet("color: gray; font-size: 8pt;")
-        layout.addWidget(res_hint)
-        self.resolution_edit = QTextEdit()
-        self.resolution_edit.setMinimumHeight(80)
-        layout.addWidget(self.resolution_edit)
-
-        layout.addStretch()
-
-    def to_html(self) -> str:
-        parts = []
-        title = self.title_edit.text().strip()
-        if title:
-            parts.append(f'<h1>{title}</h1>')
-        story = self.story_edit.toPlainText().strip()
-        if story:
-            for para in re.split(r'\n{2,}', story):
-                para = para.strip()
-                if para:
-                    parts.append(f'<p class="italic">{para}</p>')
-        items = self.setup_list.get_items()
-        if items:
-            li = '\n'.join(f'\t<li>{item}</li>' for item in items)
-            parts.append(f'<h4>Setup</h4>\n<ul>\n{li}\n</ul>\n<p><b>You are now ready to begin.</b></p>')
-        res = self.resolution_edit.toPlainText().strip()
-        if res:
-            parts.append(f'<div class="resolution_box">\n{res}\n</div>')
-        return '\n'.join(parts)
-
-    def from_html(self, html: str):
-        m = re.search(r'<h[12][^>]*>(.*?)</h[12]>', html, re.DOTALL | re.IGNORECASE)
-        if m:
-            self.title_edit.setText(_strip_tags(m.group(1)))
-        story_paras = re.findall(
-            r'<p[^>]*class=["\']italic["\'][^>]*>(.*?)</p>', html, re.DOTALL | re.IGNORECASE
-        )
-        if story_paras:
-            self.story_edit.setPlainText('\n\n'.join(p for p in story_paras))
-        setup_m = re.search(
-            r'<h4[^>]*>\s*Setup\s*</h4>\s*<ul>(.*?)</ul>', html, re.DOTALL | re.IGNORECASE
-        )
-        if setup_m:
-            items = re.findall(r'<li>(.*?)</li>', setup_m.group(1), re.DOTALL)
-            self.setup_list.set_items([_strip_tags(i).strip() for i in items])
-        res_m = re.search(
-            r'<div[^>]*class=["\']resolution_box["\'][^>]*>(.*?)</div>', html, re.DOTALL | re.IGNORECASE
-        )
-        if res_m:
-            self.resolution_edit.setPlainText(res_m.group(1).strip())
+    def set_value(self, html_fragment: str):
+        em_paras = re.findall(r'<em[^>]*>(.*?)</em>', html_fragment, re.DOTALL | re.IGNORECASE)
+        if em_paras:
+            self._edit.setPlainText('\n\n'.join(_strip_tags(p) for p in em_paras))
+        else:
+            paras = re.findall(r'<p[^>]*>(.*?)</p>', html_fragment, re.DOTALL | re.IGNORECASE)
+            self._edit.setPlainText('\n\n'.join(_strip_tags(p) for p in paras))
 
 
-class InterludeForm(BaseSectionForm):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+class TextFieldWidget(FieldEditorWidget):
+    """Multi-paragraph plain text."""
 
-        layout.addWidget(QLabel("Title:"))
-        self.title_edit = QLineEdit()
-        layout.addWidget(self.title_edit)
-
-        layout.addWidget(QLabel("Story / Flavor text:"))
-        hint = QLabel("Italic story text. Separate paragraphs with a blank line.")
-        hint.setStyleSheet("color: gray; font-size: 8pt;")
+    def _build_editor(self, layout):
+        hint = QLabel('Blank line = new paragraph.')
+        hint.setStyleSheet('color: gray; font-size: 8pt;')
         layout.addWidget(hint)
-        self.story_edit = QTextEdit()
-        self.story_edit.setMinimumHeight(120)
-        layout.addWidget(self.story_edit)
+        self._edit = QTextEdit()
+        self._edit.setMinimumHeight(80)
+        self._edit.setMaximumHeight(200)
+        layout.addWidget(self._edit)
 
-        layout.addWidget(QLabel("Additional rules / notes:"))
-        self.notes_edit = QTextEdit()
-        self.notes_edit.setMinimumHeight(80)
-        layout.addWidget(self.notes_edit)
+    def get_value(self) -> str:
+        text = self._edit.toPlainText().strip()
+        paras = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()] or ['']
+        inner = '\n'.join(f'<p>{p}</p>' for p in paras)
+        css = self.field_def.selector_class
+        return f'<div class="{css}">\n{inner}\n</div>'
 
-        layout.addStretch()
+    def set_value(self, html_fragment: str):
+        paras = re.findall(r'<p[^>]*>(.*?)</p>', html_fragment, re.DOTALL | re.IGNORECASE)
+        self._edit.setPlainText('\n\n'.join(_strip_tags(p) for p in paras))
 
-    def to_html(self) -> str:
-        parts = []
-        title = self.title_edit.text().strip()
-        if title:
-            parts.append(f'<h1>{title}</h1>')
-        story = self.story_edit.toPlainText().strip()
-        if story:
-            for para in re.split(r'\n{2,}', story):
-                para = para.strip()
-                if para:
-                    parts.append(f'<p class="italic">{para}</p>')
-        notes = self.notes_edit.toPlainText().strip()
-        if notes:
-            for para in re.split(r'\n{2,}', notes):
-                para = para.strip()
-                if para:
-                    parts.append(f'<p>{para}</p>')
-        return '\n'.join(parts)
 
-    def from_html(self, html: str):
-        m = re.search(r'<h[12][^>]*>(.*?)</h[12]>', html, re.DOTALL | re.IGNORECASE)
+class HtmlFieldWidget(FieldEditorWidget):
+    """Raw HTML editor with syntax highlighting."""
+
+    def _build_editor(self, layout):
+        self._edit = QTextEdit()
+        self._edit.setAcceptRichText(False)
+        self._edit.setMinimumHeight(80)
+        self._edit.setMaximumHeight(200)
+        HTMLHighlighter(self._edit.document())
+        layout.addWidget(self._edit)
+
+    def get_value(self) -> str:
+        return self._edit.toPlainText().strip()
+
+    def set_value(self, html_fragment: str):
+        self._edit.setPlainText(html_fragment)
+
+
+class ListFieldWidget(FieldEditorWidget):
+    """Editable ordered list (table of contents)."""
+
+    def _build_editor(self, layout):
+        self._list = EditableListWidget()
+        layout.addWidget(self._list)
+
+    def get_value(self) -> str:
+        items = self._list.get_items()
+        li = '\n'.join(f'<li>{item}</li>' for item in items)
+        css = self.field_def.selector_class
+        return f'<div class="{css}">\n<h3>Table of Contents</h3>\n<ul>\n{li}\n</ul>\n</div>'
+
+    def set_value(self, html_fragment: str):
+        items = re.findall(r'<li[^>]*>(.*?)</li>', html_fragment, re.DOTALL | re.IGNORECASE)
+        self._list.set_items([_strip_tags(i).strip() for i in items])
+
+
+class TitledListFieldWidget(FieldEditorWidget):
+    """Title + editable list (e.g. Setup)."""
+
+    def _build_editor(self, layout):
+        row = QHBoxLayout()
+        row.addWidget(QLabel('Title:'))
+        self._title = QLineEdit()
+        row.addWidget(self._title)
+        layout.addLayout(row)
+        self._list = EditableListWidget()
+        layout.addWidget(self._list)
+
+    def get_value(self) -> str:
+        title = self._title.text().strip()
+        items = self._list.get_items()
+        li = '\n'.join(f'<li>{item}</li>' for item in items)
+        css = self.field_def.selector_class
+        return f'<div class="{css}">\n<h3>{title}</h3>\n<ul>\n{li}\n</ul>\n</div>'
+
+    def set_value(self, html_fragment: str):
+        m = re.search(r'<h\d[^>]*>(.*?)</h\d>', html_fragment, re.DOTALL | re.IGNORECASE)
         if m:
-            self.title_edit.setText(_strip_tags(m.group(1)))
-        story_paras = re.findall(
-            r'<p[^>]*class=["\']italic["\'][^>]*>(.*?)</p>', html, re.DOTALL | re.IGNORECASE
-        )
-        if story_paras:
-            self.story_edit.setPlainText('\n\n'.join(story_paras))
-        notes_paras = re.findall(
-            r'<p(?![^>]*class=["\']italic["\'])[^>]*>(.*?)</p>', html, re.DOTALL | re.IGNORECASE
-        )
-        if notes_paras:
-            self.notes_edit.setPlainText('\n\n'.join(_strip_tags(p) for p in notes_paras))
+            self._title.setText(_strip_tags(m.group(1)))
+        items = re.findall(r'<li[^>]*>(.*?)</li>', html_fragment, re.DOTALL | re.IGNORECASE)
+        self._list.set_items([_strip_tags(i).strip() for i in items])
 
 
-class IntroForm(BaseSectionForm):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+class TitledHtmlFieldWidget(FieldEditorWidget):
+    """Title + raw HTML body (e.g. Resolution)."""
 
-        layout.addWidget(QLabel("Title:"))
-        self.title_edit = QLineEdit()
-        layout.addWidget(self.title_edit)
+    def _build_editor(self, layout):
+        row = QHBoxLayout()
+        row.addWidget(QLabel('Title:'))
+        self._title = QLineEdit()
+        row.addWidget(self._title)
+        layout.addLayout(row)
+        self._edit = QTextEdit()
+        self._edit.setAcceptRichText(False)
+        self._edit.setMinimumHeight(80)
+        self._edit.setMaximumHeight(200)
+        HTMLHighlighter(self._edit.document())
+        layout.addWidget(self._edit)
 
-        layout.addWidget(QLabel("Opening quote / flavor:"))
-        self.quote_edit = QTextEdit()
-        self.quote_edit.setMaximumHeight(80)
-        layout.addWidget(self.quote_edit)
+    def get_value(self) -> str:
+        title = self._title.text().strip()
+        body = self._edit.toPlainText().strip()
+        css = self.field_def.selector_class
+        return f'<div class="{css}">\n<h3>{title}</h3>\n{body}\n</div>'
 
-        layout.addWidget(QLabel("Description:"))
-        hint = QLabel("Campaign overview text. Separate paragraphs with a blank line.")
-        hint.setStyleSheet("color: gray; font-size: 8pt;")
-        layout.addWidget(hint)
-        self.desc_edit = QTextEdit()
-        self.desc_edit.setMinimumHeight(100)
-        layout.addWidget(self.desc_edit)
-
-        layout.addWidget(QLabel("Campaign setup steps:"))
-        self.setup_list = EditableListWidget()
-        layout.addWidget(self.setup_list)
-
-        layout.addStretch()
-
-    def to_html(self) -> str:
-        parts = []
-        title = self.title_edit.text().strip()
-        if title:
-            parts.append(f'<h2>{title}</h2>')
-        quote = self.quote_edit.toPlainText().strip()
-        if quote:
-            parts.append(f'<div class="center italic">\n{quote}\n</div>')
-        desc = self.desc_edit.toPlainText().strip()
-        if desc:
-            for para in re.split(r'\n{2,}', desc):
-                para = para.strip()
-                if para:
-                    parts.append(f'<p>{para}</p>')
-        items = self.setup_list.get_items()
-        if items:
-            li = '\n'.join(f'\t<li>{item}</li>' for item in items)
-            parts.append(f'<h2>Campaign Setup</h2>\n<ol>\n{li}\n</ol>')
-        return '\n'.join(parts)
-
-    def from_html(self, html: str):
-        m = re.search(r'<h2[^>]*>(.*?)</h2>', html, re.DOTALL | re.IGNORECASE)
+    def set_value(self, html_fragment: str):
+        m = re.search(r'<h\d[^>]*>(.*?)</h\d>', html_fragment, re.DOTALL | re.IGNORECASE)
         if m:
-            self.title_edit.setText(_strip_tags(m.group(1)))
-        quote_m = re.search(
-            r'<div[^>]*class=["\']center italic["\'][^>]*>(.*?)</div>', html, re.DOTALL | re.IGNORECASE
-        )
-        if quote_m:
-            self.quote_edit.setPlainText(quote_m.group(1).strip())
-        desc_paras = re.findall(r'<p[^>]*>(.*?)</p>', html, re.DOTALL | re.IGNORECASE)
-        if desc_paras:
-            self.desc_edit.setPlainText('\n\n'.join(_strip_tags(p) for p in desc_paras))
-        setup_m = re.search(r'<ol>(.*?)</ol>', html, re.DOTALL | re.IGNORECASE)
-        if setup_m:
-            items = re.findall(r'<li>(.*?)</li>', setup_m.group(1), re.DOTALL)
-            self.setup_list.set_items([_strip_tags(i).strip() for i in items])
+            self._title.setText(_strip_tags(m.group(1)))
+        inner = re.sub(r'</?div[^>]*>', '', html_fragment, flags=re.IGNORECASE).strip()
+        inner = re.sub(r'<h\d[^>]*>.*?</h\d>', '', inner, flags=re.DOTALL | re.IGNORECASE).strip()
+        self._edit.setPlainText(inner)
 
 
-class PreludeForm(BaseSectionForm):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-
-        layout.addWidget(QLabel("Title:"))
-        self.title_edit = QLineEdit()
-        layout.addWidget(self.title_edit)
-
-        layout.addWidget(QLabel("Story / Flavor text:"))
-        hint = QLabel("Italic story text. Separate paragraphs with a blank line.")
-        hint.setStyleSheet("color: gray; font-size: 8pt;")
-        layout.addWidget(hint)
-        self.story_edit = QTextEdit()
-        self.story_edit.setMinimumHeight(120)
-        layout.addWidget(self.story_edit)
-
-        layout.addStretch()
-
-    def to_html(self) -> str:
-        parts = []
-        title = self.title_edit.text().strip()
-        if title:
-            parts.append(f'<h1>{title}</h1>')
-        story = self.story_edit.toPlainText().strip()
-        if story:
-            for para in re.split(r'\n{2,}', story):
-                para = para.strip()
-                if para:
-                    parts.append(f'<p class="italic">{para}</p>')
-        return '\n'.join(parts)
-
-    def from_html(self, html: str):
-        m = re.search(r'<h[12][^>]*>(.*?)</h[12]>', html, re.DOTALL | re.IGNORECASE)
-        if m:
-            self.title_edit.setText(_strip_tags(m.group(1)))
-        story_paras = re.findall(
-            r'<p[^>]*class=["\']italic["\'][^>]*>(.*?)</p>', html, re.DOTALL | re.IGNORECASE
-        )
-        if story_paras:
-            self.story_edit.setPlainText('\n\n'.join(story_paras))
-
-
-class BlankForm(BaseSectionForm):
-    """Blank sections get a raw HTML editor."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.editor = QTextEdit()
-        self.editor.setAcceptRichText(False)
-        self.editor.setFont(QFont("Courier", 10))
-        HTMLHighlighter(self.editor.document())
-        layout.addWidget(self.editor)
-
-    def to_html(self) -> str:
-        return self.editor.toPlainText()
-
-    def from_html(self, html: str):
-        self.editor.setPlainText(html)
-
-
-FORM_CLASSES = {
-    'scenario': ScenarioForm,
-    'interlude': InterludeForm,
-    'intro': IntroForm,
-    'prelude': PreludeForm,
-    'blank': BlankForm,
+_FIELD_WIDGET_MAP = {
+    'line':        LineFieldWidget,
+    'story':       StoryFieldWidget,
+    'text':        TextFieldWidget,
+    'html':        HtmlFieldWidget,
+    'list':        ListFieldWidget,
+    'titled_list': TitledListFieldWidget,
+    'titled_html': TitledHtmlFieldWidget,
 }
 
 
+def make_field_widget(field_def) -> FieldEditorWidget:
+    cls = _FIELD_WIDGET_MAP.get(field_def.kind, HtmlFieldWidget)
+    return cls(field_def)
+
+
 # ── Section editor panel ──────────────────────────────────────────────────────
+
 
 class SectionEditorPanel(QWidget):
     saved = Signal()
@@ -542,7 +514,8 @@ class SectionEditorPanel(QWidget):
         super().__init__(parent)
         self.guide = guide
         self.section_id = section_id
-        self._form = None
+        self._field_widgets: list = []
+        self._section = None
         self._setup_ui()
         self._load()
 
@@ -553,11 +526,11 @@ class SectionEditorPanel(QWidget):
 
         # Top bar
         top = QHBoxLayout()
-        back_btn = QPushButton("← Overview")
+        back_btn = QPushButton('← Overview')
         back_btn.clicked.connect(self.back_requested)
         top.addWidget(back_btn)
         top.addStretch()
-        self._html_toggle_btn = QPushButton("< > HTML")
+        self._html_toggle_btn = QPushButton('< > HTML')
         self._html_toggle_btn.setCheckable(True)
         self._html_toggle_btn.toggled.connect(self._toggle_html)
         top.addWidget(self._html_toggle_btn)
@@ -565,33 +538,44 @@ class SectionEditorPanel(QWidget):
 
         # Section name
         name_row = QHBoxLayout()
-        name_row.addWidget(QLabel("Section name:"))
+        name_row.addWidget(QLabel('Section name:'))
         self.name_edit = QLineEdit()
         name_row.addWidget(self.name_edit)
         layout.addLayout(name_row)
 
-        # Content: stacked (0=form in scroll, 1=HTML editor)
+        # Stacked: index 0 = field editors, index 1 = raw HTML
         self.content_stack = QStackedWidget()
 
-        self._form_scroll = QScrollArea()
-        self._form_scroll.setWidgetResizable(True)
-        self._form_scroll.setFrameStyle(QFrame.NoFrame)
-        # Placeholder until _load() sets the real form
-        self._form_scroll.setWidget(QWidget())
-        self.content_stack.addWidget(self._form_scroll)  # index 0
+        # Index 0 — scrollable field editors
+        fields_outer = QWidget()
+        fo_layout = QVBoxLayout(fields_outer)
+        fo_layout.setContentsMargins(0, 0, 0, 0)
+        fo_layout.setSpacing(0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameStyle(QFrame.NoFrame)
+        self._fields_container = QWidget()
+        self._fields_layout = QVBoxLayout(self._fields_container)
+        self._fields_layout.setAlignment(Qt.AlignTop)
+        self._fields_layout.setSpacing(8)
+        scroll.setWidget(self._fields_container)
+        fo_layout.addWidget(scroll, stretch=1)
+        self.content_stack.addWidget(fields_outer)  # index 0
 
+        # Index 1 — raw HTML editor
         self._html_editor = QTextEdit()
         self._html_editor.setAcceptRichText(False)
-        self._html_editor.setFont(QFont("Courier", 10))
+        self._html_editor.setFont(QFont('Courier', 10))
         HTMLHighlighter(self._html_editor.document())
         self.content_stack.addWidget(self._html_editor)  # index 1
 
         layout.addWidget(self.content_stack, stretch=1)
 
-        # Save button
-        save_btn = QPushButton("Save Section")
+        save_btn = QPushButton('Save Section')
         save_btn.clicked.connect(self._save)
         layout.addWidget(save_btn)
+
+    # ── Loading ───────────────────────────────────────────────────────────────
 
     def _load(self):
         result = self.guide.parse_sections()
@@ -601,28 +585,67 @@ class SectionEditorPanel(QWidget):
         section = next((s for s in sections if s.id == self.section_id), None)
         if section is None:
             return
-        self.name_edit.setText(section.name)
-        form_class = FORM_CLASSES.get(section.type, BlankForm)
-        self._form = form_class()
-        self._form.from_html(section.html_content)
-        self._form_scroll.setWidget(self._form)
+        self._section = section
+        self.name_edit.setText(section.name or '')
+        self._populate_fields(section)
+        if not SECTION_FIELDS.get(section.type):
+            # blank / unknown: go straight to HTML editor
+            self._html_toggle_btn.setChecked(True)
+
+    def _populate_fields(self, section):
+        """Build field widgets from SECTION_FIELDS and load values from html_content."""
+        while self._fields_layout.count():
+            item = self._fields_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+        self._field_widgets.clear()
+
+        field_defs = SECTION_FIELDS.get(section.type, [])
+        if not field_defs:
+            lbl = QLabel('No predefined fields for this section type.')
+            lbl.setStyleSheet('color: gray; font-style: italic;')
+            self._fields_layout.addWidget(lbl)
+            return
+
+        soup = BeautifulSoup(f'<div>{section.html_content}</div>', 'html.parser')
+        wrapper = soup.find('div')
+        for fd in field_defs:
+            w = make_field_widget(fd)
+            w.load_from_soup(wrapper)
+            self._fields_layout.addWidget(w)
+            self._field_widgets.append(w)
+
+    # ── HTML generation ───────────────────────────────────────────────────────
+
+    def _build_section_html(self) -> str:
+        """Apply field widget values surgically to the section's html_content."""
+        if self.content_stack.currentIndex() == 1:
+            return self._html_editor.toPlainText()
+        if self._section is None:
+            return ''
+        soup = BeautifulSoup(
+            f'<div>{self._section.html_content}</div>', 'html.parser'
+        )
+        wrapper = soup.find('div')
+        for w in self._field_widgets:
+            w.apply_to_soup(wrapper)
+        return wrapper.decode_contents()
+
+    # ── HTML toggle ───────────────────────────────────────────────────────────
 
     def _toggle_html(self, checked):
         if checked:
-            if self._form:
-                self._html_editor.setPlainText(self._form.to_html())
+            self._html_editor.setPlainText(self._build_section_html())
             self.content_stack.setCurrentIndex(1)
-            self._html_toggle_btn.setText("Form view")
+            self._html_toggle_btn.setText('Form view')
         else:
-            if self._form:
-                self._form.from_html(self._html_editor.toPlainText())
+            if self._section is not None:
+                self._section.html_content = self._html_editor.toPlainText()
+                self._populate_fields(self._section)
             self.content_stack.setCurrentIndex(0)
-            self._html_toggle_btn.setText("< > HTML")
+            self._html_toggle_btn.setText('< > HTML')
 
-    def _get_current_html(self) -> str:
-        if self.content_stack.currentIndex() == 1:
-            return self._html_editor.toPlainText()
-        return self._form.to_html() if self._form else ''
+    # ── Save ──────────────────────────────────────────────────────────────────
 
     def _save(self):
         result = self.guide.parse_sections()
@@ -633,9 +656,14 @@ class SectionEditorPanel(QWidget):
         if section is None:
             return
         section.name = self.name_edit.text()
-        section.html_content = self._get_current_html()
+        section.html_content = self._build_section_html()
+        if self._section is not None:
+            self._section.html_content = section.html_content
         self.guide.save_sections(preamble, sections, postamble)
         self.saved.emit()
+
+
+
 
 
 # ── Guide overview (storyboard) ───────────────────────────────────────────────
@@ -802,7 +830,7 @@ class GuideOverviewPanel(QWidget):
             return
         preamble, sections, postamble = result
         name = SECTION_LABELS.get(section_type, section_type)
-        sections.append(GuideSection(section_type, name))
+        sections.append(GuideSection.new(section_type, name))
         self.guide.save_sections(preamble, sections, postamble)
         self.refresh()
 

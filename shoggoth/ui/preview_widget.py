@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QSizePolicy, QHBoxLayout, QPushButton
 )
 from PySide6.QtCore import Qt, QPoint, Signal
-from PySide6.QtGui import QPixmap, QImage, QWheelEvent, QMouseEvent, QPainter
+from PySide6.QtGui import QPixmap, QImage, QWheelEvent, QMouseEvent, QPainter, QGuiApplication
 
 
 class ZoomableImageLabel(QLabel):
@@ -241,11 +241,21 @@ class CardPreviewTab(QWidget):
         self.zoom_label = QLabel("100%")
         controls_layout.addWidget(self.zoom_label)
 
+        screenshot_btn = QPushButton(tr("BTN_SCREENSHOT"))
+        screenshot_btn.setToolTip(tr("TOOLTIP_SCREENSHOT"))
+        screenshot_btn.clicked.connect(self._copy_to_clipboard)
+        controls_layout.addWidget(screenshot_btn)
+
         layout.addLayout(controls_layout)
         self.setLayout(layout)
 
     def _on_zoom_changed(self, factor):
         self.zoom_label.setText(f"{int(factor * 100)}%")
+
+    def _copy_to_clipboard(self):
+        pixmap = self.image_label.original_pixmap
+        if pixmap:
+            QGuiApplication.clipboard().setPixmap(pixmap)
 
     def set_illustration_mode(self, enabled):
         self.image_label.set_illustration_mode(enabled)

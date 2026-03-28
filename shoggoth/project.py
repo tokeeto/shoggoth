@@ -274,13 +274,15 @@ class Project:
             'cards': [],
         }
 
-    def add_guide(self, name='Guide', file_name='guide'):
+    def add_guide(self, name='Guide', file_location=None):
         default_guide = guide_dir / 'guide_template.html'
-        shutil.copyfile(default_guide, self.folder / f'{file_name}.html')
+        if not file_location:
+            file_location = self.folder / 'guide.html'
+        shutil.copyfile(default_guide, file_location)
         if 'guides' not in self.data:
             self.data['guides'] = []
         self.data['guides'].append({
-            'path': str(self.folder / f'{file_name}.html'),
+            'path': str(Path(file_location).relative_to(self.folder)),
             'name': name,
             'id': str(uuid4()),
         })
@@ -297,11 +299,12 @@ class Project:
         signature['investigator'] = name
         weakness = TEMPLATES.BASE()
         weakness['name'] = 'weakness'
-        weakness['front']['type'] = 'weakness_treachery'
+        weakness['front']['type'] = 'treachery'
+        weakness['front']['class'] = 'weakness'
         weakness['back']['type'] = 'player'
         weakness['investigator'] = name
 
-        investigator['back']['entries'][3] = "<:{signature['id']} name>, <:{weakness['id']} name>, 1 random basic weakness."
+        investigator['back']['entries'][3] = f"<:{signature['id']} name>, <:{weakness['id']} name>, 1 random basic weakness."
 
         self.add_card(investigator)
         self.add_card(signature)

@@ -131,6 +131,85 @@ class NewCardDialog(QDialog):
             self.error_label.setText(tr("ERR_CREATING_CARD").format(error=e))
 
 
+class NewGuideDialog(QDialog):
+    """Dialog for adding a new guide to the project"""
+
+    def __init__(self, project_folder: Path, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(tr("DLG_NEW_GUIDE"))
+        self.setMinimumWidth(450)
+        self.project_folder = project_folder
+        self.file_path = None
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout()
+        form = QFormLayout()
+
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText(tr("PLACEHOLDER_ENTER_GUIDE_NAME"))
+        self.name_input.textChanged.connect(self._update_suggested_path)
+        form.addRow(tr("FIELD_NAME"), self.name_input)
+
+        file_layout = QHBoxLayout()
+        self.file_display = QLineEdit()
+        self.file_display.setReadOnly(True)
+        self.file_display.setPlaceholderText(tr("PLACEHOLDER_NO_LOCATION"))
+        file_layout.addWidget(self.file_display)
+
+        file_btn = QPushButton(tr("BTN_BROWSE"))
+        file_btn.clicked.connect(self.browse_file)
+        file_layout.addWidget(file_btn)
+
+        form.addRow(tr("FIELD_SAVE_LOCATION"), file_layout)
+        layout.addLayout(form)
+
+        self.error_label = QLabel()
+        self.error_label.setStyleSheet("color: red;")
+        layout.addWidget(self.error_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept_guide)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.setLayout(layout)
+        self._update_suggested_path()
+
+    def _update_suggested_path(self):
+        name = self.name_input.text().strip() or "guide"
+        slug = name.lower().replace(" ", "_")
+        suggested = self.project_folder / f"{slug}.html"
+        self.file_display.setText(str(suggested))
+        self.file_path = suggested
+
+    def browse_file(self):
+        suggested = self.file_path or self.project_folder / "guide.html"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            tr("DLG_SAVE_GUIDE_AS"),
+            str(suggested),
+            tr("FILTER_HTML_FILES"),
+        )
+        if file_path:
+            self.file_path = Path(file_path)
+            self.file_display.setText(file_path)
+
+    def accept_guide(self):
+        name = self.name_input.text().strip()
+        if not name:
+            self.error_label.setText(tr("MSG_ENTER_GUIDE_NAME"))
+            return
+        if not self.file_path:
+            self.error_label.setText(tr("MSG_SELECT_GUIDE_LOCATION"))
+            return
+        self.accept()
+
+    def get_result(self):
+        """Return (name, file_path) after the dialog is accepted."""
+        return self.name_input.text().strip(), self.file_path
+
+
 class NewProjectDialog(QDialog):
     """Dialog for creating a new project"""
     
