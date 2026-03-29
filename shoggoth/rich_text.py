@@ -506,7 +506,7 @@ class RichTextRenderer:
 
         return True, 1.0
 
-    def render_text(self, image, text, region, polygon=None, alignment='left', font_size=32, min_font_size=16, font=None, outline=0, outline_fill=None, fill='#231f20'):
+    def render_text(self, image, text, region, polygon=None, alignment='left', font_size=32, min_font_size=None, font=None, outline=0, outline_fill=None, fill='#231f20'):
         """
         Render rich text with specified alignment and automatic font size reduction.
 
@@ -532,12 +532,17 @@ class RichTextRenderer:
         if not font:
             font = 'regular'
 
+        if min_font_size is None:
+            min_font_size = font_size // 2
+
         # Test each font size to find the largest that fits
         while current_size >= min_font_size:
             force = current_size == min_font_size
 
             # Use fast measurement to check if text fits
             fits, percentage = self._measure_fits(tokens, region, polygon, current_size, base_font=font)
+            if text == 'ÉVÈNEMENT':
+                print('ÉVÈNEMENT', fits, percentage, current_size, min_font_size)
 
             if fits or force:
                 # Render directly - single pass
@@ -546,11 +551,11 @@ class RichTextRenderer:
 
             # If a lot of the text is left, we skip a few font sizes down.
             current_size -= 1
-            if percentage < .8:
+            if 0 < percentage < .8:
                 current_size -= 1
-            if percentage < .5:
+            if 0 < percentage < .5:
                 current_size -= 1
-            if percentage < .3:
+            if 0 < percentage < .3:
                 current_size -= 1
 
 

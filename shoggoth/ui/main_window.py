@@ -1227,13 +1227,6 @@ class ShoggothMainWindow(QMainWindow):
         # ==================== TOOLS MENU ====================
         tools_menu = menubar.addMenu(tr("MENU_TOOLS"))
 
-        # Convert SE Project
-        convert_se_action = QAction(tr("MENU_CONVERT_SE"), self)
-        convert_se_action.triggered.connect(self.convert_strange_eons)
-        tools_menu.addAction(convert_se_action)
-
-        tools_menu.addSeparator()
-
         # Check for Updates
         check_updates_action = QAction(tr("MENU_CHECK_UPDATES"), self)
         check_updates_action.triggered.connect(self.update_manager.check_for_updates_manual)
