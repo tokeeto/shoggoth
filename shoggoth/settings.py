@@ -76,6 +76,7 @@ class SettingsManager:
             'skipped_version': '',
             # Language settings - detect from system
             'language': detect_system_language(),
+            'card_language': 'en',
         }
         
         for key, value in defaults.items():

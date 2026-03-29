@@ -20,11 +20,11 @@ import shoggoth
 from shoggoth.project import Project, Translation
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import CardFileMonitor
-from shoggoth.files import defaults_dir, asset_dir, font_dir, overlay_dir, root_dir
+from shoggoth.files import defaults_dir, asset_dir, font_dir, overlay_dir, root_dir, translation_dir
 from shoggoth.ui.preview_widget import ImprovedCardPreview
 from shoggoth.ui.goto_dialog import GotoCardDialog
 from shoggoth.ui.encounter_editor import EncounterSetEditor
-from shoggoth.i18n import get_available_languages, load_language, get_current_language, tr
+from shoggoth.i18n import get_available_languages, get_available_languages_from_dir, load_language, get_current_language, tr
 from shoggoth.ui.card_editor import CardEditor
 
 
@@ -910,7 +910,8 @@ class ShoggothMainWindow(QMainWindow):
         self.active_project = None  # The currently active project
         self.current_card = None
         self.current_editor = None
-        self.card_renderer = CardRenderer()
+        card_lang = self.config.get('Shoggoth', 'card_language', 'en')
+        self.card_renderer = CardRenderer(locale=card_lang)
         self.card_file_monitor = None
 
         # Preview rendering with debounce
@@ -1269,6 +1270,11 @@ class ShoggothMainWindow(QMainWindow):
         language_menu = menubar.addMenu(tr("MENU_LANGUAGE"))
         self.language_actions = []
 
+        # UI Language section header
+        ui_lang_header = QAction(tr("MENU_UI_LANGUAGE"), self)
+        ui_lang_header.setEnabled(False)
+        language_menu.addAction(ui_lang_header)
+
         available_languages = get_available_languages()
         current_lang = self.config.get('Shoggoth', 'language', 'en')
 
@@ -1280,6 +1286,25 @@ class ShoggothMainWindow(QMainWindow):
             action.triggered.connect(lambda checked, code=lang_code: self.change_language(code))
             language_menu.addAction(action)
             self.language_actions.append(action)
+
+        # Card Language section
+        language_menu.addSeparator()
+        card_lang_header = QAction(tr("MENU_CARD_LANGUAGE"), self)
+        card_lang_header.setEnabled(False)
+        language_menu.addAction(card_lang_header)
+
+        self.card_language_actions = []
+        available_card_languages = get_available_languages_from_dir(translation_dir)
+        current_card_lang = self.config.get('Shoggoth', 'card_language', 'en')
+
+        for lang_code, lang_name in available_card_languages.items():
+            action = QAction(lang_name, self)
+            action.setCheckable(True)
+            action.setChecked(lang_code == current_card_lang)
+            action.setData(lang_code)
+            action.triggered.connect(lambda checked, code=lang_code: self.change_card_language(code))
+            language_menu.addAction(action)
+            self.card_language_actions.append(action)
 
     def toggle_preview(self, checked):
         """Toggle the preview dock visibility"""
@@ -1307,6 +1332,18 @@ class ShoggothMainWindow(QMainWindow):
             tr("DLG_LANGUAGE_CHANGED"),
             tr("MSG_RESTART_FOR_LANGUAGE")
         )
+
+    def change_card_language(self, lang_code: str):
+        """Change the card rendering language"""
+        for action in self.card_language_actions:
+            action.setChecked(action.data() == lang_code)
+
+        self.config.set('Shoggoth', 'card_language', lang_code)
+        self.config.save()
+
+        self.card_renderer = CardRenderer(locale=lang_code)
+        self.render_version += 1
+        self._start_background_render()
 
     def load_settings(self):
         """Load application settings"""

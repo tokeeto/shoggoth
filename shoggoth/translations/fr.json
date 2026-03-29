@@ -41,6 +41,8 @@
   "MENU_VIEW": "&Vue",
   "MENU_SHOW_PREVIEW": "Montrer $Aperçu Carte",
   "MENU_LANGUAGE": "&Langue",
+  "MENU_UI_LANGUAGE": "Langue de l'interface",
+  "MENU_CARD_LANGUAGE": "Langue des cartes",
   "MENU_ADD_INV_PROJECT": "Ajouter modèle &Extention Investigateur",
   "MENU_GATHER_UPDATE": "Récupérer images et mise à jour",
 

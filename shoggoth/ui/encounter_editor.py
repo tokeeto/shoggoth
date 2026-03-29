@@ -10,6 +10,10 @@ from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QPixmap, QImage, QCursor
 from shoggoth.i18n import tr
 from shoggoth.ui.field_widgets import LabeledLineEdit, FieldWidget
+import shoggoth
+from pathlib import Path
+from PySide6.QtWidgets import QFileDialog
+
 
 THUMBNAIL_BATCH_SIZE = 10
 
@@ -315,7 +319,6 @@ class EncounterSetEditor(QWidget):
         field.update_card(self.encounter_set, value)
 
     def _update_icon_preview(self, path_text):
-        from pathlib import Path
         path = Path(path_text.strip()) if path_text.strip() else None
         if path and not path.is_absolute():
             project_folder = Path(self.encounter_set.project.file_path).parent
@@ -331,9 +334,6 @@ class EncounterSetEditor(QWidget):
         self.icon_preview.setText("")
 
     def browse_icon(self):
-        from PySide6.QtWidgets import QFileDialog
-        from pathlib import Path
-
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             tr("DLG_SELECT_ICON"),
@@ -368,8 +368,7 @@ class EncounterSetEditor(QWidget):
         self.card_clicked.emit(card)
 
     def add_new_card(self):
-        import shoggoth
-        shoggoth.app.open_new_card_dialog()
+        shoggoth.app.new_card_dialog()
 
     def delete_encounter_set(self):
         reply = QMessageBox.question(

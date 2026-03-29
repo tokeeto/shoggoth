@@ -41,6 +41,8 @@
   "MENU_VIEW": "&Ver",
   "MENU_SHOW_PREVIEW": "Mostrar &Vista Previa de Carta",
   "MENU_LANGUAGE": "&Idioma",
+  "MENU_UI_LANGUAGE": "Idioma de Interfaz",
+  "MENU_CARD_LANGUAGE": "Idioma de Cartas",
   "MENU_ADD_INV_PROJECT": "Añadir plantilla de &Expansión de Investigador",
   "MENU_GATHER_UPDATE": "Recopilar imágenes y &actualizar",
 

@@ -41,6 +41,28 @@ def get_available_languages() -> dict[str, str]:
     return languages
 
 
+def get_available_languages_from_dir(translations_dir) -> dict[str, str]:
+    """
+    Get available languages from an arbitrary translations directory.
+
+    Returns:
+        Dictionary mapping language codes to display names.
+    """
+    languages = {}
+    translations_dir = Path(translations_dir)
+    if translations_dir.exists():
+        for file in translations_dir.glob("*.json"):
+            lang_code = file.stem
+            try:
+                with open(file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    lang_name = data.get("_language_name", lang_code)
+                    languages[lang_code] = lang_name
+            except (json.JSONDecodeError, IOError):
+                languages[lang_code] = lang_code
+    return languages
+
+
 def load_language(lang_code: str) -> bool:
     """
     Load a language file.

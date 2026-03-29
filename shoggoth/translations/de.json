@@ -41,6 +41,8 @@
   "MENU_VIEW": "&Ansicht",
   "MENU_SHOW_PREVIEW": "Zeige Karten&vorschau",
   "MENU_LANGUAGE": "&Sprache",
+  "MENU_UI_LANGUAGE": "Sprache der Benutzeroberfläche",
+  "MENU_CARD_LANGUAGE": "Kartensprache",
   "MENU_ADD_INV_PROJECT": "Füge &Ermittler-Erweiterung hinzu",
   "MENU_GATHER_UPDATE": "Bilder laden und aktualisieren",
 

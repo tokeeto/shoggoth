@@ -41,6 +41,8 @@
   "MENU_VIEW": "&View",
   "MENU_SHOW_PREVIEW": "Show Card &Preview",
   "MENU_LANGUAGE": "&Language",
+  "MENU_UI_LANGUAGE": "UI Language",
+  "MENU_CARD_LANGUAGE": "Card Language",
   "MENU_ADD_INV_PROJECT": "Add Investigator &Expansion template",
   "MENU_GATHER_UPDATE": "Gather images and &update",
 

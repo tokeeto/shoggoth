@@ -2,10 +2,11 @@ from PIL import Image, ImageOps, ImageDraw
 import os
 from io import BytesIO
 from shoggoth.rich_text import RichTextRenderer
-from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir
+from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
 from pathlib import Path
 import pyvips
 import re
+import json
 
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
@@ -75,7 +76,7 @@ class CardRenderer:
     CARD_HEIGHT = 1050
     CARD_BLEED = 72
 
-    def __init__(self):
+    def __init__(self, locale='en'):
         # Base paths
         self.assets_path = asset_dir
         self.templates_path = template_dir
@@ -85,6 +86,10 @@ class CardRenderer:
         self.cache = {}
         self.resized_cache = {}
         self.card_wo_illus_cache = {}
+        self.translations = {}
+        self.locale = locale
+        if self.locale:
+            self.translations = json.load(open(translation_dir / f'{self.locale}.json'))
 
         # Initialize rich text renderer
         self.rich_text = RichTextRenderer(self)
@@ -252,6 +257,13 @@ class CardRenderer:
         references = re.findall(card_value_pattern, value)
         for match in references:
             value = value.replace(match[0], self.card_value(side.card.project, match[1], match[2]))
+
+        # translations
+        if value.startswith('%:'):
+            print('hit translation', value)
+            value = self.translations.get(value[2:], value[2:])
+            print('new value', value)
+
 
         return value
 
