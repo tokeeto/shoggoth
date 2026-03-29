@@ -39,7 +39,7 @@
   "MENU_ABOUT": "&À Propos",
   "MENU_ASSET_LOCATION": "Emplacement des &Resources",
   "MENU_VIEW": "&Vue",
-  "MENU_SHOW_PREVIEW": "Montrer $Aperçu Carte",
+  "MENU_SHOW_PREVIEW": "Montrer &Aperçu Carte",
   "MENU_LANGUAGE": "&Langue",
   "MENU_UI_LANGUAGE": "Langue de l'interface",
   "MENU_CARD_LANGUAGE": "Langue des cartes",
@@ -644,7 +644,7 @@
 
   "// ===== MISC =====": "",
   "MSG_TODO": "À Faire",
-  "MSG_PDF_NOT_IMPLEMENTED": "Exportaztion PDF non implémenté",
+  "MSG_PDF_NOT_IMPLEMENTED": "Exportation PDF non implémenté",
   "MSG_LANGUAGE_CHANGED": "Langue changée",
   "MSG_RESTART_FOR_LANGUAGE": "Veuillez redémarrer l'application pour que le changement de langue prenne pleinement effet.",
 
