@@ -1203,26 +1203,58 @@ class ShoggothMainWindow(QMainWindow):
         # ==================== EXPORT MENU ====================
         export_menu = menubar.addMenu(tr("MENU_EXPORT"))
 
-        # Card To PDF
+        # Export card to PDF
         card_pdf_action = QAction(tr("MENU_CARD_TO_PDF"), self)
         card_pdf_action.triggered.connect(self.export_card_to_pdf)
         export_menu.addAction(card_pdf_action)
 
-        # Cards To PDF
-        cards_pdf_action = QAction(tr("MENU_CARDS_TO_PDF"), self)
-        cards_pdf_action.triggered.connect(self.export_cards_to_pdf)
-        export_menu.addAction(cards_pdf_action)
+        # Export campaign to PDF
+        campaign_pdf_action = QAction(tr("MENU_CAMPAIGN_TO_PDF"), self)
+        campaign_pdf_action.triggered.connect(self.export_campaign_to_pdf)
+        export_menu.addAction(campaign_pdf_action)
 
-        # Project To PDF
-        project_pdf_action = QAction(tr("MENU_PROJECT_TO_PDF"), self)
-        project_pdf_action.triggered.connect(self.export_project_to_pdf)
-        export_menu.addAction(project_pdf_action)
+        # Export player cards to PDF
+        player_pdf_action = QAction(tr("MENU_PLAYER_TO_PDF"), self)
+        player_pdf_action.triggered.connect(self.export_player_to_pdf)
+        export_menu.addAction(player_pdf_action)
+
+        export_menu.addSeparator()
+
+        # Export card to MBPrint PDF
+        card_mbprint_action = QAction(tr("MENU_CARD_TO_MBPRINT"), self)
+        card_mbprint_action.triggered.connect(self.export_card_to_mbprint)
+        export_menu.addAction(card_mbprint_action)
+
+        # Export campaign to MBPrint PDF
+        campaign_mbprint_action = QAction(tr("MENU_CAMPAIGN_TO_MBPRINT"), self)
+        campaign_mbprint_action.triggered.connect(self.export_campaign_to_mbprint)
+        export_menu.addAction(campaign_mbprint_action)
+
+        # Export player cards to MBPrint PDF
+        player_mbprint_action = QAction(tr("MENU_PLAYER_TO_MBPRINT"), self)
+        player_mbprint_action.triggered.connect(self.export_player_to_mbprint)
+        export_menu.addAction(player_mbprint_action)
+
+        # Keep references so we can enable/disable based on Prince availability
+        self._pdf_actions = [
+            card_pdf_action, campaign_pdf_action, player_pdf_action,
+            card_mbprint_action, campaign_mbprint_action, player_mbprint_action,
+        ]
+
+        export_menu.addSeparator()
+
+        # Install Prince (shown when not installed)
+        self._install_prince_action = QAction(tr("MENU_INSTALL_PRINCE"), self)
+        self._install_prince_action.triggered.connect(self.open_prince_installer)
+        export_menu.addAction(self._install_prince_action)
 
         export_menu.addSeparator()
 
         tts_action = QAction(tr("MENU_EXPORT_TTS"), self)
         tts_action.triggered.connect(self.open_tts_export_dialog)
         export_menu.addAction(tts_action)
+
+        self._refresh_pdf_actions()
 
         # ==================== TOOLS MENU ====================
         tools_menu = menubar.addMenu(tr("MENU_TOOLS"))
@@ -1643,7 +1675,6 @@ class ShoggothMainWindow(QMainWindow):
             progress.setWindowModality(Qt.WindowModal)
 
             # Export each card
-            import threading
             threads = []
             for i, card in enumerate(cards):
                 if progress.wasCanceled():
@@ -2403,29 +2434,97 @@ class ShoggothMainWindow(QMainWindow):
 
     # ==================== EXPORT MENU ACTIONS ====================
 
+    def _refresh_pdf_actions(self):
+        """Enable/disable PDF export actions based on whether Prince is installed."""
+        from shoggoth.pdf_exporter import check_prince_installed
+        installed = check_prince_installed()
+        for action in self._pdf_actions:
+            action.setEnabled(installed)
+        self._install_prince_action.setVisible(not installed)
+
+    def open_prince_installer(self):
+        """Open the Prince installer dialog; re-enable PDF actions on success."""
+        from shoggoth.ui.prince_installer import PrinceInstallerDialog
+        from PySide6.QtWidgets import QDialog
+        dialog = PrinceInstallerDialog(parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            self._refresh_pdf_actions()
+
+    def _open_pdf_export_dialog(self, cards, title, mbprint, default_filename):
+        from shoggoth.ui.pdf_export_dialog import PDFExportDialog
+        dialog = PDFExportDialog(
+            self.active_project, self.card_renderer,
+            cards, title, mbprint=mbprint,
+            default_filename=default_filename,
+            parent=self
+        )
+        dialog.exec()
+
     def export_card_to_pdf(self):
-        """Export current card to PDF"""
+        """Export current card to PDF via modal dialog."""
         if not self.current_card:
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
             return
-        # TODO: Implement PDF export
-        QMessageBox.information(self, tr("DLG_TODO"), tr("MSG_PDF_NOT_IMPLEMENTED"))
+        self._open_pdf_export_dialog(
+            [self.current_card], tr("PDF_DLG_TITLE_CARD"), mbprint=False,
+            default_filename=f"{self.current_card.name}.pdf"
+        )
 
-    def export_cards_to_pdf(self):
-        """Export all cards to PDF"""
+    def export_campaign_to_pdf(self):
+        """Export campaign cards to PDF via modal dialog."""
         if not self.active_project:
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
-        # TODO: Implement PDF export
-        QMessageBox.information(self, tr("DLG_TODO"), tr("MSG_PDF_NOT_IMPLEMENTED"))
+        cards = []
+        for es in self.active_project.encounter_sets:
+            cards.extend(es.cards)
+        self._open_pdf_export_dialog(
+            cards, tr("PDF_DLG_TITLE_CAMPAIGN"), mbprint=False,
+            default_filename=f"{self.active_project.name} campaign.pdf"
+        )
 
-    def export_project_to_pdf(self):
-        """Export entire project to PDF"""
+    def export_player_to_pdf(self):
+        """Export player cards to PDF via modal dialog."""
         if not self.active_project:
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
             return
-        # TODO: Implement PDF export
-        QMessageBox.information(self, tr("DLG_TODO"), tr("MSG_PDF_NOT_IMPLEMENTED"))
+        self._open_pdf_export_dialog(
+            list(self.active_project.player_cards), tr("PDF_DLG_TITLE_PLAYER"), mbprint=False,
+            default_filename=f"{self.active_project.name} player cards.pdf"
+        )
+
+    def export_card_to_mbprint(self):
+        """Export current card to MBPrint PDF via modal dialog."""
+        if not self.current_card:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
+            return
+        self._open_pdf_export_dialog(
+            [self.current_card], tr("PDF_DLG_TITLE_CARD_MBPRINT"), mbprint=True,
+            default_filename=f"{self.current_card.name}_mbprint.pdf"
+        )
+
+    def export_campaign_to_mbprint(self):
+        """Export campaign cards to MBPrint PDF via modal dialog."""
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+            return
+        cards = []
+        for es in self.active_project.encounter_sets:
+            cards.extend(es.cards)
+        self._open_pdf_export_dialog(
+            cards, tr("PDF_DLG_TITLE_CAMPAIGN_MBPRINT"), mbprint=True,
+            default_filename=f"{self.active_project.name} campaign_mbprint.pdf"
+        )
+
+    def export_player_to_mbprint(self):
+        """Export player cards to MBPrint PDF via modal dialog."""
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+            return
+        self._open_pdf_export_dialog(
+            list(self.active_project.player_cards), tr("PDF_DLG_TITLE_PLAYER_MBPRINT"), mbprint=True,
+            default_filename=f"{self.active_project.name} player cards_mbprint.pdf"
+        )
 
     def open_tts_export_dialog(self):
         """Open the TTS export modal dialog."""
@@ -2435,12 +2534,6 @@ class ShoggothMainWindow(QMainWindow):
         from shoggoth.ui.tts_export_dialog import TTSExportDialog
         dialog = TTSExportDialog(self.active_project, self.card_renderer, parent=self)
         dialog.exec()
-
-    # ==================== TOOLS MENU ACTIONS ====================
-
-    def convert_strange_eons(self):
-        """Convert a Strange Eons project"""
-        pass
 
     # ==================== FILE MENU ACTIONS ====================
 

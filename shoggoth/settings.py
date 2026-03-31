@@ -62,8 +62,6 @@ class SettingsManager:
         defaults = {
             'prince_cmd': 'prince',
             'prince_dir': '',
-            'strange_eons': '',
-            'java': 'java',
             'show_bleed': True,
             # Export settings
             'export_size': 1,
@@ -206,36 +204,7 @@ class SettingsDialog(QDialog):
         
         prince_group.setLayout(prince_layout)
         layout.addWidget(prince_group)
-        
-        # Strange Eons group
-        se_group = QGroupBox(tr("GROUP_STRANGE_EONS"))
-        se_layout = QFormLayout()
-        
-        # Strange Eons JAR
-        se_jar_layout = QHBoxLayout()
-        self.se_jar_input = QLineEdit()
-        self.se_jar_input.setPlaceholderText(tr("PLACEHOLDER_SE_JAR"))
-        se_jar_layout.addWidget(self.se_jar_input)
-        
-        browse_se_btn = QPushButton(tr("BTN_BROWSE"))
-        browse_se_btn.clicked.connect(self.browse_se_jar)
-        se_jar_layout.addWidget(browse_se_btn)
-        
-        se_layout.addRow(tr("LABEL_SE_JAR"), se_jar_layout)
-        se_layout.addRow("", QLabel(tr("HELP_SE_JAR")))
-        
-        # Java command
-        java_cmd_layout = QHBoxLayout()
-        self.java_cmd_input = QLineEdit()
-        self.java_cmd_input.setPlaceholderText(tr("PLACEHOLDER_JAVA"))
-        java_cmd_layout.addWidget(self.java_cmd_input)
-        
-        se_layout.addRow(tr("LABEL_JAVA_COMMAND"), java_cmd_layout)
-        se_layout.addRow("", QLabel(tr("EXAMPLE_JAVA_PATH")))
-        
-        se_group.setLayout(se_layout)
-        layout.addWidget(se_group)
-        
+
         layout.addStretch()
         widget.setLayout(layout)
         return widget
@@ -387,17 +356,6 @@ class SettingsDialog(QDialog):
         if directory:
             self.prince_dir_input.setText(directory)
     
-    def browse_se_jar(self):
-        """Browse for Strange Eons JAR file"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            tr("DLG_SELECT_SE_JAR"),
-            str(Path.home()),
-            tr("FILTER_JAR_FILES")
-        )
-        if file_path:
-            self.se_jar_input.setText(file_path)
-    
     def load_settings(self):
         """Load current settings into the dialog"""
         self.prince_cmd_input.setText(
@@ -405,12 +363,6 @@ class SettingsDialog(QDialog):
         )
         self.prince_dir_input.setText(
             self.settings.get('Shoggoth', 'prince_dir', '')
-        )
-        self.se_jar_input.setText(
-            self.settings.get('Shoggoth', 'strange_eons', '')
-        )
-        self.java_cmd_input.setText(
-            self.settings.get('Shoggoth', 'java', 'java')
         )
         self.show_bleed_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_bleed', True)
@@ -446,8 +398,6 @@ class SettingsDialog(QDialog):
         """Save settings and close dialog"""
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
         self.settings.set('Shoggoth', 'prince_dir', self.prince_dir_input.text())
-        self.settings.set('Shoggoth', 'strange_eons', self.se_jar_input.text())
-        self.settings.set('Shoggoth', 'java', self.java_cmd_input.text())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
 
         # Export settings

@@ -15,7 +15,9 @@ template_dir = asset_dir / "templates"
 icon_dir = asset_dir / "icons"
 guide_dir = asset_dir / "guide"
 translation_dir = asset_dir / "translations"
+
 tts_dir = None
+prince_dir = root_dir / "prince"
 
 # TTS Output folder
 if platform.system() == "Windows":

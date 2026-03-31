@@ -1,35 +1,40 @@
 import base64
+import platform
 import shoggoth
 from shoggoth.renderer import CardRenderer
+from shoggoth.settings import EXPORT_SIZES
 import subprocess
 from threading import Thread
 from time import time
 from pathlib import Path
+from shoggoth.files import prince_dir as _local_prince_dir
 
 renderer = CardRenderer()
 
 
-class CustomThread(Thread):
-    def __init__(self, group=None, target=None, name=None, args=(), kwargs={}, verbose=None):
-        # Initializing the Thread class
-        super().__init__(group, target, name, args, kwargs)
-        self._return = None
-
-    # Overriding the Thread.run function
-    def run(self):
-        if self._target is not None:
-            self._return = self._target(*self._args, **self._kwargs)
-
-    def join(self):
-        super().join()
-        return self._return
+def _local_prince_bin():
+    if platform.system() == 'Windows':
+        return _local_prince_dir / 'bin' / 'prince.exe'
+    return _local_prince_dir / 'lib' / 'prince' / 'bin' / 'prince'
 
 
-def export(cards, page_size, bleed, seperation, format):
-    pass
+def _resolve_prince():
+    """Returns (cmd, cwd) for running prince, preferring local install."""
+    local_bin = _local_prince_bin()
+    if local_bin.exists():
+        return str(local_bin), None
+    # Fall back to settings-configured prince
+    cmd = shoggoth.app.config.get('Shoggoth', 'prince_cmd') or None
+    cwd = shoggoth.app.config.get('Shoggoth', 'prince_dir') or None
+    return cmd, cwd
+
+
+def check_prince_installed():
+    return _local_prince_bin().exists()
 
 
 def _mbprint_html(cards, folder):
+    """ Simple document template for mbprint output """
     yield """
         <!DOCTYPE html>
         <html>
@@ -37,66 +42,113 @@ def _mbprint_html(cards, folder):
             <meta charset="utf-8">
             <style>
                 img {
-                    -prince-image-resolution: 600dpi; 
+                    -prince-image-resolution: 900dpi;
                     break-before: page;
-                    width: 64.5mm;
-                    height: 94mm;
+                    width: 66.5mm;
+                    height: 91mm;
                     display: block;
                 }
                 img.wide {
                     page: wide;
-                    width: 94mm;
-                    height: 64.5mm;
+                    width: 91mm;
+                    height: 66.5mm;
 
                 }
                 @page {
                     margin: 0;
-                    size: 64.5mm 94mm;
+                    size: 66.5mm 91mm;
                 }
                 @page wide {
-                    size: 94mm 64.5mm;
+                    size: 91mm 66.5mm;
                 }
             </style>
         </head>
         <body>
     """
 
-    threads = []
     for card in cards:
-        t = CustomThread(target=renderer.export_card_images, args=(card, folder), kwargs={'format': 'webp'})
-        threads.append((t, card.front.get('orientation'), card.back.get('orientation')))
-        t.start()
-
-    # for t in threads:
-    #     front, back = t.join()
-    #     b64front = base64.b64encode(front.read())
-    #     yield f'<img src="data:image/jpeg;base64,{b64front.decode()}"><br>\n'
-
-    #     b64back = base64.b64encode(back.read())
-    #     yield f'<img src="data:image/jpeg;base64,{b64back.decode()}"><br>\n'
-    for t, front_orientation, back_orientation in threads:
-        front, back = t.join()
-        c1 = 'wide' if front_orientation == 'horizontal' else ''
-        c2 = 'wide' if back_orientation == 'horizontal' else ''
-        yield f'<img class="{c1}" src="{front}">\n<img class="{c2}" src="{back}">\n'
+        css = 'wide' if card.front.get('orientation') == 'horizontal' else ''
+        for path in renderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False):
+            yield f'<img class="{css}" src="{path}">\n'
     yield "</body>"
 
 
-def create_mbprint_pdf(cards, path):
-    prince_dir = shoggoth.app.config.get('Shoggoth', 'prince_dir') or None
-    prince_cmd = shoggoth.app.config.get('Shoggoth', 'prince_cmd') or None
+def _pdf_html(cards, folder):
+    """ Simpel document template for pdf prints """
+    yield """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                img {
+                    -prince-image-resolution: 900dpi;
+                    break-before: page;
+                    width: 66.5mm;
+                    height: 91mm;
+                    display: inline-block;
+                    margin: 2mm;
+                }
+                img.wide {
+                    height: 66.5mm;
+                    width: 91mm;
+                }
+                @page {
+                    margin: 10mm;
+                    size: a4;
+                }
+            </style>
+        </head>
+        <body>
+    """
 
-    out_folder = Path(path)
+    for card in cards:
+        css = 'wide' if card.front.get('orientation') == 'horizontal' else ''
+        for path in renderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png'):
+            yield f'<img class="{css}" src="{path}">\n'
+    yield "</body>"
+
+
+def export(cards, target_file, image_folder):
+    prince_cmd, prince_cwd = _resolve_prince()
+    if prince_cmd is None:
+        raise Exception("can't export without prince")
+
+    target_folder = Path(target_file).parent
+    temp_file = target_folder / '_temp.html'
+
     start_time = time()
-    with open(out_folder/'mbprint.html', 'w') as html_file:
-        for txt in _mbprint_html(cards, out_folder):
+    with open(temp_file, 'w') as html_file:
+        for txt in _pdf_html(cards, image_folder):
+            html_file.write(txt)
+
+    print(f"PDF html time: {time()-start_time}")
+    subprocess.run(
+        [prince_cmd, temp_file, '-o', Path(target_file)],
+        cwd=prince_cwd,
+    )
+    print(f"PDF time: {time()-start_time}")
+
+
+def create_mbprint_pdf(cards, target_file, image_folder):
+    prince_cmd, prince_cwd = _resolve_prince()
+    if prince_cmd is None:
+        raise Exception("can't export without prince")
+
+    target_folder = Path(target_file).parent
+    temp_file = target_folder / '_temp.html'
+
+    start_time = time()
+    with open(temp_file, 'w') as html_file:
+        for txt in _mbprint_html(cards, image_folder):
             html_file.write(txt)
     print(f"MBPrint html time: {time()-start_time}")
 
     subprocess.run(
-        [prince_cmd, out_folder/'mbprint.html', '-o', out_folder/'mbprint.pdf'],
-        cwd=prince_dir,
+        [prince_cmd, temp_file, '-o', Path(target_file)],
+        cwd=prince_cwd,
     )
+
     print(f"MBPrint pdf time: {time()-start_time}")
 
 

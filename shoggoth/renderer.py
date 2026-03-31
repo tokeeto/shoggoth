@@ -7,6 +7,7 @@ from pathlib import Path
 import pyvips
 import re
 import json
+import functools
 
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
@@ -20,6 +21,7 @@ def scale(x: int | None):
     if not x:
         return x
     return int(x * Region.SCALE)
+
 
 class Region:
     x: int
@@ -84,6 +86,7 @@ class CardRenderer:
         self.icons_path = icon_dir
         self.defaults_path = defaults_dir
         self.cache = {}
+        self.illustration_cache = {}
         self.resized_cache = {}
         self.card_wo_illus_cache = {}
         self.translations = {}
@@ -93,6 +96,35 @@ class CardRenderer:
 
         # Initialize rich text renderer
         self.rich_text = RichTextRenderer(self)
+
+    # @functools.lru_cache(maxsize=15)
+    def get_illustration_cached(self, path) -> Image.Image:
+        if str(path).endswith('.svg'):
+            vips_image = pyvips.Image.new_from_file(str(path))
+            image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
+        else:
+            image = Image.open(path).convert('RGBA')
+        return image
+
+    # @functools.lru_cache(maxsize=15)
+    def get_illustration_resized_cached(self, path, size) -> Image.Image:
+        if size[0] * size[1] > 24_000_000:
+            raise Exception('image too big, dangerous')
+        if str(path).endswith('.svg'):
+            vips_image = pyvips.Image.new_from_file(str(path))
+            scale = size[0]/vips_image.width
+            if scale > (size[1]/vips_image.height):
+                scale = size[1]/vips_image.height
+            vips_image = pyvips.Image.new_from_file(str(path), scale=scale)
+            image = Image.frombytes(
+                'RGBA',
+                (vips_image.width, vips_image.height),
+                vips_image.write_to_memory()
+            )
+        else:
+            img = self.get_cached(path)
+            image = img.resize(size)
+        return image
 
     def get_cached(self, path) -> Image.Image:
         if path not in self.cache:
@@ -122,6 +154,8 @@ class CardRenderer:
                 self.resized_cache[(path, size)] = image
             else:
                 img = self.get_cached(path)
+                if img.size == size:
+                    return img
                 self.resized_cache[(path, size)] = img.resize(size)
         return self.resized_cache[(path, size)]
 
@@ -146,8 +180,7 @@ class CardRenderer:
 
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
-        image = self.render_card_side(card, card.front)
-        image = image.resize((int(image.width*.5), int(image.height*.5)))
+        image = self.render_card_side(card, card.front, include_bleed=False, width=375, height=525)
         buffer = BytesIO()
         image.save(buffer, format='jpeg', quality=50)
         buffer.seek(0)
@@ -183,26 +216,43 @@ class CardRenderer:
     def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
         lossless = quality == 100
         outputs = []
-        orig_card = card
 
         # should each version (eg. 1/2 and 2/2) be printed seperately or as 1-2/2?
-        faces = orig_card.versions
+        faces = card.versions
         if not separate_versions:
-            faces = [orig_card]
+            faces = [card]
 
-        for index, card in enumerate(faces):
-            for face, name in ((card.front, 'front'), (card.back, 'back')):
+        for index, variant in enumerate(faces):
+            for face, name in ((variant.front, 'front'), (variant.back, 'back')):
                 # if this is a repeated card, only export it once
                 if face['type'] in ('player', 'encounter') and not include_backs:
                     file_path = Path(folder) / f'{face["type"]}.{format}'
                     if not file_path.exists():
-                        image = self.render_card_side(card, face, include_bleed=bleed, **size)
+                        image = self.render_card_side(variant, face, include_bleed=bleed, **size)
                         image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
                     outputs.append(str(file_path))
                 else:
-                    file_path = Path(folder) / f'{card.id}_{name}_{index}.{format}'
-                    image = self.render_card_side(card, face, include_bleed=bleed, **size)
+                    file_path = Path(folder) / f'{variant.id}_{name}_{index}.{format}'
+                    image = self.render_card_side(variant, face, include_bleed=bleed, **size)
                     image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+                    outputs.append(str(file_path))
+        return outputs
+
+    def expected_export_paths(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
+        """ Get the expected output paths from export_card_images without actually generating images """
+        outputs = []
+        faces = card.versions
+        if not separate_versions:
+            faces = [card]
+
+        for index, variant in enumerate(faces):
+            for face, name in ((variant.front, 'front'), (variant.back, 'back')):
+                # if this is a repeated card, only export it once
+                if face['type'] in ('player', 'encounter') and not include_backs:
+                    file_path = Path(folder) / f'{face["type"]}.{format}'
+                    outputs.append(str(file_path))
+                else:
+                    file_path = Path(folder) / f'{card.id}_{name}_{index}.{format}'
                     outputs.append(str(file_path))
         return outputs
 
@@ -260,10 +310,7 @@ class CardRenderer:
 
         # translations
         if value.startswith('%:'):
-            print('hit translation', value)
             value = self.translations.get(value[2:], value[2:])
-            print('new value', value)
-
 
         return value
 
@@ -689,7 +736,7 @@ class CardRenderer:
         if not illustration_path:
             return
 
-        illustration = self.get_cached(illustration_path)
+        illustration = self.get_illustration_cached(illustration_path)
         region = Region(side.get('illustration_region'))
 
         # Calculate scaling
@@ -702,7 +749,7 @@ class CardRenderer:
         # Resize illustration
         new_width = int(illustration.width * illustration_scale)
         new_height = int(illustration.height * illustration_scale)
-        illustration = self.get_resized_cached(illustration_path, (new_width, new_height))
+        illustration = self.get_illustration_resized_cached(illustration_path, (new_width, new_height))
 
         rotation = side.get('illustration_rotation', 0)
         if rotation:

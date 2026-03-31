@@ -165,7 +165,7 @@ class Card:
 
     @property
     def project_number(self):
-        return self.data.get('project_number', -1)
+        return self.data.get('project_number', 0)
 
     @project_number.setter
     def project_number(self, value):
