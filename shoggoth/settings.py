@@ -8,8 +8,37 @@ from PySide6.QtWidgets import (
     QFileDialog, QTabWidget, QWidget, QDialogButtonBox,
     QGroupBox, QComboBox, QSpinBox
 )
+from PySide6.QtCore import Qt
 from pathlib import Path
 from shoggoth.i18n import tr, get_available_languages
+
+
+def apply_appearance(color_scheme: str, ui_style: str):
+    """
+    Apply the Qt style and color scheme.
+
+    color_scheme: 'system' | 'light' | 'dark'
+    ui_style:     'system' | any QStyleFactory key (e.g. 'Fusion', 'Breeze')
+    """
+    from PySide6.QtWidgets import QApplication
+    from PySide6.QtCore import Qt
+    app = QApplication.instance()
+    if not app:
+        return
+
+    # Apply Qt widget style
+    if ui_style != 'system':
+        app.setStyle(ui_style)
+
+    # Apply color scheme via Qt's platform-level API (Qt 6.5+).
+    # This works with all styles including Breeze/Kvantum/KDE.
+    hints = app.styleHints()
+    if color_scheme == 'dark':
+        hints.setColorScheme(Qt.ColorScheme.Dark)
+    elif color_scheme == 'light':
+        hints.setColorScheme(Qt.ColorScheme.Light)
+    else:
+        hints.unsetColorScheme()
 
 # Available export sizes: (display label, size dict)
 EXPORT_SIZES = [
@@ -63,6 +92,9 @@ class SettingsManager:
             'prince_cmd': 'prince',
             'prince_dir': '',
             'show_bleed': True,
+            # Appearance
+            'color_scheme': 'system',
+            'ui_style': 'Fusion',
             # Export settings
             'export_size': 1,
             'export_format': 'png',
@@ -213,6 +245,28 @@ class SettingsDialog(QDialog):
         """Create display settings tab"""
         widget = QWidget()
         layout = QVBoxLayout()
+
+        # Appearance group
+        theme_group = QGroupBox(tr("GROUP_THEME_SETTINGS"))
+        theme_layout = QFormLayout()
+
+        # Qt style selector
+        from PySide6.QtWidgets import QStyleFactory
+        self.style_combo = QComboBox()
+        self.style_combo.addItem(tr("STYLE_SYSTEM"), "system")
+        for style_name in QStyleFactory.keys():
+            self.style_combo.addItem(style_name, style_name)
+        theme_layout.addRow(tr("LABEL_QT_STYLE"), self.style_combo)
+
+        # Color scheme selector
+        self.color_scheme_combo = QComboBox()
+        self.color_scheme_combo.addItem(tr("THEME_SYSTEM"), "system")
+        self.color_scheme_combo.addItem(tr("THEME_LIGHT"),  "light")
+        self.color_scheme_combo.addItem(tr("THEME_DARK"),   "dark")
+        theme_layout.addRow(tr("LABEL_COLOR_SCHEME"), self.color_scheme_combo)
+
+        theme_group.setLayout(theme_layout)
+        layout.addWidget(theme_group)
 
         # Preview group
         preview_group = QGroupBox(tr("GROUP_PREVIEW_SETTINGS"))
@@ -368,6 +422,15 @@ class SettingsDialog(QDialog):
             self.settings.getboolean('Shoggoth', 'show_bleed', True)
         )
 
+        # Appearance settings
+        saved_style = self.settings.get('Shoggoth', 'ui_style', 'Fusion')
+        idx = self.style_combo.findData(saved_style)
+        self.style_combo.setCurrentIndex(idx if idx >= 0 else 0)
+
+        saved_scheme = self.settings.get('Shoggoth', 'color_scheme', 'system')
+        idx = self.color_scheme_combo.findData(saved_scheme)
+        self.color_scheme_combo.setCurrentIndex(idx if idx >= 0 else 0)
+
         # Export settings
         self.export_size_combo.setCurrentIndex(
             self.settings.getint('Shoggoth', 'export_size', 1)
@@ -399,6 +462,18 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
         self.settings.set('Shoggoth', 'prince_dir', self.prince_dir_input.text())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
+
+        # Appearance
+        ui_style = self.style_combo.currentData()
+        color_scheme = self.color_scheme_combo.currentData()
+        self.settings.set('Shoggoth', 'ui_style', ui_style)
+        self.settings.set('Shoggoth', 'color_scheme', color_scheme)
+        apply_appearance(color_scheme, ui_style)
+
+        # Refresh tree icons so encounter icons pick up the new light/dark setting
+        main_window = self.parent()
+        if main_window and hasattr(main_window, 'refresh_tree'):
+            main_window.refresh_tree()
 
         # Export settings
         self.settings.set('Shoggoth', 'export_size', self.export_size_combo.currentIndex())

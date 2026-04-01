@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 
 from shoggoth.ui.main_window import ShoggothMainWindow
-from shoggoth.settings import SettingsManager
+from shoggoth.settings import SettingsManager, apply_appearance
 from shoggoth.i18n import load_language
 
 
@@ -26,8 +26,10 @@ def main():
     saved_language = settings.get('Shoggoth', 'language', 'en')
     load_language(saved_language)
 
-    # Set application style
-    app.setStyle("Fusion")
+    # Apply saved style and color scheme
+    color_scheme = settings.get('Shoggoth', 'color_scheme', 'system')
+    ui_style = settings.get('Shoggoth', 'ui_style', 'Fusion')
+    apply_appearance(color_scheme, ui_style)
 
     # Create and show main window
     window = ShoggothMainWindow()

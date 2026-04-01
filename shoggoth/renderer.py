@@ -180,7 +180,7 @@ class CardRenderer:
 
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
-        image = self.render_card_side(card, card.front, include_bleed=False, width=375, height=525)
+        image = self.render_card_side(card, card.front, include_bleed=False, width=375, height=525, bleed=18)
         buffer = BytesIO()
         image.save(buffer, format='jpeg', quality=50)
         buffer.seek(0)

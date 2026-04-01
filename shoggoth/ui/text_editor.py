@@ -13,48 +13,68 @@ import re
 class ArkhamTextHighlighter(QSyntaxHighlighter):
     """Syntax highlighter for Arkham Horror card text"""
 
+    # Colors for light and dark backgrounds
+    _COLORS_LIGHT = {
+        'tag':     "#3355bb",  # Blue
+        'unknown': "#cc2222",  # Red
+        'icon':    "#a05020",  # Brown-orange
+        'bold':    "#225522",  # Dark green
+        'italic':  "#771188",  # Purple
+        'trait':   "#886600",  # Dark gold
+    }
+    _COLORS_DARK = {
+        'tag':     "#7799ff",  # Light blue
+        'unknown': "#ff6666",  # Light red
+        'icon':    "#ffaa66",  # Light orange
+        'bold':    "#66cc66",  # Light green
+        'italic':  "#cc88ff",  # Light purple
+        'trait':   "#ddcc44",  # Gold
+    }
+
     def __init__(self, parent=None):
         super().__init__(parent)
-
-        # Define formatting styles
         self.formats = {}
+        self._is_dark = None  # unknown until first highlight
+        self._build_formats(self._detect_dark())
 
-        # Tag format (for known <tag> and [[tag]])
+    def _detect_dark(self):
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            return app.palette().color(QPalette.ColorRole.Window).lightness() < 128
+        return False
+
+    def _build_formats(self, is_dark):
+        self._is_dark = is_dark
+        colors = self._COLORS_DARK if is_dark else self._COLORS_LIGHT
+
         tag_format = QTextCharFormat()
-        tag_format.setForeground(QColor("#6666cc"))  # Blue
-        # tag_format.setFontWeight(QFont.Bold)
+        tag_format.setForeground(QColor(colors['tag']))
         self.formats['tag'] = tag_format
 
-        # Unknown tag format (for unknown tags)
         unknown_format = QTextCharFormat()
-        unknown_format.setForeground(QColor("#cc0000"))  # Red
-        # unknown_format.setFontWeight(QFont.Bold)
+        unknown_format.setForeground(QColor(colors['unknown']))
         unknown_format.setUnderlineStyle(QTextCharFormat.WaveUnderline)
-        unknown_format.setUnderlineColor(QColor("#cc0000"))
+        unknown_format.setUnderlineColor(QColor(colors['unknown']))
         self.formats['unknown'] = unknown_format
 
-        # Icon tag format (for icon tags like <blessing>, <curse>)
         icon_format = QTextCharFormat()
-        icon_format.setForeground(QColor("#dd9977"))  # Orange
-        # icon_format.setFontWeight(QFont.Bold)
+        icon_format.setForeground(QColor(colors['icon']))
         self.formats['icon'] = icon_format
 
-        # Bold format
         bold_format = QTextCharFormat()
         bold_format.setFontWeight(QFont.Bold)
-        bold_format.setForeground(QColor("#2e7d32"))  # Green
+        bold_format.setForeground(QColor(colors['bold']))
         self.formats['bold'] = bold_format
 
-        # Italic format
         italic_format = QTextCharFormat()
         italic_format.setFontItalic(True)
-        italic_format.setForeground(QColor("#7b1fa2"))  # Purple
+        italic_format.setForeground(QColor(colors['italic']))
         self.formats['italic'] = italic_format
 
         trait_format = QTextCharFormat()
-        # trait_format.setFontWeight(QFont.Bold)
         trait_format.setFontItalic(True)
-        trait_format.setForeground(QColor("#ffff99"))  # Purple
+        trait_format.setForeground(QColor(colors['trait']))
         self.formats['trait'] = trait_format
 
         # Define known tags
@@ -147,6 +167,11 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
 
     def highlightBlock(self, text):
         """Apply syntax highlighting to a block of text"""
+        # Rebuild formats if the light/dark mode has changed since last highlight
+        is_dark = self._detect_dark()
+        if is_dark != self._is_dark:
+            self._build_formats(is_dark)
+
         # First, handle bold and italic (these override other highlighting)
         for match in self.bold_pattern.finditer(text):
             self.setFormat(match.start(), match.end() - match.start(), self.formats['bold'])

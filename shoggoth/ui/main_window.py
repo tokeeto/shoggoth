@@ -29,7 +29,9 @@ from shoggoth.ui.card_editor import CardEditor
 
 
 def _make_inverted_icon(icon_path, project_file_path, size=16):
-    """Load an icon, invert its RGB (preserve alpha), return a QIcon."""
+    """Load an icon; invert RGB on dark backgrounds, use as-is on light backgrounds."""
+    from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QPalette
     path = Path(icon_path)
     if not path.is_absolute():
         path = Path(project_file_path).parent / path
@@ -39,7 +41,9 @@ def _make_inverted_icon(icon_path, project_file_path, size=16):
     if image.isNull():
         return None
     image = image.convertToFormat(QImage.Format_ARGB32)
-    image.invertPixels(QImage.InvertRgb)
+    app = QApplication.instance()
+    if app and app.palette().color(QPalette.ColorRole.Window).lightness() < 128:
+        image.invertPixels(QImage.InvertRgb)
     pixmap = QPixmap.fromImage(image).scaled(
         size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
     )
