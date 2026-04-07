@@ -244,8 +244,8 @@ class LabeledTextEdit(QWidget):
             old_input = self.floating_widget.input
             self.floating_widget.input = ArkhamTextEdit()
             self.floating_widget.input.setStyleSheet(old_input.styleSheet())
-            self.floating_widget.input.setMinimumHeight(100)
-            self.floating_widget.input.setMaximumHeight(140)
+            self.floating_widget.input.setMinimumHeight(136)
+            self.floating_widget.input.setMaximumHeight(176)
 
             # Replace in layout
             self.floating_widget.layout().removeWidget(old_input)

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSpinBox, QTextEdit, QSplitter, QFileDialog, QScrollArea,
     QFrame, QMessageBox, QLineEdit, QStackedWidget, QSizePolicy,
-    QListWidget, QListWidgetItem, QComboBox,
+    QListWidget, QListWidgetItem, QComboBox, QDialog, QDialogButtonBox,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer
 from PySide6.QtGui import (
@@ -16,7 +16,7 @@ from PySide6.QtGui import (
 import re
 from pathlib import Path
 from shoggoth.i18n import tr
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from shoggoth.guide import SECTION_TYPES, GuideSection, SECTION_FIELDS
 
 # ── Display labels ────────────────────────────────────────────────────────────
@@ -72,6 +72,117 @@ class HTMLHighlighter(QSyntaxHighlighter):
                 self.setFormat(m.start(), m.end() - m.start(), fmt)
 
 
+# ── Markdown ↔ HTML conversion ────────────────────────────────────────────────
+
+def _md_inline(text: str) -> str:
+    """Apply inline markdown: **bold** and *italic*."""
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+    return text
+
+
+def _md_to_html(md: str) -> str:
+    """Convert simple markdown to HTML. Supports headings, paragraphs, bullet lists."""
+    lines = md.split('\n')
+    out = []
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        heading_match = re.match(r'^(#{1,3})\s+(.*)', stripped)
+        if heading_match:
+            level = len(heading_match.group(1))
+            out.append(f'<h{level}>{_md_inline(heading_match.group(2))}</h{level}>')
+            i += 1
+        elif stripped.startswith('- ') or stripped.startswith('* '):
+            items = []
+            while i < len(lines):
+                s = lines[i].strip()
+                if s.startswith('- ') or s.startswith('* '):
+                    items.append(f'<li>{_md_inline(s[2:])}</li>')
+                    i += 1
+                else:
+                    break
+            out.append('<ul>\n' + '\n'.join(items) + '\n</ul>')
+        elif stripped == '':
+            i += 1
+        else:
+            para_lines = []
+            while i < len(lines):
+                s = lines[i].strip()
+                if s == '' or s.startswith('#') or s.startswith('- ') or s.startswith('* '):
+                    break
+                para_lines.append(s)
+                i += 1
+            out.append(f'<p>{_md_inline(" ".join(para_lines))}</p>')
+    return '\n'.join(out)
+
+
+def _elem_to_md_inline(elem) -> str:
+    result = ''
+    for child in elem.children:
+        if isinstance(child, NavigableString):
+            result += str(child)
+        elif child.name in ('em', 'i'):
+            result += f'*{child.get_text()}*'
+        elif child.name in ('strong', 'b'):
+            result += f'**{child.get_text()}**'
+        else:
+            result += child.get_text()
+    return result
+
+
+def _html_to_md(html: str) -> str:
+    """Convert simple HTML to markdown. Handles headings, paragraphs, lists, divs."""
+    soup = BeautifulSoup(html, 'html.parser')
+    parts = []
+    for elem in soup.children:
+        if isinstance(elem, NavigableString):
+            text = str(elem).strip()
+            if text:
+                parts.append(text)
+        elif elem.name in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
+            level = int(elem.name[1])
+            parts.append('#' * level + ' ' + elem.get_text().strip())
+        elif elem.name == 'p':
+            text = _elem_to_md_inline(elem).strip()
+            if text:
+                parts.append(text)
+        elif elem.name in ('ul', 'ol'):
+            for li in elem.find_all('li', recursive=False):
+                parts.append('- ' + _elem_to_md_inline(li).strip())
+        elif elem.name == 'div':
+            inner = _html_to_md(elem.decode_contents())
+            if inner.strip():
+                parts.append(inner)
+    return '\n\n'.join(p for p in parts if p.strip())
+
+
+# ── Expanded editor dialog ────────────────────────────────────────────────────
+
+class ExpandedEditorDialog(QDialog):
+    """Modal popup with a large text editor for comfortable editing."""
+
+    def __init__(self, title: str, content: str, highlight_html: bool = False, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f'Edit: {title}')
+        self.resize(720, 520)
+        layout = QVBoxLayout(self)
+        self._edit = QTextEdit()
+        self._edit.setAcceptRichText(False)
+        self._edit.setFont(QFont('Courier', 10))
+        self._edit.setPlainText(content)
+        if highlight_html:
+            HTMLHighlighter(self._edit.document())
+        layout.addWidget(self._edit)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def get_content(self) -> str:
+        return self._edit.toPlainText()
+
+
 # ── PDF rendering thread ──────────────────────────────────────────────────────
 
 class PDFPageRenderer(QThread):
@@ -88,11 +199,11 @@ class PDFPageRenderer(QThread):
         if self._stop:
             return
         try:
-            buf = self.guide.get_page(self.page_number, html=self.html or '')
+            img = self.guide.get_page(self.page_number, html=self.html or '')
             if self._stop:
                 return
-            buf.seek(0)
-            qimage = QImage.fromData(buf.read())
+            from PIL.ImageQt import ImageQt
+            qimage = ImageQt(img)
             pixmap = QPixmap.fromImage(qimage)
             if not self._stop:
                 self.page_ready.emit(self.page_number, pixmap)
@@ -250,9 +361,10 @@ def _strip_tags(html: str) -> str:
 class FieldEditorWidget(QFrame):
     """Base widget for editing one predefined section field."""
 
-    def __init__(self, field_def, parent=None):
+    def __init__(self, field_def, guide=None, parent=None):
         super().__init__(parent)
         self.field_def = field_def
+        self.guide = guide
         self._status = 'ok'  # 'ok' | 'missing' | 'ambiguous'
         self.setFrameStyle(QFrame.StyledPanel)
         outer = QVBoxLayout(self)
@@ -265,6 +377,12 @@ class FieldEditorWidget(QFrame):
         self._status_lbl.setStyleSheet('font-size: 8pt; font-style: italic;')
         header_row.addWidget(self._status_lbl)
         header_row.addStretch()
+        self._expand_btn = QPushButton('⤢')
+        self._expand_btn.setFixedSize(24, 24)
+        self._expand_btn.setToolTip('Open in expanded editor')
+        self._expand_btn.clicked.connect(self._expand)
+        self._expand_btn.hide()
+        header_row.addWidget(self._expand_btn)
         outer.addLayout(header_row)
         self._warn_lbl = QLabel()
         self._warn_lbl.setWordWrap(True)
@@ -272,6 +390,9 @@ class FieldEditorWidget(QFrame):
         self._warn_lbl.hide()
         outer.addWidget(self._warn_lbl)
         self._build_editor(outer)
+        # Show expand button for any field that has a multi-line text editor
+        if hasattr(self, '_edit') and isinstance(self._edit, QTextEdit):
+            self._expand_btn.show()
 
     def _build_editor(self, layout):
         pass
@@ -322,6 +443,21 @@ class FieldEditorWidget(QFrame):
             wrapper.append(new_tag)
         else:
             matches[0].replace_with(new_tag)
+
+    def _expand(self):
+        """Open the field's text editor content in a larger popup dialog."""
+        if not hasattr(self, '_edit') or not isinstance(self._edit, QTextEdit):
+            return
+        is_html_field = self.field_def.kind in ('html', 'titled_html')
+        in_md_mode = getattr(self, '_md_mode', False)
+        dlg = ExpandedEditorDialog(
+            self.field_def.label,
+            self._edit.toPlainText(),
+            highlight_html=is_html_field and not in_md_mode,
+            parent=self,
+        )
+        if dlg.exec():
+            self._edit.setPlainText(dlg.get_content())
 
 
 class LineFieldWidget(FieldEditorWidget):
@@ -394,25 +530,92 @@ class TextFieldWidget(FieldEditorWidget):
 
 
 class HtmlFieldWidget(FieldEditorWidget):
-    """Raw HTML editor with syntax highlighting."""
+    """Raw HTML editor with syntax highlighting and optional markdown mode."""
 
     def _build_editor(self, layout):
+        self._md_mode = False
+        self._highlighter = None
+        ctrl_row = QHBoxLayout()
+        self._mode_btn = QPushButton('Switch to Markdown')
+        self._mode_btn.setCheckable(True)
+        self._mode_btn.setFixedWidth(160)
+        self._mode_btn.clicked.connect(self._toggle_mode)
+        ctrl_row.addWidget(self._mode_btn)
+        if self.field_def.key == 'toc':
+            gen_btn = QPushButton('Generate')
+            gen_btn.setToolTip('Populate from all non-cover/blank sections in this guide')
+            gen_btn.clicked.connect(self._generate_toc)
+            ctrl_row.addWidget(gen_btn)
+        ctrl_row.addStretch()
+        layout.addLayout(ctrl_row)
         self._edit = QTextEdit()
         self._edit.setAcceptRichText(False)
         self._edit.setMinimumHeight(80)
         self._edit.setMaximumHeight(200)
-        HTMLHighlighter(self._edit.document())
+        self._highlighter = HTMLHighlighter(self._edit.document())
         layout.addWidget(self._edit)
 
+    def _generate_toc(self):
+        if not self.guide:
+            return
+        result = self.guide.parse_sections()
+        if not result:
+            return
+        _, sections, _ = result
+        names = [s.name for s in sections if s.type not in ('cover', 'blank')]
+        items = '\n'.join(f'<li>{name}</li>' for name in names)
+        self._edit.setPlainText(
+            f'<div class="toc">\n<h3>Table of Contents</h3>\n<ul>\n{items}\n</ul>\n</div>'
+        )
+
+    def _inner_html(self, html: str) -> str:
+        """Extract the content inside the outer wrapper element."""
+        css = self.field_def.selector_class
+        tag = self.field_def.selector_tag
+        soup = BeautifulSoup(html, 'html.parser')
+        elem = soup.find(tag, class_=css) if css else soup.find(tag)
+        return elem.decode_contents() if elem else html
+
+    def _wrap_html(self, inner: str) -> str:
+        css = self.field_def.selector_class
+        tag = self.field_def.selector_tag
+        if css:
+            return f'<{tag} class="{css}">\n{inner}\n</{tag}>'
+        return f'<{tag}>\n{inner}\n</{tag}>'
+
+    def _toggle_mode(self, checked):
+        if checked:
+            # HTML → Markdown
+            inner = self._inner_html(self._edit.toPlainText())
+            self._edit.setPlainText(_html_to_md(inner))
+            if self._highlighter:
+                self._highlighter.setDocument(None)
+                self._highlighter = None
+            self._mode_btn.setText('Switch to HTML')
+            self._md_mode = True
+        else:
+            # Markdown → HTML
+            inner = _md_to_html(self._edit.toPlainText())
+            self._edit.setPlainText(self._wrap_html(inner))
+            self._highlighter = HTMLHighlighter(self._edit.document())
+            self._mode_btn.setText('Switch to Markdown')
+            self._md_mode = False
+
     def get_value(self) -> str:
-        return self._edit.toPlainText().strip()
+        text = self._edit.toPlainText().strip()
+        if self._md_mode:
+            return self._wrap_html(_md_to_html(text))
+        return text
 
     def set_value(self, html_fragment: str):
-        self._edit.setPlainText(html_fragment)
+        if self._md_mode:
+            self._edit.setPlainText(_html_to_md(self._inner_html(html_fragment)))
+        else:
+            self._edit.setPlainText(html_fragment)
 
 
 class ListFieldWidget(FieldEditorWidget):
-    """Editable ordered list (table of contents)."""
+    """Editable ordered list."""
 
     def _build_editor(self, layout):
         self._list = EditableListWidget()
@@ -460,21 +663,49 @@ class TitledHtmlFieldWidget(FieldEditorWidget):
     """Title + raw HTML body (e.g. Resolution)."""
 
     def _build_editor(self, layout):
+        self._md_mode = False
+        self._highlighter = None
         row = QHBoxLayout()
         row.addWidget(QLabel('Title:'))
         self._title = QLineEdit()
         row.addWidget(self._title)
         layout.addLayout(row)
+        mode_row = QHBoxLayout()
+        self._mode_btn = QPushButton('Switch to Markdown')
+        self._mode_btn.setCheckable(True)
+        self._mode_btn.setFixedWidth(160)
+        self._mode_btn.clicked.connect(self._toggle_mode)
+        mode_row.addWidget(self._mode_btn)
+        mode_row.addStretch()
+        layout.addLayout(mode_row)
         self._edit = QTextEdit()
         self._edit.setAcceptRichText(False)
         self._edit.setMinimumHeight(80)
         self._edit.setMaximumHeight(200)
-        HTMLHighlighter(self._edit.document())
+        self._highlighter = HTMLHighlighter(self._edit.document())
         layout.addWidget(self._edit)
+
+    def _toggle_mode(self, checked):
+        if checked:
+            html = self._edit.toPlainText()
+            self._edit.setPlainText(_html_to_md(html))
+            if self._highlighter:
+                self._highlighter.setDocument(None)
+                self._highlighter = None
+            self._mode_btn.setText('Switch to HTML')
+            self._md_mode = True
+        else:
+            md = self._edit.toPlainText()
+            self._edit.setPlainText(_md_to_html(md))
+            self._highlighter = HTMLHighlighter(self._edit.document())
+            self._mode_btn.setText('Switch to Markdown')
+            self._md_mode = False
 
     def get_value(self) -> str:
         title = self._title.text().strip()
         body = self._edit.toPlainText().strip()
+        if self._md_mode:
+            body = _md_to_html(body)
         css = self.field_def.selector_class
         return f'<div class="{css}">\n<h3>{title}</h3>\n{body}\n</div>'
 
@@ -484,7 +715,10 @@ class TitledHtmlFieldWidget(FieldEditorWidget):
             self._title.setText(_strip_tags(m.group(1)))
         inner = re.sub(r'</?div[^>]*>', '', html_fragment, flags=re.IGNORECASE).strip()
         inner = re.sub(r'<h\d[^>]*>.*?</h\d>', '', inner, flags=re.DOTALL | re.IGNORECASE).strip()
-        self._edit.setPlainText(inner)
+        if self._md_mode:
+            self._edit.setPlainText(_html_to_md(inner))
+        else:
+            self._edit.setPlainText(inner)
 
 
 _FIELD_WIDGET_MAP = {
@@ -498,9 +732,9 @@ _FIELD_WIDGET_MAP = {
 }
 
 
-def make_field_widget(field_def) -> FieldEditorWidget:
+def make_field_widget(field_def, guide=None) -> FieldEditorWidget:
     cls = _FIELD_WIDGET_MAP.get(field_def.kind, HtmlFieldWidget)
-    return cls(field_def)
+    return cls(field_def, guide=guide)
 
 
 # ── Section editor panel ──────────────────────────────────────────────────────
@@ -610,7 +844,7 @@ class SectionEditorPanel(QWidget):
         soup = BeautifulSoup(f'<div>{section.html_content}</div>', 'html.parser')
         wrapper = soup.find('div')
         for fd in field_defs:
-            w = make_field_widget(fd)
+            w = make_field_widget(fd, guide=self.guide)
             w.load_from_soup(wrapper)
             self._fields_layout.addWidget(w)
             self._field_widgets.append(w)

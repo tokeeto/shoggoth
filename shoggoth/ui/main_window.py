@@ -815,7 +815,6 @@ class FileBrowser(QWidget):
             return False
 
         card = data.get('data')
-        print('update_card_node, card', card)
         if not card:
             return False
 
@@ -829,11 +828,7 @@ class FileBrowser(QWidget):
             display_name = card.name
 
         # Add dirty indicator
-        if card.dirty:
-            print('update_card_node, dirty:', card.dirty)
-            display_name = '● ' + display_name
-        else:
-            print('update_card_node, false dirty:', card.dirty)
+        display_name = '● ' + display_name
 
         # Update only if changed
         if item.text(0) != display_name:

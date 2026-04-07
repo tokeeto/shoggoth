@@ -82,7 +82,6 @@ class Face:
             del self.data[key]
 
         shoggoth.app.schedule_preview_update()
-        print('face set, dirty set to ', self.card.dirty)
         shoggoth.app.update_card_in_tree(self.card.id)
 
     def get_class(self):

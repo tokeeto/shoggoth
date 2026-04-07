@@ -28,6 +28,11 @@ FULLART_CARD_TYPES = [
     'fullart_investigator',
     'fullart_enemy',
     'fullart_treachery',
+    'fullart_location',
+    'fullart_location_back',
+    'fullart_scanning',
+    'fullart_scanning_back',
+    'fullart_encounter_with_connections',
 ]
 
 

@@ -115,11 +115,11 @@ class FaceEditor(QWidget):
     def get_widget_value(self, widget):
         """Get widget value based on type"""
         if isinstance(widget, QLineEdit):
-            return widget.text().strip()
+            return widget.text()
         elif isinstance(widget, QTextEdit):
-            return widget.toPlainText().strip()
+            return widget.toPlainText()
         elif isinstance(widget, QComboBox):
-            return widget.currentData() or widget.currentText().strip()
+            return widget.currentData() or widget.currentText()
         return ''
 
     # Fields that require type conversion

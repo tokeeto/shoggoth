@@ -1,19 +1,20 @@
 from pathlib import Path
-import re
 import uuid
-import pymupdf
 from io import BytesIO
 import subprocess
 from bs4 import BeautifulSoup, Tag
 from shoggoth import files
+from shoggoth.pdf_exporter import _resolve_prince
+from PIL import Image
 
 
-SECTION_TYPES = ['intro', 'prelude', 'interlude', 'scenario', 'blank']
+SECTION_TYPES = ['cover', 'intro', 'prelude', 'interlude', 'scenario', 'blank']
 
 
 # CSS class for the auto-generated wrapper div per section type.
 # None means no wrapper (used for blank sections like cover pages).
 _SECTION_CSS = {
+    'cover': 'chapter cover',
     'intro': 'chapter intro',
     'prelude': 'chapter prelude',
     'interlude': 'chapter interlude',
@@ -192,6 +193,7 @@ SECTION_FIELDS: dict = {
             extra_selectors=_RESOLUTION_EXTRAS,
         ),
     ],
+    "cover": [],
     "blank": [],
 }
 
@@ -241,14 +243,12 @@ def _parse_sections_from_html(html: str):
         section_name = elem.get('data-shoggoth-name')
         if not section_name and elem.find('h1'):
             section_name = elem.find('h1').get_text()
+        if not section_name:
+            section_name = section_type
         # Prefer the explicit shoggoth id, then a regular id attr, then a
         # stable positional fallback so the id is consistent across re-parses
         # of the same unmodified HTML (avoids UUID churn on legacy files).
-        section_id = (
-            elem.get('data-shoggoth-id')
-            or elem.get('id')
-            or f'sec_{i}'
-        )
+        section_id = elem.get('data-shoggoth-id') or elem.get('id') or f'sec_{i}'
         inner = elem.decode_contents().strip()
         sections.append(GuideSection(section_type, section_name, inner, section_id))
     return sections
@@ -261,22 +261,7 @@ class Guide:
         self.id = data['id']
         self.data = data
         self._html = None
-        self._prince_cmd = prince_cmd
-        self._prince_dir = prince_dir
-
-    @property
-    def prince_dir(self):
-        if self._prince_dir is None:
-            import shoggoth
-            return shoggoth.app.config.get('Shoggoth', 'prince_dir') or None
-        return self._prince_dir
-
-    @property
-    def prince_cmd(self):
-        if self._prince_cmd is None:
-            import shoggoth
-            return shoggoth.app.config.get('Shoggoth', 'prince_cmd')
-        return self._prince_cmd
+        self._prince_cmd, self._prince_dir = _resolve_prince()
 
     @property
     def target_path(self):
@@ -315,25 +300,19 @@ class Guide:
         return html
 
     def get_page(self, page, html: str = ''):
+        prince_cmd, prince_cwd = _resolve_prince()
         if not html:
-            p = subprocess.call([self.prince_cmd, self.path, '-o', str(self.target_path)], cwd=self.prince_dir)
-            pdf = pymupdf.open(self.target_path)
-        else:
-            p = subprocess.run(
-                [self.prince_cmd, '-', '-o', '-'],
-                cwd=self.prince_dir,
-                input=self.html_format(html).encode(),
-                stdout=subprocess.PIPE,
-            )
-            data = p.stdout
-            pdf = pymupdf.open(stream=data)
-
-        image = pdf[page].get_pixmap().pil_image()
-
-        buffer = BytesIO()
-        image.save(buffer, format='jpeg', quality=90)
+            html = self.get_html()
+        p = subprocess.run(
+            [prince_cmd, '-', '--raster-output=-', '--raster-format=jpg', f'--raster-pages={page}'],
+            cwd=prince_cwd,
+            input=self.html_format(html).encode(),
+            stdout=subprocess.PIPE,
+        )
+        buffer = BytesIO(p.stdout)
         buffer.seek(0)
-        return buffer
+        image = Image.open(buffer)
+        return image
 
     def parse_sections(self):
         """Parse HTML into (preamble, sections, postamble). Returns None if not structured."""
@@ -357,13 +336,14 @@ class Guide:
             file.write(html)
 
     def render_to_file(self, html=None):
+        prince_cmd, prince_cwd = _resolve_prince()
         if not html:
             html = self.get_html()
         html = self.html_format(html)
 
         p = subprocess.run(
-            [self.prince_cmd, '-', '-o', str(self.target_path)],
-            cwd=self.prince_dir,
+            [prince_cmd, '-', '-o', str(self.target_path)],
+            cwd=prince_cwd,
             input=html.encode(),
         )
         return

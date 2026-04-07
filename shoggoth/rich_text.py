@@ -1,5 +1,7 @@
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
 import os
+import platform
+import pathlib
 import numpy as np
 import re
 from shoggoth.files import font_dir, icon_dir, overlay_dir
@@ -9,7 +11,9 @@ from shoggoth.i18n import tr
 image_regex = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
 size_regex = re.compile(r'<size (\d+?)>', flags=re.IGNORECASE)
 margin_regex = re.compile(r'<margin (\d+?)(\s\d+?)*>', flags=re.IGNORECASE)
+indent_regex = re.compile(r'<indent (\d+?)>', flags=re.IGNORECASE)
 tag_value_pattern = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
+font_tag_regex = re.compile(r'<font "(.+?)">', flags=re.IGNORECASE)
 
 
 def parse_tag_attributes(tag_string):
@@ -38,6 +42,8 @@ class RichTextRenderer:
         self.card_renderer = card_renderer
         self.icon_cache = {}  # Cache for loaded icons
         self.font_cache = {}  # Cache for loaded fonts by size
+        self.user_font_cache = {}  # Cache for fonts loaded by the user
+        self._user_font_keys = {}  # Maps user-supplied font name → internal font key
 
         # Add alignment configuration
         self.alignment = 'left'  # Default alignment: 'left', 'center', 'right'
@@ -67,6 +73,9 @@ class RichTextRenderer:
             '</story>': {'start': False, 'indent': 4 },
             '<blockquote>': {'start': True, 'format': 'quote', 'block': True},
             '</blockquote>': {'start': False, 'format': 'quote', 'block': True},
+            '<br>': {'break': True},
+            '</indent>': {'indent_pop': True},
+            # '</font>': {'start': False, 'font': 'any'},
         }
 
         # Replacement tags - tags that render as different text when encountered
@@ -223,7 +232,6 @@ class RichTextRenderer:
             text += f"{tag}: {options['path']}\n"
         return text
 
-
     def load_fonts(self, size):
         """Load all fonts at the specified size, with caching"""
         if size in self.font_cache:
@@ -235,6 +243,108 @@ class RichTextRenderer:
 
         self.font_cache[size] = loaded_fonts
         return loaded_fonts
+
+    def load_font(self, font):
+        """Load a new singular font at the specified size, with caching"""
+        if font not in self.fonts:
+            self.fonts[font] = {
+                'path': font,
+                'scale': 1,
+                'fallback': None
+            }
+        self.load_fonts
+
+    def _find_system_font(self, name):
+        """Search OS font directories for a font file matching name (without extension).
+
+        On Linux/macOS tries ``fc-match`` first (fast). Falls back to scanning
+        known font directories, but only looks at .ttf/.otf files.
+        """
+        name_lower = name.lower()
+
+        # Fast path: fontconfig (Linux, and macOS if fontconfig is installed)
+        if platform.system() in ('Linux', 'Darwin'):
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ['fc-match', '--format=%{file}', name],
+                    capture_output=True, text=True, timeout=2,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    p = pathlib.Path(result.stdout.strip())
+                    # fc-match always returns *something* even on no match; verify stem
+                    if p.exists() and p.stem.lower() == name_lower:
+                        return p
+            except Exception:
+                pass
+
+        # Slow path: directory scan, but restricted to font file extensions
+        home = pathlib.Path.home()
+        system = platform.system()
+        if system == 'Windows':
+            search_dirs = [
+                pathlib.Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts',
+                pathlib.Path(os.environ.get('LOCALAPPDATA', '')) / 'Microsoft' / 'Windows' / 'Fonts',
+            ]
+        elif system == 'Darwin':
+            search_dirs = [
+                pathlib.Path('/System/Library/Fonts'),
+                pathlib.Path('/Library/Fonts'),
+                home / 'Library' / 'Fonts',
+            ]
+        else:
+            search_dirs = [
+                pathlib.Path('/usr/share/fonts'),
+                pathlib.Path('/usr/local/share/fonts'),
+                home / '.local' / 'share' / 'fonts',
+                home / '.fonts',
+            ]
+        for search_dir in search_dirs:
+            if not search_dir.exists():
+                continue
+            for ext in ('*.ttf', '*.otf', '*.TTF', '*.OTF'):
+                for font_file in search_dir.rglob(ext):
+                    if font_file.stem.lower() == name_lower:
+                        return font_file
+        return None
+
+    def _resolve_font(self, name):
+        """
+        Resolve a font name/path to an entry in self.fonts.
+        Returns (font_key, strikethrough) where strikethrough=True means the font was not found.
+        Resolution order: built-in key → file path → system font by name → fail (strikethrough).
+        Results (including failures) are cached so the filesystem is only touched once per name.
+        """
+        # 1. Built-in font key
+        if name in self.fonts:
+            return name, False
+
+        # 2. Already resolved (or confirmed missing) in a previous call
+        if name in self._user_font_keys:
+            entry = self._user_font_keys[name]
+            return ('regular', True) if entry is None else (entry, False)
+
+        font_key = f'__user__{name}'
+
+        # 3. Treat as a file path
+        p = pathlib.Path(name)
+        if p.exists() and p.suffix.lower() in ('.ttf', '.otf'):
+            self.fonts[font_key] = {'path': p, 'scale': 1, 'fallback': None}
+            self.font_cache.clear()
+            self._user_font_keys[name] = font_key
+            return font_key, False
+
+        # 4. Search installed system fonts by stem name
+        system_path = self._find_system_font(name)
+        if system_path:
+            self.fonts[font_key] = {'path': system_path, 'scale': 1, 'fallback': None}
+            self.font_cache.clear()
+            self._user_font_keys[name] = font_key
+            return font_key, False
+
+        # 5. Not found — cache the failure so we never scan again for this name
+        self._user_font_keys[name] = None
+        return 'regular', True
 
     def load_icon(self, icon_path, height):
         """Load an image icon and resize to match text height"""
@@ -265,10 +375,38 @@ class RichTextRenderer:
         except Exception:
             return None
 
+    def _expand_bullet_shorthand(self, text):
+        """Convert runs of lines starting with '- ' into <indent 25>/<bullet> blocks.
+
+        Consecutive lines that begin with '- ' are wrapped in <indent 25>...</indent>
+        and each leading '- ' is replaced with '<bullet> '.  The <indent>/<indent>
+        tags eat their trailing newlines so no blank lines are introduced.
+        """
+        lines = text.split('\n')
+        result = []
+        in_list = False
+        for line in lines:
+            if line.startswith('- '):
+                if not in_list:
+                    result.append('<indent 25>')
+                    in_list = True
+                result.append('<bullet> ' + line[2:])
+            else:
+                if in_list:
+                    result.append('</indent>')
+                    in_list = False
+                result.append(line)
+        if in_list:
+            result.append('</indent>')
+        return '\n'.join(result)
+
     def parse_text(self, text):
         """Parse rich text into tokens with preserved whitespace"""
         tokens = []
         current_pos = 0
+
+        # expand '- ' bullet shorthand before other processing
+        text = self._expand_bullet_shorthand(text)
 
         # replacement tags
         for tag, new in self.replacement_tags.items():
@@ -317,6 +455,19 @@ class RichTextRenderer:
                             current_pos += len(tag)
                             format_match = True
                             break
+                        elif 'break' in info:
+                            tokens.append({'type': 'break'})
+                            current_pos += len(tag)
+                            format_match = True
+                            break
+                        elif 'indent_pop' in info:
+                            tokens.append({'type': 'indent_pop'})
+                            current_pos += len(tag)
+                            # eat trailing newline so </indent> on its own line adds no blank space
+                            if current_pos < len(text) and text[current_pos] == '\n':
+                                current_pos += 1
+                            format_match = True
+                            break
 
             if format_match:
                 continue
@@ -347,6 +498,19 @@ class RichTextRenderer:
                 current_pos += len(tag)
                 continue
 
+            # indent push tag: <indent N>
+            if match := indent_regex.match(text[current_pos:]):
+                tag = match[0]
+                tokens.append({
+                    'type': 'indent_push',
+                    'value': int(match[1]),
+                })
+                current_pos += len(tag)
+                # eat trailing newline so <indent N> on its own line adds no blank space
+                if current_pos < len(text) and text[current_pos] == '\n':
+                    current_pos += 1
+                continue
+
             # margin tag
             if match := margin_regex.match(text[current_pos:]):
                 tag = match[0]
@@ -357,6 +521,25 @@ class RichTextRenderer:
                     'value': margin_top,
                 })
                 current_pos += len(tag)
+                continue
+
+            # <font "name"> tag
+            if match := font_tag_regex.match(text[current_pos:]):
+                tag = match[0]
+                font_name = match[1]
+                font_key, strikethrough = self._resolve_font(font_name)
+                tokens.append({
+                    'type': 'font_push',
+                    'font': font_key,
+                    'strikethrough': strikethrough,
+                })
+                current_pos += len(tag)
+                continue
+
+            # </font> tag
+            if text[current_pos:].startswith('</font>'):
+                tokens.append({'type': 'font_pop'})
+                current_pos += len('</font>')
                 continue
 
             # image tag
@@ -395,7 +578,7 @@ class RichTextRenderer:
             all_tags = (
                 list(self.formatting_tags.keys()) +
                 list(self.font_icon_tags.keys()) +
-                [' ', '\n']
+                ['<font "', '</font>', ' ', '\n']
             )
 
             for tag in all_tags:
@@ -430,6 +613,9 @@ class RichTextRenderer:
         current_font = base_font
         font_stack = []
         current_line_width = 0
+        block_indent = 0
+        indent_stack = []
+        overflow_check_pending = False  # deferred: checked when next renderable token arrives
 
         def polygon_width_at_y(target_y, polygon_points):
             x_intersections = []
@@ -476,33 +662,72 @@ class RichTextRenderer:
                 else:
                     current_font = font_stack.pop() if font_stack else base_font
 
+            elif token['type'] == 'font_push':
+                font_stack.append(current_font)
+                current_font = token['font']
+
+            elif token['type'] == 'font_pop':
+                current_font = font_stack.pop() if font_stack else base_font
+
             elif token['type'] == 'newline':
                 y += line_height
                 current_line_width = 0
+                overflow_check_pending = True  # defer: check when next renderable token arrives
                 if polygon:
                     left, right = polygon_width_at_y(y, polygon)
                     max_width = right - left
-                if y + line_height > region.y + max_height:
-                    return False, i / len(tokens)
+
+            elif token['type'] == 'break':
+                y += font_size
+                current_line_width = 0
+                overflow_check_pending = True
+                if polygon:
+                    left, right = polygon_width_at_y(y, polygon)
+                    max_width = right - left
+
+            elif token['type'] == 'indent_push':
+                indent_stack.append(block_indent)
+                block_indent = token['value']
+
+            elif token['type'] == 'indent_pop':
+                block_indent = indent_stack.pop() if indent_stack else 0
 
             elif token['type'] in ('text', 'font_icon', 'image_icon'):
+                # Deferred overflow check: now that we know there IS content on this line,
+                # confirm the line fits.
+                if overflow_check_pending:
+                    overflow_check_pending = False
+                    if y + line_height > region.y + max_height:
+                        return False, i / len(tokens)
+
                 token_width = get_token_width(token, current_font)
 
-                if current_line_width + token_width > max_width:
+                if polygon:
+                    p_left, p_right = polygon_width_at_y(y, polygon)
+                    eff_w = p_right - max(x + block_indent, p_left)
+                else:
+                    eff_w = region.width - block_indent
+                if current_line_width + token_width > eff_w:
                     # Wrap to next line
                     y += line_height
                     current_line_width = token_width
-                    if polygon:
-                        left, right = polygon_width_at_y(y, polygon)
-                        max_width = right - left
                     if y + line_height > region.y + max_height:
                         return False, i / len(tokens)
                 else:
                     current_line_width += token_width
 
-        # Check final line
-        if y + line_height > region.y + max_height:
-            return False, 1.0
+        # Check final content height.
+        # If text ends after a newline with no further renderable content (e.g. trailing
+        # </indent> or a user-added trailing newline), don't penalise the empty advance.
+        if current_line_width > 0:
+            # Content on the current line with no trailing newline.
+            if y + line_height > region.y + max_height:
+                return False, 1.0
+        elif overflow_check_pending:
+            # Last advance was a newline/break followed by nothing renderable.
+            # Only check that y itself (top of the empty trailing line) is in bounds.
+            if y > region.y + max_height:
+                return False, 1.0
 
         return True, 1.0
 
@@ -541,8 +766,6 @@ class RichTextRenderer:
 
             # Use fast measurement to check if text fits
             fits, percentage = self._measure_fits(tokens, region, polygon, current_size, base_font=font)
-            if text == 'ÉVÈNEMENT':
-                print('ÉVÈNEMENT', fits, percentage, current_size, min_font_size)
 
             if fits or force:
                 # Render directly - single pass
@@ -576,6 +799,8 @@ class RichTextRenderer:
         # Current formatting state
         current_font = font
         font_stack = []  # Stack to track nested font changes
+        current_strikethrough = False
+        strikethrough_stack = []
         current_alignment = alignment
         current_indent = 0
         indent_current = False
@@ -583,9 +808,10 @@ class RichTextRenderer:
         quote = False
         quote_last = False
 
-        # some run-on-line states
-        previous_bullet = 0
-        bullet_indent = False
+        # indent state
+        block_indent = 0
+        prev_block_indent = 0
+        indent_stack = []
 
         # Word wrapping data
         current_line = []
@@ -661,29 +887,13 @@ class RichTextRenderer:
 
         def get_line_width(line):
             """Calculate the total width of a line"""
-            return sum(get_token_width(t) for t in line if t['type'] != 'format')
+            return sum(get_token_width(t) for t in line if t['type'] not in ('format', 'font_push', 'font_pop'))
 
-        def get_line_start_x(line, y):
-            """Calculate starting X position based on alignment"""
-            line_width = get_line_width(line)
-            if polygon:
-                left, right = polygon_width_at_y(y, polygon)
-                if current_alignment == 'center':
-                    return left + ((right-left) - line_width) // 2
-                elif current_alignment == 'right':
-                    return left + (right-left) - line_width
-                else:
-                    return left
+        def render_line(line, y_pos, run_on_line=True, indent=0, li=0):
+            """Render a line of tokens with proper alignment.
 
-            if current_alignment == 'center':
-                return x + (max_width - line_width) // 2
-            elif current_alignment == 'right':
-                return x + max_width - line_width
-            else:  # left alignment
-                return x
-
-        def render_line(line, y_pos, run_on_line=True, indent=0):
-            """Render a line of tokens with proper alignment"""
+            li: indent offset in pixels — pushes text right (used by <indent N>).
+            """
             if quote or quote_last:
                 indent = 20
                 if not quote:
@@ -693,25 +903,43 @@ class RichTextRenderer:
                     draw.line((x, y_pos, x, y_pos+line_height), fill=fill, width=2)
                     draw.line((x+10, y_pos, x+10, y_pos+line_height), fill=fill, width=2)
 
-            x_pos = get_line_start_x(line, y_pos)
-            x_pos += indent
-            if bullet_indent:
-                nonlocal previous_bullet
-                if previous_bullet:
-                    x_pos = previous_bullet
-                previous_bullet = x_pos
+            # Compute the effective drawing area.
+            # With a polygon, use whichever is further right: the indent or the polygon edge,
+            # so that a polygon that already provides enough margin isn't double-indented.
+            if polygon:
+                p_left, p_right = polygon_width_at_y(y_pos, polygon)
+                nonlocal prev_block_indent
+                if li:
+                    if not prev_block_indent:
+                        prev_block_indent = p_left + li
+                    eff_x = max(prev_block_indent, p_left) + indent
+                else:
+                    prev_block_indent = 0
+                    eff_x = p_left + indent
+
+                eff_w = p_right - eff_x
+            else:
+                eff_x = x + indent + li
+                eff_w = max_width - indent - li
+
+            line_w = get_line_width(line)
+            if current_alignment == 'center':
+                x_pos = eff_x + (eff_w - line_w) // 2
+            elif current_alignment == 'right':
+                x_pos = eff_x + eff_w - line_w
+            else:
+                x_pos = eff_x
 
             if not line:
                 return
 
-            # remove spaces on newlines, if exactly 1, and it's a
-            # continued line.
+            # remove leading space on soft-wrapped continuation lines
             if run_on_line and line[0]['type'] == 'text':
                 if line[0]['value'] == ' ':
                     line = line[1:]
 
             for token in line:
-                if token['type'] in ('format', 'indent'):
+                if token['type'] in ('format', 'indent', 'font_push', 'font_pop'):
                     continue  # Format tokens don't render
 
                 if token['type'] == 'text':
@@ -723,6 +951,13 @@ class RichTextRenderer:
                         stroke_width=outline,
                         stroke_fill=outline_fill,
                     )
+                    if token.get('strikethrough'):
+                        strike_y = int(y_pos + font_size * 0.45)
+                        draw.line(
+                            [(int(x_pos), strike_y), (int(x_pos + token['width']), strike_y)],
+                            fill=fill,
+                            width=max(1, font_size // 16),
+                        )
                     x_pos += token['width']
 
                 elif token['type'] == 'font_icon':
@@ -777,6 +1012,20 @@ class RichTextRenderer:
                     quote_last = True
                     current_font = font_stack.pop()
 
+            elif token['type'] == 'font_push':
+                token['width'] = 0
+                font_stack.append(current_font)
+                strikethrough_stack.append(current_strikethrough)
+                current_font = token['font']
+                current_strikethrough = token['strikethrough']
+                current_line.append(token)
+
+            elif token['type'] == 'font_pop':
+                token['width'] = 0
+                current_font = font_stack.pop() if font_stack else font
+                current_strikethrough = strikethrough_stack.pop() if strikethrough_stack else False
+                current_line.append(token)
+
             elif token['type'] == 'align':
                 token['width'] = 0
                 # Update current alignment
@@ -798,7 +1047,7 @@ class RichTextRenderer:
             elif token['type'] == 'newline':
                 # Render current line and start a new one
                 if current_line:
-                    render_line(current_line, y, indent=(current_indent if indent_current else 0))
+                    render_line(current_line, y, indent=(current_indent if indent_current else 0), li=block_indent)
                     current_indent = 0
                     indent_current = False
                     quote_last = False
@@ -817,22 +1066,49 @@ class RichTextRenderer:
                         return False, i/len(tokens)  # Text doesn't fit
                     will_overflow = True
 
+            elif token['type'] == 'break':
+                # Render current line and start a new one (tighter spacing than newline)
+                if current_line:
+                    render_line(current_line, y, indent=(current_indent if indent_current else 0), li=block_indent)
+                    current_indent = 0
+                    indent_current = False
+                    quote_last = False
+
+                # Move to next line
+                y += font_size
+                if polygon:
+                    l, r = polygon_width_at_y(y, polygon)
+                    max_width = r - l
+                current_line = []
+                current_line_width = 0
+
+                # Check if we've exceeded the region height
+                if y + line_height > region.y + max_height:
+                    if not force:
+                        return False, i/len(tokens)  # Text doesn't fit
+                    will_overflow = True
+
+            elif token['type'] == 'indent_push':
+                indent_stack.append(block_indent)
+                block_indent = token['value']
+
+            elif token['type'] == 'indent_pop':
+                block_indent = indent_stack.pop() if indent_stack else 0
+
             elif token['type'] in ['font_icon', 'image_icon']:
                 # Calculate token width
                 token['width'] = get_token_width(token)
                 token_width = token['width']
 
-                # if this is a bullet, at the start of a new line, indent it
-                if token['value'] == 'b':
-                    current_indent = current_line_width + token_width
-                    indent_current = True
-                    bullet_indent = True
+                # bullet indent
+                if token['value'] == 'b' and not current_line:
+                    current_indent = get_token_width({'type': 'font_icon', 'value': 'b '})
 
                 # Check if adding this icon would exceed the max width
-                if current_line_width + token_width > max_width:
+                if current_line_width + token_width > max_width - block_indent:
                     # Icon doesn't fit, render current line first
                     if current_line:
-                        render_line(current_line, y, indent=(current_indent if indent_current else 0))
+                        render_line(current_line, y, indent=(current_indent if indent_current else 0), li=block_indent)
                         indent_current = current_indent > 0
                         quote_last = False
 
@@ -860,7 +1136,8 @@ class RichTextRenderer:
                 token_with_font = {
                     'type': 'text',
                     'value': text_value,
-                    'font': current_font
+                    'font': current_font,
+                    'strikethrough': current_strikethrough,
                 }
 
                 # Calculate width if we add this token
@@ -868,11 +1145,10 @@ class RichTextRenderer:
                 token_with_font['width'] = segment_width
                 token['width'] = segment_width
 
-                if current_line_width + segment_width > max_width:
-                    # Text doesn't fit on current line
-
-                    # Render current line and move to next
-                    render_line(current_line, y, indent=(current_indent if indent_current else 0))
+                effective_width = max_width - block_indent
+                if current_line_width + segment_width > effective_width:
+                    # Text doesn't fit on current line — render and wrap
+                    render_line(current_line, y, indent=(current_indent if indent_current else 0), li=block_indent)
                     indent_current = current_indent > 0
                     quote_last = False
                     y += font_size
@@ -892,19 +1168,21 @@ class RichTextRenderer:
 
                     # Special case: if the token is still too wide for a line by itself
                     # and we're forcing rendering, we'll still add it
-                    if segment_width > max_width and force:
+                    if segment_width > effective_width and force:
                         current_line.append(token_with_font)
                         current_line_width = segment_width
-                    elif segment_width <= max_width:  # Only add if it fits
+                    elif segment_width <= effective_width:  # Only add if it fits
                         current_line.append(token_with_font)
                         current_line_width = segment_width
                 else:
                     # Token fits on current line
                     current_line.append(token_with_font)
                     current_line_width += segment_width
-        # Render any remaining line
-        if current_line:
-            render_line(current_line, y, indent=(current_indent if indent_current else 0))
+        # Render any remaining line — but only if it carries visible content.
+        # A line of only format/align tokens (non-renderable) is silently dropped.
+        # An empty current_line (user-typed trailing newline) is left as-is.
+        if current_line and any(t['type'] in ('text', 'font_icon', 'image_icon') for t in current_line):
+            render_line(current_line, y, indent=(current_indent if indent_current else 0), li=block_indent)
             quote_last = False
 
             # Check if we ran out of vertical space
