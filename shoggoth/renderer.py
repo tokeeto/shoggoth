@@ -756,8 +756,15 @@ class CardRenderer:
             illustration = illustration.rotate(float(rotation))
 
         # Apply panning
-        pan_x = int(side.get('illustration_pan_x', 0) * Region.SCALE) or region.x
-        pan_y = int(side.get('illustration_pan_y', 0) * Region.SCALE) or region.y
+        if side.get('illustration_pan_x', None) is None:
+            pan_x = region.x
+        else:
+            pan_x = int(side.get('illustration_pan_x', 0) * Region.SCALE)
+
+        if side.get('illustration_pan_y', None) is None:
+            pan_y = region.y
+        else:
+            pan_y = int(side.get('illustration_pan_y', 0) * Region.SCALE)
 
         # Position and paste
         card_image.paste(
