@@ -731,7 +731,7 @@ class RichTextRenderer:
 
         return True, 1.0
 
-    def render_text(self, image, text, region, polygon=None, alignment='left', font_size=32, min_font_size=None, font=None, outline=0, outline_fill=None, fill='#231f20'):
+    def render_text(self, image, text, region, polygon=None, alignment='left', font_size=32, min_font_size=None, font=None, outline=0, outline_fill=None, fill='#231f20', halign='top'):
         """
         Render rich text with specified alignment and automatic font size reduction.
 
@@ -761,13 +761,19 @@ class RichTextRenderer:
             min_font_size = font_size // 2
 
         # Test each font size to find the largest that fits
+        if text == 'FERTIGKEIT':
+            print('measuring FERTIGKEIT')
         while current_size >= min_font_size:
             force = current_size == min_font_size
 
             # Use fast measurement to check if text fits
             fits, percentage = self._measure_fits(tokens, region, polygon, current_size, base_font=font)
+            if text == 'FERTIGKEIT':
+                print(fits, percentage)
 
             if fits or force:
+                if text == 'FERTIGKEIT':
+                    print(fits, force, 'printing at', current_size)
                 # Render directly - single pass
                 self._render_with_font_size(image, tokens, region, polygon, current_size, font=font, force=force, outline=outline, outline_fill=outline_fill, fill=fill, alignment=alignment)
                 break
@@ -780,6 +786,8 @@ class RichTextRenderer:
                 current_size -= 1
             if 0 < percentage < .3:
                 current_size -= 1
+            if text == 'FERTIGKEIT':
+                print('Next size', current_size)
 
 
     def _render_with_font_size(self, image, tokens, region, polygon, font_size, font='regular', force=False, outline=0, outline_fill=None, fill='#231f20', alignment='left'):
