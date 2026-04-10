@@ -13,6 +13,11 @@ on:
                 type: boolean
                 default: false
 
+env:
+    # TEMP: force signing on all builds for PR testing. Revert to:
+    # SHOULD_SIGN: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push' && github.ref == 'refs/heads/main' || inputs.sign == true }}
+    SHOULD_SIGN: true
+
 jobs:
     build-macos-intel:
         runs-on: macos-15-intel
@@ -32,7 +37,7 @@ jobs:
               run: brew install harfbuzz
 
             - name: Import Apple Developer Certificate
-              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ env.SHOULD_SIGN == 'true' }}
               env:
                   APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
                   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -52,10 +57,10 @@ jobs:
             - name: Compile
               run: uv run --dev pyinstaller ShoggothStandalone.spec
               env:
-                  APPLE_SIGNING_IDENTITY: ${{ (true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true) && secrets.APPLE_SIGNING_IDENTITY || '' }}
+                  APPLE_SIGNING_IDENTITY: ${{ env.SHOULD_SIGN == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
 
             - name: Notarize and staple app
-              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ env.SHOULD_SIGN == 'true' }}
               env:
                   APPLE_ID: ${{ secrets.APPLE_ID }}
                   APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -81,17 +86,20 @@ jobs:
 
                   xcrun stapler staple "dist/Shoggoth.app"
 
-            - uses: actions/upload-artifact@v4
-              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
-              with:
-                  name: shoggoth-mac-intel
-                  path: dist/Shoggoth.app
+            - name: Zip app for upload
+              run: ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
+              if: ${{ env.SHOULD_SIGN != 'true' }}
+
+            - name: Zip signed app for upload
+              if: ${{ env.SHOULD_SIGN == 'true' }}
+              run: |
+                  rm -f Shoggoth.zip
+                  ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
 
             - uses: actions/upload-artifact@v4
-              if: ${{ false }}
               with:
                   name: shoggoth-mac-intel
-                  path: dist/
+                  path: Shoggoth.zip
 
     build-macos:
         runs-on: macos-latest
@@ -111,7 +119,7 @@ jobs:
               run: brew install harfbuzz
 
             - name: Import Apple Developer Certificate
-              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ env.SHOULD_SIGN == 'true' }}
               env:
                   APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
                   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -131,10 +139,10 @@ jobs:
             - name: Compile
               run: uv run --dev pyinstaller ShoggothStandalone.spec
               env:
-                  APPLE_SIGNING_IDENTITY: ${{ (true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true) && secrets.APPLE_SIGNING_IDENTITY || '' }}
+                  APPLE_SIGNING_IDENTITY: ${{ env.SHOULD_SIGN == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
 
             - name: Notarize and staple app
-              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ env.SHOULD_SIGN == 'true' }}
               env:
                   APPLE_ID: ${{ secrets.APPLE_ID }}
                   APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -160,17 +168,20 @@ jobs:
 
                   xcrun stapler staple "dist/Shoggoth.app"
 
-            - uses: actions/upload-artifact@v4
-              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
-              with:
-                  name: shoggoth-mac
-                  path: dist/Shoggoth.app
+            - name: Zip app for upload
+              run: ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
+              if: ${{ env.SHOULD_SIGN != 'true' }}
+
+            - name: Zip signed app for upload
+              if: ${{ env.SHOULD_SIGN == 'true' }}
+              run: |
+                  rm -f Shoggoth.zip
+                  ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
 
             - uses: actions/upload-artifact@v4
-              if: ${{ false }}
               with:
                   name: shoggoth-mac
-                  path: dist/
+                  path: Shoggoth.zip
 
     build-windows:
         runs-on: windows-latest
