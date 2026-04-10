@@ -4,6 +4,8 @@ on:
     push:
         branches: ["main"]
         tags: ["v*"]
+    pull_request:
+        branches: ["main"]
     workflow_dispatch:
         inputs:
             sign:
@@ -26,9 +28,11 @@ jobs:
               run: uv sync
             - name: Install pyinstaller
               run: uv add --dev pyinstaller
+            - name: Install harfbuzz
+              run: brew install harfbuzz
 
             - name: Import Apple Developer Certificate
-              if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
               env:
                   APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
                   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -48,10 +52,10 @@ jobs:
             - name: Compile
               run: uv run --dev pyinstaller ShoggothStandalone.spec
               env:
-                  APPLE_SIGNING_IDENTITY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.sign == true) && secrets.APPLE_SIGNING_IDENTITY || '' }}
+                  APPLE_SIGNING_IDENTITY: ${{ (true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true) && secrets.APPLE_SIGNING_IDENTITY || '' }}
 
             - name: Notarize and staple app
-              if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
               env:
                   APPLE_ID: ${{ secrets.APPLE_ID }}
                   APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -78,13 +82,13 @@ jobs:
                   xcrun stapler staple "dist/Shoggoth.app"
 
             - uses: actions/upload-artifact@v4
-              if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
               with:
                   name: shoggoth-mac-intel
                   path: dist/Shoggoth.app
 
             - uses: actions/upload-artifact@v4
-              if: ${{ !(startsWith(github.ref, 'refs/tags/v') || inputs.sign == true) }}
+              if: ${{ false }}
               with:
                   name: shoggoth-mac-intel
                   path: dist/
@@ -103,9 +107,11 @@ jobs:
               run: uv sync
             - name: Install pyinstaller
               run: uv add --dev pyinstaller
+            - name: Install harfbuzz
+              run: brew install harfbuzz
 
             - name: Import Apple Developer Certificate
-              if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
               env:
                   APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
                   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -125,10 +131,10 @@ jobs:
             - name: Compile
               run: uv run --dev pyinstaller ShoggothStandalone.spec
               env:
-                  APPLE_SIGNING_IDENTITY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.sign == true) && secrets.APPLE_SIGNING_IDENTITY || '' }}
+                  APPLE_SIGNING_IDENTITY: ${{ (true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true) && secrets.APPLE_SIGNING_IDENTITY || '' }}
 
             - name: Notarize and staple app
-              if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
               env:
                   APPLE_ID: ${{ secrets.APPLE_ID }}
                   APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -155,13 +161,13 @@ jobs:
                   xcrun stapler staple "dist/Shoggoth.app"
 
             - uses: actions/upload-artifact@v4
-              if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
+              if: ${{ true || startsWith(github.ref, 'refs/tags/v') || inputs.sign == true }}
               with:
                   name: shoggoth-mac
                   path: dist/Shoggoth.app
 
             - uses: actions/upload-artifact@v4
-              if: ${{ !(startsWith(github.ref, 'refs/tags/v') || inputs.sign == true) }}
+              if: ${{ false }}
               with:
                   name: shoggoth-mac
                   path: dist/

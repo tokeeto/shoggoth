@@ -11,7 +11,7 @@ with open('pyproject.toml', 'rb') as f:
     version = tomllib.load(f)['project']['version']
 
 # Code signing configuration (set via environment variable in CI)
-codesign_id = os.environ.get('APPLE_SIGNING_IDENTITY', None)
+codesign_id = os.environ.get('APPLE_SIGNING_IDENTITY', None) or None
 entitlements = 'entitlements.plist' if codesign_id else None
 
 # windows needs to manually download a version of sdl2
@@ -40,7 +40,12 @@ a = Analysis(
 # Homebrew's which has CoreText enabled. Must keep the same relative path
 # so PyInstaller's symlinks resolve correctly.
 if platform.system() == 'Darwin':
-    homebrew_harfbuzz = '/opt/homebrew/opt/harfbuzz/lib/libharfbuzz.0.dylib'
+    import subprocess
+    try:
+        homebrew_prefix = subprocess.check_output(['brew', '--prefix'], text=True).strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        homebrew_prefix = '/opt/homebrew'
+    homebrew_harfbuzz = f'{homebrew_prefix}/opt/harfbuzz/lib/libharfbuzz.0.dylib'
     if os.path.exists(homebrew_harfbuzz):
         a.binaries = [b for b in a.binaries if 'libharfbuzz' not in b[0]]
         a.binaries.append(('PIL/.dylibs/libharfbuzz.0.dylib', homebrew_harfbuzz, 'BINARY'))
