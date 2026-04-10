@@ -14,9 +14,7 @@ on:
                 default: false
 
 env:
-    # TEMP: force signing on all builds for PR testing. Revert to:
-    # SHOULD_SIGN: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push' && github.ref == 'refs/heads/main' || inputs.sign == true }}
-    SHOULD_SIGN: true
+    SHOULD_SIGN: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push' && github.ref == 'refs/heads/main' || inputs.sign == true }}
 
 jobs:
     build-macos-intel:
