@@ -1,5 +1,6 @@
 from PIL import Image, ImageOps, ImageDraw
 import os
+from collections import OrderedDict
 from io import BytesIO
 from shoggoth.rich_text import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
@@ -8,6 +9,17 @@ import pyvips
 import re
 import json
 import functools
+
+_ILLUS_LRU_MAXSIZE = 12
+
+
+class _ImgDims:
+    """Minimal stand-in returned by get_illustration_cached — holds only dimensions."""
+    __slots__ = ('width', 'height')
+
+    def __init__(self, w, h):
+        self.width = w
+        self.height = h
 
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
@@ -86,9 +98,10 @@ class CardRenderer:
         self.icons_path = icon_dir
         self.defaults_path = defaults_dir
         self.cache = {}
-        self.illustration_cache = {}
         self.resized_cache = {}
         self.card_wo_illus_cache = {}
+        self._illus_dims_cache = {}      # path → _ImgDims; cheap, never evicted
+        self._illus_resized_lru = OrderedDict()  # (path, size) → PIL Image; bounded LRU
         self.translations = {}
         self.locale = locale
         if self.locale:
@@ -97,49 +110,63 @@ class CardRenderer:
         # Initialize rich text renderer
         self.rich_text = RichTextRenderer(self)
 
-    # @functools.lru_cache(maxsize=15)
-    def get_illustration_cached(self, path) -> Image.Image:
-        if str(path).endswith('.svg'):
-            vips_image = pyvips.Image.new_from_file(str(path))
-            image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
-        else:
-            image = Image.open(path)
-        return image
+    def get_illustration_cached(self, path) -> _ImgDims:
+        """Return illustration dimensions without decoding pixels.
 
-    # @functools.lru_cache(maxsize=15)
+        Only .width and .height are meaningful on the returned object.
+        pyvips reads just the image header, so this is cheap even for large JPEGs.
+        """
+        if path not in self._illus_dims_cache:
+            vips_image = pyvips.Image.new_from_file(str(path))
+            self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
+        return self._illus_dims_cache[path]
+
     def get_illustration_resized_cached(self, path, size) -> Image.Image:
+        """Return a resized illustration, using vips thumbnail for fast shrink-on-load.
+
+        Results are kept in a bounded LRU (_ILLUS_LRU_MAXSIZE entries) so that
+        repeated renders of the same illustration (e.g. multiple copies of a card)
+        hit the cache while old entries are evicted to keep RAM bounded.
+        Full-resolution illustrations are never stored in self.cache.
+        """
         if size[0] * size[1] > 24_000_000:
             raise Exception('image too big, dangerous')
+        key = (path, size)
+        if key in self._illus_resized_lru:
+            self._illus_resized_lru.move_to_end(key)
+            return self._illus_resized_lru[key]
+
         if str(path).endswith('.svg'):
             vips_image = pyvips.Image.new_from_file(str(path))
-            scale = size[0]/vips_image.width
-            if scale > (size[1]/vips_image.height):
-                scale = size[1]/vips_image.height
+            scale = size[0] / vips_image.width
+            if scale > (size[1] / vips_image.height):
+                scale = size[1] / vips_image.height
             vips_image = pyvips.Image.new_from_file(str(path), scale=scale)
-            image = Image.frombytes(
-                'RGBA',
-                (vips_image.width, vips_image.height),
-                vips_image.write_to_memory()
-            )
+            image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
         else:
-            img = self.get_cached(path)
-            image = img.resize(size)
+            # thumbnail() uses JPEG shrink-on-load: decodes at 1/2, 1/4 or 1/8
+            # native resolution, so large photos are decoded at a fraction of
+            # their full size before the final resize step.
+            vips_image = pyvips.Image.thumbnail(str(path), size[0], height=size[1], size='force')
+            mode = 'RGBA' if vips_image.bands == 4 else 'RGB'
+            image = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
+
+        self._illus_resized_lru[key] = image
+        if len(self._illus_resized_lru) > _ILLUS_LRU_MAXSIZE:
+            self._illus_resized_lru.popitem(last=False)
         return image
 
     def get_cached(self, path) -> Image.Image:
         if path not in self.cache:
-            if str(path).endswith('.svg'):
-                vips_image = pyvips.Image.new_from_file(str(path))
-                image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
-            else:
-                image = Image.open(path)
-                image.load()
-            self.cache[path] = image
+            # pyvips decodes PNG/WebP/JXL faster than PIL (multithreaded libvips vs
+            # single-threaded libpng). SVG and the non-SVG branch both go through vips.
+            vips_image = pyvips.Image.new_from_file(str(path))
+            bands = vips_image.bands
+            mode = 'RGBA' if bands == 4 else 'RGB'
+            self.cache[path] = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
         return self.cache[path]
 
     def get_resized_cached(self, path, size) -> Image.Image:
-        if size[0] * size[1] > 24_000_000:
-            raise Exception('image too big, dangerous')
         if (path, size) not in self.resized_cache:
             if str(path).endswith('.svg'):
                 vips_image = pyvips.Image.new_from_file(str(path))
@@ -334,8 +361,8 @@ class CardRenderer:
             print('failed illus')
         try:
             self.render_template(card_image, side, bleed, template_bleed)
-        except:
-            print('failed template')
+        except Exception as e:
+            print('failed template', e)
         if side['type'] in ('investigator'):
             self.render_illustration(card_image, side)
 
@@ -526,8 +553,8 @@ class CardRenderer:
             )
 
             overlay_path = self.overlays_path/f"chaos_{icon}.png"
-            overlay_icon = Image.open(overlay_path)
-            overlay_icon = overlay_icon.resize((overlay_icon.width*2, overlay_icon.height*2))
+            native = self.get_cached(overlay_path)
+            overlay_icon = self.get_resized_cached(overlay_path, (native.width * 2, native.height * 2))
             card_image.paste(overlay_icon, (region.x, region.y+(index*entry_height)), overlay_icon)
 
     def render_connection_icons(self, card_image, side):
@@ -598,8 +625,7 @@ class CardRenderer:
                     continue
 
             overlay_path = self.overlays_path/f"{stat}_base.png"
-            overlay_icon = Image.open(overlay_path)
-            overlay_icon = overlay_icon.resize((region.width, region.height))
+            overlay_icon = self.get_resized_cached(overlay_path, (region.width, region.height))
             center_x = region.x
             center_y = region.y - (scale(23) if stat == 'health' else scale(15))
             card_image.paste(overlay_icon, (center_x, center_y), overlay_icon)
@@ -643,9 +669,8 @@ class CardRenderer:
         if overlay:
             if not Path(overlay).is_file():
                 overlay = overlay_dir / overlay
-            overlay_image = Image.open(overlay)
             overlay_region = Region(side.get('encounter_overlay_region'))
-            overlay_image = overlay_image.resize(overlay_region.size)
+            overlay_image = self.get_resized_cached(Path(overlay), overlay_region.size)
             card_image.paste(overlay_image, overlay_region.pos, overlay_image)
 
         icon_path = side.get('encounter_icon', side.card.encounter.icon)
@@ -663,9 +688,9 @@ class CardRenderer:
         """Render the slot icons """
         slots = side.get('slots')
         slot = side.get('slot')
-        if not slots:
+        if slot and not slots:
             slots = [slot]
-        if not slots:
+        else:
             return
 
         for index, slot in enumerate(slots):
@@ -674,8 +699,7 @@ class CardRenderer:
                 continue
 
             path = self.overlays_path/f'slot_{slot}.png'
-            slot_image = Image.open(path)
-            slot_image = slot_image.resize(region.size)
+            slot_image = self.get_resized_cached(path, region.size)
             card_image.paste(slot_image, region.pos, slot_image)
 
     def render_enemy_stats(self, card_image, side):
@@ -713,17 +737,17 @@ class CardRenderer:
         if Path(template_value).is_file():
             template_path = Path(template_value)
         else:
-            template_path = self.templates_path / (template_value + '.png')
+            template_path = self.templates_path / (template_value + '.webp')
 
         if not template_path.exists():
             return
 
         if not include_bleed:
             template = self.get_resized_cached(template_path, (card_image.width-bleed*2, card_image.height-bleed*2))
-            card_image.paste(template, (bleed, bleed), template)
+            card_image.paste(template, (bleed, bleed), template if template.has_transparency_data else None)
         else:
             template = self.get_resized_cached(template_path, (card_image.width, card_image.height))
-            card_image.paste(template, (0, 0), template)
+            card_image.paste(template, (0, 0), template if template.has_transparency_data else None)
 
     def render_illustration(self, card_image, side):
         """Render the illustration/portrait"""
@@ -825,11 +849,13 @@ class CardRenderer:
             but this allows for easy json formatting of the card.
             It's essentially just a list of image and text.
         """
-        entries = side.get('entries', [])
+        entries = side.get('entries')
         if not entries:
             return
 
-        region = Region(side['chaos_region'])
+        region = Region(side.get('chaos_region'))
+        if not region:
+            return
         font = side.get("chaos_font", {})
         size = 200*Region.SCALE  # pixel size of token icons
         surfaces = []

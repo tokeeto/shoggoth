@@ -1661,7 +1661,7 @@ class ShoggothMainWindow(QMainWindow):
         import multiprocessing
         start_time = time.time()
 
-        cores = max(4, multiprocessing.cpu_count()-2)
+        cores = max(4, multiprocessing.cpu_count()-1)
 
         if not self.active_project:
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
