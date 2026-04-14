@@ -3,12 +3,17 @@ Main application entry point for Shoggoth with PySide6
 """
 import signal
 import sys
+import threading
+import logging
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt, QTimer
 
 from shoggoth.ui.main_window import ShoggothMainWindow
 from shoggoth.settings import SettingsManager, apply_appearance
 from shoggoth.i18n import load_language
+from shoggoth import updater
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -40,11 +45,32 @@ def main():
     interrupt_timer.start(200)
     interrupt_timer.timeout.connect(lambda: None)
 
+    # First-run: if no local assets exist, show a download dialog before
+    # opening the main window (translations, dropdowns etc. all depend on
+    # the asset pack being present).
+    if not updater.assets_available():
+        from shoggoth.ui.updater_ui import FirstRunDownloadDialog
+        dialog = FirstRunDownloadDialog()
+        dialog.show()
+        dialog.start_download()
+        sys.exit(app.exec())
+
+    # Subsequent runs: run incremental asset update silently in the background.
+    threading.Thread(target=_incremental_update_background, daemon=True).start()
+
     # Create and show main window
     window = ShoggothMainWindow()
     window.show()
 
     sys.exit(app.exec())
+
+
+def _incremental_update_background():
+    """Run ensure_assets_current() in a background thread on non-first runs."""
+    try:
+        updater.ensure_assets_current()
+    except Exception as exc:
+        logger.warning(f"Background asset update failed: {exc}")
 
 
 if __name__ == "__main__":

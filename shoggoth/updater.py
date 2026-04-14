@@ -52,15 +52,41 @@ def _get_remote_asset_sha(branch: str) -> Optional[str]:
         return None
 
 
-def download_full_assets(branch: Optional[str] = None) -> None:
-    """Download and extract the complete asset pack from GitHub."""
+def assets_available() -> bool:
+    """Return True if a complete asset pack is present locally."""
+    local_branch, local_sha = _get_local_asset_state()
+    return (
+        asset_dir.is_dir()
+        and local_sha is not None
+        and local_branch == ASSET_BRANCH
+    )
+
+
+def download_full_assets(branch: Optional[str] = None, progress_callback=None) -> None:
+    """Download and extract the complete asset pack from GitHub.
+
+    Args:
+        branch: Asset branch to download. Defaults to ASSET_BRANCH.
+        progress_callback: Optional callable(downloaded_bytes: int, total_bytes: int)
+            called periodically during the HTTP download phase.
+    """
     if branch is None:
         branch = ASSET_BRANCH
     zip_url = f"https://github.com/{ASSETS_REPO}/archive/refs/heads/{branch}.zip"
     logger.info(f"Downloading full asset pack from GitHub (branch {branch})...")
-    response = requests.get(zip_url, timeout=120)
+    response = requests.get(zip_url, stream=True, timeout=300)
     response.raise_for_status()
-    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+    total_size = int(response.headers.get("content-length", 0))
+    downloaded = 0
+    chunks = []
+    for chunk in response.iter_content(chunk_size=65536):
+        if chunk:
+            chunks.append(chunk)
+            downloaded += len(chunk)
+            if progress_callback:
+                progress_callback(downloaded, total_size)
+    data = b"".join(chunks)
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
         for member in zf.infolist():
             parts = Path(member.filename).parts
             if len(parts) <= 1:
@@ -126,7 +152,7 @@ def ensure_assets_current() -> None:
     local_branch, local_sha = _get_local_asset_state()
 
     # Treat a branch mismatch (app upgraded to new asset schema) as a fresh install
-    has_assets = asset_dir.is_dir() and local_sha is not None and local_branch == branch
+    has_assets = assets_available()
 
     remote_sha = _get_remote_asset_sha(branch)
 

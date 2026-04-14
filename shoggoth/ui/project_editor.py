@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QPixmap, QImage
+from PIL.ImageQt import ImageQt
 from pathlib import Path
 import threading
 
@@ -306,12 +307,9 @@ class ProjectEditor(QWidget):
             if self._stop_thumbnails:
                 break
             try:
-                front_image, _ = self.card_renderer.get_card_textures(card, {'width': 750, 'height': 1050, 'bleed': 36}, bleed=False)
+                front_image, _ = self.card_renderer.get_card_textures(card, {'width': 375, 'height': 525, 'bleed': 18}, bleed=False)
 
-                front_image.seek(0)
-                image_data = front_image.read()
-                qimage = QImage.fromData(image_data)
-                pixmap = QPixmap.fromImage(qimage)
+                pixmap = QPixmap.fromImage(ImageQt(front_image))
 
                 thumbnail = pixmap.scaled(
                     150, 210,

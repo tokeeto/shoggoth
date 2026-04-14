@@ -3,7 +3,6 @@
   "_language_code": "en",
   "_translator": "Tokeeto",
   "_version": "0.1.1",
-
   "// ===== MAIN WINDOW - MENUS =====": "",
   "MENU_FILE": "&File",
   "MENU_OPEN_PROJECT": "&Open Project",
@@ -48,7 +47,6 @@
   "MENU_CARD_LANGUAGE": "Card Language",
   "MENU_ADD_INV_PROJECT": "Add Investigator &Expansion template",
   "MENU_GATHER_UPDATE": "Gather images and &update",
-
   "// ===== MAIN WINDOW - TITLES AND LABELS =====": "",
   "APP_TITLE": "Shoggoth Card Creator",
   "CARD_PREVIEW": "Card Preview",
@@ -56,7 +54,6 @@
   "WELCOME_MESSAGE": "Open or create a project to get started",
   "STATUS_READY": "Ready",
   "LOADING": "Loading...",
-
   "// ===== MAIN WINDOW - TREE ITEMS =====": "",
   "TREE_CAMPAIGN_CARDS": "Campaign Cards",
   "TREE_PLAYER_CARDS": "Player Cards",
@@ -73,7 +70,6 @@
   "CLASS_NEUTRAL": "Neutral",
   "CLASS_OTHER": "Other",
   "TREE_CARDS": "Cards",
-
   "// ===== DIALOGS - COMMON =====": "",
   "DLG_ERROR": "Error",
   "DLG_WARNING": "Warning",
@@ -96,7 +92,6 @@
   "DLG_LANGUAGE_CHANGED": "Language Changed",
   "DLG_NO_PROJECT": "No Project",
   "DLG_TODO": "TODO",
-
   "// ===== DIALOGS - MESSAGES =====": "",
   "MSG_OPEN_PROJECT_FIRST": "Please open a project first",
   "MSG_NO_PROJECT": "No Project",
@@ -120,7 +115,6 @@
   "MSG_NO_PROJECT_OPEN": "No project open",
   "STATUS_PROJECT_ENUMERATED": "All cards have been enumerated.",
   "MENU_AUTO_ENUMERATE": "Enumerate all cards.",
-
   "// ===== DIALOGS - FILE DIALOGS =====": "",
   "DLG_OPEN_PROJECT": "Open Project",
   "FILTER_SHOGGOTH_PROJECTS": "Shoggoth Projects (*.json)",
@@ -130,7 +124,6 @@
   "DLG_SELECT_ICON": "Select Icon",
   "FILTER_IMAGES": "Images (*.png *.jpg *.jpeg *.webp *.svg)",
   "DLG_SELECT_IMAGE": "Select Image",
-
   "// ===== DIALOGS - NEW CARD =====": "",
   "DLG_NEW_CARD": "New Card",
   "FIELD_CARD_NAME": "Card name",
@@ -142,14 +135,12 @@
   "ERR_SELECT_ENCOUNTER_SET": "Please select an encounter set for campaign cards",
   "MSG_ENTER_CARD_NAME": "Enter card name:",
   "PLACEHOLDER_ENTER_CARD_NAME": "Enter card name...",
-
   "// ===== DIALOGS - NEW GUIDE =====": "",
   "DLG_NEW_GUIDE": "New Guide",
   "PLACEHOLDER_ENTER_GUIDE_NAME": "Enter guide name",
   "MSG_ENTER_GUIDE_NAME": "Please enter a guide name.",
   "MSG_SELECT_GUIDE_LOCATION": "Please select a save location.",
   "DLG_SAVE_GUIDE_AS": "Save Guide As",
-
   "// ===== DIALOGS - NEW PROJECT =====": "",
   "DLG_NEW_PROJECT": "New Project",
   "FIELD_PROJECT_NAME": "Project name",
@@ -167,25 +158,21 @@
   "MSG_ENTER_ABBREVIATION": "Enter abbreviation:",
   "MSG_ENTER_PROJECT_NAME": "Enter project name:",
   "MSG_SELECT_SAVE_LOCATION": "Select save location",
-
   "// ===== DIALOGS - ENCOUNTER SET =====": "",
   "DLG_NEW_ENCOUNTER_SET": "New Encounter Set",
   "LABEL_ENCOUNTER_SET_NAME": "Encounter Set Name:",
   "DLG_DELETE_ENCOUNTER_SET": "Delete Encounter Set",
   "MSG_ENTER_ENCOUNTER_SET": "Enter encounter set name:",
-
   "// ===== DIALOGS - SCENARIO =====": "",
   "DLG_SCENARIO_NAME": "Scenario Name",
   "PROMPT_ENTER_SCENARIO_NAME": "Enter scenario name:",
   "PLACEHOLDER_SCENARIO": "Placeholder",
   "MSG_ENTER_SCENARIO": "Enter scenario name:",
-
   "// ===== DIALOGS - INVESTIGATOR =====": "",
   "DLG_INVESTIGATOR_NAME": "Investigator Name",
   "PROMPT_ENTER_INVESTIGATOR_NAME": "Enter investigator name:",
   "PLACEHOLDER_ROLAN": "Rolan Banks",
   "MSG_ENTER_INVESTIGATOR": "Enter investigator name:",
-
   "// ===== CARD EDITOR =====": "",
   "TAB_FRONT": "Front",
   "TAB_BACK": "Back",
@@ -214,7 +201,6 @@
   "TOOLTIP_TOGGLE_BASIC_INFO": "Show/hide basic card info",
   "JSON_EDITOR_HEADER": "JSON Editor",
   "JSON_EDITOR_INFO": "Edit the card JSON directly",
-
   "// ===== CARD EDITOR - FIELD LABELS =====": "",
   "FIELD_NAME": "Name",
   "FIELD_SUBTITLE": "Subtitle",
@@ -276,7 +262,6 @@
   "OPTION_NONE": "None",
   "PLACEHOLDER_NO_ICON": "No icon",
   "PLACEHOLDER_NO_LOCATION": "No location",
-
   "// ===== CARD EDITOR - SPECIAL SECTIONS =====": "",
   "SECTION_DECK_BUILDING": "Deck Building Options",
   "SECTION_CHAOS_BAG": "Chaos Bag Entries",
@@ -295,7 +280,6 @@
   "PLACEHOLDER_HEADER": "Header {n}",
   "PLACEHOLDER_VALUE": "Value {n}",
   "TOOLTIP_XP_COST": "XP Cost",
-
   "// ===== CONTEXT MENU =====": "",
   "CTX_COPY": "Copy",
   "CTX_DUPLICATE": "Duplicate",
@@ -318,12 +302,10 @@
   "CTX_DELETE": "Delete",
   "CTX_DELETE_ENCOUNTER_SET": "Delete Encounter Set",
   "CTX_NEW_ENCOUNTER_SET": "New Encounter Set",
-
   "// ===== CONTEXT MENU - CONFIRMATIONS =====": "",
   "DLG_DELETE_CARD": "Delete Card",
   "CONFIRM_DELETE_CARD": "Are you sure you want to delete '{card_name}'?\n\nThis cannot be undone.",
   "CONFIRM_DELETE_ENCOUNTER_SET": "Are you sure you want to delete the encounter set '{name}'?\n\nThis will also delete all {count} cards in this set.\nThis action cannot be undone.",
-
   "// ===== ENCOUNTER SET EDITOR =====": "",
   "TITLE_ENCOUNTER_SET": "Encounter Set: {name}",
   "TAB_INFO": "Info",
@@ -342,7 +324,6 @@
   "DLG_NOT_IMPLEMENTED": "Not Implemented",
   "MSG_ENCOUNTER_DELETE_NOT_IMPLEMENTED": "Encounter set deletion not yet implemented",
   "LABEL_CARDS_IN_SET": "Cards in set:",
-
   "// ===== PROJECT EDITOR =====": "",
   "SECTION_PROJECT_INFO": "Project Information",
   "HELP_SHORT_CODE": "Short code for file naming",
@@ -370,7 +351,6 @@
   "PROMPT_ENCOUNTER_SET_NAME": "Enter encounter set name:",
   "BTN_DELETE_ENCOUNTER_SET": "Delete Encounter Set",
   "BTN_NEW_CARD": "New Card",
-
   "// ===== GUIDE EDITOR =====": "",
   "GUIDE_TITLE": "Guide: {name}",
   "LABEL_FRONT_PAGE_IMAGE": "Front Page Image:",
@@ -387,7 +367,6 @@
   "LABEL_OF_PAGES": "of {total}",
   "TAB_PREVIEW": "Preview",
   "TITLE_GUIDE": "Guide",
-
   "// ===== LOCATION VIEW =====": "",
   "DLG_CANNOT_CONNECT": "Cannot Connect",
   "MSG_NO_CONNECTION_ICON": "Location \"{location_name}\" has no connection icon.",
@@ -396,19 +375,21 @@
   "BTN_STOP": "Stop",
   "TOOLTIP_TOGGLE_SIMULATION": "Toggle force-directed layout simulation (30 steps/second)",
   "BTN_SCREENSHOT": "Screenshot",
-  "TOOLTIP_SCREENSHOT": "Copy the current card image to the clipboard",
+  "TOOLTIP_SCREENSHOT": "Screenshot the view",
   "TOOLTIP_COPY_LAYOUT": "Copy layout image to clipboard (transparent background)",
   "BTN_REFRESH": "Refresh",
   "MSG_LAYOUT_COPIED": "Layout copied to clipboard",
   "HELP_LOCATION_VIEW": "Drag to move. Right-click to connect. Use wheel to zoom.",
   "TITLE_LOCATIONS": "Locations: {name}",
   "TOOLTIP_ICON_MODE": "Show connection icons",
-  "TOOLTIP_SCREENSHOT": "Screenshot the view",
   "TOOLTIP_SIMULATE": "Simulate navigation",
-
+  "BTN_EXPORT_TO_GUIDE": "Export to Guide",
+  "TOOLTIP_EXPORT_TO_GUIDE": "Save location overview image and update linked guide scenario sections",
+  "DLG_EXPORT_TO_GUIDE": "Export to Guide",
+  "MSG_EXPORTED_TO_GUIDE": "Location overview exported to {count} section(s)",
+  "MSG_NO_LINKED_SECTIONS": "No linked scenario sections found. Open a scenario section in the guide editor and set the linked encounter set first.",
   "// ===== PREVIEW WIDGET =====": "",
   "SYMBOL_PLUS": "+",
-
   "// ===== SETTINGS DIALOG =====": "",
   "DLG_SETTINGS": "Settings",
   "TAB_EXTERNAL_APPS": "External Applications",
@@ -471,7 +452,6 @@
   "MSG_TYPE_TO_SEARCH": "Type to search...",
   "MSG_SHOWING_CARDS": "Showing {shown} of {total} cards",
   "MSG_TOTAL_CARDS": "{total} cards",
-
   "// ===== UPDATER =====": "",
   "DLG_UPDATE_AVAILABLE": "Update Available",
   "MSG_NEW_VERSION_AVAILABLE": "A new version of Shoggoth is available!",
@@ -529,7 +509,6 @@
   "MSG_DOWNLOADING_PROGRESS": "Downloading... {downloaded} / {total} MB",
   "MSG_DOWNLOADED_TO": "Downloaded to: {path}",
   "MSG_CLICK_RUN_INSTALLER": "Click 'Run Installer' to install the update.",
-
   "// ===== ABOUT DIALOG =====": "",
   "DLG_ABOUT": "About Shoggoth",
   "ABOUT_VERSION": "Version {version}",
@@ -541,7 +520,6 @@
   "ABOUT_IMAGES_CREDIT": "Various images and templates by the <b>Mythos Busters</b> community - especially <b>Coldtoes</b> and <b>Hauke</b>.",
   "ABOUT_THANKS_SE": "Thanks to <b>CGJennings</b> for creating Strange Eons, and <b>pilunte23/JaqenZann</b> for the original AHLCG plugin, without which we'd all be so much more bored.",
   "ABOUT_SPECIAL_THANKS": "Special thanks to <b>Coldtoes</b>, <b>felice</b>, <b>Chr1Z</b>, <b>MickeyTheQ</b> and <b>Morvael</b> for helping this project become a reality.",
-
   "// ===== TEXT OPTIONS DIALOG =====": "",
   "DLG_TEXT_OPTIONS": "Text Options",
   "MSG_RICH_TEXT_OPTIONS": "Rich text formatting options:",
@@ -550,7 +528,6 @@
   "HELP_REPLACEMENT_TAGS": "Replacement tags - for short hand writing:",
   "HELP_ICON_TAGS": "Icon tags:",
   "HELP_AVAILABLE_FONTS": "Available fonts:",
-
   "// ===== STATUS BAR MESSAGES =====": "",
   "STATUS_PROJECT_LOADED": "Project loaded successfully",
   "STATUS_LOAD_FAILED": "Failed to load project",
@@ -588,7 +565,6 @@
   "STATUS_TTS_CAMPAIGN_EXPORTED": "Campaign exported to TTS",
   "STATUS_TTS_CARD_EXPORTED": "Card exported to TTS",
   "STATUS_TTS_PLAYER_EXPORTED": "Player cards exported to TTS",
-
   "// ===== TTS EXPORT DIALOG =====": "",
   "TTS_DLG_TITLE": "Export to Tabletop Simulator",
   "TTS_SCOPE_LABEL": "Export scope",
@@ -608,7 +584,6 @@
   "TTS_RESULT_TTS_DIR": "Export complete. Saved directly to your TTS folder:\n{path}",
   "TTS_RESULT_PROJECT_DIR": "Export complete. Saved to project folder:\n{path}",
   "MENU_EXPORT_TTS": "Export to &TTS…",
-
   "// ===== PDF EXPORT DIALOG =====": "",
   "PDF_DLG_TITLE_CARD": "Export Card to PDF",
   "PDF_DLG_TITLE_CARD_MBPRINT": "Export Card to MBPrint PDF",
@@ -629,7 +604,6 @@
   "PDF_DLG_SELECT_OUTPUT": "Save PDF as",
   "PDF_EXPORTING_IMAGES": "Exporting card images…",
   "PDF_ERR_NO_OUTPUT_PATH": "Please specify an output PDF file path.",
-
   "// ===== ERROR MESSAGES =====": "",
   "ERR_NO_PROJECT_OPEN": "No project open",
   "ERR_NO_PROJECT_LOADED": "No project loaded",
@@ -645,7 +619,6 @@
   "DLG_EXPORT_ERROR": "Export Error",
   "ERR_RENDER_CARD": "Error rendering card",
   "ERR_UPDATE_OCCURRED": "An error occurred during update",
-
   "// ===== EXPORT MESSAGES =====": "",
   "MSG_EXPORTED_CARDS": "Exported {count} cards to: {folder}",
   "MSG_CARD_EXPORTED_TO": "Card exported to: {folder}",
@@ -655,7 +628,6 @@
   "ACTION_GATHERED": "gathered",
   "ACTION_GATHERED_UPDATED": "gathered and updated",
   "MSG_PDF_EXPORTED": "PDF exported to: {path}",
-
   "// ===== CARD TYPES =====": "",
   "TYPE_ASSET": "asset",
   "TYPE_EVENT": "event",
@@ -677,7 +649,6 @@
   "TYPE_CUSTOMIZABLE": "customizable",
   "TYPE_CUSTOMIZABLE_BACK": "customizable_back",
   "TYPE_PLAYER_CARD": "Player Card",
-
   "// ===== MISC =====": "",
   "MSG_TODO": "TODO",
   "MSG_PDF_NOT_IMPLEMENTED": "PDF export not yet implemented",
@@ -685,14 +656,22 @@
   "MSG_PDF_EXPORT_FAILED": "PDF export failed: {error}",
   "MSG_LANGUAGE_CHANGED": "Language changed",
   "MSG_RESTART_FOR_LANGUAGE": "Please restart the application for the language change to take full effect.",
-
   "// ===== DYNAMIC KEYS =====": "",
   "CTX_NEW_CARD_TYPE": "New {card_type}",
   "CTX_NEW_CATEGORY_CARD": "New {category_name} Card",
   "PROMPT_ENTER_CARD_NAME": "Enter card name",
   "CTX_PLAYER_CARD": "Player Card",
-
   "// ====== TRANSLATION CLASS =====": "",
   "ERROR_TRANSLATION_MISSING_LANGUAGE": "Error: Translation file doesn't define language.",
-  "ERROR_TRANSLATION_MISSING_PROJECT": "Error: Translation file doesn't define parent project."
+  "ERROR_TRANSLATION_MISSING_PROJECT": "Error: Translation file doesn't define parent project.",
+  "// ===== FIRST RUN DOWNLOAD =====": "",
+  "DLG_FIRST_RUN_DOWNLOAD": "Downloading Required Assets",
+  "MSG_FIRST_RUN_TITLE": "Downloading Required Assets",
+  "MSG_FIRST_RUN_INFO": "When starting Shoggoth for the first time, we need to download a required asset pack. These files total around 750 MB.",
+  "MSG_FIRST_RUN_CONNECTING": "Connecting...",
+  "MSG_FIRST_RUN_PROGRESS": "Downloading... {downloaded} / {total} MB",
+  "MSG_FIRST_RUN_DOWNLOADING": "Downloading... {downloaded} MB",
+  "MSG_FIRST_RUN_COMPLETE": "Download complete! Click the button below to restart Shoggoth and finish setup.",
+  "MSG_FIRST_RUN_ERROR": "Download failed: {error}",
+  "BTN_RESTART_SHOGGOTH": "Restart Shoggoth"
 }

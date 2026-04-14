@@ -260,12 +260,12 @@ class CardPreviewTab(QWidget):
     def set_illustration_mode(self, enabled):
         self.image_label.set_illustration_mode(enabled)
 
-    def set_image(self, image_buffer):
-        if not image_buffer:
+    def set_image(self, image):
+        if not image:
             return
-        data = image_buffer.read()
-        image = QImage.fromData(data)
-        pixmap = QPixmap.fromImage(image)
+        from PIL.ImageQt import ImageQt
+        qimage = ImageQt(image)
+        pixmap = QPixmap.fromImage(qimage)
         self.image_label.setPixmap(pixmap)
         self.zoom_label.setText("100%")
 

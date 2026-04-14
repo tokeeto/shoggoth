@@ -226,6 +226,8 @@ class Card:
         shoggoth.app.update_card_in_tree(self.id)
 
     def get(self, key, default=None):
+        if key == 'copyright' and 'copyright' not in self.data:
+            return self.project.get('default_copyright', default)
         return self.data.get(key, default)
 
     @staticmethod

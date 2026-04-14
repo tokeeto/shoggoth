@@ -3,7 +3,6 @@
   "_language_code": "zh",
   "_translator": "Machine translated - First person to review this should take full credit.",
   "_version": "0.1.1",
-
   "// ===== MAIN WINDOW - MENUS =====": "",
   "MENU_FILE": "文件(&F)",
   "MENU_OPEN_PROJECT": "打开项目(&O)",
@@ -48,7 +47,6 @@
   "MENU_CARD_LANGUAGE": "卡牌语言",
   "MENU_ADD_INV_PROJECT": "添加调查员扩展模板(&E)",
   "MENU_GATHER_UPDATE": "收集图片并更新(&U)",
-
   "// ===== MAIN WINDOW - TITLES AND LABELS =====": "",
   "APP_TITLE": "Shoggoth 卡牌创作器",
   "CARD_PREVIEW": "卡牌预览",
@@ -56,7 +54,6 @@
   "WELCOME_MESSAGE": "打开或创建一个项目以开始",
   "STATUS_READY": "就绪",
   "LOADING": "加载中...",
-
   "// ===== MAIN WINDOW - TREE ITEMS =====": "",
   "TREE_CAMPAIGN_CARDS": "战役卡牌",
   "TREE_PLAYER_CARDS": "玩家卡牌",
@@ -73,7 +70,6 @@
   "CLASS_NEUTRAL": "中立",
   "CLASS_OTHER": "其他",
   "TREE_CARDS": "卡牌",
-
   "// ===== DIALOGS - COMMON =====": "",
   "DLG_ERROR": "错误",
   "DLG_WARNING": "警告",
@@ -96,7 +92,6 @@
   "DLG_LANGUAGE_CHANGED": "语言已更改",
   "DLG_NO_PROJECT": "无项目",
   "DLG_TODO": "待办",
-
   "// ===== DIALOGS - MESSAGES =====": "",
   "MSG_OPEN_PROJECT_FIRST": "请先打开一个项目",
   "MSG_NO_PROJECT": "无项目",
@@ -120,7 +115,6 @@
   "MSG_NO_PROJECT_OPEN": "未打开项目",
   "STATUS_PROJECT_ENUMERATED": "所有卡牌已编号。",
   "MENU_AUTO_ENUMERATE": "为所有卡牌编号。",
-
   "// ===== DIALOGS - FILE DIALOGS =====": "",
   "DLG_OPEN_PROJECT": "打开项目",
   "FILTER_SHOGGOTH_PROJECTS": "Shoggoth 项目 (*.json)",
@@ -130,7 +124,6 @@
   "DLG_SELECT_ICON": "选择图标",
   "FILTER_IMAGES": "图片 (*.png *.jpg *.jpeg *.webp *.svg)",
   "DLG_SELECT_IMAGE": "选择图片",
-
   "// ===== DIALOGS - NEW CARD =====": "",
   "DLG_NEW_CARD": "新建卡牌",
   "FIELD_CARD_NAME": "卡牌名称",
@@ -142,14 +135,12 @@
   "ERR_SELECT_ENCOUNTER_SET": "请为战役卡牌选择一个遭遇套组",
   "MSG_ENTER_CARD_NAME": "输入卡牌名称：",
   "PLACEHOLDER_ENTER_CARD_NAME": "输入卡牌名称...",
-
   "// ===== DIALOGS - NEW GUIDE =====": "",
   "DLG_NEW_GUIDE": "新建指南",
   "PLACEHOLDER_ENTER_GUIDE_NAME": "输入指南名称",
   "MSG_ENTER_GUIDE_NAME": "请输入指南名称。",
   "MSG_SELECT_GUIDE_LOCATION": "请选择保存位置。",
   "DLG_SAVE_GUIDE_AS": "另存指南为",
-
   "// ===== DIALOGS - NEW PROJECT =====": "",
   "DLG_NEW_PROJECT": "新建项目",
   "FIELD_PROJECT_NAME": "项目名称",
@@ -167,25 +158,21 @@
   "MSG_ENTER_ABBREVIATION": "输入缩写：",
   "MSG_ENTER_PROJECT_NAME": "输入项目名称：",
   "MSG_SELECT_SAVE_LOCATION": "选择保存位置",
-
   "// ===== DIALOGS - ENCOUNTER SET =====": "",
   "DLG_NEW_ENCOUNTER_SET": "新建遭遇套组",
   "LABEL_ENCOUNTER_SET_NAME": "遭遇套组名称：",
   "DLG_DELETE_ENCOUNTER_SET": "删除遭遇套组",
   "MSG_ENTER_ENCOUNTER_SET": "输入遭遇套组名称：",
-
   "// ===== DIALOGS - SCENARIO =====": "",
   "DLG_SCENARIO_NAME": "剧本名称",
   "PROMPT_ENTER_SCENARIO_NAME": "输入剧本名称：",
   "PLACEHOLDER_SCENARIO": "占位符",
   "MSG_ENTER_SCENARIO": "输入剧本名称：",
-
   "// ===== DIALOGS - INVESTIGATOR =====": "",
   "DLG_INVESTIGATOR_NAME": "调查员名称",
   "PROMPT_ENTER_INVESTIGATOR_NAME": "输入调查员名称：",
   "PLACEHOLDER_ROLAN": "罗兰·班克斯",
   "MSG_ENTER_INVESTIGATOR": "输入调查员名称：",
-
   "// ===== CARD EDITOR =====": "",
   "TAB_FRONT": "正面",
   "TAB_BACK": "背面",
@@ -214,7 +201,6 @@
   "TOOLTIP_TOGGLE_BASIC_INFO": "显示/隐藏卡牌基本信息",
   "JSON_EDITOR_HEADER": "JSON 编辑器",
   "JSON_EDITOR_INFO": "直接编辑卡牌 JSON",
-
   "// ===== CARD EDITOR - FIELD LABELS =====": "",
   "FIELD_NAME": "名称",
   "FIELD_SUBTITLE": "副标题",
@@ -276,7 +262,6 @@
   "OPTION_NONE": "无",
   "PLACEHOLDER_NO_ICON": "无图标",
   "PLACEHOLDER_NO_LOCATION": "无地点",
-
   "// ===== CARD EDITOR - SPECIAL SECTIONS =====": "",
   "SECTION_DECK_BUILDING": "构组选项",
   "SECTION_CHAOS_BAG": "混沌袋条目",
@@ -295,7 +280,6 @@
   "PLACEHOLDER_HEADER": "标题 {n}",
   "PLACEHOLDER_VALUE": "数值 {n}",
   "TOOLTIP_XP_COST": "经验值费用",
-
   "// ===== CONTEXT MENU =====": "",
   "CTX_COPY": "复制",
   "CTX_DUPLICATE": "复制副本",
@@ -318,12 +302,10 @@
   "CTX_DELETE": "删除",
   "CTX_DELETE_ENCOUNTER_SET": "删除遭遇套组",
   "CTX_NEW_ENCOUNTER_SET": "新建遭遇套组",
-
   "// ===== CONTEXT MENU - CONFIRMATIONS =====": "",
   "DLG_DELETE_CARD": "删除卡牌",
   "CONFIRM_DELETE_CARD": "确定要删除\"{card_name}\"吗？\n\n此操作无法撤销。",
   "CONFIRM_DELETE_ENCOUNTER_SET": "确定要删除遭遇套组\"{name}\"吗？\n\n这将同时删除该套组中的所有 {count} 张卡牌。\n此操作无法撤销。",
-
   "// ===== ENCOUNTER SET EDITOR =====": "",
   "TITLE_ENCOUNTER_SET": "遭遇套组：{name}",
   "TAB_INFO": "信息",
@@ -342,7 +324,6 @@
   "DLG_NOT_IMPLEMENTED": "功能未实现",
   "MSG_ENCOUNTER_DELETE_NOT_IMPLEMENTED": "遭遇套组删除功能尚未实现",
   "LABEL_CARDS_IN_SET": "套组中的卡牌：",
-
   "// ===== PROJECT EDITOR =====": "",
   "SECTION_PROJECT_INFO": "项目信息",
   "HELP_SHORT_CODE": "用于文件命名的短代码",
@@ -370,7 +351,6 @@
   "PROMPT_ENCOUNTER_SET_NAME": "输入遭遇套组名称：",
   "BTN_DELETE_ENCOUNTER_SET": "删除遭遇套组",
   "BTN_NEW_CARD": "新建卡牌",
-
   "// ===== GUIDE EDITOR =====": "",
   "GUIDE_TITLE": "指南：{name}",
   "LABEL_FRONT_PAGE_IMAGE": "封面图片：",
@@ -387,7 +367,6 @@
   "LABEL_OF_PAGES": "共 {total} 页",
   "TAB_PREVIEW": "预览",
   "TITLE_GUIDE": "指南",
-
   "// ===== LOCATION VIEW =====": "",
   "DLG_CANNOT_CONNECT": "无法连接",
   "MSG_NO_CONNECTION_ICON": "地点\"{location_name}\"没有连接图标。",
@@ -404,10 +383,13 @@
   "TITLE_LOCATIONS": "地点：{name}",
   "TOOLTIP_ICON_MODE": "显示连接图标",
   "TOOLTIP_SIMULATE": "模拟导航",
-
+  "BTN_EXPORT_TO_GUIDE": "导出到指南",
+  "TOOLTIP_EXPORT_TO_GUIDE": "保存地点概览图片并更新已链接的指南场景章节",
+  "DLG_EXPORT_TO_GUIDE": "导出到指南",
+  "MSG_EXPORTED_TO_GUIDE": "地点概览已导出到 {count} 个章节",
+  "MSG_NO_LINKED_SECTIONS": "未找到已链接的场景章节。请先在指南编辑器中打开场景章节并设置关联的遭遇套。",
   "// ===== PREVIEW WIDGET =====": "",
   "SYMBOL_PLUS": "+",
-
   "// ===== SETTINGS DIALOG =====": "",
   "DLG_SETTINGS": "设置",
   "TAB_EXTERNAL_APPS": "外部应用程序",
@@ -470,7 +452,6 @@
   "MSG_TYPE_TO_SEARCH": "输入以搜索...",
   "MSG_SHOWING_CARDS": "显示 {shown} / {total} 张卡牌",
   "MSG_TOTAL_CARDS": "共 {total} 张卡牌",
-
   "// ===== UPDATER =====": "",
   "DLG_UPDATE_AVAILABLE": "有可用更新",
   "MSG_NEW_VERSION_AVAILABLE": "Shoggoth 的新版本已发布！",
@@ -528,7 +509,6 @@
   "MSG_DOWNLOADING_PROGRESS": "正在下载... {downloaded} / {total} MB",
   "MSG_DOWNLOADED_TO": "已下载至：{path}",
   "MSG_CLICK_RUN_INSTALLER": "点击\"运行安装程序\"以安装更新。",
-
   "// ===== ABOUT DIALOG =====": "",
   "DLG_ABOUT": "关于 Shoggoth",
   "ABOUT_VERSION": "版本 {version}",
@@ -540,7 +520,6 @@
   "ABOUT_IMAGES_CREDIT": "部分图片和模板由 <b>Mythos Busters</b> 社区提供——尤其感谢 <b>Coldtoes</b> 和 <b>Hauke</b>。",
   "ABOUT_THANKS_SE": "感谢 <b>CGJennings</b> 创建了 Strange Eons，以及 <b>pilunte23/JaqenZann</b> 开发了最初的 AHLCG 插件，没有他们我们都会无聊得多。",
   "ABOUT_SPECIAL_THANKS": "特别感谢 <b>Coldtoes</b>、<b>felice</b>、<b>Chr1Z</b>、<b>MickeyTheQ</b> 和 <b>Morvael</b> 帮助这个项目成为现实。",
-
   "// ===== TEXT OPTIONS DIALOG =====": "",
   "DLG_TEXT_OPTIONS": "文本选项",
   "MSG_RICH_TEXT_OPTIONS": "富文本格式选项：",
@@ -549,7 +528,6 @@
   "HELP_REPLACEMENT_TAGS": "替换标签——用于速记写作：",
   "HELP_ICON_TAGS": "图标标签：",
   "HELP_AVAILABLE_FONTS": "可用字体：",
-
   "// ===== STATUS BAR MESSAGES =====": "",
   "STATUS_PROJECT_LOADED": "项目加载成功",
   "STATUS_LOAD_FAILED": "加载项目失败",
@@ -587,7 +565,6 @@
   "STATUS_TTS_CAMPAIGN_EXPORTED": "战役已导出到 TTS",
   "STATUS_TTS_CARD_EXPORTED": "卡牌已导出到 TTS",
   "STATUS_TTS_PLAYER_EXPORTED": "玩家卡牌已导出到 TTS",
-
   "// ===== TTS EXPORT DIALOG =====": "",
   "TTS_DLG_TITLE": "导出到桌游模拟器",
   "TTS_SCOPE_LABEL": "导出范围",
@@ -607,7 +584,6 @@
   "TTS_RESULT_TTS_DIR": "导出完成。已直接保存到您的 TTS 文件夹：\n{path}",
   "TTS_RESULT_PROJECT_DIR": "导出完成。已保存到项目文件夹：\n{path}",
   "MENU_EXPORT_TTS": "导出到 TTS(&T)…",
-
   "// ===== PDF EXPORT DIALOG =====": "",
   "PDF_DLG_TITLE_CARD": "导出卡牌为 PDF",
   "PDF_DLG_TITLE_CARD_MBPRINT": "导出卡牌为 MBPrint PDF",
@@ -628,7 +604,6 @@
   "PDF_DLG_SELECT_OUTPUT": "另存 PDF 为",
   "PDF_EXPORTING_IMAGES": "正在导出卡牌图片…",
   "PDF_ERR_NO_OUTPUT_PATH": "请指定输出 PDF 文件路径。",
-
   "// ===== ERROR MESSAGES =====": "",
   "ERR_NO_PROJECT_OPEN": "未打开项目",
   "ERR_NO_PROJECT_LOADED": "未加载项目",
@@ -644,7 +619,6 @@
   "DLG_EXPORT_ERROR": "导出错误",
   "ERR_RENDER_CARD": "渲染卡牌时出错",
   "ERR_UPDATE_OCCURRED": "更新过程中发生错误",
-
   "// ===== EXPORT MESSAGES =====": "",
   "MSG_EXPORTED_CARDS": "已将 {count} 张卡牌导出至：{folder}",
   "MSG_CARD_EXPORTED_TO": "卡牌已导出至：{folder}",
@@ -654,7 +628,6 @@
   "ACTION_GATHERED": "已收集",
   "ACTION_GATHERED_UPDATED": "已收集并更新",
   "MSG_PDF_EXPORTED": "PDF 已导出至：{path}",
-
   "// ===== CARD TYPES =====": "",
   "TYPE_ASSET": "装备",
   "TYPE_EVENT": "事件",
@@ -676,7 +649,6 @@
   "TYPE_CUSTOMIZABLE": "可定制",
   "TYPE_CUSTOMIZABLE_BACK": "customizable_back",
   "TYPE_PLAYER_CARD": "玩家卡牌",
-
   "// ===== MISC =====": "",
   "MSG_TODO": "待办",
   "MSG_PDF_NOT_IMPLEMENTED": "PDF 导出功能尚未实现",
@@ -684,14 +656,22 @@
   "MSG_PDF_EXPORT_FAILED": "PDF 导出失败：{error}",
   "MSG_LANGUAGE_CHANGED": "语言已更改",
   "MSG_RESTART_FOR_LANGUAGE": "请重启应用程序以使语言更改完全生效。",
-
   "// ===== DYNAMIC KEYS =====": "",
   "CTX_NEW_CARD_TYPE": "新建{card_type}",
   "CTX_NEW_CATEGORY_CARD": "新建{category_name}卡牌",
   "PROMPT_ENTER_CARD_NAME": "输入卡牌名称",
   "CTX_PLAYER_CARD": "玩家卡牌",
-
   "// ====== TRANSLATION CLASS =====": "",
   "ERROR_TRANSLATION_MISSING_LANGUAGE": "错误：翻译文件未定义语言。",
-  "ERROR_TRANSLATION_MISSING_PROJECT": "错误：翻译文件未定义父项目。"
+  "ERROR_TRANSLATION_MISSING_PROJECT": "错误：翻译文件未定义父项目。",
+  "// ===== FIRST RUN DOWNLOAD =====": "",
+  "DLG_FIRST_RUN_DOWNLOAD": "正在下载所需资源",
+  "MSG_FIRST_RUN_TITLE": "正在下载所需资源",
+  "MSG_FIRST_RUN_INFO": "首次启动 Shoggoth 时，需要下载必要的资源包，文件总计约 750 MB。",
+  "MSG_FIRST_RUN_CONNECTING": "正在连接...",
+  "MSG_FIRST_RUN_PROGRESS": "正在下载... {downloaded} / {total} MB",
+  "MSG_FIRST_RUN_DOWNLOADING": "正在下载... {downloaded} MB",
+  "MSG_FIRST_RUN_COMPLETE": "下载完成！请点击下方按钮重启 Shoggoth 以完成设置。",
+  "MSG_FIRST_RUN_ERROR": "下载失败：{error}",
+  "BTN_RESTART_SHOGGOTH": "重启 Shoggoth"
 }

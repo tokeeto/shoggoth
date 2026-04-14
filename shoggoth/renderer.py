@@ -103,7 +103,7 @@ class CardRenderer:
             vips_image = pyvips.Image.new_from_file(str(path))
             image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
         else:
-            image = Image.open(path).convert('RGBA')
+            image = Image.open(path)
         return image
 
     # @functools.lru_cache(maxsize=15)
@@ -132,7 +132,8 @@ class CardRenderer:
                 vips_image = pyvips.Image.new_from_file(str(path))
                 image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
             else:
-                image = Image.open(path).convert('RGBA')
+                image = Image.open(path)
+                image.load()
             self.cache[path] = image
         return self.cache[path]
 
@@ -181,29 +182,16 @@ class CardRenderer:
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
         image = self.render_card_side(card, card.front, include_bleed=False, width=375, height=525, bleed=18)
-        buffer = BytesIO()
-        image.save(buffer, format='jpeg', quality=50)
-        buffer.seek(0)
-        return buffer
+        return image
 
     def get_card_textures(self, card, size, bleed=True, format='jpeg', quality=80):
         """Render both sides of a card"""
         import time
         t = time.time()
-        lossless = quality == 100
         front = self.render_card_side(card, card.front, include_bleed=bleed, **size)
         back = self.render_card_side(card, card.back, include_bleed=bleed, **size)
-
-        f_buffer = BytesIO()
-        front.save(f_buffer, format=format, quality=quality, lossless=lossless)
-        f_buffer.seek(0)
-
-        b_buffer = BytesIO()
-        back.save(b_buffer, format=format, quality=quality, lossless=lossless)
-        b_buffer.seek(0)
-
         print(f'get_card_textures in {time.time()-t}')
-        return f_buffer, b_buffer
+        return front, back
 
     def get_card_images(self, card, size):
         """Get raw PIL images for the card"""
@@ -340,8 +328,14 @@ class CardRenderer:
         card_image = Image.new('RGB', (width, height), (255, 255, 255))
 
         template_bleed = side.get('template_bleed', False)
-        self.render_illustration(card_image, side)
-        self.render_template(card_image, side, bleed, template_bleed)
+        try:
+            self.render_illustration(card_image, side)
+        except:
+            print('failed illus')
+        try:
+            self.render_template(card_image, side, bleed, template_bleed)
+        except:
+            print('failed template')
         if side['type'] in ('investigator'):
             self.render_illustration(card_image, side)
 
@@ -382,6 +376,7 @@ class CardRenderer:
                 func(card_image, side)
             except Exception as e:
                 logging.debug(f'Failed in {func}: {e}')
+                print(f'Failed in {func}: {e}')
 
         # cut out bleed
         if not include_bleed:
@@ -476,7 +471,7 @@ class CardRenderer:
                         font_size=scale(font.get('size', 20)),
                         min_font_size=scale(font.get('min_size', None)),
                         fill=font.get('color', '#231f20'),
-                        outline=scale(font.get('outline', 0)),
+                        outline=scale(font.get('outline', None)),
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
                         polygon=polygon,
@@ -531,7 +526,7 @@ class CardRenderer:
             )
 
             overlay_path = self.overlays_path/f"chaos_{icon}.png"
-            overlay_icon = Image.open(overlay_path).convert("RGBA")
+            overlay_icon = Image.open(overlay_path)
             overlay_icon = overlay_icon.resize((overlay_icon.width*2, overlay_icon.height*2))
             card_image.paste(overlay_icon, (region.x, region.y+(index*entry_height)), overlay_icon)
 
@@ -581,14 +576,15 @@ class CardRenderer:
         else:
             box_path = self.overlays_path / box_path
 
-        box_image = self.get_cached(box_path)
-        box_image = box_image.resize((int(box_image.width * Region.SCALE * 2), int(box_image.height * Region.SCALE * 2)))
+        icon_region = Region(side.get('icons_region', {"x": 112, "y": 424, "width": 0, "height": 164}))
+        box_region = Region(side.get('icons_box_region', {"x": -112, "y": -28, "width": 270, "height": 160}))
+        box_image = self.get_resized_cached(box_path, box_region.size)
 
         for index, icon in enumerate(value):
             icon_path = self.overlays_path / 'svg' / f"skill_icon_{icon}.svg"
             icon_image = self.get_resized_cached(icon_path, (scale(102), scale(102)))
-            card_image.paste(box_image, (0, scale(index * 164 + 324 + 72)), box_image)
-            card_image.paste(icon_image, (scale(72+40), scale(index * 164 + 352 + 72)), icon_image)
+            card_image.paste(box_image, (icon_region.x + box_region.x, index * icon_region.height + icon_region.y + box_region.y), box_image)
+            card_image.paste(icon_image, (icon_region.x, index * icon_region.height + icon_region.y), icon_image)
 
     def render_health(self, card_image, side):
         """ Add health and sanity overlay, if needed. """
@@ -602,7 +598,7 @@ class CardRenderer:
                     continue
 
             overlay_path = self.overlays_path/f"{stat}_base.png"
-            overlay_icon = Image.open(overlay_path).convert("RGBA")
+            overlay_icon = Image.open(overlay_path)
             overlay_icon = overlay_icon.resize((region.width, region.height))
             center_x = region.x
             center_y = region.y - (scale(23) if stat == 'health' else scale(15))
@@ -618,7 +614,7 @@ class CardRenderer:
         if not icon:
             return
 
-        icon = Image.open(side.card.project.icon, formats=['png', 'jpg']).convert('RGBA')
+        icon = Image.open(side.card.project.icon, formats=['png', 'jpg'])
         if icon.width > icon.height:
             icon = icon.resize((region.width, int(region.height*(icon.height/icon.width))))
         else:
@@ -636,6 +632,9 @@ class CardRenderer:
         if not side.card.encounter and not side.get('encounter_icon', None):
             return
 
+        if not side.card.encounter.icon:
+            return
+
         region = Region(side.get('encounter_icon_region'))
         if not region:
             return
@@ -644,7 +643,7 @@ class CardRenderer:
         if overlay:
             if not Path(overlay).is_file():
                 overlay = overlay_dir / overlay
-            overlay_image = Image.open(overlay).convert("RGBA")
+            overlay_image = Image.open(overlay)
             overlay_region = Region(side.get('encounter_overlay_region'))
             overlay_image = overlay_image.resize(overlay_region.size)
             card_image.paste(overlay_image, overlay_region.pos, overlay_image)
@@ -675,7 +674,7 @@ class CardRenderer:
                 continue
 
             path = self.overlays_path/f'slot_{slot}.png'
-            slot_image = Image.open(path).convert("RGBA")
+            slot_image = Image.open(path)
             slot_image = slot_image.resize(region.size)
             card_image.paste(slot_image, region.pos, slot_image)
 
@@ -740,7 +739,6 @@ class CardRenderer:
 
         illustration = self.get_illustration_cached(illustration_path)
         region = Region(side.get('illustration_region'))
-
         # Calculate scaling
         illustration_scale = float(side.get('illustration_scale', 0)) * Region.SCALE
         if not illustration_scale:
@@ -767,13 +765,18 @@ class CardRenderer:
             pan_y = region.y
         else:
             pan_y = int(side.get('illustration_pan_y', 0) * Region.SCALE)
-
         # Position and paste
-        card_image.paste(
-            illustration,
-            (pan_x, pan_y),
-            illustration
-        )
+        if illustration.has_transparency_data:
+            card_image.paste(
+                illustration,
+                (pan_x, pan_y),
+                illustration
+            )
+        else:
+            card_image.paste(
+                illustration,
+                (pan_x, pan_y)
+            )
 
     def render_level(self, card_image, side):
         """Render the card level"""
