@@ -3,6 +3,18 @@ name: Build Executable
 on:
     push:
         branches: ["main"]
+        tags: ["v*"]
+    pull_request:
+        branches: ["main"]
+    workflow_dispatch:
+        inputs:
+            sign:
+                description: "Sign the macOS build"
+                type: boolean
+                default: false
+
+env:
+    SHOULD_SIGN: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push' && github.ref == 'refs/heads/main' || inputs.sign == true }}
 
 jobs:
     build-macos-intel:
@@ -19,12 +31,73 @@ jobs:
               run: uv sync
             - name: Install pyinstaller
               run: uv add --dev pyinstaller
+            - name: Install harfbuzz
+              run: brew install harfbuzz
+
+            - name: Import Apple Developer Certificate
+              if: ${{ env.SHOULD_SIGN == 'true' }}
+              env:
+                  APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+                  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+                  KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+              run: |
+                  echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+                  security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security default-keychain -s build.keychain
+                  security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security import certificate.p12 -k build.keychain \
+                    -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+                  security set-key-partition-list -S apple-tool:,apple:,codesign: \
+                    -s -k "$KEYCHAIN_PASSWORD" build.keychain
+                  security find-identity -v -p codesigning build.keychain
+                  rm certificate.p12
+
             - name: Compile
               run: uv run --dev pyinstaller ShoggothStandalone.spec
+              env:
+                  APPLE_SIGNING_IDENTITY: ${{ env.SHOULD_SIGN == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+
+            - name: Notarize and staple app
+              if: ${{ env.SHOULD_SIGN == 'true' }}
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
+                  xcrun notarytool submit Shoggoth.zip \
+                    --apple-id "$APPLE_ID" \
+                    --password "$APPLE_PASSWORD" \
+                    --team-id "$APPLE_TEAM_ID" \
+                    --wait --timeout 900 2>&1 | tee notarize_output.txt
+
+                  if ! grep -q "status: Accepted" notarize_output.txt; then
+                    SUBMISSION_ID=$(grep -oE '[0-9a-f-]{36}' notarize_output.txt | head -1)
+                    if [ -n "$SUBMISSION_ID" ]; then
+                      xcrun notarytool log "$SUBMISSION_ID" \
+                        --apple-id "$APPLE_ID" \
+                        --password "$APPLE_PASSWORD" \
+                        --team-id "$APPLE_TEAM_ID"
+                    fi
+                    exit 1
+                  fi
+
+                  xcrun stapler staple "dist/Shoggoth.app"
+
+            - name: Zip app for upload
+              run: ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
+              if: ${{ env.SHOULD_SIGN != 'true' }}
+
+            - name: Zip signed app for upload
+              if: ${{ env.SHOULD_SIGN == 'true' }}
+              run: |
+                  rm -f Shoggoth.zip
+                  ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
+
             - uses: actions/upload-artifact@v4
               with:
                   name: shoggoth-mac-intel
-                  path: dist/
+                  path: Shoggoth.zip
 
     build-macos:
         runs-on: macos-latest
@@ -40,12 +113,73 @@ jobs:
               run: uv sync
             - name: Install pyinstaller
               run: uv add --dev pyinstaller
+            - name: Install harfbuzz
+              run: brew install harfbuzz
+
+            - name: Import Apple Developer Certificate
+              if: ${{ env.SHOULD_SIGN == 'true' }}
+              env:
+                  APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+                  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+                  KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+              run: |
+                  echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+                  security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security default-keychain -s build.keychain
+                  security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+                  security import certificate.p12 -k build.keychain \
+                    -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+                  security set-key-partition-list -S apple-tool:,apple:,codesign: \
+                    -s -k "$KEYCHAIN_PASSWORD" build.keychain
+                  security find-identity -v -p codesigning build.keychain
+                  rm certificate.p12
+
             - name: Compile
               run: uv run --dev pyinstaller ShoggothStandalone.spec
+              env:
+                  APPLE_SIGNING_IDENTITY: ${{ env.SHOULD_SIGN == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+
+            - name: Notarize and staple app
+              if: ${{ env.SHOULD_SIGN == 'true' }}
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
+                  xcrun notarytool submit Shoggoth.zip \
+                    --apple-id "$APPLE_ID" \
+                    --password "$APPLE_PASSWORD" \
+                    --team-id "$APPLE_TEAM_ID" \
+                    --wait --timeout 900 2>&1 | tee notarize_output.txt
+
+                  if ! grep -q "status: Accepted" notarize_output.txt; then
+                    SUBMISSION_ID=$(grep -oE '[0-9a-f-]{36}' notarize_output.txt | head -1)
+                    if [ -n "$SUBMISSION_ID" ]; then
+                      xcrun notarytool log "$SUBMISSION_ID" \
+                        --apple-id "$APPLE_ID" \
+                        --password "$APPLE_PASSWORD" \
+                        --team-id "$APPLE_TEAM_ID"
+                    fi
+                    exit 1
+                  fi
+
+                  xcrun stapler staple "dist/Shoggoth.app"
+
+            - name: Zip app for upload
+              run: ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
+              if: ${{ env.SHOULD_SIGN != 'true' }}
+
+            - name: Zip signed app for upload
+              if: ${{ env.SHOULD_SIGN == 'true' }}
+              run: |
+                  rm -f Shoggoth.zip
+                  ditto -c -k --keepParent "dist/Shoggoth.app" Shoggoth.zip
+
             - uses: actions/upload-artifact@v4
               with:
                   name: shoggoth-mac
-                  path: dist/
+                  path: Shoggoth.zip
 
     build-windows:
         runs-on: windows-latest
