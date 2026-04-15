@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QSizePolicy, QHBoxLayout, QPushButton
 )
 from PySide6.QtCore import Qt, QPoint, Signal
-from PySide6.QtGui import QPixmap, QImage, QWheelEvent, QMouseEvent, QPainter, QGuiApplication
+from PySide6.QtGui import QWheelEvent, QMouseEvent, QPainter, QGuiApplication
 
 
 class ZoomableImageLabel(QLabel):
@@ -260,13 +260,11 @@ class CardPreviewTab(QWidget):
     def set_illustration_mode(self, enabled):
         self.image_label.set_illustration_mode(enabled)
 
-    def set_image(self, image_buffer):
-        if not image_buffer:
+    def set_image(self, image):
+        if not image:
             return
-        data = image_buffer.read()
-        image = QImage.fromData(data)
-        pixmap = QPixmap.fromImage(image)
-        self.image_label.setPixmap(pixmap)
+        from PIL.ImageQt import toqpixmap
+        self.image_label.setPixmap(toqpixmap(image))
         self.zoom_label.setText("100%")
 
 

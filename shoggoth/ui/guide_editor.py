@@ -777,6 +777,16 @@ class SectionEditorPanel(QWidget):
         name_row.addWidget(self.name_edit)
         layout.addLayout(name_row)
 
+        # Encounter set link (shown only for scenario sections)
+        self._encounter_row = QWidget()
+        enc_layout = QHBoxLayout(self._encounter_row)
+        enc_layout.setContentsMargins(0, 0, 0, 0)
+        enc_layout.addWidget(QLabel('Linked Encounter Set:'))
+        self._encounter_combo = QComboBox()
+        enc_layout.addWidget(self._encounter_combo)
+        self._encounter_row.hide()
+        layout.addWidget(self._encounter_row)
+
         # Stacked: index 0 = field editors, index 1 = raw HTML
         self.content_stack = QStackedWidget()
 
@@ -821,6 +831,23 @@ class SectionEditorPanel(QWidget):
             return
         self._section = section
         self.name_edit.setText(section.name or '')
+
+        # Populate encounter set dropdown for scenario sections
+        if section.type == 'scenario':
+            self._encounter_row.show()
+            self._encounter_combo.clear()
+            self._encounter_combo.addItem('— None —', None)
+            try:
+                for es in self.guide.project.encounter_sets:
+                    self._encounter_combo.addItem(es.name, es.id)
+            except Exception:
+                pass
+            if section.encounter_set_id:
+                for i in range(self._encounter_combo.count()):
+                    if self._encounter_combo.itemData(i) == section.encounter_set_id:
+                        self._encounter_combo.setCurrentIndex(i)
+                        break
+
         self._populate_fields(section)
         if not SECTION_FIELDS.get(section.type):
             # blank / unknown: go straight to HTML editor
@@ -891,6 +918,8 @@ class SectionEditorPanel(QWidget):
             return
         section.name = self.name_edit.text()
         section.html_content = self._build_section_html()
+        if self._encounter_row.isVisible():
+            section.encounter_set_id = self._encounter_combo.currentData()
         if self._section is not None:
             self._section.html_content = section.html_content
         self.guide.save_sections(preamble, sections, postamble)

@@ -13,7 +13,7 @@ from shoggoth.ui.field_widgets import LabeledLineEdit, FieldWidget
 import shoggoth
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog
-
+from PIL.ImageQt import ImageQt
 
 THUMBNAIL_BATCH_SIZE = 10
 
@@ -56,9 +56,7 @@ class ThumbnailWidget(QFrame):
             return
 
         try:
-            image_buffer.seek(0)
-            data = image_buffer.read()
-            image = QImage.fromData(data)
+            image = ImageQt(image_buffer)
             pixmap = QPixmap.fromImage(image)
 
             scaled_pixmap = pixmap.scaled(

@@ -32,10 +32,15 @@ def run():
     # ensure directories exist
     root_dir.mkdir(parents=True, exist_ok=True)
 
-    # ensure assets directory exists
+    # --refresh clears the local state file so the next asset check triggers
+    # a full re-download regardless of path.
     if args.refresh:
         (asset_dir / updater.ASSETS_STATE_FILE).unlink(missing_ok=True)
-    updater.ensure_assets_current()
+
+    # For CLI render/test paths, ensure assets are available before proceeding.
+    # The UI path handles its own asset download with a proper progress dialog.
+    if args.render or args.test:
+        updater.ensure_assets_current()
 
     # flag for using shoggoth as a cli tool
     if args.render:

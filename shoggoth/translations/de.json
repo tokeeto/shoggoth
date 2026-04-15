@@ -3,7 +3,6 @@
   "_language_code": "de",
   "_translator": "ElFlix",
   "_version": "0.1.1",
-
   "// ===== MAIN WINDOW - MENUS =====": "",
   "MENU_FILE": "&Datei",
   "MENU_OPEN_PROJECT": "&Projekt öffnen",
@@ -48,7 +47,6 @@
   "MENU_CARD_LANGUAGE": "Kartensprache",
   "MENU_ADD_INV_PROJECT": "Füge &Ermittler-Erweiterung hinzu",
   "MENU_GATHER_UPDATE": "Bilder laden und aktualisieren",
-
   "// ===== MAIN WINDOW - TITLES AND LABELS =====": "",
   "APP_TITLE": "Shoggoth - Kartenersteller",
   "CARD_PREVIEW": "Kartenvorschau",
@@ -56,7 +54,6 @@
   "WELCOME_MESSAGE": "Öffne oder erstelle ein Projekt um anzufangen",
   "STATUS_READY": "Bereit",
   "LOADING": "Lädt...",
-
   "// ===== MAIN WINDOW - TREE ITEMS =====": "",
   "TREE_CAMPAIGN_CARDS": "Kampagnenkarten",
   "TREE_PLAYER_CARDS": "Spielerkarten",
@@ -73,7 +70,6 @@
   "CLASS_NEUTRAL": "Neutral",
   "CLASS_OTHER": "Andere",
   "TREE_CARDS": "Karten",
-
   "// ===== DIALOGS - COMMON =====": "",
   "DLG_ERROR": "Fehler",
   "DLG_WARNING": "Warnung",
@@ -96,7 +92,6 @@
   "DLG_LANGUAGE_CHANGED": "Sprache geändert",
   "DLG_NO_PROJECT": "Kein Projekt",
   "DLG_TODO": "TODO",
-
   "// ===== DIALOGS - MESSAGES =====": "",
   "MSG_OPEN_PROJECT_FIRST": "Bitte öffne zuerst ein Projekt",
   "MSG_NO_PROJECT": "Kein Projekt",
@@ -118,7 +113,6 @@
   "MSG_NO_CARD_SELECTED": "Keine Karte ausgewählt",
   "MSG_NO_PROJECT_LOADED": "Kein Projekt geladen",
   "MSG_NO_PROJECT_OPEN": "Kein Projekt geöffnet",
-
   "// ===== DIALOGS - FILE DIALOGS =====": "",
   "DLG_OPEN_PROJECT": "Öffne Projekt",
   "FILTER_SHOGGOTH_PROJECTS": "Shoggoth-Projekt (*.json)",
@@ -128,7 +122,6 @@
   "DLG_SELECT_ICON": "Wähle Icon",
   "FILTER_IMAGES": "Bilder (*.png *.jpg *.jpeg *.webp *.svg)",
   "DLG_SELECT_IMAGE": "Wähle ein Bild",
-
   "// ===== DIALOGS - NEW CARD =====": "",
   "DLG_NEW_CARD": "Neue Karte",
   "FIELD_CARD_NAME": "Kartenname",
@@ -140,14 +133,12 @@
   "ERR_SELECT_ENCOUNTER_SET": "Wähle ein Begegnungsset für Kampagnenkarten",
   "MSG_ENTER_CARD_NAME": "Kartenname eintragen:",
   "PLACEHOLDER_ENTER_CARD_NAME": "Kartenname...",
-
   "// ===== DIALOGS - NEW GUIDE =====": "",
   "DLG_NEW_GUIDE": "Neues Regelwerk",
   "PLACEHOLDER_ENTER_GUIDE_NAME": "Regelwerksname eingeben",
   "MSG_ENTER_GUIDE_NAME": "Bitte einen Namen eingeben.",
   "MSG_SELECT_GUIDE_LOCATION": "Bitte einen Speicherort auswählen.",
   "DLG_SAVE_GUIDE_AS": "Regelwerk speichern als",
-
   "// ===== DIALOGS - NEW PROJECT =====": "",
   "DLG_NEW_PROJECT": "Neues Projekt",
   "FIELD_PROJECT_NAME": "Projektname",
@@ -165,25 +156,21 @@
   "MSG_ENTER_ABBREVIATION": "Abkürzung eingeben:",
   "MSG_ENTER_PROJECT_NAME": "Projektname eingeben:",
   "MSG_SELECT_SAVE_LOCATION": "Speicherort wählen",
-
   "// ===== DIALOGS - ENCOUNTER SET =====": "",
   "DLG_NEW_ENCOUNTER_SET": "Neues Begegnungsset",
   "LABEL_ENCOUNTER_SET_NAME": "Name des Begegnungssets:",
   "DLG_DELETE_ENCOUNTER_SET": "Begegnungsset löschen",
   "MSG_ENTER_ENCOUNTER_SET": "Name des Begegnungssets eingeben:",
-
   "// ===== DIALOGS - SCENARIO =====": "",
   "DLG_SCENARIO_NAME": "Szenarioname",
   "PROMPT_ENTER_SCENARIO_NAME": "Szenarionamen eingeben:",
   "PLACEHOLDER_SCENARIO": "Platzhalter",
   "MSG_ENTER_SCENARIO": "Szenarionamen eingeben:",
-
   "// ===== DIALOGS - INVESTIGATOR =====": "",
   "DLG_INVESTIGATOR_NAME": "Name des Ermittlers",
   "PROMPT_ENTER_INVESTIGATOR_NAME": "Name des Ermittlers eingeben:",
   "PLACEHOLDER_ROLAN": "Rolan Banks",
   "MSG_ENTER_INVESTIGATOR": "Name des Ermittlers eingeben:",
-
   "// ===== CARD EDITOR =====": "",
   "TAB_FRONT": "Vorne",
   "TAB_BACK": "Hinten",
@@ -212,7 +199,6 @@
   "TOOLTIP_TOGGLE_BASIC_INFO": "Zeige/verstecke grundlegende Karteninformationen",
   "JSON_EDITOR_HEADER": "JSON Editor",
   "JSON_EDITOR_INFO": "Bearbeite die JSON-Datei direkt",
-
   "// ===== CARD EDITOR - FIELD LABELS =====": "",
   "FIELD_NAME": "Name",
   "FIELD_SUBTITLE": "Untertitel",
@@ -274,7 +260,6 @@
   "OPTION_NONE": "Keine",
   "PLACEHOLDER_NO_ICON": "Kein Icon",
   "PLACEHOLDER_NO_LOCATION": "Kein Ort",
-
   "// ===== CARD EDITOR - SPECIAL SECTIONS =====": "",
   "SECTION_DECK_BUILDING": "Deckbau-Optionen",
   "SECTION_CHAOS_BAG": "Chaosmarker-Einträge",
@@ -293,7 +278,6 @@
   "PLACEHOLDER_HEADER": "Kopfzeile {n}",
   "PLACEHOLDER_VALUE": "Wert {n}",
   "TOOLTIP_XP_COST": "XP-Kosten",
-
   "// ===== CONTEXT MENU =====": "",
   "CTX_COPY": "Kopieren",
   "CTX_DUPLICATE": "Duplizieren",
@@ -316,12 +300,10 @@
   "CTX_DELETE": "Löschen",
   "CTX_DELETE_ENCOUNTER_SET": "Lösche Begegnungsset",
   "CTX_NEW_ENCOUNTER_SET": "Neues Begegnungsset",
-
   "// ===== CONTEXT MENU - CONFIRMATIONS =====": "",
   "DLG_DELETE_CARD": "Karte löschen",
   "CONFIRM_DELETE_CARD": "Willst Du '{card_name}'sicher löschen?\n\nDieser Schritt kann nicht rückgängig gemacht werden.",
   "CONFIRM_DELETE_ENCOUNTER_SET": "Willst Du das Begegnungsset '{name}' sicher löschen?\n\nDas wird {count} Karten aus dem Set löschen.\nDieser Schritt kann nicht rückgängig gemacht werden.",
-
   "// ===== ENCOUNTER SET EDITOR =====": "",
   "TITLE_ENCOUNTER_SET": "Begegnungsset: {name}",
   "TAB_INFO": "Info",
@@ -340,7 +322,6 @@
   "DLG_NOT_IMPLEMENTED": "Nicht implementiert",
   "MSG_ENCOUNTER_DELETE_NOT_IMPLEMENTED": "Begegnungsset löschen ist noch nicht implementiert",
   "LABEL_CARDS_IN_SET": "Karten im Set:",
-
   "// ===== PROJECT EDITOR =====": "",
   "SECTION_PROJECT_INFO": "Projektinformation",
   "HELP_SHORT_CODE": "Abkürzung für Dateinamen",
@@ -368,7 +349,6 @@
   "PROMPT_ENCOUNTER_SET_NAME": "Namen des Begegnungssets eintragen:",
   "BTN_DELETE_ENCOUNTER_SET": "Begegnungsset löschen",
   "BTN_NEW_CARD": "Neue Karte",
-
   "// ===== GUIDE EDITOR =====": "",
   "GUIDE_TITLE": "Kampagnenleitfaden: {name}",
   "LABEL_FRONT_PAGE_IMAGE": "Bild für Vorderseite:",
@@ -385,7 +365,6 @@
   "LABEL_OF_PAGES": "von {total}",
   "TAB_PREVIEW": "Vorschau",
   "TITLE_GUIDE": "Kampagnenleitfaden",
-
   "// ===== LOCATION VIEW =====": "",
   "DLG_CANNOT_CONNECT": "Kann nicht verbinden",
   "MSG_NO_CONNECTION_ICON": "Ort \"{location_name}\" hat kein Verbindungssymbol.",
@@ -394,19 +373,21 @@
   "BTN_STOP": "Stop",
   "TOOLTIP_TOGGLE_SIMULATION": "Schalte auf lraftgesteuerte Layout-Simulation um (30 Schritte pro Sekunde)",
   "BTN_SCREENSHOT": "Bildschirmfoto",
-  "TOOLTIP_SCREENSHOT": "Aktuelles Kartenbild in die Zwischenablage kopieren",
+  "TOOLTIP_SCREENSHOT": "Bildschirmfoto der Ansicht",
   "TOOLTIP_COPY_LAYOUT": "Kopiere Anordnung in Zwischenablage (transparenter Hintergrund)",
   "BTN_REFRESH": "Aktualisieren",
   "MSG_LAYOUT_COPIED": "Anordnung zu Zwischenablage kopiert",
   "HELP_LOCATION_VIEW": "Ziehe zum Bewegen. Rechtsklick zum Verbinden. Scrolle um zu zoomen.",
   "TITLE_LOCATIONS": "Orte: {name}",
   "TOOLTIP_ICON_MODE": "Zeige Verbindungssymbole",
-  "TOOLTIP_SCREENSHOT": "Bildschirmfoto der Ansicht",
   "TOOLTIP_SIMULATE": "Navigation simulieren",
-
+  "BTN_EXPORT_TO_GUIDE": "In Handbuch exportieren",
+  "TOOLTIP_EXPORT_TO_GUIDE": "Ortsübersicht als Bild speichern und verknüpfte Handbuchabschnitte aktualisieren",
+  "DLG_EXPORT_TO_GUIDE": "In Handbuch exportieren",
+  "MSG_EXPORTED_TO_GUIDE": "Ortsübersicht in {count} Abschnitt(e) exportiert",
+  "MSG_NO_LINKED_SECTIONS": "Keine verknüpften Szenarioabschnitte gefunden. Bitte zuerst ein Begegnungsset im Handbuch-Editor verknüpfen.",
   "// ===== PREVIEW WIDGET =====": "",
   "SYMBOL_PLUS": "+",
-
   "// ===== SETTINGS DIALOG =====": "",
   "DLG_SETTINGS": "Einstellungen",
   "TAB_EXTERNAL_APPS": "Externe Anwendungen",
@@ -467,7 +448,6 @@
   "MSG_TYPE_TO_SEARCH": "Tippe um zu suchen...",
   "MSG_SHOWING_CARDS": "Zeigt {shown} von {total} Karten",
   "MSG_TOTAL_CARDS": "{total} Karten",
-
   "// ===== UPDATER =====": "",
   "DLG_UPDATE_AVAILABLE": "Update verfügbar",
   "MSG_NEW_VERSION_AVAILABLE": "Eine neue Version von Shoggoth ist verfügbar!",
@@ -525,7 +505,6 @@
   "MSG_DOWNLOADING_PROGRESS": "Lädt herunter... {downloaded} / {total} MB",
   "MSG_DOWNLOADED_TO": "Heruntergeladen nach: {path}",
   "MSG_CLICK_RUN_INSTALLER": "Klicke auf „Installer ausführen“, um das Update zu installieren.",
-
   "// ===== ABOUT DIALOG =====": "",
   "DLG_ABOUT": "Über Shoggoth",
   "ABOUT_VERSION": "Version {version}",
@@ -537,7 +516,6 @@
   "ABOUT_IMAGES_CREDIT": "Verschiedene Bilder und Vorlagen der <b>Mythos Busters</b>-Community – insbesondere von <b>Coldtoes</b> und <b>Hauke</b>.",
   "ABOUT_THANKS_SE": "Vielen Dank an <b>CGJennings</b> für die Entwicklung von Strange Eons und an <b>pilunte23/JaqenZann</b> für das ursprüngliche AHLCG-Plugin, ohne das wir uns alle viel mehr langweilen würden.",
   "ABOUT_SPECIAL_THANKS": "Besonderer Dank gilt <b>Coldtoes</b>, <b>felice</b>, <b>Chr1Z</b>, <b>MickeyTheQ</b> und <b>Morvael</b> für ihre Hilfe bei der Verwirklichung dieses Projekts.",
-
   "// ===== TEXT OPTIONS DIALOG =====": "",
   "DLG_TEXT_OPTIONS": "Textoptionen",
   "MSG_RICH_TEXT_OPTIONS": "Rich-Text-Formatierungsoptionen:",
@@ -546,7 +524,6 @@
   "HELP_REPLACEMENT_TAGS": "Ersatz-Tags - um kürzer zu schreiben:",
   "HELP_ICON_TAGS": "Icon-Tags:",
   "HELP_AVAILABLE_FONTS": "Verfügbare Schriftarten:",
-
   "// ===== STATUS BAR MESSAGES =====": "",
   "STATUS_PROJECT_LOADED": "Projekt erfolgreich geladen",
   "STATUS_LOAD_FAILED": "Projekt laden fehlgeschlagen",
@@ -584,7 +561,6 @@
   "STATUS_TTS_CAMPAIGN_EXPORTED": "Kampagne exportiert für TTS",
   "STATUS_TTS_CARD_EXPORTED": "Karte exportiert für TTS",
   "STATUS_TTS_PLAYER_EXPORTED": "Spielerkarte exportiert für TTS",
-
   "// ===== TTS EXPORT DIALOG =====": "",
   "TTS_DLG_TITLE": "Für Tabletop Simulator exportieren",
   "TTS_SCOPE_LABEL": "Exportbereich",
@@ -604,7 +580,6 @@
   "TTS_RESULT_TTS_DIR": "Export abgeschlossen. Direkt im TTS-Ordner gespeichert:\n{path}",
   "TTS_RESULT_PROJECT_DIR": "Export abgeschlossen. Im Projektordner gespeichert:\n{path}",
   "MENU_EXPORT_TTS": "Für &TTS exportieren…",
-
   "// ===== PDF EXPORT DIALOG =====": "",
   "PDF_DLG_TITLE_CARD": "Karte als PDF exportieren",
   "PDF_DLG_TITLE_CARD_MBPRINT": "Karte als MBPrint PDF exportieren",
@@ -625,7 +600,6 @@
   "PDF_DLG_SELECT_OUTPUT": "PDF speichern unter",
   "PDF_EXPORTING_IMAGES": "Kartenbilder werden exportiert…",
   "PDF_ERR_NO_OUTPUT_PATH": "Bitte geben Sie einen Ausgabepfad für die PDF-Datei an.",
-
   "// ===== ERROR MESSAGES =====": "",
   "ERR_NO_PROJECT_OPEN": "Kein Projekt geöffnet",
   "ERR_NO_PROJECT_LOADED": "Kein Projekt geladen",
@@ -641,7 +615,6 @@
   "DLG_EXPORT_ERROR": "Fehler beim Export",
   "ERR_RENDER_CARD": "Fehler beim Rendern der Karte",
   "ERR_UPDATE_OCCURRED": "Fehler während Update aufgetreten",
-
   "// ===== EXPORT MESSAGES =====": "",
   "MSG_EXPORTED_CARDS": "{count} Karten exportiert nach: {folder}",
   "MSG_CARD_EXPORTED_TO": "Karten exportiert nach: {folder}",
@@ -651,7 +624,6 @@
   "ACTION_GATHERED": "gesammelt",
   "ACTION_GATHERED_UPDATED": "gesammelt und aktualisiert",
   "MSG_PDF_EXPORTED": "PDF exportiert nach: {path}",
-
   "// ===== CARD TYPES =====": "",
   "TYPE_ASSET": "Vorteil",
   "TYPE_EVENT": "Ereignis",
@@ -673,7 +645,6 @@
   "TYPE_CUSTOMIZABLE": "Verbesserung",
   "TYPE_CUSTOMIZABLE_BACK": "Verbesserung_hinten",
   "TYPE_PLAYER_CARD": "Spielerkarte",
-
   "// ===== MISC =====": "",
   "MSG_TODO": "TODO",
   "MSG_PDF_NOT_IMPLEMENTED": "PDF-Export noch nicht implementiert",
@@ -681,10 +652,19 @@
   "MSG_PDF_EXPORT_FAILED": "PDF-Export fehlgeschlagen: {error}",
   "MSG_LANGUAGE_CHANGED": "Sprache geändert",
   "MSG_RESTART_FOR_LANGUAGE": "Bitte starte die Anwendung neu, um die Sprachänderung vollständig anzuwenden.",
-
   "// ===== DYNAMIC KEYS =====": "",
   "CTX_NEW_CARD_TYPE": "Neue {card_type}",
   "CTX_NEW_CATEGORY_CARD": "Neue {category_name} Karte",
   "PROMPT_ENTER_CARD_NAME": "Füge Kartennamen ein",
-  "CTX_PLAYER_CARD": "Spielerkarte"
+  "CTX_PLAYER_CARD": "Spielerkarte",
+  "// ===== FIRST RUN DOWNLOAD =====": "",
+  "DLG_FIRST_RUN_DOWNLOAD": "Erforderliche Ressourcen werden heruntergeladen",
+  "MSG_FIRST_RUN_TITLE": "Erforderliche Ressourcen werden heruntergeladen",
+  "MSG_FIRST_RUN_INFO": "Beim ersten Start von Shoggoth müssen erforderliche Ressourcen heruntergeladen werden. Diese Dateien umfassen insgesamt ca. 750 MB.",
+  "MSG_FIRST_RUN_CONNECTING": "Verbinde...",
+  "MSG_FIRST_RUN_PROGRESS": "Lädt herunter... {downloaded} / {total} MB",
+  "MSG_FIRST_RUN_DOWNLOADING": "Lädt herunter... {downloaded} MB",
+  "MSG_FIRST_RUN_COMPLETE": "Download abgeschlossen! Klicke unten, um Shoggoth neu zu starten und die Einrichtung abzuschließen.",
+  "MSG_FIRST_RUN_ERROR": "Download fehlgeschlagen: {error}",
+  "BTN_RESTART_SHOGGOTH": "Shoggoth neu starten"
 }

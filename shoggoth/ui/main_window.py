@@ -100,13 +100,8 @@ class DraggableTreeWidget(QTreeWidget):
         if item_type == 'encounter':
             return 'encounter', item_data
 
-        # Story/Location/Encounter categories under encounter set
-        if item_type in ('category', 'locations'):
-            if item_data and hasattr(item_data, 'id'):
-                # This is a category under an encounter set
-                return 'encounter', item_data
-
-        # Class categories (player cards)
+        # Class / investigator categories (player cards) — check before the
+        # encounter sub-category branch; Project also has .id, so ordering matters.
         if item_type == 'category':
             cls = data.get('class')
             if cls:
@@ -117,10 +112,17 @@ class DraggableTreeWidget(QTreeWidget):
                 else:
                     return 'class', cls
 
-            # Investigator group
             investigator = data.get('investigator')
             if investigator:
                 return 'investigator', investigator
+
+        # Story/Location/Encounter sub-categories under an encounter set.
+        # item_data is the EncounterSet object; guard with isinstance so we
+        # don't accidentally match Project nodes (which also have .id).
+        from shoggoth.encounter_set import EncounterSet
+        if item_type in ('category', 'locations'):
+            if isinstance(item_data, EncounterSet):
+                return 'encounter', item_data
 
         # Card - check if it's under an encounter or player section
         if item_type == 'card':
@@ -201,9 +203,11 @@ class DraggableTreeWidget(QTreeWidget):
             for project in self.file_browser._projects:
                 card = project.get_card(card_id)
                 if card:
+                    print('found card in project', card, project)
                     break
 
             if not card:
+                print('didnt find card', card)
                 continue
 
             # Check ancestor constraint
@@ -239,9 +243,16 @@ class DraggableTreeWidget(QTreeWidget):
                 card.set('encounter_set', None)
                 card.set('investigator', drop_data)
 
-        # Refresh the tree to reflect changes
-        # Use accept() instead of acceptProposedAction() to prevent Qt from
-        # performing its own item move - we handle tree updates via refresh_tree()
+            else:
+                print('unhandled group... what?!', card)
+        print('card is now', card.data)
+
+        # Refresh the tree to reflect changes.
+        # We set IgnoreAction before accepting so that QAbstractItemView::startDrag
+        # sees a non-MoveAction result and skips its internal clearOrRemove() call.
+        # Without this, Qt removes the dragged items AFTER our refresh_tree() has
+        # already rebuilt the tree correctly, causing items to go missing.
+        event.setDropAction(Qt.IgnoreAction)
         event.accept()
         shoggoth.app.refresh_tree()
 
@@ -1137,7 +1148,7 @@ class ShoggothMainWindow(QMainWindow):
         # Export All Cards
         export_all = QAction(tr("MENU_EXPORT_ALL"), self)
         export_all.setShortcut("Ctrl+Shift+E")
-        export_all.triggered.connect(self.export_all)
+        export_all.triggered.connect(lambda: self.export_all())
         file_menu.addAction(export_all)
 
         file_menu.addSeparator()
@@ -1646,6 +1657,12 @@ class ShoggothMainWindow(QMainWindow):
 
     def export_all(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export all cards in the project using settings from preferences"""
+        import time
+        import multiprocessing
+        start_time = time.time()
+
+        cores = max(4, multiprocessing.cpu_count()-1)
+
         if not self.active_project:
             QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
             return
@@ -1656,9 +1673,9 @@ class ShoggothMainWindow(QMainWindow):
         if format is None:
             format = self.config.get('Shoggoth', 'export_format', 'png')
         if quality is None:
-            quality = self.config.getint('Shoggoth', 'export_quality', 95)
+            quality = self.config.getint('Shoggoth', 'export_quality', 100)
         if separate_versions is None:
-            separate_versions = self.config.getboolean('Shoggoth', 'export_separate_versions', False)
+            separate_versions = self.config.getboolean('Shoggoth', 'export_separate_versions', True)
 
         try:
             export_folder = Path(self.active_project.file_path).parent / f'Export of {self.active_project.name}'
@@ -1679,7 +1696,10 @@ class ShoggothMainWindow(QMainWindow):
                 if progress.wasCanceled():
                     break
 
-                progress.setValue(i)
+                if i >= cores:
+                    threads[i - cores].join()
+                    progress.setValue(i - cores)
+
                 progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
 
                 # Export in thread
@@ -1701,6 +1721,7 @@ class ShoggothMainWindow(QMainWindow):
             # Wait for all threads
             for thread in threads:
                 thread.join()
+            print(f'Export all in:', time.time()-start_time)
 
             progress.setValue(len(cards))
 
@@ -2054,7 +2075,7 @@ class ShoggothMainWindow(QMainWindow):
         # Increment version to invalidate any in-progress renders
         self.render_version += 1
         # Restart the debounce timer
-        self.render_timer.start(100)
+        self.render_timer.start(10)
 
     def _start_background_render(self):
         """Start rendering in background thread"""
@@ -2070,7 +2091,7 @@ class ShoggothMainWindow(QMainWindow):
         def render_task():
             try:
                 front_image, back_image = renderer.get_card_textures(
-                    card, {'width': 750, 'height': 1050, 'bleed': 36}, bleed=bleed
+                    card, {'width': 1500, 'height': 2100, 'bleed': 72}, bleed=bleed
                 )
                 # Emit result signal (will be handled on main thread)
                 self.render_result_signal.emit(version, front_image, back_image)
@@ -2106,7 +2127,7 @@ class ShoggothMainWindow(QMainWindow):
                 bleed = 'mark'
 
             front_image, back_image = self.card_renderer.get_card_textures(
-                self.current_card, {'width': 750, 'height': 1050, 'bleed': 36}, bleed=bleed
+                self.current_card, {'width': 1500, 'height': 2100, 'bleed': 72}, bleed=bleed
             )
             self.card_preview.set_card_images(front_image, back_image)
         except Exception as e:

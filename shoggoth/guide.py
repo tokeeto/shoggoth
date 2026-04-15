@@ -199,11 +199,12 @@ SECTION_FIELDS: dict = {
 
 
 class GuideSection:
-    def __init__(self, section_type: str, name: str, html_content: str = '', section_id=None):
+    def __init__(self, section_type: str, name: str, html_content: str = '', section_id=None, encounter_set_id=None):
         self.type = section_type
         self.name = name
         self.html_content = html_content
         self.id = section_id or uuid.uuid4().hex[:8]
+        self.encounter_set_id = encounter_set_id
 
     @classmethod
     def new(cls, section_type: str, name: str) -> 'GuideSection':
@@ -214,9 +215,9 @@ class GuideSection:
 
     def to_html(self) -> str:
         css_class = _SECTION_CSS.get(self.type, 'chapter')
-        attrs = (
-            f'data-shoggoth-id="{self.id}"'
-        )
+        attrs = f'data-shoggoth-id="{self.id}"'
+        if self.encounter_set_id:
+            attrs += f' data-shoggoth-encounter="{self.encounter_set_id}"'
         open_tag = f'<div class="{css_class}" {attrs}>'
         lines = [open_tag]
         if self.html_content:
@@ -249,8 +250,9 @@ def _parse_sections_from_html(html: str):
         # stable positional fallback so the id is consistent across re-parses
         # of the same unmodified HTML (avoids UUID churn on legacy files).
         section_id = elem.get('data-shoggoth-id') or elem.get('id') or f'sec_{i}'
+        encounter_set_id = elem.get('data-shoggoth-encounter')
         inner = elem.decode_contents().strip()
-        sections.append(GuideSection(section_type, section_name, inner, section_id))
+        sections.append(GuideSection(section_type, section_name, inner, section_id, encounter_set_id))
     return sections
 
 

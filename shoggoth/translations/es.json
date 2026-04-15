@@ -3,7 +3,6 @@
   "_language_code": "es",
   "_translator": "Fernando Esra",
   "_version": "0.1.1",
-
   "// ===== MAIN WINDOW - MENUS =====": "",
   "MENU_FILE": "&Archivo",
   "MENU_OPEN_PROJECT": "&Abrir Proyecto",
@@ -48,7 +47,6 @@
   "MENU_CARD_LANGUAGE": "Idioma de Cartas",
   "MENU_ADD_INV_PROJECT": "Añadir plantilla de &Expansión de Investigador",
   "MENU_GATHER_UPDATE": "Recopilar imágenes y &actualizar",
-
   "// ===== MAIN WINDOW - TITLES AND LABELS =====": "",
   "APP_TITLE": "Shoggoth - Creación de Cartas",
   "CARD_PREVIEW": "Vista Previa de Carta",
@@ -56,7 +54,6 @@
   "WELCOME_MESSAGE": "Abre o crea un proyecto para comenzar",
   "STATUS_READY": "Listo",
   "LOADING": "Cargando...",
-
   "// ===== MAIN WINDOW - TREE ITEMS =====": "",
   "TREE_CAMPAIGN_CARDS": "Cartas de Campaña",
   "TREE_PLAYER_CARDS": "Cartas de Jugador",
@@ -73,7 +70,6 @@
   "CLASS_NEUTRAL": "Neutral",
   "CLASS_OTHER": "Otro",
   "TREE_CARDS": "Cartas",
-
   "// ===== DIALOGS - COMMON =====": "",
   "DLG_ERROR": "Error",
   "DLG_WARNING": "Advertencia",
@@ -96,7 +92,6 @@
   "DLG_LANGUAGE_CHANGED": "Idioma Cambiado",
   "DLG_NO_PROJECT": "Sin Proyecto",
   "DLG_TODO": "Pendiente",
-
   "// ===== DIALOGS - MESSAGES =====": "",
   "MSG_OPEN_PROJECT_FIRST": "Por favor, abre un proyecto primero",
   "MSG_NO_PROJECT": "Sin Proyecto",
@@ -118,7 +113,6 @@
   "MSG_NO_CARD_SELECTED": "Ninguna carta seleccionada",
   "MSG_NO_PROJECT_LOADED": "Ningún proyecto cargado",
   "MSG_NO_PROJECT_OPEN": "Ningún proyecto abierto",
-
   "// ===== DIALOGS - FILE DIALOGS =====": "",
   "DLG_OPEN_PROJECT": "Abrir Proyecto",
   "FILTER_SHOGGOTH_PROJECTS": "Proyectos Shoggoth (*.json)",
@@ -128,7 +122,6 @@
   "DLG_SELECT_ICON": "Seleccionar Icono",
   "FILTER_IMAGES": "Imágenes (*.png *.jpg *.jpeg *.webp *.svg)",
   "DLG_SELECT_IMAGE": "Seleccionar Imagen",
-
   "// ===== DIALOGS - NEW CARD =====": "",
   "DLG_NEW_CARD": "Nueva Carta",
   "FIELD_CARD_NAME": "Nombre de carta",
@@ -140,14 +133,12 @@
   "ERR_SELECT_ENCOUNTER_SET": "Por favor selecciona un conjunto de encuentros para cartas de campaña",
   "MSG_ENTER_CARD_NAME": "Introduce el nombre de la carta:",
   "PLACEHOLDER_ENTER_CARD_NAME": "Introduce nombre de carta...",
-
   "// ===== DIALOGS - NEW GUIDE =====": "",
   "DLG_NEW_GUIDE": "Nueva Guía",
   "PLACEHOLDER_ENTER_GUIDE_NAME": "Escribe el nombre de la guía",
   "MSG_ENTER_GUIDE_NAME": "Por favor, introduce un nombre para la guía.",
   "MSG_SELECT_GUIDE_LOCATION": "Por favor, selecciona una ubicación de guardado.",
   "DLG_SAVE_GUIDE_AS": "Guardar guía como",
-
   "// ===== DIALOGS - NEW PROJECT =====": "",
   "DLG_NEW_PROJECT": "Nuevo Proyecto",
   "FIELD_PROJECT_NAME": "Nombre del proyecto",
@@ -165,25 +156,21 @@
   "MSG_ENTER_ABBREVIATION": "Introduce la abreviatura:",
   "MSG_ENTER_PROJECT_NAME": "Introduce el nombre del proyecto:",
   "MSG_SELECT_SAVE_LOCATION": "Seleccionar ubicación de guardado",
-
   "// ===== DIALOGS - ENCOUNTER SET =====": "",
   "DLG_NEW_ENCOUNTER_SET": "Nuevo Conjunto de Encuentros",
   "LABEL_ENCOUNTER_SET_NAME": "Nombre del Conjunto de Encuentros:",
   "DLG_DELETE_ENCOUNTER_SET": "Eliminar Conjunto de Encuentros",
   "MSG_ENTER_ENCOUNTER_SET": "Introduce el nombre del conjunto de encuentro:",
-
   "// ===== DIALOGS - SCENARIO =====": "",
   "DLG_SCENARIO_NAME": "Nombre del Escenario",
   "PROMPT_ENTER_SCENARIO_NAME": "Introduce el nombre del escenario:",
   "PLACEHOLDER_SCENARIO": "Introducir texto",
   "MSG_ENTER_SCENARIO": "Introduce el nombre del escenario:",
-
   "// ===== DIALOGS - INVESTIGATOR =====": "",
   "DLG_INVESTIGATOR_NAME": "Nombre del Investigador",
   "PROMPT_ENTER_INVESTIGATOR_NAME": "Introduce el nombre del investigador:",
   "PLACEHOLDER_ROLAN": "Rolan Banks",
   "MSG_ENTER_INVESTIGATOR": "Introduce el nombre del investigador:",
-
   "// ===== CARD EDITOR =====": "",
   "TAB_FRONT": "Anverso",
   "TAB_BACK": "Reverso",
@@ -212,7 +199,6 @@
   "TOOLTIP_TOGGLE_BASIC_INFO": "Mostrar/ocultar info básica de carta",
   "JSON_EDITOR_HEADER": "Editor JSON",
   "JSON_EDITOR_INFO": "Edita el JSON de la carta directamente",
-
   "// ===== CARD EDITOR - FIELD LABELS =====": "",
   "FIELD_NAME": "Nombre",
   "FIELD_SUBTITLE": "Subtítulo",
@@ -274,7 +260,6 @@
   "OPTION_NONE": "Ninguno",
   "PLACEHOLDER_NO_ICON": "Sin icono",
   "PLACEHOLDER_NO_LOCATION": "Sin ubicación",
-
   "// ===== CARD EDITOR - SPECIAL SECTIONS =====": "",
   "SECTION_DECK_BUILDING": "Opciones de Construcción de Mazo",
   "SECTION_CHAOS_BAG": "Entradas de Bolsa de Caos",
@@ -293,7 +278,6 @@
   "PLACEHOLDER_HEADER": "Cabecera {n}",
   "PLACEHOLDER_VALUE": "Valor {n}",
   "TOOLTIP_XP_COST": "Coste de PX",
-
   "// ===== CONTEXT MENU =====": "",
   "CTX_COPY": "Copiar",
   "CTX_DUPLICATE": "Duplicar",
@@ -316,12 +300,10 @@
   "CTX_DELETE": "Eliminar",
   "CTX_DELETE_ENCOUNTER_SET": "Eliminar Conjunto de Encuentro",
   "CTX_NEW_ENCOUNTER_SET": "Nuevo Conjunto de Encuentro",
-
   "// ===== CONTEXT MENU - CONFIRMATIONS =====": "",
   "DLG_DELETE_CARD": "Eliminar Carta",
   "CONFIRM_DELETE_CARD": "¿Estás seguro de que quieres eliminar '{card_name}'?\n\nEsto no se puede deshacer.",
   "CONFIRM_DELETE_ENCOUNTER_SET": "¿Estás seguro de que quieres eliminar el conjunto de encuentro '{name}'?\n\nEsto también eliminará las {count} cartas de este conjunto.\nEsta acción no se puede deshacer.",
-
   "// ===== ENCOUNTER SET EDITOR =====": "",
   "TITLE_ENCOUNTER_SET": "Conjunto de Encuentro: {name}",
   "TAB_INFO": "Info",
@@ -340,7 +322,6 @@
   "DLG_NOT_IMPLEMENTED": "No Implementado",
   "MSG_ENCOUNTER_DELETE_NOT_IMPLEMENTED": "La eliminación del conjunto de encuentro aún no está implementada",
   "LABEL_CARDS_IN_SET": "Cartas en el conjunto:",
-
   "// ===== PROJECT EDITOR =====": "",
   "SECTION_PROJECT_INFO": "Información del Proyecto",
   "HELP_SHORT_CODE": "Código corto para nombrar archivos",
@@ -368,7 +349,6 @@
   "PROMPT_ENCOUNTER_SET_NAME": "Introduce el nombre del conjunto de encuentro:",
   "BTN_DELETE_ENCOUNTER_SET": "Eliminar Conjunto de Encuentro",
   "BTN_NEW_CARD": "Nueva Carta",
-
   "// ===== GUIDE EDITOR =====": "",
   "GUIDE_TITLE": "Guía: {name}",
   "LABEL_FRONT_PAGE_IMAGE": "Imagen de Portada:",
@@ -385,7 +365,6 @@
   "LABEL_OF_PAGES": "de {total}",
   "TAB_PREVIEW": "Vista Previa",
   "TITLE_GUIDE": "Guía",
-
   "// ===== LOCATION VIEW =====": "",
   "DLG_CANNOT_CONNECT": "No se Puede Conectar",
   "MSG_NO_CONNECTION_ICON": "El lugar \"{location_name}\" no tiene icono de conexión.",
@@ -394,19 +373,21 @@
   "BTN_STOP": "Detener",
   "TOOLTIP_TOGGLE_SIMULATION": "Alternar simulación de diseño dirigido por fuerza (30 pasos/segundo)",
   "BTN_SCREENSHOT": "Captura",
-  "TOOLTIP_SCREENSHOT": "Copiar la imagen de la carta actual al portapapeles",
+  "TOOLTIP_SCREENSHOT": "Captura de pantalla de la vista",
   "TOOLTIP_COPY_LAYOUT": "Copiar imagen del diseño al portapapeles (fondo transparente)",
   "BTN_REFRESH": "Actualizar",
   "MSG_LAYOUT_COPIED": "Diseño copiado al portapapeles",
   "HELP_LOCATION_VIEW": "Arrastra para mover. Clic derecho para conectar. Usa la rueda para zoom.",
   "TITLE_LOCATIONS": "Ubicaciones: {name}",
   "TOOLTIP_ICON_MODE": "Mostrar iconos de conexión",
-  "TOOLTIP_SCREENSHOT": "Captura de pantalla de la vista",
   "TOOLTIP_SIMULATE": "Simular navegación",
-
+  "BTN_EXPORT_TO_GUIDE": "Exportar a Guía",
+  "TOOLTIP_EXPORT_TO_GUIDE": "Guardar imagen del mapa de ubicaciones y actualizar secciones de guía vinculadas",
+  "DLG_EXPORT_TO_GUIDE": "Exportar a Guía",
+  "MSG_EXPORTED_TO_GUIDE": "Mapa exportado a {count} sección(es)",
+  "MSG_NO_LINKED_SECTIONS": "No se encontraron secciones vinculadas. Abre una sección de escenario en el editor de guía y vincula el conjunto de encuentros primero.",
   "// ===== PREVIEW WIDGET =====": "",
   "SYMBOL_PLUS": "+",
-
   "// ===== SETTINGS DIALOG =====": "",
   "DLG_SETTINGS": "Ajustes",
   "TAB_EXTERNAL_APPS": "Aplicaciones Externas",
@@ -469,7 +450,6 @@
   "MSG_TYPE_TO_SEARCH": "Escribe para buscar...",
   "MSG_SHOWING_CARDS": "Mostrando {shown} de {total} cartas",
   "MSG_TOTAL_CARDS": "{total} cartas",
-
   "// ===== UPDATER =====": "",
   "DLG_UPDATE_AVAILABLE": "Actualización Disponible",
   "MSG_NEW_VERSION_AVAILABLE": "¡Una nueva versión de Shoggoth está disponible!",
@@ -527,7 +507,6 @@
   "MSG_DOWNLOADING_PROGRESS": "Descargando... {downloaded} / {total} MB",
   "MSG_DOWNLOADED_TO": "Descargado en: {path}",
   "MSG_CLICK_RUN_INSTALLER": "Haz clic en 'Ejecutar instalador' para instalar la actualización.",
-
   "// ===== ABOUT DIALOG =====": "",
   "DLG_ABOUT": "Acerca de Shoggoth",
   "ABOUT_VERSION": "Versión {version}",
@@ -539,7 +518,6 @@
   "ABOUT_IMAGES_CREDIT": "Varias imágenes y plantillas de la comunidad <b>Mythos Busters</b> - especialmente <b>Coldtoes</b> y <b>Hauke</b>.",
   "ABOUT_THANKS_SE": "Gracias a <b>CGJennings</b> por crear Strange Eons, y a <b>pilunte23/JaqenZann</b> por el plugin original de AHLCG, sin el cual estaríamos mucho más aburridos.",
   "ABOUT_SPECIAL_THANKS": "Agradecimientos especiales a <b>Coldtoes</b>, <b>felice</b>, <b>Chr1Z</b>, <b>MickeyTheQ</b> y <b>Morvael</b> por ayudar a que este proyecto se haga realidad.",
-
   "// ===== TEXT OPTIONS DIALOG =====": "",
   "DLG_TEXT_OPTIONS": "Opciones de Texto",
   "MSG_RICH_TEXT_OPTIONS": "Opciones de formato de texto enriquecido:",
@@ -548,7 +526,6 @@
   "HELP_REPLACEMENT_TAGS": "Etiquetas de reemplazo - para escritura abreviada:",
   "HELP_ICON_TAGS": "Etiquetas de iconos:",
   "HELP_AVAILABLE_FONTS": "Fuentes disponibles:",
-
   "// ===== STATUS BAR MESSAGES =====": "",
   "STATUS_PROJECT_LOADED": "Proyecto cargado correctamente",
   "STATUS_LOAD_FAILED": "Error al cargar proyecto",
@@ -586,7 +563,6 @@
   "STATUS_TTS_CAMPAIGN_EXPORTED": "Campaña exportada a TTS",
   "STATUS_TTS_CARD_EXPORTED": "Carta exportada a TTS",
   "STATUS_TTS_PLAYER_EXPORTED": "Cartas de jugador exportadas a TTS",
-
   "// ===== TTS EXPORT DIALOG =====": "",
   "TTS_DLG_TITLE": "Exportar a Tabletop Simulator",
   "TTS_SCOPE_LABEL": "Alcance del exportación",
@@ -606,7 +582,6 @@
   "TTS_RESULT_TTS_DIR": "Exportación completa. Guardado directamente en la carpeta de TTS:\n{path}",
   "TTS_RESULT_PROJECT_DIR": "Exportación completa. Guardado en la carpeta del proyecto:\n{path}",
   "MENU_EXPORT_TTS": "Exportar a &TTS…",
-
   "// ===== PDF EXPORT DIALOG =====": "",
   "PDF_DLG_TITLE_CARD": "Exportar carta a PDF",
   "PDF_DLG_TITLE_CARD_MBPRINT": "Exportar carta a MBPrint PDF",
@@ -627,7 +602,6 @@
   "PDF_DLG_SELECT_OUTPUT": "Guardar PDF como",
   "PDF_EXPORTING_IMAGES": "Exportando imágenes de cartas…",
   "PDF_ERR_NO_OUTPUT_PATH": "Por favor especifique una ruta de salida para el PDF.",
-
   "// ===== ERROR MESSAGES =====": "",
   "ERR_NO_PROJECT_OPEN": "No hay proyecto abierto",
   "ERR_NO_PROJECT_LOADED": "No hay proyecto cargado",
@@ -643,7 +617,6 @@
   "DLG_EXPORT_ERROR": "Error de Exportación",
   "ERR_RENDER_CARD": "Error al renderizar carta",
   "ERR_UPDATE_OCCURRED": "Ocurrió un error durante la actualización",
-
   "// ===== EXPORT MESSAGES =====": "",
   "MSG_EXPORTED_CARDS": "Exportadas {count} cartas a: {folder}",
   "MSG_CARD_EXPORTED_TO": "Carta exportada a: {folder}",
@@ -653,7 +626,6 @@
   "ACTION_GATHERED": "recopiladas",
   "ACTION_GATHERED_UPDATED": "recopiladas y actualizadas",
   "MSG_PDF_EXPORTED": "PDF exportado a: {path}",
-
   "// ===== CARD TYPES =====": "",
   "TYPE_ASSET": "apoyo",
   "TYPE_EVENT": "evento",
@@ -675,7 +647,6 @@
   "TYPE_CUSTOMIZABLE": "personalizable",
   "TYPE_CUSTOMIZABLE_BACK": "reverso_personalizable",
   "TYPE_PLAYER_CARD": "Carta de Jugador",
-
   "// ===== MISC =====": "",
   "MSG_TODO": "PENDIENTE",
   "MSG_PDF_NOT_IMPLEMENTED": "Exportación a PDF aún no implementada",
@@ -683,10 +654,19 @@
   "MSG_PDF_EXPORT_FAILED": "Error al exportar PDF: {error}",
   "MSG_LANGUAGE_CHANGED": "Idioma cambiado",
   "MSG_RESTART_FOR_LANGUAGE": "Por favor reinicia la aplicación para que el cambio de idioma tenga efecto completo.",
-
   "// ===== DYNAMIC KEYS =====": "",
   "CTX_NEW_CARD_TYPE": "Nuevo {card_type}",
   "CTX_NEW_CATEGORY_CARD": "Nueva Carta de {category_name}",
   "PROMPT_ENTER_CARD_NAME": "Introduce el nombre de la carta",
-  "CTX_PLAYER_CARD": "Carta de Jugador"
+  "CTX_PLAYER_CARD": "Carta de Jugador",
+  "// ===== FIRST RUN DOWNLOAD =====": "",
+  "DLG_FIRST_RUN_DOWNLOAD": "Descargando recursos requeridos",
+  "MSG_FIRST_RUN_TITLE": "Descargando recursos requeridos",
+  "MSG_FIRST_RUN_INFO": "Al iniciar Shoggoth por primera vez, necesitamos descargar un paquete de recursos requerido. Estos archivos suman alrededor de 750 MB.",
+  "MSG_FIRST_RUN_CONNECTING": "Conectando...",
+  "MSG_FIRST_RUN_PROGRESS": "Descargando... {downloaded} / {total} MB",
+  "MSG_FIRST_RUN_DOWNLOADING": "Descargando... {downloaded} MB",
+  "MSG_FIRST_RUN_COMPLETE": "¡Descarga completa! Haz clic en el botón de abajo para reiniciar Shoggoth y completar la configuración.",
+  "MSG_FIRST_RUN_ERROR": "Error en la descarga: {error}",
+  "BTN_RESTART_SHOGGOTH": "Reiniciar Shoggoth"
 }

@@ -14,7 +14,7 @@ import platform
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, Signal, QProcess
+from PySide6.QtCore import QObject, Signal, QProcess, Qt
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QPushButton, QTextBrowser, QProgressBar,
@@ -25,9 +25,142 @@ from shoggoth.updater import (
     InstallationType, VersionInfo,
     get_current_version, detect_installation_type, compare_versions,
     GITHUB_API_URL, PYPI_API_URL,
+    download_full_assets, _get_remote_asset_sha, _save_local_asset_state, ASSET_BRANCH,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class FirstRunDownloadDialog(QDialog):
+    """Shown on first launch when no asset pack is present.
+
+    Explains what is being downloaded, shows live progress, and offers a
+    Restart button once the download completes so the app can reload all
+    assets (translations, drop-down lists, etc.).
+    """
+
+    _progress_signal = Signal(int, int)   # downloaded_bytes, total_bytes
+    _complete_signal = Signal()
+    _error_signal = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(tr("DLG_FIRST_RUN_DOWNLOAD"))
+        self.setMinimumWidth(520)
+        self.setModal(True)
+        # Prevent accidental close via the window X button while downloading
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowCloseButtonHint)
+
+        self._remote_sha = None
+        self._setup_ui()
+        self._progress_signal.connect(self._on_progress)
+        self._complete_signal.connect(self._on_complete)
+        self._error_signal.connect(self._on_error)
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        title = QLabel(tr("MSG_FIRST_RUN_TITLE"))
+        title.setStyleSheet("font-size: 13pt; font-weight: bold;")
+        title.setWordWrap(True)
+        layout.addWidget(title)
+
+        info = QLabel(tr("MSG_FIRST_RUN_INFO"))
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 0)   # indeterminate until we know total size
+        layout.addWidget(self.progress_bar)
+
+        self.status_label = QLabel(tr("MSG_FIRST_RUN_CONNECTING"))
+        self.status_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.status_label)
+
+        layout.addStretch()
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+
+        self.restart_btn = QPushButton(tr("BTN_RESTART_SHOGGOTH"))
+        self.restart_btn.setVisible(False)
+        self.restart_btn.clicked.connect(self._restart)
+        btn_row.addWidget(self.restart_btn)
+
+        layout.addLayout(btn_row)
+
+    # ------------------------------------------------------------------
+    # Public API
+
+    def start_download(self):
+        """Kick off the background download thread."""
+        thread = threading.Thread(target=self._download, daemon=True)
+        thread.start()
+
+    # ------------------------------------------------------------------
+    # Background thread
+
+    def _download(self):
+        try:
+            # Fetch the remote SHA first so we can persist state after download
+            self._remote_sha = _get_remote_asset_sha(ASSET_BRANCH)
+
+            download_full_assets(
+                branch=ASSET_BRANCH,
+                progress_callback=lambda dl, total: self._progress_signal.emit(dl, total),
+            )
+
+            if self._remote_sha:
+                _save_local_asset_state(ASSET_BRANCH, self._remote_sha)
+
+            self._complete_signal.emit()
+        except Exception as exc:
+            logger.exception("First-run asset download failed")
+            self._error_signal.emit(str(exc))
+
+    # ------------------------------------------------------------------
+    # Slot handlers (main thread)
+
+    def _on_progress(self, downloaded: int, total: int):
+        if total > 0:
+            self.progress_bar.setRange(0, 100)
+            percent = min(100, int(downloaded * 100 / total))
+            self.progress_bar.setValue(percent)
+            mb_dl = downloaded / (1024 * 1024)
+            mb_tot = total / (1024 * 1024)
+            self.status_label.setText(
+                tr("MSG_FIRST_RUN_PROGRESS").format(downloaded=f"{mb_dl:.0f}", total=f"{mb_tot:.0f}")
+            )
+        else:
+            mb_dl = downloaded / (1024 * 1024)
+            self.status_label.setText(
+                tr("MSG_FIRST_RUN_DOWNLOADING").format(downloaded=f"{mb_dl:.0f}")
+            )
+
+    def _on_complete(self):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(100)
+        self.status_label.setText(tr("MSG_FIRST_RUN_COMPLETE"))
+        self.restart_btn.setVisible(True)
+        # Re-enable the close button now that we're done
+        self.setWindowFlags(self.windowFlags() | Qt.WindowCloseButtonHint)
+        self.show()
+
+    def _on_error(self, error: str):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.status_label.setText(tr("MSG_FIRST_RUN_ERROR").format(error=error))
+        self.setWindowFlags(self.windowFlags() | Qt.WindowCloseButtonHint)
+        self.show()
+
+    def _restart(self):
+        """Restart the application so all assets are loaded fresh."""
+        try:
+            subprocess.Popen([sys.executable] + sys.argv)
+        except Exception as exc:
+            logger.warning(f"Restart failed: {exc}")
+        QApplication.quit()
 
 
 class UpdateChecker(QObject):

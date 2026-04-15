@@ -15,8 +15,8 @@ class Writer:
             orig_data[key] = project.data[key]
 
         with open(project.file_path, 'w') as f:
+            self.dirty = False
             json.dump(project.data, f, indent=4)
-        self.dirty = False
 
     def save_card(self, card):
         print('saving card of project', card.id)
@@ -30,14 +30,14 @@ class Writer:
         if index:
             orig_data['cards'][index] = card.data
         with open(self.project.file_path, 'w') as f:
+            self.project.set_dirty(card.id, False)
             json.dump(orig_data, f, indent=4)
-        self.project.set_dirty(card.id, False)
 
     def save_all(self):
         """Save data to file"""
         with open(self.project.file_path, 'w') as f:
+            self.project.clear_dirty()
             json.dump(self.project.data, f, indent=4)
-        self.project.clear_dirty()
 
     def save_face(self):
         pass
@@ -58,8 +58,8 @@ class TranslationWriter(Writer):
         orig_data['guides'] = project.data['guides']
 
         with open(self.translation.file_path, 'w') as f:
+            project.dirty = False
             json.dump(orig_data, f, indent=4)
-        project.dirty = False
 
     def save_encounter_set(self, encounter_set):
         """Save data to file"""
@@ -72,6 +72,7 @@ class TranslationWriter(Writer):
         orig_data['encounter_sets'][encounter_set.id]['name'] = encounter_set.name
 
         with open(self.translation.file_path, 'w') as f:
+            encounter_set.dirty = False
             json.dump(orig_data, f, indent=4)
 
     def save_card(self, card):
@@ -90,6 +91,7 @@ class TranslationWriter(Writer):
                     orig_data['cards'][card.id][side][field] = card.data[side][field]
 
         with open(self.translation.file_path, 'w') as f:
+            card.dirty = False
             json.dump(orig_data, f, indent=4)
 
     def save_all(self):
