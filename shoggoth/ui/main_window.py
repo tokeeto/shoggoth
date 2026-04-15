@@ -2091,7 +2091,7 @@ class ShoggothMainWindow(QMainWindow):
         def render_task():
             try:
                 front_image, back_image = renderer.get_card_textures(
-                    card, {'width': 750, 'height': 1050, 'bleed': 36}, bleed=bleed
+                    card, {'width': 1500, 'height': 2100, 'bleed': 72}, bleed=bleed
                 )
                 # Emit result signal (will be handled on main thread)
                 self.render_result_signal.emit(version, front_image, back_image)

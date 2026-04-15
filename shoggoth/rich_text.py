@@ -20,13 +20,11 @@ def _parse_tag_attributes(tag_string):
     return dict(re.findall(_tag_kv, tag_string))
 
 
-# ── Trie for O(1)-per-char tag matching ──────────────────────────────────────
-
 class _TrieNode:
     __slots__ = ('children', 'value', 'tag_len')
     def __init__(self):
         self.children = {}
-        self.value = None   # payload when a complete tag ends here
+        self.value = None
         self.tag_len = 0
 
 
@@ -63,9 +61,6 @@ def _trie_match(root, text, pos):
             best_len = i - pos
     return best_val, best_len
 
-
-# ── Icon helpers ─────────────────────────────────────────────────────────────
-
 def recolor_icon(icon, color):
     data = np.array(icon)
     red, green, blue, alpha = data.T
@@ -81,8 +76,6 @@ def invert_icon(icon):
     icon.putalpha(alpha)
     return icon
 
-
-# ── Character-width cache ────────────────────────────────────────────────────
 
 class _WidthCache:
     """Cache per-character widths for a (font_object) and compute string widths
@@ -126,8 +119,6 @@ class _WidthCache:
     def clear(self):
         self._cache.clear()
 
-
-# ── Main class ───────────────────────────────────────────────────────────────
 
 class RichTextRenderer:
     def __init__(self, card_renderer):
@@ -219,22 +210,19 @@ class RichTextRenderer:
         }
 
         self.fonts = {
-            'regular':   {'path': font_dir / "Arno Pro" / "arnopro_regular.otf",    'scale': 1, 'fallback': None},
-            'caption':   {'path': font_dir / "Arno Pro" / "arnopro_caption.otf",    'scale': 1, 'fallback': None},
-            'bold':      {'path': font_dir / "Arno Pro" / "arnopro_bold.otf",       'scale': 1, 'fallback': None},
-            'semibold':  {'path': font_dir / "Arno Pro" / "arnopro_semibold.ttf",   'scale': 1, 'fallback': None},
-            'italic':    {'path': font_dir / "Arno Pro" / "arnopro_italic.otf",     'scale': 1, 'fallback': None},
-            'bolditalic':{'path': font_dir / "Arno Pro" / "arnopro_bolditalic.otf", 'scale': 1, 'fallback': None},
-            'icon':      {'path': font_dir / "AHLCGSymbol.otf",                     'scale': 1, 'fallback': None},
-            'cost':      {'path': font_dir / "Arkhamic.ttf",                        'scale': 1, 'fallback': None},
-            'title':     {'path': font_dir / "Arkhamic.ttf",                        'scale': 1, 'fallback': None},
-            'skill':     {'path': font_dir / "Bolton.ttf",                          'scale': 1, 'fallback': None},
+            'regular':   {'path': font_dir / "Arno Pro" / "arnopro_regular.otf"},
+            'caption':   {'path': font_dir / "Arno Pro" / "arnopro_caption.otf"},
+            'bold':      {'path': font_dir / "Arno Pro" / "arnopro_bold.otf"},
+            'semibold':  {'path': font_dir / "Arno Pro" / "arnopro_semibold.ttf"},
+            'italic':    {'path': font_dir / "Arno Pro" / "arnopro_italic.otf"},
+            'bolditalic':{'path': font_dir / "Arno Pro" / "arnopro_bolditalic.otf"},
+            'icon':      {'path': font_dir / "AHLCGSymbol.otf"},
+            'cost':      {'path': font_dir / "Arkhamic.ttf"},
+            'title':     {'path': font_dir / "Arkhamic.ttf"},
+            'skill':     {'path': font_dir / "Bolton.ttf"},
         }
 
-        # ── Build tries on init (one-time cost) ─────────────────────────────
         self._rebuild_tries()
-
-    # ── Trie construction ────────────────────────────────────────────────────
 
     def _rebuild_tries(self):
         """(Re)build the two tries from current tag dictionaries."""
@@ -261,8 +249,6 @@ class RichTextRenderer:
 
         # Also pre-sort replacement tags longest-first for safe str.replace order
         self._replacement_order = sorted(self.replacement_tags.items(), key=lambda kv: -len(kv[0]))
-
-    # ── Public helpers (unchanged API) ───────────────────────────────────────
 
     def get_help_text(self):
         text = tr("HELP_SPECIAL_TAGS_INTRO") + "\n\n"
@@ -368,35 +354,24 @@ class RichTextRenderer:
             return self.card_renderer.get_resized_cached(icon_path, (height, height))
         if (icon_path, height) in self.icon_cache:
             return self.icon_cache[(icon_path, height)]
-        if os.path.exists(icon_path):
-            full_path = icon_path
-        else:
-            full_path = icon_dir / f"{icon_path}.png"
-            if not os.path.exists(full_path):
-                return None
-        try:
-            icon = Image.open(full_path).convert("RGBA")
-            aspect_ratio = icon.width / icon.height
-            new_width = int(height * aspect_ratio)
-            icon = icon.resize((new_width, height), Image.LANCZOS)
-            self.icon_cache[(icon_path, height)] = icon
-            return icon
-        except Exception:
-            return None
+
+        icon = self.card_renderer.get_cached(icon_path).convert("RGBA")
+        aspect_ratio = icon.width / icon.height
+        new_width = int(height * aspect_ratio)
+        icon = icon.resize((new_width, height))
+        self.icon_cache[(icon_path, height)] = icon
+        return icon
 
     def _get_inverted_icon(self, icon_path, font_size):
         """Load + invert an icon, caching the inverted result."""
         key = (icon_path, font_size)
-        cached = self.inverted_icon_cache.get(key)
-        if cached is not None:
-            return cached
+        if key in self.inverted_icon_cache:
+            return self.inverted_icon_cache[key]
         icon_img = self.load_icon(icon_path, font_size)
         if icon_img:
             icon_img = invert_icon(icon_img)
         self.inverted_icon_cache[key] = icon_img
         return icon_img
-
-    # ── Bullet shorthand ─────────────────────────────────────────────────────
 
     def _expand_bullet_shorthand(self, text):
         lines = text.split('\n')
@@ -417,8 +392,6 @@ class RichTextRenderer:
             result.append('</indent>')
         return '\n'.join(result)
 
-    # ── Parser (trie-based, single pass) ─────────────────────────────────────
-
     def parse_text(self, text):
         tokens = []
         text = self._expand_bullet_shorthand(text)
@@ -437,19 +410,19 @@ class RichTextRenderer:
         while pos < length:
             ch = text[pos]
 
-            # ── Newline ──────────────────────────────────────────────────────
+            # Newline
             if ch == '\n':
                 tok_append({'type': 'newline'})
                 pos += 1
                 continue
 
-            # ── Space ────────────────────────────────────────────────────────
+            # Space
             if ch == ' ':
                 tok_append({'type': 'text', 'value': ' '})
                 pos += 1
                 continue
 
-            # ── Potential tag start ──────────────────────────────────────────
+            # Potential tag start
             if ch in ('<', '[', ']'):
                 # 1) Formatting trie
                 payload, tlen = _trie_match(fmt_trie, text, pos)
@@ -517,7 +490,7 @@ class RichTextRenderer:
                         pos += len(m[0])
                         continue
 
-            # ── Plain text run ───────────────────────────────────────────────
+            # Plain text run
             # Scan forward until the next potential delimiter
             start = pos
             pos += 1
@@ -529,8 +502,6 @@ class RichTextRenderer:
             tok_append({'type': 'text', 'value': text[start:pos]})
 
         return tokens
-
-    # ── Layout engine ────────────────────────────────────────────────────────
 
     def _layout(self, tokens, region, polygon, font_size, base_font='regular',
                 alignment='left', fill='#231f20', outline=0, outline_fill=None,
@@ -547,7 +518,7 @@ class RichTextRenderer:
         commands = []
         cmd_append = commands.append
 
-        # ── Formatting state ─────────────────────────────────────────────────
+        # Formatting state
         current_font = base_font
         font_stack = []
         current_strikethrough = False
@@ -555,18 +526,18 @@ class RichTextRenderer:
         current_alignment = alignment
         alignment_stack = []
 
-        # ── Indent / block state ─────────────────────────────────────────────
+        # Indent / block state
         block_indent = 0
         prev_block_indent = 0
         indent_stack = []
         current_indent = 0
         indent_current = False
 
-        # ── Blockquote state ─────────────────────────────────────────────────
+        # Blockquote state
         quote = False
         quote_last = False
 
-        # ── Line buffer ──────────────────────────────────────────────────────
+        # Line buffer
         pending = []
         pending_append = pending.append
         current_line_width = 0.0
@@ -574,11 +545,10 @@ class RichTextRenderer:
 
         overflow_check_pending = False
 
-        # ── Width helper ─────────────────────────────────────────────────────
+        # Width helper
         wcache = self._wcache
 
-        # ── Polygon helpers ──────────────────────────────────────────────────
-
+        # Polygon helpers
         def poly_bounds(yy):
             if not polygon:
                 return x_orig, x_orig + region.width
@@ -682,6 +652,7 @@ class RichTextRenderer:
                         'fill': fill, 'width': max(1, font_size // 16),
                     })
                 merge_text = []
+                merge_font = None  # force next run to start fresh at current x_pos
 
             for item in items:
                 c = item['cmd']
@@ -713,8 +684,7 @@ class RichTextRenderer:
 
             quote_last = False
 
-        # ── Main token loop ──────────────────────────────────────────────────
-
+        # Main token loop
         num_tokens = len(tokens)
         for i, token in enumerate(tokens):
             t = token['type']
@@ -835,7 +805,7 @@ class RichTextRenderer:
                 has_renderable = True
                 current_line_width += w
 
-        # ── Final line ───────────────────────────────────────────────────────
+        # Final line
         if pending:
             flush()
             if y + line_height > region.y + max_height:

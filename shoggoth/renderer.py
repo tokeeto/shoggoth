@@ -220,14 +220,6 @@ class CardRenderer:
         print(f'get_card_textures in {time.time()-t}')
         return front, back
 
-    def get_card_images(self, card, size):
-        """Get raw PIL images for the card"""
-        # Render front and back
-        front_image = self.render_card_side(card, card.front, **size)
-        back_image = self.render_card_side(card, card.back, **size)
-
-        return front_image, back_image
-
     def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
         lossless = quality == 100
         outputs = []
@@ -305,7 +297,11 @@ class CardRenderer:
         else:
             value = value.replace('<exi>', '')
         value = value.replace('<exn>', str(side.card.project_number))
-        value = value.replace('<esn>', str(side.card.encounter_number))
+        if side.card.encounter_number:
+            value = value.replace('<esn>', str(side.card.encounter_number))
+        else:
+            value = value.replace('<esn>', '')
+
         if side.card.encounter and '<est>' in value:
             value = value.replace('<est>', str(side.card.encounter.total_cards))
         else:
@@ -597,11 +593,8 @@ class CardRenderer:
         if not value:
             return
 
-        box_path = side.get('icons_box', None)
-        if not box_path:
-            box_path = self.overlays_path / f"skill_box_{side.get_class()}.png"
-        else:
-            box_path = self.overlays_path / box_path
+        box_path = side.get('icons_box', 'skill_box_<class>.png').replace('<class>', side.get_class())
+        box_path = self.overlays_path / box_path
 
         icon_region = Region(side.get('icons_region', {"x": 112, "y": 424, "width": 0, "height": 164}))
         box_region = Region(side.get('icons_box_region', {"x": -112, "y": -28, "width": 270, "height": 160}))
@@ -655,15 +648,16 @@ class CardRenderer:
 
     def render_encounter_icon(self, card_image, side):
         """Render the encounter icon """
-        if not side.card.encounter and not side.get('encounter_icon', None):
-            return
-
-        if not side.card.encounter.icon:
-            return
-
         region = Region(side.get('encounter_icon_region'))
         if not region:
             return
+
+        icon_path = side.get('encounter_icon')
+        if not icon_path:
+            if not side.card.encounter or not side.card.encounter.icon:
+                return
+            icon_path = side.card.encounter.icon
+
 
         overlay = side.get('encounter_overlay')
         if overlay:
@@ -673,16 +667,17 @@ class CardRenderer:
             overlay_image = self.get_resized_cached(Path(overlay), overlay_region.size)
             card_image.paste(overlay_image, overlay_region.pos, overlay_image)
 
-        icon_path = side.get('encounter_icon', side.card.encounter.icon)
-
         if not Path(icon_path).is_absolute():
             icon_path = Path(side.card.project.file_path).parent / Path(icon_path)
             icon_path = icon_path.absolute()
 
-        icon = self.get_cached(icon_path)
-        scale = min(region.width/icon.width, region.height/icon.height)
-        icon = self.get_resized_cached(icon_path, (int(icon.width*scale), int(icon.height*scale)))
-        card_image.paste(icon, (region.x + (region.width-icon.width)//2, region.y + (region.height-icon.height)//2), icon)
+        try:
+            icon = self.get_cached(icon_path)
+            scale = min(region.width/icon.width, region.height/icon.height)
+            icon = self.get_resized_cached(icon_path, (int(icon.width*scale), int(icon.height*scale)))
+            card_image.paste(icon, (region.x + (region.width-icon.width)//2, region.y + (region.height-icon.height)//2), icon if icon.has_transparency_data else None)
+        except Exception as e:
+            print('icon failure:', e, icon_path, side.card.name)
 
     def render_slots(self, card_image, side):
         """Render the slot icons """
@@ -737,7 +732,7 @@ class CardRenderer:
         if Path(template_value).is_file():
             template_path = Path(template_value)
         else:
-            template_path = self.templates_path / (template_value + '.webp')
+            template_path = self.templates_path / (template_value + '.png')
 
         if not template_path.exists():
             return
@@ -812,6 +807,8 @@ class CardRenderer:
         level = side.get('level', None)
         if level is None or level == '' or level == 'None':
             level = 'no_level'
+        if level == "Custom":
+            level = 'custom'
 
         level_overlay_format = side.get('level_overlay', None)
         if not level_overlay_format:
