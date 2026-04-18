@@ -6,12 +6,12 @@ from PySide6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsPixmapItem,
     QGraphicsPathItem, QGraphicsEllipseItem, QWidget, QVBoxLayout,
     QHBoxLayout, QPushButton, QLabel, QMenu, QMessageBox, QCheckBox,
-    QApplication
+    QApplication, QDialog, QDialogButtonBox, QGridLayout,
 )
-from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QTimer
+from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QSize, QTimer
 from PySide6.QtGui import (
     QPainter, QPen, QBrush, QColor, QPainterPath, QPixmap, QFont,
-    QCursor, QImage
+    QCursor, QIcon, QImage
 )
 from io import BytesIO
 from pathlib import Path
@@ -356,12 +356,59 @@ class ConnectionDragLine(QGraphicsPathItem):
         self.setPath(path)
 
 
+class PickConnectionSymbolDialog(QDialog):
+    """Dialog for picking a connection symbol to assign to a location"""
+
+    def __init__(self, card_name, parent=None):
+        super().__init__(parent)
+        from shoggoth.ui.editor_widgets import IconComboBox
+
+        self.chosen_symbol = None
+        self.setWindowTitle(tr("DLG_SET_CONNECTION_SYMBOL"))
+
+        layout = QVBoxLayout(self)
+
+        msg = QLabel(tr("MSG_PICK_SYMBOL_FOR").format(card_name=card_name))
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+
+        # Grid of icon buttons
+        grid_widget = QWidget()
+        grid = QGridLayout(grid_widget)
+        grid.setSpacing(4)
+
+        symbols = [s for s in IconComboBox.CONNECTION_SYMBOLS if s != 'None']
+        cols = 8
+        for i, symbol in enumerate(symbols):
+            btn = QPushButton()
+            icon_path = overlay_dir / 'svg' / f"connection_{symbol}.svg"
+            if icon_path.exists():
+                btn.setIcon(QIcon(str(icon_path)))
+                btn.setIconSize(QSize(32, 32))
+            else:
+                btn.setText(symbol[:3])
+            btn.setFixedSize(48, 48)
+            btn.setToolTip(symbol)
+            btn.clicked.connect(lambda checked, s=symbol: self._pick(s))
+            grid.addWidget(btn, i // cols, i % cols)
+
+        layout.addWidget(grid_widget)
+
+        btn_box = QDialogButtonBox(QDialogButtonBox.Cancel)
+        btn_box.rejected.connect(self.reject)
+        layout.addWidget(btn_box)
+
+    def _pick(self, symbol):
+        self.chosen_symbol = symbol
+        self.accept()
+
+
 class LocationView(QGraphicsView):
     """Main view for editing location connections"""
 
     # Signals
     card_double_clicked = Signal(object)  # Emits card when double-clicked
-    connections_changed = Signal()  # Emitted when connections are modified
+    connections_changed = Signal(list)  # Emitted when connections are modified; carries list of affected cards
 
     def __init__(self, encounter_set, renderer, parent=None):
         super().__init__(parent)
@@ -502,18 +549,26 @@ class LocationView(QGraphicsView):
 
         self.drag_source_node = None
 
+    def _refresh_node_thumbnail(self, node):
+        """Regenerate the thumbnail for a node and repaint it"""
+        node._generate_thumbnail()
+        node.update()
+
     def _add_connection(self, source_node, target_node):
         """Add a connection from source to target"""
         target_symbol = target_node.face.get('connection')
+        affected_cards = [source_node.card]
+
         if not target_symbol or target_symbol == 'None':
-            # Target has no connection symbol - can't connect to it
-            location_name = target_node.card.name
-            QMessageBox.warning(
-                self,
-                tr("DLG_CANNOT_CONNECT"),
-                tr("MSG_NO_CONNECTION_ICON", location_name=location_name)
-            )
-            return
+            # Target has no connection symbol — ask the user to assign one
+            dlg = PickConnectionSymbolDialog(target_node.card.name, self)
+            if dlg.exec_() != QDialog.Accepted or not dlg.chosen_symbol:
+                return
+            target_symbol = dlg.chosen_symbol
+            target_node.face.set('connection', target_symbol)
+            target_node._load_connection_icon()
+            self._refresh_node_thumbnail(target_node)
+            affected_cards.append(target_node.card)
 
         # Get current connections
         connections = source_node.face.get('connections', []) or []
@@ -523,8 +578,9 @@ class LocationView(QGraphicsView):
         if target_symbol not in connections:
             connections.append(target_symbol)
             source_node.face.set('connections', connections)
+            self._refresh_node_thumbnail(source_node)
             self._build_arrows()
-            self.connections_changed.emit()
+            self.connections_changed.emit(affected_cards)
 
     def remove_connection(self, arrow):
         """Remove a connection arrow"""
@@ -540,8 +596,9 @@ class LocationView(QGraphicsView):
                 source_node.face.set('connections', connections)
             else:
                 source_node.face.set('connections', None)
+            self._refresh_node_thumbnail(source_node)
             self._build_arrows()
-            self.connections_changed.emit()
+            self.connections_changed.emit([source_node.card])
 
     def mouseMoveEvent(self, event):
         """Handle mouse move for connection dragging"""

@@ -117,7 +117,10 @@ class CardRenderer:
         pyvips reads just the image header, so this is cheap even for large JPEGs.
         """
         if path not in self._illus_dims_cache:
-            vips_image = pyvips.Image.new_from_file(str(path))
+            if str(path).endswith('.pdf'):
+                vips_image = pyvips.Image.pdfload(str(path), dpi=600, page=1)
+            else:
+                vips_image = pyvips.Image.new_from_file(str(path))
             self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
         return self._illus_dims_cache[path]
 
@@ -136,7 +139,15 @@ class CardRenderer:
             self._illus_resized_lru.move_to_end(key)
             return self._illus_resized_lru[key]
 
-        if str(path).endswith('.svg'):
+        if str(path).endswith('.pdf'):
+                vips_image = pyvips.Image.pdfload(str(path), dpi=600, page=1)
+                image = Image.frombytes(
+                    'RGBA',
+                    (vips_image.width, vips_image.height),
+                    vips_image.write_to_memory()
+                )
+                self.resized_cache[(path, size)] = image
+        elif str(path).endswith('.svg'):
             vips_image = pyvips.Image.new_from_file(str(path))
             scale = size[0] / vips_image.width
             if scale > (size[1] / vips_image.height):
@@ -158,9 +169,10 @@ class CardRenderer:
 
     def get_cached(self, path) -> Image.Image:
         if path not in self.cache:
-            # pyvips decodes PNG/WebP/JXL faster than PIL (multithreaded libvips vs
-            # single-threaded libpng). SVG and the non-SVG branch both go through vips.
-            vips_image = pyvips.Image.new_from_file(str(path))
+            if str(path).endswith('.pdf'):
+                vips_image = pyvips.Image.pdfload(str(path), dpi=600, page=1)
+            else:
+                vips_image = pyvips.Image.new_from_file(str(path))
             bands = vips_image.bands
             mode = 'RGBA' if bands == 4 else 'RGB'
             self.cache[path] = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
@@ -168,7 +180,15 @@ class CardRenderer:
 
     def get_resized_cached(self, path, size) -> Image.Image:
         if (path, size) not in self.resized_cache:
-            if str(path).endswith('.svg'):
+            if str(path).endswith('.pdf'):
+                vips_image = pyvips.Image.pdfload(str(path), dpi=600, page=1)
+                image = Image.frombytes(
+                    'RGBA',
+                    (vips_image.width, vips_image.height),
+                    vips_image.write_to_memory()
+                )
+                self.resized_cache[(path, size)] = image
+            elif str(path).endswith('.svg'):
                 vips_image = pyvips.Image.new_from_file(str(path))
                 scale = size[0]/vips_image.width
                 if scale > (size[1]/vips_image.height):
@@ -353,8 +373,8 @@ class CardRenderer:
         template_bleed = side.get('template_bleed', False)
         try:
             self.render_illustration(card_image, side)
-        except:
-            print('failed illus')
+        except Exception as e:
+            print('failed illus', e)
         try:
             self.render_template(card_image, side, bleed, template_bleed)
         except Exception as e:
@@ -561,7 +581,10 @@ class CardRenderer:
 
             if value and value != "None":
                 region = Region(side.get('connection_region'))
-                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{value}.svg", region.size)
+                try:
+                    connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{value}.svg", region.size)
+                except:
+                    return
 
                 padding = int(24*Region.SCALE)
                 base_image = self.get_resized_cached(
@@ -582,7 +605,10 @@ class CardRenderer:
                 if not icon or icon == "None":
                     continue
                 region = Region(side.get(f'connection_{index+1}_region'))
-                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{icon}.svg", region.size)
+                try:
+                    connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{icon}.svg", region.size)
+                except:
+                    continue
                 card_image.paste(connection_image, (region.x+int(12*Region.SCALE), region.y+int(12*Region.SCALE)), connection_image)
         except Exception as e:
             print('error in connection', e)

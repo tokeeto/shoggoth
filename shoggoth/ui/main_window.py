@@ -1489,10 +1489,14 @@ class ShoggothMainWindow(QMainWindow):
 
     def open_project_dialog(self):
         """Show dialog to open a project"""
+        if self.active_project:
+            start_dir = str(self.active_project.folder)
+        else:
+            start_dir = str(Path.home())
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             tr("DLG_OPEN_PROJECT"),
-            str(Path.home()),
+            start_dir,
             tr("FILTER_SHOGGOTH_PROJECTS")
         )
         if file_path:
@@ -1980,7 +1984,10 @@ class ShoggothMainWindow(QMainWindow):
         # Create and add location view
         from shoggoth.ui.location_view import LocationViewWidget
         self.location_view = LocationViewWidget(encounter_set, self.card_renderer)
-        self.location_view.card_selected.connect(self.show_card)
+        self.location_view.card_selected.connect(
+            lambda card: (self.show_card(card), self.select_item_in_tree(card.id))
+        )
+        self.location_view.location_view.connections_changed.connect(self._on_location_connections_changed)
         self.content_layout.addWidget(self.location_view)
 
         self.status_bar.showMessage(tr("STATUS_EDITING_LOCATIONS").format(name=encounter_set.name))
@@ -2067,6 +2074,11 @@ class ShoggothMainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Could not open translation:\n{e}")
 
     # ── Preview ───────────────────────────────────────────────────────────────
+
+    def _on_location_connections_changed(self, affected_cards):
+        """Refresh preview if the currently-selected card was affected by a connection change"""
+        if self.current_card and any(c.id == self.current_card.id for c in affected_cards):
+            self.schedule_preview_update()
 
     def schedule_preview_update(self):
         """Schedule a debounced preview update (400ms delay)"""
@@ -2581,12 +2593,31 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_text_options(self):
         """Show text formatting options"""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QPlainTextEdit, QDialogButtonBox
+        from PySide6.QtGui import QFontDatabase
+
         help_text = self.card_renderer.rich_text.get_help_text()
-        msg = QMessageBox(self)
-        msg.setWindowTitle(tr("DLG_TEXT_OPTIONS"))
-        msg.setText(tr("MSG_RICH_TEXT_OPTIONS"))
-        msg.setDetailedText(help_text)
-        msg.exec()
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(tr("DLG_TEXT_OPTIONS"))
+        dialog.resize(560, 650)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        text_edit = QPlainTextEdit()
+        text_edit.setReadOnly(True)
+        text_edit.setPlainText(help_text)
+        mono = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        mono.setPointSize(10)
+        text_edit.setFont(mono)
+        layout.addWidget(text_edit)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(dialog.accept)
+        layout.addWidget(buttons)
+
+        dialog.exec()
 
     # ==================== UTILITY METHODS ====================
 

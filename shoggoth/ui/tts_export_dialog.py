@@ -235,7 +235,7 @@ class TTSExportDialog(QDialog):
                     'bleed': False,
                     'format': TTS_IMAGE_FORMAT,
                     'quality': TTS_IMAGE_QUALITY,
-                    'include_backs': True,
+                    'include_backs': False,
                 }
             )
             threads.append(t)

@@ -370,6 +370,8 @@
   "// ===== LOCATION VIEW =====": "",
   "DLG_CANNOT_CONNECT": "无法连接",
   "MSG_NO_CONNECTION_ICON": "地点\"{location_name}\"没有连接图标。",
+  "DLG_SET_CONNECTION_SYMBOL": "设置连接符号",
+  "MSG_PICK_SYMBOL_FOR": "地点\"{card_name}\"没有连接符号。请选择一个以完成连接：",
   "TOOLTIP_SHOW_SYMBOLS": "将地点显示为连接符号而非卡牌图片",
   "BTN_SIMULATE": "模拟",
   "BTN_STOP": "停止",
@@ -671,7 +673,7 @@
   "MSG_FIRST_RUN_CONNECTING": "正在连接...",
   "MSG_FIRST_RUN_PROGRESS": "正在下载... {downloaded} / {total} MB",
   "MSG_FIRST_RUN_DOWNLOADING": "正在下载... {downloaded} MB",
-  "MSG_FIRST_RUN_COMPLETE": "下载完成！请点击下方按钮重启 Shoggoth 以完成设置。",
+  "MSG_FIRST_RUN_COMPLETE": "下载完成！请点击下方按钮打开 Shoggoth。",
   "MSG_FIRST_RUN_ERROR": "下载失败：{error}",
-  "BTN_RESTART_SHOGGOTH": "重启 Shoggoth"
+  "BTN_CONTINUE_SHOGGOTH": "打开 Shoggoth"
 }

@@ -83,10 +83,10 @@ class FirstRunDownloadDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
 
-        self.restart_btn = QPushButton(tr("BTN_RESTART_SHOGGOTH"))
-        self.restart_btn.setVisible(False)
-        self.restart_btn.clicked.connect(self._restart)
-        btn_row.addWidget(self.restart_btn)
+        self.continue_btn = QPushButton(tr("BTN_CONTINUE_SHOGGOTH"))
+        self.continue_btn.setVisible(False)
+        self.continue_btn.clicked.connect(self.accept)
+        btn_row.addWidget(self.continue_btn)
 
         layout.addLayout(btn_row)
 
@@ -142,7 +142,7 @@ class FirstRunDownloadDialog(QDialog):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(100)
         self.status_label.setText(tr("MSG_FIRST_RUN_COMPLETE"))
-        self.restart_btn.setVisible(True)
+        self.continue_btn.setVisible(True)
         # Re-enable the close button now that we're done
         self.setWindowFlags(self.windowFlags() | Qt.WindowCloseButtonHint)
         self.show()
@@ -153,14 +153,6 @@ class FirstRunDownloadDialog(QDialog):
         self.status_label.setText(tr("MSG_FIRST_RUN_ERROR").format(error=error))
         self.setWindowFlags(self.windowFlags() | Qt.WindowCloseButtonHint)
         self.show()
-
-    def _restart(self):
-        """Restart the application so all assets are loaded fresh."""
-        try:
-            subprocess.Popen([sys.executable] + sys.argv)
-        except Exception as exc:
-            logger.warning(f"Restart failed: {exc}")
-        QApplication.quit()
 
 
 class UpdateChecker(QObject):

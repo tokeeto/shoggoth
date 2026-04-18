@@ -219,7 +219,7 @@ class FaceEditor(QWidget):
         """Add illustration widget"""
         # Determine which side this face is on
         face_side = 'front' if self.face == self.face.card.front else 'back'
-        illustration = IllustrationWidget(face_side=face_side)
+        illustration = IllustrationWidget(face_side=face_side, project=self.face.card.project)
         self.illustration_widget = illustration
 
         # Add fields

@@ -365,9 +365,9 @@ class Project:
         if order:
             encounter_set.data['order'] = order
         for card in cards:
-            encounter_set.add_card(card)
+            card['encounter_set'] = encounter_set.id
+            self.add_card(card)
         shoggoth.app.refresh_tree()
-        shoggoth.app.goto_card(cards[0]['id'])
 
     def create_campaign(self):
         """ Creates 8 placeholder scenarios. """

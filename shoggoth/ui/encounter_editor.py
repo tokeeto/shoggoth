@@ -332,10 +332,20 @@ class EncounterSetEditor(QWidget):
         self.icon_preview.setText("")
 
     def browse_icon(self):
+        current = self.icon_input.input.text().strip()
+        project_folder = self.encounter_set.project.folder
+        if current:
+            p = Path(current)
+            if not p.is_absolute():
+                p = project_folder / p
+            start_dir = str(p.parent) if p.parent.exists() else str(project_folder)
+        else:
+            start_dir = str(project_folder)
+
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             tr("DLG_SELECT_ICON"),
-            str(Path.home()),
+            start_dir,
             tr("FILTER_IMAGES")
         )
         if file_path:

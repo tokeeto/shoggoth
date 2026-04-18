@@ -368,6 +368,8 @@
   "// ===== LOCATION VIEW =====": "",
   "DLG_CANNOT_CONNECT": "Kann nicht verbinden",
   "MSG_NO_CONNECTION_ICON": "Ort \"{location_name}\" hat kein Verbindungssymbol.",
+  "DLG_SET_CONNECTION_SYMBOL": "Verbindungssymbol festlegen",
+  "MSG_PICK_SYMBOL_FOR": "Ort \"{card_name}\" hat kein Verbindungssymbol. Wähle eines aus, um es zuzuweisen und die Verbindung herzustellen:",
   "TOOLTIP_SHOW_SYMBOLS": "Zeige Orte als Verbindungssymbole statt Karten",
   "BTN_SIMULATE": "Simuliere",
   "BTN_STOP": "Stop",
@@ -664,7 +666,7 @@
   "MSG_FIRST_RUN_CONNECTING": "Verbinde...",
   "MSG_FIRST_RUN_PROGRESS": "Lädt herunter... {downloaded} / {total} MB",
   "MSG_FIRST_RUN_DOWNLOADING": "Lädt herunter... {downloaded} MB",
-  "MSG_FIRST_RUN_COMPLETE": "Download abgeschlossen! Klicke unten, um Shoggoth neu zu starten und die Einrichtung abzuschließen.",
+  "MSG_FIRST_RUN_COMPLETE": "Download abgeschlossen! Klicke unten, um Shoggoth zu öffnen.",
   "MSG_FIRST_RUN_ERROR": "Download fehlgeschlagen: {error}",
-  "BTN_RESTART_SHOGGOTH": "Shoggoth neu starten"
+  "BTN_CONTINUE_SHOGGOTH": "Shoggoth öffnen"
 }

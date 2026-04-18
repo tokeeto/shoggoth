@@ -286,23 +286,34 @@ class NewProjectDialog(QDialog):
     
     def browse_icon(self):
         """Browse for icon file"""
+        if self.icon_path and Path(self.icon_path).parent.exists():
+            start_dir = str(Path(self.icon_path).parent)
+        elif self.file_path and Path(self.file_path).parent.exists():
+            start_dir = str(Path(self.file_path).parent)
+        else:
+            start_dir = str(Path.home())
+
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             tr("DLG_SELECT_ICON"),
-            str(Path.home()),
+            start_dir,
             tr("FILTER_IMAGES")
         )
         if file_path:
             self.icon_path = file_path
             self.icon_display.setText(file_path)
-    
+
     def browse_file(self):
         """Browse for save location"""
         suggested_name = self.name_input.text() or "project"
+        if self.file_path and Path(self.file_path).parent.exists():
+            start_dir = str(Path(self.file_path).parent)
+        else:
+            start_dir = str(Path.home())
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             tr("DLG_SAVE_PROJECT_AS"),
-            str(Path.home() / f"{suggested_name}.json"),
+            str(Path(start_dir) / f"{suggested_name}.json"),
             tr("FILTER_JSON_FILES")
         )
         if file_path:

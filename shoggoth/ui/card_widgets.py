@@ -180,9 +180,10 @@ class IllustrationWidget(QWidget):
     # Signal emitted when illustration mode is toggled (enabled, face_side)
     illustration_mode_changed = Signal(bool, str)
 
-    def __init__(self, face_side='front'):
+    def __init__(self, face_side='front', project=None):
         super().__init__()
         self.face_side = face_side
+        self.project = project
         self.illustration_mode = False
         layout = QVBoxLayout()
 
@@ -259,10 +260,26 @@ class IllustrationWidget(QWidget):
         from PySide6.QtWidgets import QFileDialog
         from pathlib import Path
 
+        current = self.path_input.text().strip()
+        if current:
+            p = Path(current)
+            if not p.is_absolute() and self.project:
+                p = self.project.folder / p
+            if p.parent.exists():
+                start_dir = str(p.parent)
+            elif self.project:
+                start_dir = str(self.project.folder)
+            else:
+                start_dir = str(Path.home())
+        elif self.project:
+            start_dir = str(self.project.folder)
+        else:
+            start_dir = str(Path.home())
+
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             tr("DLG_SELECT_IMAGE"),
-            str(Path.home()),
+            start_dir,
             tr("FILTER_IMAGES")
         )
         if file_path:

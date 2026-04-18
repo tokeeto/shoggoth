@@ -363,6 +363,8 @@
   "// ===== LOCATION VIEW =====": "",
   "DLG_CANNOT_CONNECT": "Impossible de se Connecter",
   "MSG_NO_CONNECTION_ICON": "Le Lieu \"{location_name}\" n'a aucune icône de connexion.",
+  "DLG_SET_CONNECTION_SYMBOL": "Définir le Symbole de Connexion",
+  "MSG_PICK_SYMBOL_FOR": "Le lieu \"{card_name}\" n'a pas de symbole de connexion. Choisissez-en un pour l'attribuer et compléter la connexion :",
   "TOOLTIP_SHOW_SYMBOLS": "Afficher les lieux sous forme de symboles de connexion plutôt que d'images de cartes",
   "BTN_SIMULATE": "Simuler",
   "BTN_STOP": "Arrêt",
@@ -664,7 +666,7 @@
   "MSG_FIRST_RUN_CONNECTING": "Connexion en cours...",
   "MSG_FIRST_RUN_PROGRESS": "Téléchargement... {downloaded} / {total} Mo",
   "MSG_FIRST_RUN_DOWNLOADING": "Téléchargement... {downloaded} Mo",
-  "MSG_FIRST_RUN_COMPLETE": "Téléchargement terminé ! Cliquez sur le bouton ci-dessous pour redémarrer Shoggoth et terminer la configuration.",
+  "MSG_FIRST_RUN_COMPLETE": "Téléchargement terminé ! Cliquez sur le bouton ci-dessous pour ouvrir Shoggoth.",
   "MSG_FIRST_RUN_ERROR": "Échec du téléchargement : {error}",
-  "BTN_RESTART_SHOGGOTH": "Redémarrer Shoggoth"
+  "BTN_CONTINUE_SHOGGOTH": "Ouvrir Shoggoth"
 }

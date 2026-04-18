@@ -1076,8 +1076,18 @@ class GuideOverviewPanel(QWidget):
             self._board_layout.addWidget(card)
 
     def _browse_front_page(self):
+        current = self._fp_edit.text().strip()
+        project_folder = self.guide.project.folder
+        if current:
+            p = Path(current)
+            if not p.is_absolute():
+                p = project_folder / p
+            start_dir = str(p.parent) if p.parent.exists() else str(project_folder)
+        else:
+            start_dir = str(project_folder)
+
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select Front Page Image", str(Path.home()),
+            self, "Select Front Page Image", start_dir,
             "Images (*.png *.jpg *.jpeg *.webp *.avif)",
         )
         if path:

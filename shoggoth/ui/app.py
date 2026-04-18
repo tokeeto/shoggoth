@@ -50,10 +50,12 @@ def main():
     # the asset pack being present).
     if not updater.assets_available():
         from shoggoth.ui.updater_ui import FirstRunDownloadDialog
+        from PySide6.QtWidgets import QDialog
         dialog = FirstRunDownloadDialog()
-        dialog.show()
         dialog.start_download()
-        sys.exit(app.exec())
+        if dialog.exec() != QDialog.Accepted:
+            sys.exit(0)
+        # Assets are now present; fall through to create the main window.
 
     # Subsequent runs: run incremental asset update silently in the background.
     threading.Thread(target=_incremental_update_background, daemon=True).start()

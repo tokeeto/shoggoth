@@ -122,7 +122,7 @@
   "FILTER_HTML_FILES": "HTML Files (*.html)",
   "DLG_SAVE_PROJECT_AS": "Save Project As",
   "DLG_SELECT_ICON": "Select Icon",
-  "FILTER_IMAGES": "Images (*.png *.jpg *.jpeg *.webp *.svg)",
+  "FILTER_IMAGES": "Images (*.pdf *.png *.jpg *.jpeg *.webp *.svg)",
   "DLG_SELECT_IMAGE": "Select Image",
   "// ===== DIALOGS - NEW CARD =====": "",
   "DLG_NEW_CARD": "New Card",
@@ -370,6 +370,8 @@
   "// ===== LOCATION VIEW =====": "",
   "DLG_CANNOT_CONNECT": "Cannot Connect",
   "MSG_NO_CONNECTION_ICON": "Location \"{location_name}\" has no connection icon.",
+  "DLG_SET_CONNECTION_SYMBOL": "Set Connection Symbol",
+  "MSG_PICK_SYMBOL_FOR": "Location \"{card_name}\" has no connection symbol. Pick one to assign and complete the connection:",
   "TOOLTIP_SHOW_SYMBOLS": "Show locations as connection symbols instead of card images",
   "BTN_SIMULATE": "Simulate",
   "BTN_STOP": "Stop",
@@ -671,7 +673,7 @@
   "MSG_FIRST_RUN_CONNECTING": "Connecting...",
   "MSG_FIRST_RUN_PROGRESS": "Downloading... {downloaded} / {total} MB",
   "MSG_FIRST_RUN_DOWNLOADING": "Downloading... {downloaded} MB",
-  "MSG_FIRST_RUN_COMPLETE": "Download complete! Click the button below to restart Shoggoth and finish setup.",
+  "MSG_FIRST_RUN_COMPLETE": "Download complete! Click the button below to open Shoggoth.",
   "MSG_FIRST_RUN_ERROR": "Download failed: {error}",
-  "BTN_RESTART_SHOGGOTH": "Restart Shoggoth"
+  "BTN_CONTINUE_SHOGGOTH": "Open Shoggoth"
 }

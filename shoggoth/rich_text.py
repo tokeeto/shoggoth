@@ -164,12 +164,12 @@ class RichTextRenderer:
         }
 
         self.replacement_tags = {
-            '<for>': '<b>Forced –</b>',
-            '<prey>': '<b>Prey –</b>',
-            '<rev>': '<b>Revelation –</b>',
-            '<spawn>': '<b>Spawn –</b>',
-            '<obj>': '<b>Objective –</b>',
-            '<objective>': '<b>Objective –</b>',
+            '<for>': self.get_translation('<for>', '<b>Forced –</b>'),
+            '<prey>': self.get_translation('<prey>', '<b>Prey –</b>'),
+            '<rev>': self.get_translation('<rev>', '<b>Revelation –</b>'),
+            '<spawn>': self.get_translation('<spawn>', '<b>Spawn –</b>'),
+            '<obj>': self.get_translation('<obj>', '<b>Objective –</b>'),
+            '<objective>': self.get_translation('<objective>', '<b>Objective –</b>'),
             '<quote>': '\u2018',
             '<dquote>': '\u201c',
             '<quoteend>': '\u2019',
@@ -186,27 +186,50 @@ class RichTextRenderer:
             '<sign_1>': '1', '<sign_2>': '2', '<sign_3>': '3',
             '<sign_4>': '4', '<sign_5>': '5',
             '<question>': '?',
-            '<tablet>': 'A', '<entry>': 'B', '<cultist>': 'C',
-            '<blessing>': 'D', '<elder_sign>': 'E', '<fleur>': 'F',
-            '<guardian>': 'G', '<frost>': 'H', '<seeker>': 'K',
-            '<elder_thing>': 'L', '<mystic>': 'M', '<rogue>': 'R',
-            '<skull>': 'S', '<auto_fail>': 'T', '<curse>': 'U',
+            '<tablet>': 'A',
+            '<entry>': 'B',
+            '<cultist>': 'C',
+            '<blessing>': 'D',
+            '<elder_sign>': 'E',
+            '<fleur>': 'F',
+            '<guardian>': 'G',
+            '<frost>': 'H',
+            '<seeker>': 'K',
+            '<elder_thing>': 'L',
+            '<mystic>': 'M',
+            '<rogue>': 'R',
+            '<skull>': 'S',
+            '<auto_fail>': 'T',
+            '<curse>': 'U',
             '<survivor>': 'V',
-            '<agility>': 'a', '<agi>': 'a', '[agility]': 'a',
+            '<agility>': 'a',
+            '<agi>': 'a',
+            '[agility]': 'a',
             '<bullet>': 'b',
-            '<com>': 'c', '<combat>': 'c', '[combat]': 'c',
-            '<horror>': 'd', '<resolution>': 'e',
-            '<free>': 'f', '[fast]': 'f',
+            '<com>': 'c',
+            '<combat>': 'c',
+            '[combat]': 'c',
+            '<horror>': 'd',
+            '<resolution>': 'e',
+            '<free>': 'f',
+            '[fast]': 'f',
             '<damage>': 'h',
-            '<intellect>': 'i', '[intellect]': 'i', '<int>': 'i',
+            '<intellect>': 'i',
+            '[intellect]': 'i',
+            '<int>': 'i',
             '<resource>': 'm',
-            '<act>': 'n', '<action>': 'n', '[action]': 'n',
+            '<act>': 'n',
+            '<action>': 'n',
+            '[action]': 'n',
             '<open>': 'o',
-            '<per>': 'p', '[per_investigator]': 'p',
+            '<per>': 'p',
+            '[per_investigator]': 'p',
             '<reaction>': 'r',
             '<unique>': 'u',
-            '<willpower>': 'w', '[willpower]': 'w',
-            '<day>': '<', '<night>': '>',
+            '<willpower>': 'w',
+            '[willpower]': 'w',
+            '<day>': '<',
+            '<night>': '>',
         }
 
         self.fonts = {
@@ -224,13 +247,17 @@ class RichTextRenderer:
 
         self._rebuild_tries()
 
+    def get_translation(self, key, fallback):
+        return self.card_renderer.translations.get(key, fallback)
+
     def _rebuild_tries(self):
         """(Re)build the two tries from current tag dictionaries."""
         # Formatting trie: each payload is a pre-built token dict
         fmt_map = {}
         for tag, info in self.formatting_tags.items():
             if 'font' in info:
-                fmt_map[tag] = {'type': 'format', 'value': info['font'], 'start': info['start']}
+                fmt_map[tag] = {'type': 'format',
+                'value': info['font'], 'start': info['start']}
             elif 'align' in info:
                 fmt_map[tag] = {'type': 'align', 'value': info['align'], 'start': info['start']}
             elif 'indent' in info:
@@ -254,19 +281,29 @@ class RichTextRenderer:
         text = tr("HELP_SPECIAL_TAGS_INTRO") + "\n\n"
         text += tr("HELP_FORMATTING_TAGS") + "\n"
         for tag, options in self.formatting_tags.items():
-            if options.get('start'):
-                text += f'{tag}{options.get("font") or options.get("align")}'
+            if options.get('font'):
+                text += f'  {tag}  ({options["font"]})\n'
+            elif options.get('align'):
+                text += f'  {tag}  ({options["align"]})\n'
+            elif options.get('indent'):
+                text += f'  {tag}  (indent {options["indent"]})\n'
+            elif options.get('format'):
+                text += f'  {tag}  ({options["format"]})\n'
+            elif options.get('break'):
+                text += f'  {tag}  (line break)\n'
+            elif options.get('indent_pop'):
+                text += f'  {tag}  (end indent)\n'
             else:
-                text += f'{tag}\n'
+                text += f'  {tag}\n'
         text += "\n" + tr("HELP_REPLACEMENT_TAGS") + "\n"
         for tag, result in self.replacement_tags.items():
-            text += f"{tag} = {result}\n"
+            text += f"  {tag} = {result}\n"
         text += "\n" + tr("HELP_ICON_TAGS") + "\n"
         for tag in self.font_icon_tags:
-            text += f"{tag}\n"
+            text += f"  {tag}\n"
         text += "\n" + tr("HELP_AVAILABLE_FONTS") + "\n"
         for tag, options in self.fonts.items():
-            text += f"{tag}: {options['path']}\n"
+            text += f"  {tag}: {options['path']}\n"
         return text
 
     def load_fonts(self, size):
@@ -509,6 +546,7 @@ class RichTextRenderer:
         fonts = self.load_fonts(font_size)
         current_fonts = fonts
         size_stack = []
+
         line_height = int(font_size * 1.30)
 
         x_orig = region.x
@@ -736,9 +774,11 @@ class RichTextRenderer:
             elif t == 'size':
                 size_stack.append(current_fonts)
                 current_fonts = self.load_fonts(int(token['value']))
+                line_height = int(token['value']) * 1.30
 
             elif t == 'size_pop':
                 current_fonts = size_stack.pop() if size_stack else fonts
+                line_height = int(current_fonts['regular'].size) * 1.30
 
             elif t == 'newline':
                 flush()
@@ -748,7 +788,7 @@ class RichTextRenderer:
                 pending.clear()
                 has_renderable = False
                 current_line_width = 0
-                y += font_size if block_indent > 0 else line_height
+                y += current_fonts['regular'].size if block_indent > 0 else line_height
                 overflow_check_pending = True
 
             elif t == 'break':
@@ -759,7 +799,7 @@ class RichTextRenderer:
                 pending.clear()
                 has_renderable = False
                 current_line_width = 0
-                y += font_size
+                y += current_fonts['regular'].size
                 overflow_check_pending = True
 
             elif t in ('text', 'font_icon', 'image_icon'):
@@ -786,7 +826,7 @@ class RichTextRenderer:
                     if token['value'] == 'b' and not pending:
                         current_indent = wcache.width('b ', font_obj)
                 else:  # image_icon
-                    icon_img = self._get_inverted_icon(token['value'], font_size)
+                    icon_img = self._get_inverted_icon(token['value'], current_fonts['regular'].size)
                     w = icon_img.width if icon_img else 0
                     item = {'cmd': 'image', 'icon': icon_img, 'width': w}
 
@@ -796,7 +836,7 @@ class RichTextRenderer:
                     pending.clear()
                     has_renderable = False
                     current_line_width = 0
-                    y += font_size
+                    y += current_fonts['regular'].size
                     if y + line_height > region.y + max_height:
                         if not force:
                             return commands, False, i / num_tokens

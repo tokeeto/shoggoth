@@ -19,7 +19,8 @@ ALL_CARD_TYPES = [
     'act', 'act_back', 'agenda', 'agenda_back',
     'scenario', 'chaos',
     'customizable', 'story',
-    'player', 'encounter',
+    'player', 'encounter', 'enemy_deck',
+    'act_agenda_full', 'act_agenda_full_back',
 ]
 FULLART_CARD_TYPES = [
     'fullart_asset',
@@ -140,7 +141,7 @@ class SlotsWidget(QWidget):
             self.slot2_combo.blockSignals(False)
 
 
-class IconComboBox(QComboBox):
+class IconComboBox(NoScrollComboBox):
     """ComboBox that displays icons for connection symbols"""
 
     CONNECTION_SYMBOLS = [
@@ -152,6 +153,7 @@ class IconComboBox(QComboBox):
         'double_slash', 'double_slash_alt',
         'heart', 'heart_alt',
         'hourglass', 'hourglass_alt',
+        'crescent', 'crescent_alt',
         'moon',
         'quote', 'quote_alt',
         'slash', 'slash_alt',

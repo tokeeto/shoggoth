@@ -264,10 +264,19 @@ class ProjectEditor(QWidget):
 
     def browse_icon(self):
         """Browse for icon file"""
+        current = self.icon_input.text().strip()
+        if current:
+            p = Path(current)
+            if not p.is_absolute():
+                p = self.project.folder / p
+            start_dir = str(p.parent) if p.parent.exists() else str(self.project.folder)
+        else:
+            start_dir = str(self.project.folder)
+
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             tr("DLG_SELECT_ICON"),
-            str(Path.home()),
+            start_dir,
             tr("FILTER_IMAGES")
         )
         if file_path:
