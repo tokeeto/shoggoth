@@ -174,7 +174,6 @@ class RichTextRenderer:
             '<dquote>': '\u201c',
             '<quoteend>': '\u2019',
             '<dquoteend>': '\u201d',
-            '\'': '\u2019',
             '---': '\u2014',
             '--': '\u2013',
         }
@@ -304,7 +303,7 @@ class RichTextRenderer:
             text += f"  {tag}\n"
         text += "\n" + tr("HELP_AVAILABLE_FONTS") + "\n"
         for tag, options in self.fonts.items():
-            text += f"  {tag}: {options['path']}\n"
+            text += f"  {tag}\n"
         return text
 
     def load_fonts(self, size):
@@ -430,9 +429,43 @@ class RichTextRenderer:
             result.append('</indent>')
         return '\n'.join(result)
 
+    def _apply_smart_quotes(self, text):
+        # Protect backslash-escaped quotes so users can opt out of smart conversion
+        text = text.replace('\\"', '\x00DQ\x00')
+        text = text.replace("\\'", '\x00SQ\x00')
+
+        result = []
+        in_tag = False
+        prev_outside = None  # last char seen outside a tag (tags are transparent to context)
+
+        for ch in text:
+            if ch == '<':
+                in_tag = True
+                result.append(ch)
+            elif ch == '>':
+                in_tag = False
+                result.append(ch)
+            elif in_tag:
+                result.append(ch)
+            elif ch == '"':
+                result.append('\u201c' if prev_outside is None or prev_outside in (' ', '\t', '\n') else '\u201d')
+                prev_outside = ch
+            elif ch == "'":
+                result.append('\u2018' if prev_outside is None or prev_outside in (' ', '\t', '\n') else '\u2019')
+                prev_outside = ch
+            else:
+                result.append(ch)
+                prev_outside = ch
+
+        text = ''.join(result)
+        text = text.replace('\x00DQ\x00', '"')
+        text = text.replace('\x00SQ\x00', "'")
+        return text
+
     def parse_text(self, text):
         tokens = []
         text = self._expand_bullet_shorthand(text)
+        text = self._apply_smart_quotes(text)
 
         # Replacement tags (longest-first to avoid partial matches like -- before ---)
         for tag, new in self._replacement_order:

@@ -379,7 +379,7 @@
   "TOOLTIP_COPY_LAYOUT": "Copiar imagen del diseño al portapapeles (fondo transparente)",
   "BTN_REFRESH": "Actualizar",
   "MSG_LAYOUT_COPIED": "Diseño copiado al portapapeles",
-  "HELP_LOCATION_VIEW": "Arrastra para mover. Clic derecho para conectar. Usa la rueda para zoom.",
+  "HELP_LOCATION_VIEW": "Arrastra para mover. Clic derecho para conectar. Rueda para zoom. F voltea la carta, Shift+F voltea todas.",
   "TITLE_LOCATIONS": "Ubicaciones: {name}",
   "TOOLTIP_ICON_MODE": "Mostrar iconos de conexión",
   "TOOLTIP_SIMULATE": "Simular navegación",

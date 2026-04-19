@@ -185,6 +185,7 @@ class LocationNode(QGraphicsItem):
         self.thumbnail = None
         self._icon_mode = False
         self._connection_icon = None
+        self._flip_scale_x = 1.0
 
         # Stable key for this node
         self.node_key = f"{card.id}_{face_side}"
@@ -243,11 +244,46 @@ class LocationNode(QGraphicsItem):
             return QRectF(0, 0, self.ICON_SIZE, self.ICON_SIZE)
         return QRectF(0, 0, self.CARD_WIDTH, self.CARD_HEIGHT)
 
+    def can_flip(self):
+        other = self.card.back if self.face_side == 'front' else self.card.front
+        return other is not None
+
+    def _do_flip(self):
+        """Swap to the opposite card face and rebuild connections"""
+        if self.face_side == 'front':
+            self.face = self.card.back
+            self.face_side = 'back'
+        else:
+            self.face = self.card.front
+            self.face_side = 'front'
+        self._generate_thumbnail()
+        self._load_connection_icon()
+        self.view._build_arrows()
+
+    def hoverEnterEvent(self, event):
+        self.view._hovered_node = self
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        if self.view._hovered_node is self:
+            self.view._hovered_node = None
+        super().hoverLeaveEvent(event)
+
     def paint(self, painter, option, widget):
+        if self._flip_scale_x < 1.0:
+            cx = (self.ICON_SIZE if self._icon_mode else self.CARD_WIDTH) / 2
+            painter.save()
+            painter.translate(cx, 0)
+            painter.scale(self._flip_scale_x, 1.0)
+            painter.translate(-cx, 0)
+
         if self._icon_mode:
             self._paint_icon_mode(painter)
         else:
             self._paint_card_mode(painter)
+
+        if self._flip_scale_x < 1.0:
+            painter.restore()
 
     def _paint_card_mode(self, painter):
         """Paint in card thumbnail mode"""
@@ -433,6 +469,15 @@ class LocationView(QGraphicsView):
         self.arrows = []  # List of ConnectionArrow
         self.connection_drag_line = None
         self.drag_source_node = None
+        self._hovered_node = None
+
+        # Flip animation state
+        self._flip_animations = {}
+        self._flip_timer = QTimer(self)
+        self._flip_timer.setInterval(15)
+        self._flip_timer.timeout.connect(self._flip_step)
+
+        self.setFocusPolicy(Qt.StrongFocus)
 
         # Build the view
         self._build_view()
@@ -600,6 +645,55 @@ class LocationView(QGraphicsView):
             self._build_arrows()
             self.connections_changed.emit([source_node.card])
 
+    def flip_node(self, node):
+        """Start a flip animation for a node"""
+        if not node.can_flip() or node.node_key in self._flip_animations:
+            return
+        steps = 10
+        shrink = [1.0 - i / steps for i in range(steps + 1)]
+        grow = [i / steps for i in range(1, steps + 1)]
+        self._flip_animations[node.node_key] = {
+            'node': node,
+            'steps': shrink + grow,
+            'midpoint': len(shrink),
+            'idx': 0,
+            'swapped': False,
+        }
+        if not self._flip_timer.isActive():
+            self._flip_timer.start()
+
+    def _flip_step(self):
+        done = []
+        for key, anim in self._flip_animations.items():
+            node = anim['node']
+            idx = anim['idx']
+            if idx >= len(anim['steps']):
+                node._flip_scale_x = 1.0
+                node.update()
+                done.append(key)
+                continue
+            node._flip_scale_x = anim['steps'][idx]
+            if idx == anim['midpoint'] and not anim['swapped']:
+                anim['swapped'] = True
+                node._do_flip()
+            anim['idx'] += 1
+            node.update()
+        for key in done:
+            del self._flip_animations[key]
+        if not self._flip_animations:
+            self._flip_timer.stop()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_F:
+            if event.modifiers() & Qt.ShiftModifier:
+                for node in self.location_nodes.values():
+                    self.flip_node(node)
+            elif self._hovered_node:
+                self.flip_node(self._hovered_node)
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def mouseMoveEvent(self, event):
         """Handle mouse move for connection dragging"""
         if self.connection_drag_line and self.drag_source_node:
@@ -618,6 +712,7 @@ class LocationView(QGraphicsView):
 
     def mousePressEvent(self, event):
         """Handle clicks on arrows"""
+        self.setFocus()
         if event.button() == Qt.LeftButton:
             scene_pos = self.mapToScene(event.pos())
             items = self.scene.items(scene_pos)

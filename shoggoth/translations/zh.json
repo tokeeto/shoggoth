@@ -381,7 +381,7 @@
   "TOOLTIP_COPY_LAYOUT": "将布局图片复制到剪贴板（透明背景）",
   "BTN_REFRESH": "刷新",
   "MSG_LAYOUT_COPIED": "布局已复制到剪贴板",
-  "HELP_LOCATION_VIEW": "拖动以移动。右键单击以连接。滚轮缩放。",
+  "HELP_LOCATION_VIEW": "拖动以移动。右键单击以连接。滚轮缩放。F翻转悬停卡牌，Shift+F翻转所有。",
   "TITLE_LOCATIONS": "地点：{name}",
   "TOOLTIP_ICON_MODE": "显示连接图标",
   "TOOLTIP_SIMULATE": "模拟导航",

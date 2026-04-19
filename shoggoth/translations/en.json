@@ -381,7 +381,7 @@
   "TOOLTIP_COPY_LAYOUT": "Copy layout image to clipboard (transparent background)",
   "BTN_REFRESH": "Refresh",
   "MSG_LAYOUT_COPIED": "Layout copied to clipboard",
-  "HELP_LOCATION_VIEW": "Drag to move. Right-click to connect. Use wheel to zoom.",
+  "HELP_LOCATION_VIEW": "Drag to move. Right-click to connect. Wheel to zoom. F flips hovered card, Shift+F flips all.",
   "TITLE_LOCATIONS": "Locations: {name}",
   "TOOLTIP_ICON_MODE": "Show connection icons",
   "TOOLTIP_SIMULATE": "Simulate navigation",

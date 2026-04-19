@@ -373,7 +373,7 @@
   "TOOLTIP_COPY_LAYOUT": "Copier l’image de la mise en page dans le presse‑papiers (fond transparent)",
   "BTN_REFRESH": "Rafraîchir",
   "MSG_LAYOUT_COPIED": "Mise en page copiée dans le presse‑papiers",
-  "HELP_LOCATION_VIEW": "Faites glisser pour déplacer. Cliquez avec le bouton droit pour connecter. Utilisez la molette pour zoomer.",
+  "HELP_LOCATION_VIEW": "Glisser pour déplacer. Clic droit pour connecter. Molette pour zoomer. F retourne la carte survolée, Shift+F retourne toutes.",
   "TITLE_LOCATIONS": "Lieux: {name}",
   "TOOLTIP_ICON_MODE": "Afficher les icônes de connexion",
   "TOOLTIP_SCREENSHOT": "Faire une capture d'écran de la vue",

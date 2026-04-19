@@ -379,7 +379,7 @@
   "TOOLTIP_COPY_LAYOUT": "Kopiere Anordnung in Zwischenablage (transparenter Hintergrund)",
   "BTN_REFRESH": "Aktualisieren",
   "MSG_LAYOUT_COPIED": "Anordnung zu Zwischenablage kopiert",
-  "HELP_LOCATION_VIEW": "Ziehe zum Bewegen. Rechtsklick zum Verbinden. Scrolle um zu zoomen.",
+  "HELP_LOCATION_VIEW": "Ziehen zum Bewegen. Rechtsklick zum Verbinden. Scrollen zum Zoomen. F dreht Karte um, Shift+F dreht alle um.",
   "TITLE_LOCATIONS": "Orte: {name}",
   "TOOLTIP_ICON_MODE": "Zeige Verbindungssymbole",
   "TOOLTIP_SIMULATE": "Navigation simulieren",
