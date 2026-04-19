@@ -227,6 +227,7 @@ class RichTextRenderer:
             '<reaction>': 'r',
             '<unique>': 'u',
             '<willpower>': 'w',
+            '<wil>': 'w',
             '[willpower]': 'w',
             '<day>': '<',
             '<night>': '>',

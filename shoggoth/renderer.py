@@ -265,7 +265,8 @@ class CardRenderer:
                     outputs.append(str(file_path))
         return outputs
 
-    def expected_export_paths(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
+    @staticmethod
+    def expected_export_paths(card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
         """ Get the expected output paths from export_card_images without actually generating images """
         outputs = []
         faces = card.versions

@@ -9,8 +9,6 @@ from time import time
 from pathlib import Path
 from shoggoth.files import prince_dir as _local_prince_dir
 
-renderer = CardRenderer()
-
 
 def _local_prince_bin():
     if platform.system() == 'Windows':
@@ -68,7 +66,7 @@ def _mbprint_html(cards, folder):
 
     for card in cards:
         css = 'wide' if card.front.get('orientation') == 'horizontal' else ''
-        for path in renderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False):
+        for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False):
             yield f'<img class="{css}" src="{path}">\n'
     yield "</body>"
 
@@ -104,7 +102,7 @@ def _pdf_html(cards, folder):
 
     for card in cards:
         css = 'wide' if card.front.get('orientation') == 'horizontal' else ''
-        for path in renderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png'):
+        for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png'):
             yield f'<img class="{css}" src="{path}">\n'
     yield "</body>"
 
