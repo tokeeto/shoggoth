@@ -104,8 +104,12 @@ class CardRenderer:
         self._illus_resized_lru = OrderedDict()  # (path, size) → PIL Image; bounded LRU
         self.translations = {}
         self.locale = locale
+        self.translations = {}
         if self.locale:
-            self.translations = json.load(open(translation_dir / f'{self.locale}.json'))
+            try:
+                self.translations = json.load(open(translation_dir / f'{self.locale}.json'))
+            except Exception as e:
+                print('error while loading translation for renderer:', e)
 
         # Initialize rich text renderer
         self.rich_text = RichTextRenderer(self)
