@@ -708,12 +708,14 @@ class CardRenderer:
 
     def render_slots(self, card_image, side):
         """Render the slot icons """
+        print('rendering slots')
         slots = side.get('slots')
         slot = side.get('slot')
+        print('rendering slots', slots, slot)
+        if not slot and not slots:
+            return
         if slot and not slots:
             slots = [slot]
-        else:
-            return
 
         for index, slot in enumerate(slots):
             region = Region(side.get(f'slot_{index+1}_region', {}))

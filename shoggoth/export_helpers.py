@@ -269,7 +269,7 @@ def _sced_location_data(face):
     """Build the locationFront/locationBack sub-dict for a location face."""
     data = {}
 
-    data['icons'] = face.get('connection', '')
+    data['icons'] = face.get('connection', '').replace('_a', 'A')
 
     if face.get('connections'):
         connections = [c.replace('_a', 'A') for c in face.get('connections')]
@@ -386,11 +386,11 @@ def build_gm_notes(card):
 
     loc_front = _sced_location_data(card.front)
     if loc_front:
-        notes['locationBack'] = loc_front
+        notes['locationFront'] = loc_front
 
     loc_back = _sced_location_data(card.back)
     if loc_back:
-        notes['locationFront'] = loc_back
+        notes['locationBack'] = loc_back
 
     return notes
 
