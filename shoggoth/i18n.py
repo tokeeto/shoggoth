@@ -89,6 +89,7 @@ def load_language(lang_code: str) -> bool:
     lang_file = TRANSLATIONS_DIR / f"{lang_code}.json"
 
     if not lang_file.exists():
+        # Fallback to English if language file not found
         _current_language = "en"
         _translations = {}
         return lang_code == "en"
