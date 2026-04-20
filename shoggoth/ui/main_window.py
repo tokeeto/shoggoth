@@ -1274,6 +1274,11 @@ class ShoggothMainWindow(QMainWindow):
         check_updates_action.triggered.connect(self.update_manager.check_for_updates_manual)
         tools_menu.addAction(check_updates_action)
 
+        # Reset Assets
+        reset_assets_action = QAction(tr("MENU_RESET_ASSETS"), self)
+        reset_assets_action.triggered.connect(self._reset_assets_dialog)
+        tools_menu.addAction(reset_assets_action)
+
         # ==================== HELP MENU ====================
         help_menu = menubar.addMenu(tr("MENU_HELP"))
 
@@ -1486,6 +1491,22 @@ class ShoggothMainWindow(QMainWindow):
         """Check for updates after startup (deferred to avoid blocking)"""
         if self.update_manager.should_check_for_updates():
             self.update_manager.check_for_updates_async()
+
+    def _reset_assets_dialog(self):
+        from PySide6.QtWidgets import QMessageBox
+        from shoggoth.ui.updater_ui import ResetAssetsDialog
+        confirm = QMessageBox.question(
+            self,
+            tr("DLG_RESET_ASSETS"),
+            tr("MSG_RESET_ASSETS_CONFIRM"),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        dialog = ResetAssetsDialog(self)
+        dialog.start_reset()
+        dialog.exec()
 
     def open_project_dialog(self):
         """Show dialog to open a project"""

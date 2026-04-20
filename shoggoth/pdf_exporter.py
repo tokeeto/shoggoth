@@ -122,7 +122,7 @@ def export(cards, target_file, image_folder):
 
     print(f"PDF html time: {time()-start_time}")
     subprocess.run(
-        [prince_cmd, temp_file, '-o', Path(target_file)],
+        [prince_cmd, temp_file, '-o', Path(target_file), '--raster-threads=10'],
         cwd=prince_cwd,
     )
     print(f"PDF time: {time()-start_time}")

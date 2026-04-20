@@ -36,6 +36,7 @@
   "MENU_EXPORT_TTS_PLAYER": "Export all &player cards to TTS object",
   "MENU_TOOLS": "&Tools",
   "MENU_CHECK_UPDATES": "Check for &Updates...",
+  "MENU_RESET_ASSETS": "&Reset Asset Pack...",
   "MENU_HELP": "&Help",
   "MENU_TEXT_OPTIONS": "&Text options",
   "MENU_ABOUT": "&About",
@@ -685,5 +686,9 @@
   "MSG_FIRST_RUN_DOWNLOADING": "Downloading... {downloaded} MB",
   "MSG_FIRST_RUN_COMPLETE": "Download complete! Click the button below to open Shoggoth.",
   "MSG_FIRST_RUN_ERROR": "Download failed: {error}",
-  "BTN_CONTINUE_SHOGGOTH": "Open Shoggoth"
+  "BTN_CONTINUE_SHOGGOTH": "Open Shoggoth",
+  "DLG_RESET_ASSETS": "Reset Asset Pack",
+  "MSG_RESET_ASSETS_TITLE": "Resetting Asset Pack",
+  "MSG_RESET_ASSETS_CONFIRM": "This will re-download the entire asset pack (~750 MB), overwriting all asset files. Any manual changes to asset files will be lost.\n\nContinue?",
+  "MSG_RESET_ASSETS_COMPLETE": "Asset pack reset complete."
 }

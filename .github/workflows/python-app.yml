@@ -219,3 +219,50 @@ jobs:
               with:
                   name: shoggoth-win
                   path: dist/
+
+    release:
+        needs: [build-macos-intel, build-macos, build-windows]
+        runs-on: ubuntu-latest
+        if: startsWith(github.ref, 'refs/tags/v')
+        steps:
+            - uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
+
+            - name: Get tag message
+              id: tag_message
+              run: |
+                  git fetch --tags --force
+                  TAG_MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+                  echo "body<<EOF" >> $GITHUB_OUTPUT
+                  echo "$TAG_MSG" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
+
+            - uses: actions/download-artifact@v4
+              with:
+                  name: shoggoth-mac-intel
+                  path: artifacts/mac-intel
+
+            - uses: actions/download-artifact@v4
+              with:
+                  name: shoggoth-mac
+                  path: artifacts/mac
+
+            - uses: actions/download-artifact@v4
+              with:
+                  name: shoggoth-win
+                  path: artifacts/win
+
+            - name: Rename artifacts
+              run: |
+                  mv artifacts/mac-intel/Shoggoth.zip artifacts/Shoggoth-mac-intel.zip
+                  mv artifacts/mac/Shoggoth.zip artifacts/Shoggoth-mac.zip
+                  cd artifacts/win && zip -r ../Shoggoth-windows.zip .
+
+            - uses: softprops/action-gh-release@v2
+              with:
+                  body: ${{ steps.tag_message.outputs.body }}
+                  files: |
+                      artifacts/Shoggoth-mac-intel.zip
+                      artifacts/Shoggoth-mac.zip
+                      artifacts/Shoggoth-windows.zip

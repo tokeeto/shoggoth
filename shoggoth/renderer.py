@@ -472,8 +472,7 @@ class CardRenderer:
             region = Region(side.get(f'{field}_region', None))
 
             if region.is_attached or not region:
-                # this field is part of another block, and
-                # doesn't render on its own.
+                # this field is part of another block, and doesn't render on its own.
                 continue
 
             # Checkboxes - primarily for Customizable
@@ -712,10 +711,8 @@ class CardRenderer:
 
     def render_slots(self, card_image, side):
         """Render the slot icons """
-        print('rendering slots')
         slots = side.get('slots')
         slot = side.get('slot')
-        print('rendering slots', slots, slot)
         if not slot and not slots:
             return
         if slot and not slots:
