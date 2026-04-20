@@ -1202,11 +1202,11 @@ class ShoggothMainWindow(QMainWindow):
         # ── Translation ──────────────────────────────────────────────────────
         project_menu.addSeparator()
 
-        add_translation_action = QAction("Add Translation...", self)
+        add_translation_action = QAction(tr("MENU_ADD_TRANSLATION"), self)
         add_translation_action.triggered.connect(self.add_translation_dialog)
         project_menu.addAction(add_translation_action)
 
-        load_translation_action = QAction("Load Translation...", self)
+        load_translation_action = QAction(tr("MENU_LOAD_TRANSLATION"), self)
         load_translation_action.triggered.connect(self.load_translation_dialog)
         project_menu.addAction(load_translation_action)
 
@@ -2000,13 +2000,13 @@ class ShoggothMainWindow(QMainWindow):
             return
         from PySide6.QtWidgets import QInputDialog
         lang, ok = QInputDialog.getText(
-            self, "Add Translation", "Language code (e.g. dk, de, fr):"
+            self, tr("DLG_ADD_TRANSLATION"), tr("MSG_ENTER_LANGUAGE_CODE")
         )
         if not ok or not lang.strip():
             return
         lang = lang.strip().lower()
         if lang in self.active_project.data.get('translations', {}):
-            QMessageBox.warning(self, "Add Translation", f"Translation '{lang}' already exists.")
+            QMessageBox.warning(self, tr("DLG_ADD_TRANSLATION"), tr("MSG_TRANSLATION_EXISTS").format(lang=lang))
             return
 
         project_path = Path(self.active_project.file_path)
@@ -2032,17 +2032,17 @@ class ShoggothMainWindow(QMainWindow):
     def load_translation_dialog(self):
         """Show dialog to load an existing registered translation."""
         if not self.active_project:
-            QMessageBox.information(self, "Load Translation", "Open a project first.")
+            QMessageBox.information(self, tr("DLG_LOAD_TRANSLATION"), tr("MSG_OPEN_PROJECT_FIRST_TRANSLATION"))
             return
         translations = self.active_project.translations  # {lang: Path}
         if not translations:
-            QMessageBox.information(self, "Load Translation",
-                                    "This project has no registered translations.")
+            QMessageBox.information(self, tr("DLG_LOAD_TRANSLATION"),
+                                    tr("MSG_NO_TRANSLATIONS"))
             return
         from PySide6.QtWidgets import QInputDialog
         choices = [f"{lang}  ({path.name})" for lang, path in translations.items()]
         choice, ok = QInputDialog.getItem(
-            self, "Load Translation", "Choose a translation:", choices, 0, False)
+            self, tr("DLG_LOAD_TRANSLATION"), tr("MSG_CHOOSE_TRANSLATION"), choices, 0, False)
         if not ok:
             return
         lang = choice.split("  ")[0]
