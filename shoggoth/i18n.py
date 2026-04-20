@@ -12,6 +12,7 @@ TRANSLATIONS_DIR = Path(__file__).parent / "translations"
 # Currently loaded translations
 _current_language = "en"
 _translations: dict = {}
+_fallback_translations: dict = {}
 
 
 def get_available_languages() -> dict[str, str]:
@@ -73,16 +74,25 @@ def load_language(lang_code: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    global _current_language, _translations
-    
+    global _current_language, _translations, _fallback_translations
+
+    # Load English as fallback if not already loaded
+    if not _fallback_translations:
+        en_file = TRANSLATIONS_DIR / "en.json"
+        if en_file.exists():
+            try:
+                with open(en_file, 'r', encoding='utf-8') as f:
+                    _fallback_translations = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+
     lang_file = TRANSLATIONS_DIR / f"{lang_code}.json"
-    
+
     if not lang_file.exists():
-        # Fallback to English if language file not found
         _current_language = "en"
         _translations = {}
         return lang_code == "en"
-    
+
     try:
         with open(lang_file, 'r', encoding='utf-8') as f:
             _translations = json.load(f)
@@ -110,8 +120,8 @@ def tr(text: str, **kwargs) -> str:
     Returns:
         Translated text, or original text if no translation found
     """
-    # Get translation, fallback to original text if not found
-    translated = _translations.get(text, text)
+    # Get translation, fallback to English, then to key itself
+    translated = _translations.get(text) or _fallback_translations.get(text, text)
     
     if kwargs:
         try:
