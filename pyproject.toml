@@ -41,6 +41,7 @@ allow-direct-references = true
 [dependency-groups]
 dev = [
     "jurigged>=0.6.1",
+    "pyinstaller>=6.19.0",
 ]
 
 [project.scripts]

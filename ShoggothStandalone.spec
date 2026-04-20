@@ -36,19 +36,46 @@ a = Analysis(
 )
 
 # Fix dylib conflict: Pillow bundles libharfbuzz without CoreText support,
-# but pyvips (via libpangocairo) needs it. Replace Pillow's version with
-# Homebrew's which has CoreText enabled. Must keep the same relative path
-# so PyInstaller's symlinks resolve correctly.
+# but pyvips (via libpangocairo) needs _hb_coretext_font_create.
+# Replace Pillow's version with Homebrew's which has CoreText enabled,
+# and bundle its transitive dependencies.
+# This runs per-platform in CI, so Homebrew paths are always arch-correct.
 if platform.system() == 'Darwin':
     import subprocess
     try:
         homebrew_prefix = subprocess.check_output(['brew', '--prefix'], text=True).strip()
     except (FileNotFoundError, subprocess.CalledProcessError):
         homebrew_prefix = '/opt/homebrew'
+
     homebrew_harfbuzz = f'{homebrew_prefix}/opt/harfbuzz/lib/libharfbuzz.0.dylib'
     if os.path.exists(homebrew_harfbuzz):
         a.binaries = [b for b in a.binaries if 'libharfbuzz' not in b[0]]
         a.binaries.append(('PIL/.dylibs/libharfbuzz.0.dylib', homebrew_harfbuzz, 'BINARY'))
+
+        # Bundle transitive deps of Homebrew's harfbuzz.
+        # Detect actual filenames via otool to be version-agnostic.
+        dep_specs = {
+            'glib': f'{homebrew_prefix}/opt/glib/lib',
+            'graphite2': f'{homebrew_prefix}/opt/graphite2/lib',
+            'gettext': f'{homebrew_prefix}/opt/gettext/lib',
+            'pcre2': f'{homebrew_prefix}/opt/pcre2/lib',
+        }
+        for pkg, lib_dir in dep_specs.items():
+            if not os.path.isdir(lib_dir):
+                continue
+            try:
+                needed = subprocess.check_output(
+                    ['otool', '-L', homebrew_harfbuzz], text=True
+                )
+                for line in needed.splitlines():
+                    line = line.strip()
+                    if lib_dir in line:
+                        dylib_path = line.split(' (')[0].strip()
+                        dylib_name = os.path.basename(dylib_path)
+                        if os.path.exists(dylib_path):
+                            a.binaries.append((f'PIL/.dylibs/{dylib_name}', dylib_path, 'BINARY'))
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                pass
 
 pyz = PYZ(a.pure)
 
