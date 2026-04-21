@@ -5,7 +5,7 @@ from shoggoth.i18n import tr
 from PySide6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsPixmapItem,
     QGraphicsPathItem, QGraphicsEllipseItem, QWidget, QVBoxLayout,
-    QHBoxLayout, QPushButton, QLabel, QMenu, QMessageBox, QCheckBox,
+    QHBoxLayout, QPushButton, QLabel, QMenu, QCheckBox,
     QApplication, QDialog, QDialogButtonBox, QGridLayout,
 )
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QSize, QTimer
@@ -15,7 +15,6 @@ from PySide6.QtGui import (
 )
 from io import BytesIO
 from pathlib import Path
-from bs4 import BeautifulSoup
 from shoggoth.files import overlay_dir
 
 
@@ -940,9 +939,9 @@ class LocationViewWidget(QWidget):
         screenshot_btn.clicked.connect(self._take_screenshot)
         toolbar.addWidget(screenshot_btn)
 
-        # Export to Guide button
-        self._export_guide_btn = QPushButton(tr("BTN_EXPORT_TO_GUIDE"))
-        self._export_guide_btn.setToolTip(tr("TOOLTIP_EXPORT_TO_GUIDE"))
+        # Export button
+        self._export_guide_btn = QPushButton(tr("BTN_EXPORT_LOCATION"))
+        self._export_guide_btn.setToolTip(tr("TOOLTIP_EXPORT_LOCATION"))
         self._export_guide_btn.clicked.connect(self._export_to_guide)
         toolbar.addWidget(self._export_guide_btn)
 
@@ -997,54 +996,20 @@ class LocationViewWidget(QWidget):
                 shoggoth.app.status_bar.showMessage(tr("MSG_SCREENSHOT_COPIED"), 3000)
 
     def _export_to_guide(self):
-        """Export location overview image to all linked guide scenario sections."""
+        """Export location overview image to the project export folder."""
         image = self.location_view.capture_screenshot()
         if not image:
             return
 
         project = self.encounter_set.project
         enc_id = self.encounter_set.id
-        updated_count = 0
 
-        for guide in project.guides:
-            result = guide.parse_sections()
-            if not result:
-                continue
-            preamble, sections, postamble = result
-            changed = False
-            for section in sections:
-                if section.type != 'scenario' or section.encounter_set_id != enc_id:
-                    continue
-                # Save image file next to the guide HTML
-                img_filename = f"location_overview_{enc_id}.png"
-                img_path = Path(guide.path).parent / img_filename
-                image.save(str(img_path))
-                # Update the location-overview div
-                soup = BeautifulSoup(f'<div>{section.html_content}</div>', 'html.parser')
-                wrapper = soup.find('div')
-                loc_div = wrapper.find('div', class_='location-overview')
-                if loc_div:
-                    loc_div.clear()
-                    img_tag = soup.new_tag('img', src=img_filename)
-                    loc_div.append(img_tag)
-                else:
-                    new_html = f'<div class="location-overview"><img src="{img_filename}"></div>'
-                    new_div = BeautifulSoup(new_html, 'html.parser').find('div')
-                    wrapper.append(new_div)
-                section.html_content = wrapper.decode_contents()
-                changed = True
-                updated_count += 1
-            if changed:
-                guide.save_sections(preamble, sections, postamble)
+        export_folder = Path(project.folder) / f'Export of {project.name}'
+        export_folder.mkdir(parents=True, exist_ok=True)
+
+        img_path = export_folder / f'{enc_id}_location_overview.png'
+        image.save(str(img_path))
 
         import shoggoth
-        if updated_count > 0:
-            if shoggoth.app:
-                msg = tr("MSG_EXPORTED_TO_GUIDE").format(count=updated_count)
-                shoggoth.app.status_bar.showMessage(msg, 4000)
-        else:
-            QMessageBox.information(
-                self,
-                tr("DLG_EXPORT_TO_GUIDE"),
-                tr("MSG_NO_LINKED_SECTIONS"),
-            )
+        if shoggoth.app:
+            shoggoth.app.status_bar.showMessage(tr("MSG_LOCATION_EXPORTED").format(path=str(img_path)), 4000)

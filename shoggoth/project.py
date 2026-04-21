@@ -1,12 +1,10 @@
 import json
 from uuid import uuid4
-import shutil
 from pathlib import Path
 
 import shoggoth
 from shoggoth.card import TEMPLATES, Card
 from shoggoth.encounter_set import EncounterSet
-from shoggoth.files import guide_dir
 from shoggoth.guide import Guide
 from shoggoth.i18n import tr
 from shoggoth.project_writer import Writer, TranslationWriter
@@ -170,6 +168,27 @@ class Project:
                 return es
         return None
 
+    @property
+    def scenario_names(self):
+        """ Property for guide creation.
+            Scenarios are encounter sets with ordering.
+        """
+        scenarios = [n for n in self.encounter_sets if n.get('order') != None]
+        names = [f'"{n.name}"' for n in scenarios]
+        if not names:
+            return ''
+        if len(names) < 2:
+            return names[0]
+        return ', '.join(names[:-1]) + ' and ' + names[-1]
+
+    @property
+    def number_of_scenarios(self):
+        """ Property for guide creation.
+            Scenarios are encounter sets with ordering.
+        """
+        scenarios = [n for n in self.encounter_sets if n.get('order') != None]
+        return len(scenarios)
+
     def get_guide(self, id):
         for guide in self.guides:
             if guide.id == id:
@@ -275,16 +294,12 @@ class Project:
         }
 
     def add_guide(self, name='Guide', file_location=None):
-        default_guide = guide_dir / 'guide_template.html'
-        if not file_location:
-            file_location = self.folder / 'guide.html'
-        shutil.copyfile(default_guide, file_location)
         if 'guides' not in self.data:
             self.data['guides'] = []
         self.data['guides'].append({
-            'path': str(Path(file_location).relative_to(self.folder)),
-            'name': name,
             'id': str(uuid4()),
+            'name': name,
+            'sections': [],
         })
         shoggoth.app.refresh_tree()
 

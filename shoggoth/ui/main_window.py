@@ -1010,7 +1010,9 @@ class ShoggothMainWindow(QMainWindow):
         self.preview_dock.hide()
 
         # Set initial splitter sizes
+        self.main_splitter.setCollapsible(0, True)
         self.main_splitter.setSizes([300, 700])
+        self._tree_width = 300
 
         main_layout.addWidget(self.main_splitter)
         central.setLayout(main_layout)
@@ -1306,6 +1308,14 @@ class ShoggothMainWindow(QMainWindow):
         self.toggle_preview_action.triggered.connect(self.toggle_preview)
         view_menu.addAction(self.toggle_preview_action)
 
+        # Toggle Project Tree
+        self.toggle_tree_action = QAction("Show Project Tree", self)
+        self.toggle_tree_action.setCheckable(True)
+        self.toggle_tree_action.setChecked(True)
+        self.toggle_tree_action.setShortcut("Ctrl+K")
+        self.toggle_tree_action.triggered.connect(self._toggle_project_tree)
+        view_menu.addAction(self.toggle_tree_action)
+
         # ==================== LANGUAGE MENU ====================
         language_menu = menubar.addMenu(tr("MENU_LANGUAGE"))
         self.language_actions = []
@@ -1352,6 +1362,13 @@ class ShoggothMainWindow(QMainWindow):
             self.preview_dock.show()
         else:
             self.preview_dock.hide()
+
+    def _toggle_project_tree(self, checked):
+        if checked:
+            self.main_splitter.setSizes([self._tree_width or 300, 700])
+        else:
+            self._tree_width = self.main_splitter.sizes()[0] or 300
+            self.main_splitter.setSizes([0, 1000])
 
     def change_language(self, lang_code: str):
         """Change the application language"""

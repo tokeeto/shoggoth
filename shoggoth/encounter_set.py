@@ -45,6 +45,11 @@ class EncounterSet:
     def id(self):
         return self.data['id']
 
+    @property
+    def number_of_locations(self):
+        """ Property used in guide creation mainly """
+        return len([c for c in self.cards if c.front.get('type') == 'location'])
+
     def add_card(self, card):
         if isinstance(card, Card):
             self.data['cards'].append(card.data)

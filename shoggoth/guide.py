@@ -1,18 +1,17 @@
-from pathlib import Path
 import uuid
-from io import BytesIO
 import subprocess
-from bs4 import BeautifulSoup, Tag
+import re
+import html as html_module
+from io import BytesIO
+from pathlib import Path
 from shoggoth import files
 from shoggoth.pdf_exporter import _resolve_prince
 from PIL import Image
+import markdown as md_lib
 
 
 SECTION_TYPES = ['cover', 'intro', 'prelude', 'interlude', 'scenario', 'blank']
 
-
-# CSS class for the auto-generated wrapper div per section type.
-# None means no wrapper (used for blank sections like cover pages).
 _SECTION_CSS = {
     'cover': 'chapter cover',
     'intro': 'chapter intro',
@@ -22,330 +21,461 @@ _SECTION_CSS = {
     'blank': 'chapter',
 }
 
-
-class SectionFieldDef:
-    """Describes one structured field in a guide section and locates it in HTML."""
-
-    def __init__(
-        self,
-        key: str,
-        label: str,
-        kind: str,
-        selector_tag: str,
-        selector_class: str,
-        default_html: str,
-        extra_selectors: list | None = None,
-    ):
-        self.key = key
-        self.label = label
-        # kind: 'line' | 'story' | 'text' | 'html' | 'list' | 'titled_list' | 'titled_html'
-        self.kind = kind
-        self.selector_tag = selector_tag
-        self.selector_class = selector_class   # '' means tag-only match
-        self.default_html = default_html
-        # Fallback (tag, class) pairs tried if the primary selector finds nothing.
-        # Allows matching legacy HTML that uses different tags/classes.
-        self.extra_selectors: list[tuple[str, str]] = extra_selectors or []
-
-    def locate(self, wrapper: Tag) -> list:
-        """Return matching elements that are direct children of *wrapper*.
-
-        Tries the primary (selector_tag, selector_class) first, then each entry
-        in extra_selectors in order, stopping at the first non-empty result.
-        """
-        def _find(tag, cls):
-            if cls:
-                return wrapper.find_all(tag, class_=cls, recursive=False)
-            return wrapper.find_all(tag, recursive=False)
-
-        results = _find(self.selector_tag, self.selector_class)
-        if results:
-            return results
-        for tag, cls in self.extra_selectors:
-            results = _find(tag, cls)
-            if results:
-                return results
-        return []
+_RESOLUTION_TEMPLATE = (
+    ":::resolution\n"
+    "## DO NOT READ<br>until end of scenario\n\n"
+    "**If no resolution was reached (each investigator resigned or was defeated):** You all died. Tough luck.\n\n"
+    "- The investigators lost the campaign.\n\n"
+    "**Resolution 1**: *Huraa!*\n\n"
+    "- Each investigator earns experience equal to the Victory X value of each card in the victory display.\n"
+    "- The investigators win the campaign. Proceed to **Interlude 1 - Title Here**.\n"
+    ":::\n"
+)
 
 
-_STORY_EXTRAS = [("section", "story"), ("div", "story")]  # legacy <section class="story">
-_SETUP_EXTRAS = [("section", "setup"), ("div", "setup")]
-_RESOLUTION_EXTRAS = [
-    ("div", "resolution_box"),
-    ("section", "resolution"),
-    ("section", "resolution_box"),
-]
+def _scenario_markdown(es_id: str | None = None) -> str:
+    if es_id:
+        return (
+            f"# [encounter:{es_id}:name]\n\n"
+            ":::story\n*Flavor text.*\n:::\n\n"
+            "## Setup\n\n"
+            f"- Gather the [encounter:{es_id}:name] set.\n\n"
+            ":::center\n"
+            f"[encounter:{es_id}:icon]\n"
+            ":::\n\n"
+            "## Location layout\n"
+            f"[encounter:{es_id}:location_overview]\n\n"
+            "## Resolution\n\n"
+            + _RESOLUTION_TEMPLATE
+        )
+    return (
+        "# Title\n\n"
+        ":::story\n*Flavor text.*\n:::\n\n"
+        "## Setup\n\n"
+        "- \n\n"
+        "## Location layout\n"
+        "[encounter:SET_ID:location_overview]\n\n"
+        "## Resolution\n\n"
+        + _RESOLUTION_TEMPLATE
+    )
 
-# Fields declared per section type, in display and generation order.
-SECTION_FIELDS: dict = {
-    "intro": [
-        SectionFieldDef("header", "Header", "line", "h1", "", "<h1>Intro</h1>"),
-        SectionFieldDef(
-            "story",
-            "Story Teaser",
-            "story",
-            "div",
-            "story",
-            '<div class="story">\n<p><em></em></p>\n</div>',
-            extra_selectors=_STORY_EXTRAS,
-        ),
-        SectionFieldDef(
-            "toc",
-            "Table of Contents",
-            "html",
-            "div",
-            "toc",
-            '<div class="toc">\n<h3>Table of Contents</h3>\n<ul>\n<li></li>\n</ul>\n</div>',
-        ),
-        SectionFieldDef(
-            "introduction",
-            "Introduction",
-            "html",
-            "div",
-            "introduction",
-            '<div class="introduction">\n<p></p>\n</div>',
-        ),
-        SectionFieldDef(
-            "new_rules",
-            "New Rules",
-            "html",
-            "div",
-            "box",
-            '<div class="box">\n<p></p>\n</div>',
-            extra_selectors=[("div", "codex")],
-        ),
-    ],
-    "prelude": [
-        SectionFieldDef("header", "Header", "line", "h1", "", "<h1>Prelude</h1>"),
-        SectionFieldDef(
-            "story",
-            "Story",
-            "story",
-            "div",
-            "story",
-            '<div class="story">\n<p><em></em></p>\n</div>',
-            extra_selectors=_STORY_EXTRAS,
-        ),
-        SectionFieldDef(
-            "text",
-            "Text",
-            "html",
-            "div",
-            "section-text",
-            '<div class="section-text">\n<p></p>\n</div>',
-        ),
-    ],
-    "interlude": [
-        SectionFieldDef("header", "Header", "line", "h1", "", "<h1>Interlude</h1>"),
-        SectionFieldDef(
-            "story",
-            "Story",
-            "story",
-            "div",
-            "story",
-            '<div class="story">\n<p><em></em></p>\n</div>',
-            extra_selectors=_STORY_EXTRAS,
-        ),
-        SectionFieldDef(
-            "text",
-            "Text",
-            "html",
-            "div",
-            "section-text",
-            '<div class="section-text">\n<p></p>\n</div>',
-        ),
-    ],
-    "scenario": [
-        SectionFieldDef("header", "Header", "line", "h1", "", "<h1>Scenario</h1>"),
-        SectionFieldDef(
-            "story",
-            "Story Teaser",
-            "story",
-            "div",
-            "story",
-            '<div class="story">\n<p><em></em></p>\n</div>',
-            extra_selectors=_STORY_EXTRAS,
-        ),
-        SectionFieldDef(
-            "setup",
-            "Setup",
-            "titled_list",
-            "div",
-            "setup",
-            '<div class="setup">\n<h3>Setup</h3>\n<ul>\n</ul>\n</div>',
-            extra_selectors=_SETUP_EXTRAS,
-        ),
-        SectionFieldDef(
-            "location_overview",
-            "Location Overview",
-            "text",
-            "div",
-            "location-overview",
-            '<div class="location-overview">\n<p></p>\n</div>',
-        ),
-        SectionFieldDef(
-            "resolution",
-            "Resolution",
-            "titled_html",
-            "div",
-            "resolution",
-            '<div class="resolution">\n<h3>Resolution</h3>\n<p></p>\n</div>',
-            extra_selectors=_RESOLUTION_EXTRAS,
-        ),
-    ],
-    "cover": [],
-    "blank": [],
+
+_DEFAULT_MARKDOWN = {
+    'intro': (
+        "# Campaign Tag Line\n"
+        ":::story\n"
+        "Awesome quote goes here\n"
+        ":::right\n"
+        "\\- Author, book\n"
+        ":::\n"
+        ":::\n"
+        "\n"
+        "[project:name] is a game for 1-4 investigators and their pets, to undertake a mission to find some missing girls, and maybe avoid getting bit in the process. Thread carefully.\n"
+        "\n"
+        "*[project:name]* is a fan made campaign for *Arkham Horror: The Card\n"
+        "Game* for 1–4 players. *[project:name]* contains [project:number_of_scenarios] scenarios: [project:scenario_names]. Each of these scenarios may also be played on its own in Standalone Mode.\n"
+        "\n"
+        "## Contents\n"
+        ":::toc\n"
+        ":::\n"
+        "\n"
+        "## Expansion Icon\n"
+        "The cards in the *[project:name]* campaign expansion can be identified by this symbol before each cards's collector number:\n"
+        ":::center\n"
+        "[project:icon]\n"
+        ":::\n"
+        "\n"
+        "## Campaign Setup\n"
+        "To set up the [project:name] campaign, perform the following steps in order.\n"
+        "\n"
+        "**1\\. Choose investigator(s).**\n"
+        "\n"
+        "**2\\. Each player assembles his or her investigator deck.**\n"
+        "\n"
+        "**3\\. Choose difficulty level.**\n"
+        "\n"
+        "**4\\. Assemble the campaign chaos bag.**\n"
+        "\n"
+        ":::indent\n"
+        "<bullet> **Easy (I want to experience the story):**  \n"
+        "+1, +1, 0, 0, 0, \u20131, \u20131, \u20131, \u20132, \u20132, <skull>, <skull>, <cultist>, <auto_fail>, <elder_sign>  \n"
+        "<bullet> **Standard (I want a challenge):**  \n"
+        "+1, 0, 0, \u20131, \u20131, \u20131, \u20132, \u20132, \u20133, \u20134, <skull>, <skull>, <cultist>, <auto_fail>, <elder_sign>  \n"
+        "<bullet> **Hard (I want a true nightmare):**  \n"
+        "0, 0, 0, \u20131, \u20131, \u20132, \u20132, \u20133, \u20133, \u20134, \u20135, <skull>, <skull>, <cultist>, <auto_fail>, <elder_sign>  \n"
+        "<bullet> **Expert (I want Arkham Horror):**  \n"
+        "0, \u20131, \u20131, \u20132, \u20132, \u20133, \u20133, \u20134, \u20134, \u20135, \u20136, \u20138, <skull>, <skull>, <cultist>, <auto_fail>, <elder_sign>\n"
+        ":::\n"
+        "\n"
+        "You're ready to begin at the **Prologue**.\n"
+    ),
+    'prelude': (
+        "# Prelude\n\n"
+        ":::story\n*Flavor text.*\n:::\n\n"
+    ),
+    'interlude': (
+        "# Interlude\n\n"
+        ":::story\n*Flavor text.*\n:::\n\n"
+    ),
+    'scenario': None,  # generated by _scenario_markdown()
+    'cover': "",
+    'blank': "",
 }
+
+# Icon tag → AHLCGSymbol glyph character (from rich_text.py font_icon_tags).
+# Bracket-style tags must be pre-processed before markdown sees them as links.
+_ICON_TAGS: dict[str, str] = {
+    '<codex>': '#', '<star>': '*', '<dash>': '-',
+    '<sign_1>': '1', '<sign_2>': '2', '<sign_3>': '3',
+    '<sign_4>': '4', '<sign_5>': '5',
+    '<question>': '?',
+    '<tablet>': 'A', '<entry>': 'B', '<cultist>': 'C',
+    '<blessing>': 'D', '<elder_sign>': 'E', '<fleur>': 'F',
+    '<guardian>': 'G', '<frost>': 'H', '<seeker>': 'K',
+    '<elder_thing>': 'L', '<mystic>': 'M', '<rogue>': 'R',
+    '<skull>': 'S', '<auto_fail>': 'T', '<curse>': 'U', '<survivor>': 'V',
+    '<agility>': 'a', '<agi>': 'a',
+    '<bullet>': 'b',
+    '<com>': 'c', '<combat>': 'c',
+    '<horror>': 'd', '<resolution>': 'e', '<free>': 'f',
+    '<damage>': 'h',
+    '<intellect>': 'i', '<int>': 'i',
+    '<resource>': 'm', '<act>': 'n', '<action>': 'n',
+    '<open>': 'o', '<per>': 'p',
+    '<reaction>': 'r', '<unique>': 'u',
+    '<willpower>': 'w', '<wil>': 'w',
+    '<day>': '<', '<night>': '>',
+    '[agility]': 'a', '[combat]': 'c', '[fast]': 'f',
+    '[intellect]': 'i', '[action]': 'n', '[per_investigator]': 'p',
+    '[willpower]': 'w',
+}
+
+# Pre-sorted longest-first so shorter aliases don't shadow longer ones.
+_ICON_TAGS_SORTED = sorted(_ICON_TAGS.items(), key=lambda kv: len(kv[0]), reverse=True)
+
+
+def _apply_icons(text: str) -> str:
+    """Replace icon tags with AHLCGSymbol spans before markdown processing."""
+    for tag, char in _ICON_TAGS_SORTED:
+        if tag in text:
+            span = f'<span class="icon">{html_module.escape(char)}</span>'
+            text = text.replace(tag, span)
+    return text
+
+
+def _apply_encounter_refs(text: str, guide=None) -> str:
+    """Replace [enc:…] / [encounter:…] tags.
+
+    New format: [enc:id:property] — id-based lookup, icon renders as <img>.
+    Legacy format: [enc:Name] — name-based lookup, always renders the icon.
+    """
+    if guide is None or ('[enc:' not in text and '[encounter:' not in text):
+        return text
+
+    def _replace(m):
+        args = m.group(1)
+        parts = args.split(':', 1)
+        try:
+            # Shorthand: [enc:SetName] — look up by name, show icon
+            if len(parts) == 1:
+                name = parts[0].strip()
+                for es in guide.project.encounter_sets:
+                    if es.name.lower() == name.lower() and es.icon:
+                        icon_path = (guide.project.folder / es.icon).resolve()
+                        return f'<img src="file://{icon_path}" class="encounter-icon" title="{html_module.escape(name)}">'
+                return m.group(0)
+
+            es_id, prop = parts[0].strip(), parts[1].strip()
+            es = guide.project.get_encounter_set(es_id)
+            if es is None:
+                return m.group(0)
+            if prop == 'icon':
+                icon_path = (guide.project.folder / es.icon).resolve()
+                return f'<img src="file://{icon_path}" class="encounter-icon" title="{html_module.escape(es.name)}">'
+
+            if prop == 'location_overview':
+                export_folder = guide.project.folder / f'Export of {guide.project.name}'
+                img_path = (export_folder / f'{es_id}_location_overview.png').resolve()
+                return f'<img src="file://{img_path}" class="location-overview">'
+
+            try:
+                value = getattr(es, prop)
+                return html_module.escape(str(value))
+            except AttributeError as e:
+                value = es.data.get(prop, '')
+                return html_module.escape(str(value))
+        except Exception:
+            return m.group(0)
+
+    return re.sub(r'\[(?:enc|encounter):([^\]]+)\]', _replace, text)
+
+
+def _generate_toc_html(guide) -> str:
+    if guide is None:
+        return '<div class="toc"></div>'
+    items = [
+        f'<a href="#{s.id}"><span class="title">{html_module.escape(s.name)}</span></a>'
+        for s in guide.sections
+        if s.type not in ('cover', 'blank')
+    ]
+    return '<div class="toc">\n' + '\n'.join(items) + '\n</div>'
+
+
+def _collect_block(lines: list, start: int) -> tuple:
+    """Return (inner_lines, closing_index), counting depth for nested ::: blocks."""
+    depth = 1
+    inner = []
+    i = start
+    while i < len(lines):
+        line = lines[i]
+        if re.match(r'^:::([\w][\w-]*)$', line.rstrip()):
+            depth += 1
+            inner.append(line)
+        elif line.rstrip() == ':::':
+            depth -= 1
+            if depth == 0:
+                return inner, i
+            inner.append(line)
+        else:
+            inner.append(line)
+        i += 1
+    return inner, i  # unclosed block — treat rest of input as inner content
+
+
+def _render_block(block_type: str, inner_html: str) -> str:
+    if block_type == 'resolution':
+        return (
+            '<div class="resolution_box">\n'
+            '<img class="glyph top" src="file://{{resolution_glyph_top}}">\n'
+            f'<div class="content">\n{inner_html}\n</div>\n'
+            '<img class="glyph bottom" src="file://{{resolution_glyph_bottom}}">\n'
+            '</div>'
+        )
+    if block_type == 'indent':
+        return f'<div style="margin-left: 2em;">\n{inner_html}\n</div>'
+    return f'<div class="{block_type}">\n{inner_html}\n</div>'
+
+
+def _process_lines(lines: list, guide=None) -> str:
+    """Recursively convert ::: blocks and render remaining text as markdown."""
+    result = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = re.match(r'^:::([\w][\w-]*)$', line.rstrip())
+        if m:
+            block_type = m.group(1)
+            inner_lines, end_i = _collect_block(lines, i + 1)
+
+            if block_type == 'toc':
+                block_html = _generate_toc_html(guide)
+            elif block_type in ('image-top', 'image-bottom'):
+                css = 'top' if block_type == 'image-top' else 'bottom'
+                src = '\n'.join(inner_lines).strip()
+                if src and not src.startswith('file://') and not src.startswith('http'):
+                    src = f'file://{src}'
+                block_html = f'<div><img class="{css}" src="{html_module.escape(src)}"></div>'
+            else:
+                inner_html = _process_lines(inner_lines, guide)
+                block_html = _render_block(block_type, inner_html)
+
+            # Blank lines ensure markdown treats the HTML block as block-level.
+            result.append('')
+            result.append(block_html)
+            result.append('')
+            i = end_i + 1
+        else:
+            result.append(line)
+            i += 1
+
+    return md_lib.markdown('\n'.join(result), extensions=['extra'])
+
+
+def _apply_traits(text: str) -> str:
+    """Replace [[trait]] with <t>trait</t> before markdown processing."""
+    return re.sub(r'\[\[([^\]\n]+)\]\]', r'<t>\1</t>', text)
+
+
+def _apply_project_refs(text: str, guide=None) -> str:
+    """Replace [project:property] tags. icon renders as <img>, others as escaped text."""
+    if guide is None or '[project:' not in text:
+        return text
+
+    def _replace(m):
+        prop = m.group(1).strip()
+        try:
+            if prop == 'icon':
+                icon_path = (guide.project.folder / guide.project.icon).resolve()
+                return f'<img src="file://{icon_path}" class="project-icon">'
+            value = getattr(guide.project, prop, None)
+            if value is None:
+                value = guide.project.data.get(prop, '')
+            return html_module.escape(str(value))
+        except Exception:
+            return m.group(0)
+
+    return re.sub(r'\[project:([^\]]+)\]', _replace, text)
+
+
+def _apply_card_refs(text: str, guide=None) -> str:
+    if guide is None or '[card:' not in text:
+        return text
+
+    def _replace(m):
+        parts = m.group(1).split(':')
+        card_id = parts[0]
+        prop_parts = parts[1:]
+        try:
+            card = guide.project.get_card(card_id)
+            if card is None:
+                return m.group(0)
+            if len(prop_parts) == 2 and prop_parts[0] in ('front', 'back'):
+                value = getattr(card, prop_parts[0]).get(prop_parts[1], '')
+            elif prop_parts[0] == 'name':
+                value = card.name
+            else:
+                value = card.front.get(prop_parts[0], '')
+            return html_module.escape(str(value))
+        except Exception:
+            return m.group(0)
+
+    return re.sub(r'\[card:([^\]]+)\]', _replace, text)
+
+
+def markdown_to_html(md_text: str, guide=None) -> str:
+    """Convert guide markdown (with ::: fenced blocks and icon tags) to HTML."""
+    text = _apply_encounter_refs(md_text, guide)
+    text = _apply_icons(text)
+    text = _apply_traits(text)
+    text = _apply_project_refs(text, guide)
+    text = _apply_card_refs(text, guide)
+    return _process_lines(text.splitlines(), guide)
 
 
 class GuideSection:
-    def __init__(self, section_type: str, name: str, html_content: str = '', section_id=None, encounter_set_id=None):
+    def __init__(self, section_type: str, name: str, markdown_content: str = '',
+                 section_id=None, encounter_set_id=None):
         self.type = section_type
         self.name = name
-        self.html_content = html_content
+        self.markdown = markdown_content
         self.id = section_id or uuid.uuid4().hex[:8]
         self.encounter_set_id = encounter_set_id
 
     @classmethod
-    def new(cls, section_type: str, name: str) -> 'GuideSection':
-        """Create a new section with default HTML for its predefined fields."""
-        field_defs = SECTION_FIELDS.get(section_type, [])
-        html_content = ''.join(fd.default_html + '\n' for fd in field_defs)
-        return cls(section_type, name, html_content)
+    def new(cls, section_type: str, name: str, encounter_set_id: str | None = None) -> 'GuideSection':
+        if section_type == 'scenario':
+            content = _scenario_markdown(encounter_set_id)
+        else:
+            content = _DEFAULT_MARKDOWN.get(section_type) or f'# {name}\n\n'
+        return cls(section_type, name, content, encounter_set_id=encounter_set_id)
 
-    def to_html(self) -> str:
+    def to_dict(self) -> dict:
+        d = {'id': self.id, 'type': self.type, 'name': self.name, 'markdown': self.markdown}
+        if self.encounter_set_id:
+            d['encounter_set_id'] = self.encounter_set_id
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'GuideSection':
+        return cls(
+            data.get('type', 'blank'),
+            data.get('name', ''),
+            data.get('markdown', ''),
+            data.get('id'),
+            data.get('encounter_set_id'),
+        )
+
+    def to_html(self, guide=None) -> str:
         css_class = _SECTION_CSS.get(self.type, 'chapter')
-        attrs = f'data-shoggoth-id="{self.id}"'
+        attrs = f'id="{self.id}" data-shoggoth-id="{self.id}"'
         if self.encounter_set_id:
             attrs += f' data-shoggoth-encounter="{self.encounter_set_id}"'
-        open_tag = f'<div class="{css_class}" {attrs}>'
-        lines = [open_tag]
-        if self.html_content:
-            lines.append(self.html_content)
-        lines.append('</div>')
-        return '\n'.join(lines)
-
-
-
-def _parse_sections_from_html(html: str):
-    """Parse GuideSection list from an HTML fragment.
-
-    Looks for elements carrying ``data-shoggoth-type`` / ``data-shoggoth-name``
-    / ``data-shoggoth-id`` attributes (new format).  Falls back to the legacy
-    comment-based format so that old files continue to work; they will be
-    silently upgraded to the new format on the next save.
-    """
-    soup = BeautifulSoup(html, 'html.parser')
-    section_elements = soup.find('body').find_all('div', recursive=False)
-
-    sections = []
-    for i, elem in enumerate(section_elements):
-        section_type = elem.get('class', ['unknown'])[-1]
-        section_name = elem.get('data-shoggoth-name')
-        if not section_name and elem.find('h1'):
-            section_name = elem.find('h1').get_text()
-        if not section_name:
-            section_name = section_type
-        # Prefer the explicit shoggoth id, then a regular id attr, then a
-        # stable positional fallback so the id is consistent across re-parses
-        # of the same unmodified HTML (avoids UUID churn on legacy files).
-        section_id = elem.get('data-shoggoth-id') or elem.get('id') or f'sec_{i}'
-        encounter_set_id = elem.get('data-shoggoth-encounter')
-        inner = elem.decode_contents().strip()
-        sections.append(GuideSection(section_type, section_name, inner, section_id, encounter_set_id))
-    return sections
+        inner = markdown_to_html(self.markdown, guide)
+        return f'<div class="{css_class}" {attrs}>\n{inner}\n</div>'
 
 
 class Guide:
-    def __init__(self, data, project, prince_cmd=None, prince_dir=None):
+    def __init__(self, data: dict, project):
         self.project = project
-        self.path = project.find_file(data['path'])
         self.id = data['id']
         self.data = data
-        self._html = None
-        self._prince_cmd, self._prince_dir = _resolve_prince()
+        if 'sections' not in self.data:
+            self.data['sections'] = []
 
     @property
-    def target_path(self):
-        return Path(self.path).parent / 'guide.pdf'
-
-    def get_html(self):
-        if not self._html:
-            with open(self.path, 'r') as file:
-                self._html = file.read()
-        return self._html
-
-    @property
-    def front_page(self):
-        return self.data.get('front_page', '')
-
-    @front_page.setter
-    def front_page(self, value):
-        self.data['front_page'] = value
-
-    @property
-    def name(self):
+    def name(self) -> str:
         return self.data.get('name', 'Unnamed Guide')
 
     @name.setter
-    def name(self, value):
+    def name(self, value: str):
         self.data['name'] = value
 
-    def html_format(self, html) -> str:
-        """ Does a simple string replacement for certain defined elements """
+    @property
+    def front_page(self) -> str:
+        return self.data.get('front_page', '')
+
+    @front_page.setter
+    def front_page(self, value: str):
+        self.data['front_page'] = value
+
+    @property
+    def sections(self) -> list:
+        return [GuideSection.from_dict(s) for s in self.data.get('sections', [])]
+
+    def save_sections(self, sections: list):
+        self.data['sections'] = [s.to_dict() for s in sections]
+        self.project.save_all()
+
+    @property
+    def target_path(self) -> Path:
+        return self.project.folder / 'guide.pdf'
+
+    def html_format(self, html: str) -> str:
         html = html.replace("{{frontpage}}", str(self.front_page))
         html = html.replace("{{a4_empty}}", str(files.guide_dir / 'guide_a4_empty.webp'))
         html = html.replace("{{a4_title}}", str(files.guide_dir / 'guide_a4_title.webp'))
         html = html.replace("{{resolution_glyph_top}}", str(files.guide_dir / 'resolution_glyph_top.png'))
         html = html.replace("{{resolution_glyph_bottom}}", str(files.guide_dir / 'resolution_glyph_bottom.png'))
-        html = html.replace("{{project.icon}}", str((self.project.folder / self.project.icon).resolve()))
+        try:
+            html = html.replace("{{project.icon}}", str((self.project.folder / self.project.icon).resolve()))
+        except Exception:
+            pass
         return html
 
-    def get_page(self, page, html: str = ''):
+    def to_html(self) -> str:
+        """Generate complete guide HTML from template + section content."""
+        template_path = files.guide_dir / 'guide_template.html'
+        with open(template_path, 'r') as f:
+            template = f.read()
+        sections_html = '\n'.join(s.to_html(self) for s in self.sections)
+        html = re.sub(
+            r'(<body[^>]*>).*?(</body>)',
+            lambda m: m.group(1) + '\n' + sections_html + '\n' + m.group(2),
+            template,
+            flags=re.DOTALL,
+        )
+        return self.html_format(html)
+
+    def get_page(self, page: int, html: str = '') -> Image.Image:
         prince_cmd, prince_cwd = _resolve_prince()
         if not html:
-            html = self.get_html()
+            html = self.to_html()
         p = subprocess.run(
             [prince_cmd, '-', '--raster-output=-', '--raster-format=jpg', f'--raster-pages={page}'],
             cwd=prince_cwd,
-            input=self.html_format(html).encode(),
+            input=html.encode(),
             stdout=subprocess.PIPE,
         )
         buffer = BytesIO(p.stdout)
         buffer.seek(0)
-        image = Image.open(buffer)
-        return image
+        return Image.open(buffer)
 
-    def parse_sections(self):
-        """Parse HTML into (preamble, sections, postamble). Returns None if not structured."""
-        html = self.get_html()
-        soup = BeautifulSoup(html, 'html.parser')
-        sections = _parse_sections_from_html(html)
-        head = str(soup.find('head'))
-        preamble = f'<!DOCTYPE html>\n<html>\n{head}\n<body>'
-        postamble = '</body>\n</html>'
-        return preamble, sections, postamble
-
-    def save_sections(self, preamble: str, sections: list, postamble: str):
-        """Serialize sections back to HTML and save."""
-        sections_html = '\n'.join(s.to_html() for s in sections)
-        html = f'{preamble}\n{sections_html}\n{postamble}'
-        self.save(html)
-
-    def save(self, html):
-        self._html = html
-        with open(self.path, 'w') as file:
-            file.write(html)
-
-    def render_to_file(self, html=None):
+    def render_to_file(self, html: str = ''):
         prince_cmd, prince_cwd = _resolve_prince()
         if not html:
-            html = self.get_html()
-        html = self.html_format(html)
-
-        p = subprocess.run(
+            html = self.to_html()
+        subprocess.run(
             [prince_cmd, '-', '-o', str(self.target_path)],
             cwd=prince_cwd,
             input=html.encode(),
         )
-        return

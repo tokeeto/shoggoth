@@ -1,25 +1,19 @@
-"""
-Guide Editor – structured form-based section editing with HTML fallback and PDF preview.
-"""
+"""Guide editor — markdown-based section editing with PDF preview."""
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QSpinBox, QTextEdit, QSplitter, QFileDialog, QScrollArea,
-    QFrame, QMessageBox, QLineEdit, QStackedWidget, QSizePolicy,
-    QListWidget, QListWidgetItem, QComboBox, QDialog, QDialogButtonBox,
+    QSpinBox, QTextEdit, QSplitter, QFileDialog,
+    QFrame, QMessageBox, QLineEdit, QStackedWidget,
+    QListWidget, QListWidgetItem, QComboBox, QSizePolicy, QDialog,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer
 from PySide6.QtGui import (
-    QSyntaxHighlighter, QTextCharFormat, QColor, QFont,
-    QPixmap, QImage,
+    QSyntaxHighlighter, QTextCharFormat, QColor, QFont, QPixmap, QTextCursor,
 )
 
 import re
-from pathlib import Path
 from shoggoth.i18n import tr
-from bs4 import BeautifulSoup, NavigableString
-from shoggoth.guide import SECTION_TYPES, GuideSection, SECTION_FIELDS
+from shoggoth.guide import SECTION_TYPES, GuideSection
 
-# ── Display labels ────────────────────────────────────────────────────────────
 
 SECTION_LABELS = {
     'intro': 'Intro',
@@ -27,6 +21,7 @@ SECTION_LABELS = {
     'interlude': 'Interlude',
     'scenario': 'Scenario',
     'blank': 'Blank',
+    'cover': 'Cover',
 }
 
 SECTION_COLORS = {
@@ -35,36 +30,54 @@ SECTION_COLORS = {
     'interlude': '#7c4a6e',
     'scenario': '#3d5a8a',
     'blank': '#666666',
+    'cover': '#8a5a3d',
 }
 
 
-# ── HTML syntax highlighter ───────────────────────────────────────────────────
+# ── Markdown syntax highlighter ───────────────────────────────────────────────
 
-class HTMLHighlighter(QSyntaxHighlighter):
+class MarkdownHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._rules = []
 
-        tag_fmt = QTextCharFormat()
-        tag_fmt.setForeground(QColor("#0000ff"))
-        tag_fmt.setFontWeight(QFont.Bold)
-        self._rules.append((re.compile(r'<[^>]+>'), tag_fmt))
+        heading_fmt = QTextCharFormat()
+        heading_fmt.setFontWeight(QFont.Bold)
+        heading_fmt.setForeground(QColor("#2d5b58"))
 
-        attr_fmt = QTextCharFormat()
-        attr_fmt.setForeground(QColor("#ff0000"))
-        self._rules.append((re.compile(r'\b\w+(?=\s*=)'), attr_fmt))
+        bold_fmt = QTextCharFormat()
+        bold_fmt.setFontWeight(QFont.Bold)
 
-        val_fmt = QTextCharFormat()
-        val_fmt.setForeground(QColor("#008000"))
-        self._rules += [
-            (re.compile(r'"[^"]*"'), val_fmt),
-            (re.compile(r"'[^']*'"), val_fmt),
+        italic_fmt = QTextCharFormat()
+        italic_fmt.setFontItalic(True)
+
+        trait_fmt = QTextCharFormat()
+        trait_fmt.setFontWeight(QFont.Bold)
+        trait_fmt.setFontItalic(True)
+        trait_fmt.setForeground(QColor("#5a3d7c"))
+
+        block_fmt = QTextCharFormat()
+        block_fmt.setForeground(QColor("#7c4a6e"))
+        block_fmt.setFontWeight(QFont.Bold)
+
+        card_ref_fmt = QTextCharFormat()
+        card_ref_fmt.setForeground(QColor("#1a7a8a"))
+        card_ref_fmt.setFontWeight(QFont.Bold)
+
+        project_ref_fmt = QTextCharFormat()
+        project_ref_fmt.setForeground(QColor("#8a6a1a"))
+        project_ref_fmt.setFontWeight(QFont.Bold)
+
+        self._rules = [
+            (re.compile(r'^#{1,6}\s.*$'), heading_fmt),
+            # italic before bold so bold wins on overlap
+            (re.compile(r'(?<!\*)\*(?!\*)[^*\n]+(?<!\*)\*(?!\*)'), italic_fmt),
+            (re.compile(r'\*\*[^*\n]+\*\*'), bold_fmt),
+            (re.compile(r'\[\[[^\]\n]+\]\]'), trait_fmt),
+            (re.compile(r'\[card:[^\]]+\]'), card_ref_fmt),
+            (re.compile(r'\[(?:enc|encounter):[^\]]+\]'), card_ref_fmt),
+            (re.compile(r'\[project:[^\]]+\]'), project_ref_fmt),
+            (re.compile(r'^:::.*$'), block_fmt),
         ]
-
-        cmt_fmt = QTextCharFormat()
-        cmt_fmt.setForeground(QColor("#808080"))
-        cmt_fmt.setFontItalic(True)
-        self._rules.append((re.compile(r'<!--.*?-->'), cmt_fmt))
 
     def highlightBlock(self, text):
         for pattern, fmt in self._rules:
@@ -72,134 +85,22 @@ class HTMLHighlighter(QSyntaxHighlighter):
                 self.setFormat(m.start(), m.end() - m.start(), fmt)
 
 
-# ── Markdown ↔ HTML conversion ────────────────────────────────────────────────
-
-def _md_inline(text: str) -> str:
-    """Apply inline markdown: **bold** and *italic*."""
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
-    return text
-
-
-def _md_to_html(md: str) -> str:
-    """Convert simple markdown to HTML. Supports headings, paragraphs, bullet lists."""
-    lines = md.split('\n')
-    out = []
-    i = 0
-    while i < len(lines):
-        stripped = lines[i].strip()
-        heading_match = re.match(r'^(#{1,3})\s+(.*)', stripped)
-        if heading_match:
-            level = len(heading_match.group(1))
-            out.append(f'<h{level}>{_md_inline(heading_match.group(2))}</h{level}>')
-            i += 1
-        elif stripped.startswith('- ') or stripped.startswith('* '):
-            items = []
-            while i < len(lines):
-                s = lines[i].strip()
-                if s.startswith('- ') or s.startswith('* '):
-                    items.append(f'<li>{_md_inline(s[2:])}</li>')
-                    i += 1
-                else:
-                    break
-            out.append('<ul>\n' + '\n'.join(items) + '\n</ul>')
-        elif stripped == '':
-            i += 1
-        else:
-            para_lines = []
-            while i < len(lines):
-                s = lines[i].strip()
-                if s == '' or s.startswith('#') or s.startswith('- ') or s.startswith('* '):
-                    break
-                para_lines.append(s)
-                i += 1
-            out.append(f'<p>{_md_inline(" ".join(para_lines))}</p>')
-    return '\n'.join(out)
-
-
-def _elem_to_md_inline(elem) -> str:
-    result = ''
-    for child in elem.children:
-        if isinstance(child, NavigableString):
-            result += str(child)
-        elif child.name in ('em', 'i'):
-            result += f'*{child.get_text()}*'
-        elif child.name in ('strong', 'b'):
-            result += f'**{child.get_text()}**'
-        else:
-            result += child.get_text()
-    return result
-
-
-def _html_to_md(html: str) -> str:
-    """Convert simple HTML to markdown. Handles headings, paragraphs, lists, divs."""
-    soup = BeautifulSoup(html, 'html.parser')
-    parts = []
-    for elem in soup.children:
-        if isinstance(elem, NavigableString):
-            text = str(elem).strip()
-            if text:
-                parts.append(text)
-        elif elem.name in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
-            level = int(elem.name[1])
-            parts.append('#' * level + ' ' + elem.get_text().strip())
-        elif elem.name == 'p':
-            text = _elem_to_md_inline(elem).strip()
-            if text:
-                parts.append(text)
-        elif elem.name in ('ul', 'ol'):
-            for li in elem.find_all('li', recursive=False):
-                parts.append('- ' + _elem_to_md_inline(li).strip())
-        elif elem.name == 'div':
-            inner = _html_to_md(elem.decode_contents())
-            if inner.strip():
-                parts.append(inner)
-    return '\n\n'.join(p for p in parts if p.strip())
-
-
-# ── Expanded editor dialog ────────────────────────────────────────────────────
-
-class ExpandedEditorDialog(QDialog):
-    """Modal popup with a large text editor for comfortable editing."""
-
-    def __init__(self, title: str, content: str, highlight_html: bool = False, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(f'Edit: {title}')
-        self.resize(720, 520)
-        layout = QVBoxLayout(self)
-        self._edit = QTextEdit()
-        self._edit.setAcceptRichText(False)
-        self._edit.setFont(QFont('Courier', 10))
-        self._edit.setPlainText(content)
-        if highlight_html:
-            HTMLHighlighter(self._edit.document())
-        layout.addWidget(self._edit)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def get_content(self) -> str:
-        return self._edit.toPlainText()
-
-
 # ── PDF rendering thread ──────────────────────────────────────────────────────
 
 class PDFPageRenderer(QThread):
     page_ready = Signal(int, object)
 
-    def __init__(self, guide, page_number, html=None):
+    def __init__(self, guide, page_number):
         super().__init__()
         self.guide = guide
         self.page_number = page_number
-        self.html = html
         self._stop = False
 
     def run(self):
         if self._stop:
             return
         try:
-            img = self.guide.get_page(self.page_number, html=self.html or '')
+            img = self.guide.get_page(self.page_number)
             if self._stop:
                 return
             from PIL.ImageQt import ImageQt
@@ -226,11 +127,17 @@ class ZoomablePDFViewer(QFrame):
         self._panning = False
         self._last_pos = None
         self.setFrameStyle(QFrame.Box | QFrame.Sunken)
-        self.setMinimumSize(400, 600)
+        self.setMinimumSize(300, 400)
         self.setMouseTracking(True)
 
     def set_pixmap(self, pixmap):
         self.pixmap = pixmap
+        if pixmap and pixmap.width() > 0 and pixmap.height() > 0:
+            w_ratio = (self.width() - 4) / pixmap.width()
+            h_ratio = (self.height() - 4) / pixmap.height()
+            self.zoom_level = min(w_ratio, h_ratio)
+        self.pan_x = 0
+        self.pan_y = 0
         self.update()
 
     def paintEvent(self, event):
@@ -281,560 +188,546 @@ class ZoomablePDFViewer(QFrame):
         self.update()
 
 
-# ── Reusable editable list widget ─────────────────────────────────────────────
+# ── Overview panel ────────────────────────────────────────────────────────────
 
-class EditableListWidget(QWidget):
-    """An ordered list with add / remove / reorder buttons."""
+class GuideOverviewPanel(QWidget):
+    """Section list with guide metadata. Double-click or Edit button opens a section."""
 
-    def __init__(self, parent=None):
+    section_edit_requested = Signal(str)  # section_id
+
+    def __init__(self, guide, parent=None):
         super().__init__(parent)
+        self.guide = guide
+        self._setup_ui()
+        self.refresh()
+
+    def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
 
-        self.list_widget = QListWidget()
-        self.list_widget.setMinimumHeight(80)
-        layout.addWidget(self.list_widget)
+        # Guide name
+        layout.addWidget(QLabel("Guide name:"))
+        self._name_edit = QLineEdit()
+        self._name_edit.textChanged.connect(self._on_name_changed)
+        layout.addWidget(self._name_edit)
 
-        btn_row = QHBoxLayout()
-        add_btn = QPushButton("+ Add")
-        add_btn.clicked.connect(self._add_item)
-        remove_btn = QPushButton("− Remove")
-        remove_btn.clicked.connect(self._remove_item)
+        # Front page
+        layout.addWidget(QLabel("Front page:"))
+        fp_row = QHBoxLayout()
+        self._fp_edit = QLineEdit()
+        self._fp_edit.setPlaceholderText("Path to cover image…")
+        self._fp_edit.textChanged.connect(self._on_fp_changed)
+        fp_btn = QPushButton("…")
+        fp_btn.setFixedWidth(28)
+        fp_btn.clicked.connect(self._browse_front_page)
+        fp_row.addWidget(self._fp_edit)
+        fp_row.addWidget(fp_btn)
+        layout.addLayout(fp_row)
+
+        # Section list
+        layout.addWidget(QLabel("Sections:"))
+        self._list = QListWidget()
+        self._list.itemDoubleClicked.connect(self._on_double_click)
+        layout.addWidget(self._list, stretch=1)
+
+        # Edit button row
+        edit_row = QHBoxLayout()
+        edit_btn = QPushButton("Edit Section")
+        edit_btn.clicked.connect(self._on_edit_clicked)
+        edit_row.addWidget(edit_btn)
         up_btn = QPushButton("▲")
-        up_btn.setFixedWidth(32)
+        up_btn.setFixedWidth(30)
         up_btn.clicked.connect(self._move_up)
         down_btn = QPushButton("▼")
-        down_btn.setFixedWidth(32)
+        down_btn.setFixedWidth(30)
         down_btn.clicked.connect(self._move_down)
-        btn_row.addWidget(add_btn)
-        btn_row.addWidget(remove_btn)
-        btn_row.addStretch()
-        btn_row.addWidget(up_btn)
-        btn_row.addWidget(down_btn)
-        layout.addLayout(btn_row)
+        del_btn = QPushButton("Delete")
+        del_btn.clicked.connect(self._delete_section)
+        edit_row.addWidget(up_btn)
+        edit_row.addWidget(down_btn)
+        edit_row.addStretch()
+        edit_row.addWidget(del_btn)
+        layout.addLayout(edit_row)
 
-    def _add_item(self):
-        item = QListWidgetItem("New item")
-        item.setFlags(item.flags() | Qt.ItemIsEditable)
-        self.list_widget.addItem(item)
-        self.list_widget.setCurrentItem(item)
-        self.list_widget.editItem(item)
+        # Add section buttons
+        add_lbl = QLabel("Add section:")
+        add_lbl.setStyleSheet("font-weight: bold; margin-top: 4px;")
+        layout.addWidget(add_lbl)
+        for stype in SECTION_TYPES:
+            btn = QPushButton(SECTION_LABELS.get(stype, stype))
+            color = SECTION_COLORS.get(stype, '#666')
+            btn.setStyleSheet(
+                f"QPushButton {{ color: white; background: {color}; border-radius: 3px; padding: 2px; }}"
+                f"QPushButton:hover {{ background: {color}cc; }}"
+            )
+            btn.clicked.connect(lambda checked=False, t=stype: self._add_section(t))
+            layout.addWidget(btn)
 
-    def _remove_item(self):
-        for item in self.list_widget.selectedItems():
-            self.list_widget.takeItem(self.list_widget.row(item))
+        # Separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(sep)
+
+        # Export buttons
+        export_row = QHBoxLayout()
+        export_pdf_btn = QPushButton(tr("BTN_EXPORT_PDF"))
+        export_pdf_btn.clicked.connect(self._export_pdf)
+        export_row.addWidget(export_pdf_btn)
+        export_html_btn = QPushButton("Export HTML")
+        export_html_btn.clicked.connect(self._export_html)
+        export_row.addWidget(export_html_btn)
+        layout.addLayout(export_row)
+
+    def refresh(self):
+        self._name_edit.blockSignals(True)
+        self._name_edit.setText(self.guide.name)
+        self._name_edit.blockSignals(False)
+        self._fp_edit.blockSignals(True)
+        self._fp_edit.setText(self.guide.front_page)
+        self._fp_edit.blockSignals(False)
+
+        selected_id = None
+        item = self._list.currentItem()
+        if item:
+            selected_id = item.data(Qt.UserRole)
+
+        self._list.clear()
+        for s in self.guide.sections:
+            color = SECTION_COLORS.get(s.type, '#666')
+            label = SECTION_LABELS.get(s.type, s.type)
+            item = QListWidgetItem(f"[{label}]  {s.name}")
+            item.setData(Qt.UserRole, s.id)
+            item.setForeground(QColor(color))
+            self._list.addItem(item)
+
+        # Restore selection
+        if selected_id:
+            for i in range(self._list.count()):
+                if self._list.item(i).data(Qt.UserRole) == selected_id:
+                    self._list.setCurrentRow(i)
+                    return
+        if self._list.count():
+            self._list.setCurrentRow(0)
+
+    def _current_id(self):
+        item = self._list.currentItem()
+        return item.data(Qt.UserRole) if item else None
+
+    def _on_name_changed(self, text):
+        self.guide.name = text
+        self.guide.project.save_all()
+
+    def _on_fp_changed(self, text):
+        self.guide.front_page = text
+        self.guide.project.save_all()
+
+    def _browse_front_page(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Front Page Image", str(self.guide.project.folder),
+            "Images (*.png *.jpg *.jpeg *.webp *.avif)",
+        )
+        if path:
+            self._fp_edit.setText(path)
+
+    def _add_section(self, section_type: str):
+        name = SECTION_LABELS.get(section_type, section_type)
+        sections = self.guide.sections
+        es_id = None
+        if section_type == 'scenario':
+            dlg = ScenarioEncounterPickerDialog(self.guide, self)
+            if dlg.exec() != QDialog.Accepted:
+                return
+            es_id = dlg.selected_id()
+        new_section = GuideSection.new(section_type, name, encounter_set_id=es_id)
+        sections.append(new_section)
+        self.guide.save_sections(sections)
+        self.refresh()
+        # Select and open the newly added section
+        self.section_edit_requested.emit(new_section.id)
+
+    def _delete_section(self):
+        sid = self._current_id()
+        if sid is None:
+            return
+        sections = [s for s in self.guide.sections if s.id != sid]
+        self.guide.save_sections(sections)
+        self.refresh()
 
     def _move_up(self):
-        row = self.list_widget.currentRow()
-        if row > 0:
-            item = self.list_widget.takeItem(row)
-            self.list_widget.insertItem(row - 1, item)
-            self.list_widget.setCurrentRow(row - 1)
+        sid = self._current_id()
+        if not sid:
+            return
+        sections = self.guide.sections
+        idx = next((i for i, s in enumerate(sections) if s.id == sid), None)
+        if idx is not None and idx > 0:
+            sections[idx - 1], sections[idx] = sections[idx], sections[idx - 1]
+            self.guide.save_sections(sections)
+            self.refresh()
 
     def _move_down(self):
-        row = self.list_widget.currentRow()
-        if row < self.list_widget.count() - 1:
-            item = self.list_widget.takeItem(row)
-            self.list_widget.insertItem(row + 1, item)
-            self.list_widget.setCurrentRow(row + 1)
+        sid = self._current_id()
+        if not sid:
+            return
+        sections = self.guide.sections
+        idx = next((i for i, s in enumerate(sections) if s.id == sid), None)
+        if idx is not None and idx < len(sections) - 1:
+            sections[idx], sections[idx + 1] = sections[idx + 1], sections[idx]
+            self.guide.save_sections(sections)
+            self.refresh()
 
-    def get_items(self):
-        return [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
+    def _on_double_click(self, item):
+        self.section_edit_requested.emit(item.data(Qt.UserRole))
 
-    def set_items(self, items):
-        self.list_widget.clear()
-        for text in items:
-            item = QListWidgetItem(text)
-            item.setFlags(item.flags() | Qt.ItemIsEditable)
-            self.list_widget.addItem(item)
+    def _on_edit_clicked(self):
+        sid = self._current_id()
+        if sid:
+            self.section_edit_requested.emit(sid)
+
+    def _export_pdf(self):
+        self.guide.render_to_file()
+        QMessageBox.information(
+            self, tr("DLG_EXPORT_COMPLETE"),
+            tr("MSG_PDF_EXPORTED").format(path=self.guide.target_path),
+        )
+
+    def _export_html(self):
+        html = self.guide.to_html()
+        html_path = self.guide.target_path.with_suffix('.html')
+        html_path.write_text(html, encoding='utf-8')
+        QMessageBox.information(
+            self, "Export Complete",
+            f"HTML exported to:\n{html_path}",
+        )
 
 
-# ── HTML helpers ──────────────────────────────────────────────────────────────
+# ── Scenario encounter set picker dialog ──────────────────────────────────────
 
-def _strip_tags(html: str) -> str:
-    return re.sub(r'<[^>]+>', '', html)
+class ScenarioEncounterPickerDialog(QDialog):
+    """Pick an encounter set when creating a new scenario section."""
 
-
-# ── Field editor widgets ───────────────────────────────────────────────────────
-
-class FieldEditorWidget(QFrame):
-    """Base widget for editing one predefined section field."""
-
-    def __init__(self, field_def, guide=None, parent=None):
+    def __init__(self, guide, parent=None):
         super().__init__(parent)
-        self.field_def = field_def
         self.guide = guide
-        self._status = 'ok'  # 'ok' | 'missing' | 'ambiguous'
-        self.setFrameStyle(QFrame.StyledPanel)
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 6, 8, 6)
-        outer.setSpacing(4)
-        header_row = QHBoxLayout()
-        self._header_lbl = QLabel(f'<b>{field_def.label}</b>')
-        header_row.addWidget(self._header_lbl)
-        self._status_lbl = QLabel()
-        self._status_lbl.setStyleSheet('font-size: 8pt; font-style: italic;')
-        header_row.addWidget(self._status_lbl)
-        header_row.addStretch()
-        self._expand_btn = QPushButton('⤢')
-        self._expand_btn.setFixedSize(24, 24)
-        self._expand_btn.setToolTip('Open in expanded editor')
-        self._expand_btn.clicked.connect(self._expand)
-        self._expand_btn.hide()
-        header_row.addWidget(self._expand_btn)
-        outer.addLayout(header_row)
-        self._warn_lbl = QLabel()
-        self._warn_lbl.setWordWrap(True)
-        self._warn_lbl.setStyleSheet('color: #cc4400; font-size: 8pt;')
-        self._warn_lbl.hide()
-        outer.addWidget(self._warn_lbl)
-        self._build_editor(outer)
-        # Show expand button for any field that has a multi-line text editor
-        if hasattr(self, '_edit') and isinstance(self._edit, QTextEdit):
-            self._expand_btn.show()
+        self.setWindowTitle("Choose Encounter Set for Scenario")
+        self.setMinimumSize(300, 350)
+        self._setup_ui()
+        self._populate()
 
-    def _build_editor(self, layout):
-        pass
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Select the encounter set for this scenario:"))
+        self._list = QListWidget()
+        self._list.itemDoubleClicked.connect(self.accept)
+        layout.addWidget(self._list, stretch=1)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        ok_btn = QPushButton("OK")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(ok_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
 
-    def get_value(self) -> str:
-        """Return the full HTML element string for this field."""
-        return ''
+    def _populate(self):
+        none_item = QListWidgetItem("— None —")
+        none_item.setData(Qt.UserRole, None)
+        self._list.addItem(none_item)
+        self._list.setCurrentRow(0)
+        try:
+            for es in self.guide.project.encounter_sets:
+                item = QListWidgetItem(es.name)
+                item.setData(Qt.UserRole, es.id)
+                self._list.addItem(item)
+        except Exception:
+            pass
 
-    def set_value(self, html_fragment: str):
-        """Populate editor from the matched element's outer HTML."""
+    def selected_id(self):
+        item = self._list.currentItem()
+        return item.data(Qt.UserRole) if item else None
 
-    def load_from_soup(self, wrapper):
-        """Locate the field element in *wrapper* and configure widget state."""
-        matches = self.field_def.locate(wrapper)
-        if len(matches) == 0:
-            self._status = 'missing'
-            self.setStyleSheet('QFrame { border-left: 3px solid #aa7700; }')
-            self._status_lbl.setText('(not in HTML — will be appended on save)')
-            self._status_lbl.setStyleSheet('color: #aa7700; font-size: 8pt; font-style: italic;')
-            self.set_value(self.field_def.default_html)
-        elif len(matches) > 1:
-            self._status = 'ambiguous'
-            self.setStyleSheet('QFrame { border-left: 3px solid #cc4400; }')
-            self._status_lbl.setText(f'ambiguous ({len(matches)} matches)')
-            self._status_lbl.setStyleSheet('color: #cc4400; font-size: 8pt; font-weight: bold;')
-            self._warn_lbl.setText(
-                'Multiple elements match — this field is disabled. Edit raw HTML to resolve.'
-            )
-            self._warn_lbl.show()
-            self.setEnabled(False)
+
+# ── Card picker dialog ────────────────────────────────────────────────────────
+
+class CardPickerDialog(QDialog):
+    def __init__(self, guide, parent=None):
+        super().__init__(parent)
+        self.guide = guide
+        self._all_cards = []
+        self.setWindowTitle("Insert Card Reference")
+        self.setMinimumSize(320, 420)
+        self._setup_ui()
+        self._populate()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Search cards…")
+        self._search.textChanged.connect(self._filter)
+        layout.addWidget(self._search)
+
+        self._list = QListWidget()
+        self._list.itemDoubleClicked.connect(self.accept)
+        layout.addWidget(self._list, stretch=1)
+
+        prop_row = QHBoxLayout()
+        prop_row.addWidget(QLabel("Property:"))
+        self._prop_edit = QLineEdit("name")
+        prop_row.addWidget(self._prop_edit)
+        layout.addLayout(prop_row)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        insert_btn = QPushButton("Insert")
+        insert_btn.setDefault(True)
+        insert_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(insert_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+    def _populate(self):
+        try:
+            self._all_cards = list(self.guide.project.cards)
+        except Exception:
+            self._all_cards = []
+        self._filter('')
+
+    def _filter(self, text):
+        self._list.clear()
+        q = text.lower()
+        for card in self._all_cards:
+            if not q or q in card.name.lower():
+                item = QListWidgetItem(card.name)
+                item.setData(Qt.UserRole, card.id)
+                self._list.addItem(item)
+        if self._list.count():
+            self._list.setCurrentRow(0)
+
+    def result_snippet(self):
+        item = self._list.currentItem()
+        if not item:
+            return None
+        card_id = item.data(Qt.UserRole)
+        prop = self._prop_edit.text().strip() or 'name'
+        return f'[card:{card_id}:{prop}]'
+
+
+# ── Encounter set picker dialog ───────────────────────────────────────────────
+
+class EncounterPickerDialog(QDialog):
+    def __init__(self, guide, parent=None):
+        super().__init__(parent)
+        self.guide = guide
+        self._all_sets = []
+        self.setWindowTitle("Insert Encounter Set Reference")
+        self.setMinimumSize(320, 360)
+        self._setup_ui()
+        self._populate()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Search encounter sets…")
+        self._search.textChanged.connect(self._filter)
+        layout.addWidget(self._search)
+
+        self._list = QListWidget()
+        self._list.itemDoubleClicked.connect(self.accept)
+        layout.addWidget(self._list, stretch=1)
+
+        prop_row = QHBoxLayout()
+        prop_row.addWidget(QLabel("Property:"))
+        self._prop_edit = QLineEdit("icon")
+        prop_row.addWidget(self._prop_edit)
+        layout.addLayout(prop_row)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        insert_btn = QPushButton("Insert")
+        insert_btn.setDefault(True)
+        insert_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(insert_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+    def _populate(self):
+        try:
+            self._all_sets = list(self.guide.project.encounter_sets)
+        except Exception:
+            self._all_sets = []
+        self._filter('')
+
+    def _filter(self, text):
+        self._list.clear()
+        q = text.lower()
+        for es in self._all_sets:
+            if not q or q in es.name.lower():
+                item = QListWidgetItem(es.name)
+                item.setData(Qt.UserRole, es.id)
+                self._list.addItem(item)
+        if self._list.count():
+            self._list.setCurrentRow(0)
+
+    def result_snippet(self):
+        item = self._list.currentItem()
+        if not item:
+            return None
+        es_id = item.data(Qt.UserRole)
+        prop = self._prop_edit.text().strip() or 'icon'
+        return f'[encounter:{es_id}:{prop}]'
+
+
+# ── Markdown-aware text editor ────────────────────────────────────────────────
+
+class MarkdownEditor(QTextEdit):
+    """QTextEdit with Ctrl+B/I/T formatting shortcuts and Ctrl+1-5 headings."""
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        mods = event.modifiers()
+        if mods == Qt.ControlModifier:
+            if key == Qt.Key_B:
+                self._wrap('**', '**')
+                return
+            elif key == Qt.Key_I:
+                self._wrap('*', '*')
+                return
+            elif key == Qt.Key_T:
+                self._wrap('[[', ']]')
+                return
+            elif Qt.Key_1 <= key <= Qt.Key_5:
+                self._set_heading(key - Qt.Key_0)
+                return
+        super().keyPressEvent(event)
+
+    def _wrap(self, open_m: str, close_m: str):
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            cursor.insertText(open_m + cursor.selectedText() + close_m)
         else:
-            self._status = 'ok'
-            self.setStyleSheet('QFrame { border-left: 3px solid #3d5a8a; }')
-            self._status_lbl.clear()
-            self._warn_lbl.hide()
-            self.setEnabled(True)
-            self.set_value(str(matches[0]))
+            cursor.insertText(open_m + close_m)
+            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, len(close_m))
+            self.setTextCursor(cursor)
 
-    def apply_to_soup(self, wrapper):
-        """Write current value back into *wrapper* (surgical update)."""
-        if self._status == 'ambiguous':
-            return
-        matches = self.field_def.locate(wrapper)
-        new_tag = BeautifulSoup(self.get_value(), 'html.parser').find()
-        if new_tag is None:
-            return
-        if not matches:
-            wrapper.append(new_tag)
-        else:
-            matches[0].replace_with(new_tag)
-
-    def _expand(self):
-        """Open the field's text editor content in a larger popup dialog."""
-        if not hasattr(self, '_edit') or not isinstance(self._edit, QTextEdit):
-            return
-        is_html_field = self.field_def.kind in ('html', 'titled_html')
-        in_md_mode = getattr(self, '_md_mode', False)
-        dlg = ExpandedEditorDialog(
-            self.field_def.label,
-            self._edit.toPlainText(),
-            highlight_html=is_html_field and not in_md_mode,
-            parent=self,
-        )
-        if dlg.exec():
-            self._edit.setPlainText(dlg.get_content())
-
-
-class LineFieldWidget(FieldEditorWidget):
-    """Single-line plain text (e.g. h1 header)."""
-
-    def _build_editor(self, layout):
-        self._edit = QLineEdit()
-        self._edit.setPlaceholderText(f'{self.field_def.label}...')
-        layout.addWidget(self._edit)
-
-    def get_value(self) -> str:
-        tag = self.field_def.selector_tag
-        return f'<{tag}>{self._edit.text()}</{tag}>'
-
-    def set_value(self, html_fragment: str):
-        m = re.search(r'<[^>]+>(.*?)</[^>]+>', html_fragment, re.DOTALL)
-        self._edit.setText(_strip_tags(m.group(1)) if m else '')
-
-
-class StoryFieldWidget(FieldEditorWidget):
-    """Multi-paragraph italic story/flavour text (div.story)."""
-
-    def _build_editor(self, layout):
-        hint = QLabel('Blank line = new paragraph. Text will be italicised.')
-        hint.setStyleSheet('color: gray; font-size: 8pt;')
-        layout.addWidget(hint)
-        self._edit = QTextEdit()
-        self._edit.setMinimumHeight(80)
-        self._edit.setMaximumHeight(200)
-        layout.addWidget(self._edit)
-
-    def get_value(self) -> str:
-        text = self._edit.toPlainText().strip()
-        paras = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()] or ['']
-        inner = '\n'.join(f'<p><em>{p}</em></p>' for p in paras)
-        css = self.field_def.selector_class
-        return f'<div class="{css}">\n{inner}\n</div>'
-
-    def set_value(self, html_fragment: str):
-        em_paras = re.findall(r'<em[^>]*>(.*?)</em>', html_fragment, re.DOTALL | re.IGNORECASE)
-        if em_paras:
-            self._edit.setPlainText('\n\n'.join(_strip_tags(p) for p in em_paras))
-        else:
-            paras = re.findall(r'<p[^>]*>(.*?)</p>', html_fragment, re.DOTALL | re.IGNORECASE)
-            self._edit.setPlainText('\n\n'.join(_strip_tags(p) for p in paras))
-
-
-class TextFieldWidget(FieldEditorWidget):
-    """Multi-paragraph plain text."""
-
-    def _build_editor(self, layout):
-        hint = QLabel('Blank line = new paragraph.')
-        hint.setStyleSheet('color: gray; font-size: 8pt;')
-        layout.addWidget(hint)
-        self._edit = QTextEdit()
-        self._edit.setMinimumHeight(80)
-        self._edit.setMaximumHeight(200)
-        layout.addWidget(self._edit)
-
-    def get_value(self) -> str:
-        text = self._edit.toPlainText().strip()
-        paras = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()] or ['']
-        inner = '\n'.join(f'<p>{p}</p>' for p in paras)
-        css = self.field_def.selector_class
-        return f'<div class="{css}">\n{inner}\n</div>'
-
-    def set_value(self, html_fragment: str):
-        paras = re.findall(r'<p[^>]*>(.*?)</p>', html_fragment, re.DOTALL | re.IGNORECASE)
-        self._edit.setPlainText('\n\n'.join(_strip_tags(p) for p in paras))
-
-
-class HtmlFieldWidget(FieldEditorWidget):
-    """Raw HTML editor with syntax highlighting and optional markdown mode."""
-
-    def _build_editor(self, layout):
-        self._md_mode = False
-        self._highlighter = None
-        ctrl_row = QHBoxLayout()
-        self._mode_btn = QPushButton('Switch to Markdown')
-        self._mode_btn.setCheckable(True)
-        self._mode_btn.setFixedWidth(160)
-        self._mode_btn.clicked.connect(self._toggle_mode)
-        ctrl_row.addWidget(self._mode_btn)
-        if self.field_def.key == 'toc':
-            gen_btn = QPushButton('Generate')
-            gen_btn.setToolTip('Populate from all non-cover/blank sections in this guide')
-            gen_btn.clicked.connect(self._generate_toc)
-            ctrl_row.addWidget(gen_btn)
-        ctrl_row.addStretch()
-        layout.addLayout(ctrl_row)
-        self._edit = QTextEdit()
-        self._edit.setAcceptRichText(False)
-        self._edit.setMinimumHeight(80)
-        self._edit.setMaximumHeight(200)
-        self._highlighter = HTMLHighlighter(self._edit.document())
-        layout.addWidget(self._edit)
-
-    def _generate_toc(self):
-        if not self.guide:
-            return
-        result = self.guide.parse_sections()
-        if not result:
-            return
-        _, sections, _ = result
-        names = [s.name for s in sections if s.type not in ('cover', 'blank')]
-        items = '\n'.join(f'<li>{name}</li>' for name in names)
-        self._edit.setPlainText(
-            f'<div class="toc">\n<h3>Table of Contents</h3>\n<ul>\n{items}\n</ul>\n</div>'
-        )
-
-    def _inner_html(self, html: str) -> str:
-        """Extract the content inside the outer wrapper element."""
-        css = self.field_def.selector_class
-        tag = self.field_def.selector_tag
-        soup = BeautifulSoup(html, 'html.parser')
-        elem = soup.find(tag, class_=css) if css else soup.find(tag)
-        return elem.decode_contents() if elem else html
-
-    def _wrap_html(self, inner: str) -> str:
-        css = self.field_def.selector_class
-        tag = self.field_def.selector_tag
-        if css:
-            return f'<{tag} class="{css}">\n{inner}\n</{tag}>'
-        return f'<{tag}>\n{inner}\n</{tag}>'
-
-    def _toggle_mode(self, checked):
-        if checked:
-            # HTML → Markdown
-            inner = self._inner_html(self._edit.toPlainText())
-            self._edit.setPlainText(_html_to_md(inner))
-            if self._highlighter:
-                self._highlighter.setDocument(None)
-                self._highlighter = None
-            self._mode_btn.setText('Switch to HTML')
-            self._md_mode = True
-        else:
-            # Markdown → HTML
-            inner = _md_to_html(self._edit.toPlainText())
-            self._edit.setPlainText(self._wrap_html(inner))
-            self._highlighter = HTMLHighlighter(self._edit.document())
-            self._mode_btn.setText('Switch to Markdown')
-            self._md_mode = False
-
-    def get_value(self) -> str:
-        text = self._edit.toPlainText().strip()
-        if self._md_mode:
-            return self._wrap_html(_md_to_html(text))
-        return text
-
-    def set_value(self, html_fragment: str):
-        if self._md_mode:
-            self._edit.setPlainText(_html_to_md(self._inner_html(html_fragment)))
-        else:
-            self._edit.setPlainText(html_fragment)
-
-
-class ListFieldWidget(FieldEditorWidget):
-    """Editable ordered list."""
-
-    def _build_editor(self, layout):
-        self._list = EditableListWidget()
-        layout.addWidget(self._list)
-
-    def get_value(self) -> str:
-        items = self._list.get_items()
-        li = '\n'.join(f'<li>{item}</li>' for item in items)
-        css = self.field_def.selector_class
-        return f'<div class="{css}">\n<h3>Table of Contents</h3>\n<ul>\n{li}\n</ul>\n</div>'
-
-    def set_value(self, html_fragment: str):
-        items = re.findall(r'<li[^>]*>(.*?)</li>', html_fragment, re.DOTALL | re.IGNORECASE)
-        self._list.set_items([_strip_tags(i).strip() for i in items])
-
-
-class TitledListFieldWidget(FieldEditorWidget):
-    """Title + editable list (e.g. Setup)."""
-
-    def _build_editor(self, layout):
-        row = QHBoxLayout()
-        row.addWidget(QLabel('Title:'))
-        self._title = QLineEdit()
-        row.addWidget(self._title)
-        layout.addLayout(row)
-        self._list = EditableListWidget()
-        layout.addWidget(self._list)
-
-    def get_value(self) -> str:
-        title = self._title.text().strip()
-        items = self._list.get_items()
-        li = '\n'.join(f'<li>{item}</li>' for item in items)
-        css = self.field_def.selector_class
-        return f'<div class="{css}">\n<h3>{title}</h3>\n<ul>\n{li}\n</ul>\n</div>'
-
-    def set_value(self, html_fragment: str):
-        m = re.search(r'<h\d[^>]*>(.*?)</h\d>', html_fragment, re.DOTALL | re.IGNORECASE)
-        if m:
-            self._title.setText(_strip_tags(m.group(1)))
-        items = re.findall(r'<li[^>]*>(.*?)</li>', html_fragment, re.DOTALL | re.IGNORECASE)
-        self._list.set_items([_strip_tags(i).strip() for i in items])
-
-
-class TitledHtmlFieldWidget(FieldEditorWidget):
-    """Title + raw HTML body (e.g. Resolution)."""
-
-    def _build_editor(self, layout):
-        self._md_mode = False
-        self._highlighter = None
-        row = QHBoxLayout()
-        row.addWidget(QLabel('Title:'))
-        self._title = QLineEdit()
-        row.addWidget(self._title)
-        layout.addLayout(row)
-        mode_row = QHBoxLayout()
-        self._mode_btn = QPushButton('Switch to Markdown')
-        self._mode_btn.setCheckable(True)
-        self._mode_btn.setFixedWidth(160)
-        self._mode_btn.clicked.connect(self._toggle_mode)
-        mode_row.addWidget(self._mode_btn)
-        mode_row.addStretch()
-        layout.addLayout(mode_row)
-        self._edit = QTextEdit()
-        self._edit.setAcceptRichText(False)
-        self._edit.setMinimumHeight(80)
-        self._edit.setMaximumHeight(200)
-        self._highlighter = HTMLHighlighter(self._edit.document())
-        layout.addWidget(self._edit)
-
-    def _toggle_mode(self, checked):
-        if checked:
-            html = self._edit.toPlainText()
-            self._edit.setPlainText(_html_to_md(html))
-            if self._highlighter:
-                self._highlighter.setDocument(None)
-                self._highlighter = None
-            self._mode_btn.setText('Switch to HTML')
-            self._md_mode = True
-        else:
-            md = self._edit.toPlainText()
-            self._edit.setPlainText(_md_to_html(md))
-            self._highlighter = HTMLHighlighter(self._edit.document())
-            self._mode_btn.setText('Switch to Markdown')
-            self._md_mode = False
-
-    def get_value(self) -> str:
-        title = self._title.text().strip()
-        body = self._edit.toPlainText().strip()
-        if self._md_mode:
-            body = _md_to_html(body)
-        css = self.field_def.selector_class
-        return f'<div class="{css}">\n<h3>{title}</h3>\n{body}\n</div>'
-
-    def set_value(self, html_fragment: str):
-        m = re.search(r'<h\d[^>]*>(.*?)</h\d>', html_fragment, re.DOTALL | re.IGNORECASE)
-        if m:
-            self._title.setText(_strip_tags(m.group(1)))
-        inner = re.sub(r'</?div[^>]*>', '', html_fragment, flags=re.IGNORECASE).strip()
-        inner = re.sub(r'<h\d[^>]*>.*?</h\d>', '', inner, flags=re.DOTALL | re.IGNORECASE).strip()
-        if self._md_mode:
-            self._edit.setPlainText(_html_to_md(inner))
-        else:
-            self._edit.setPlainText(inner)
-
-
-_FIELD_WIDGET_MAP = {
-    'line':        LineFieldWidget,
-    'story':       StoryFieldWidget,
-    'text':        TextFieldWidget,
-    'html':        HtmlFieldWidget,
-    'list':        ListFieldWidget,
-    'titled_list': TitledListFieldWidget,
-    'titled_html': TitledHtmlFieldWidget,
-}
-
-
-def make_field_widget(field_def, guide=None) -> FieldEditorWidget:
-    cls = _FIELD_WIDGET_MAP.get(field_def.kind, HtmlFieldWidget)
-    return cls(field_def, guide=guide)
+    def _set_heading(self, level: int):
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.LineUnderCursor)
+        line = cursor.selectedText()
+        stripped = re.sub(r'^#{1,6}\s*', '', line)
+        cursor.insertText('#' * level + ' ' + stripped)
 
 
 # ── Section editor panel ──────────────────────────────────────────────────────
 
-
 class SectionEditorPanel(QWidget):
-    saved = Signal()
-    back_requested = Signal()
+    """Markdown editor for a single guide section."""
 
-    def __init__(self, guide, section_id, parent=None):
+    back_requested = Signal()
+    content_changed = Signal()
+
+    def __init__(self, guide, section_id: str, parent=None):
         super().__init__(parent)
         self.guide = guide
         self.section_id = section_id
-        self._field_widgets: list = []
-        self._section = None
+        self._loading = False
+        self.save_timer = None
         self._setup_ui()
         self._load()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
-        # Top bar
-        top = QHBoxLayout()
-        back_btn = QPushButton('← Overview')
+        # Back button + section name
+        top_row = QHBoxLayout()
+        back_btn = QPushButton("← Sections")
+        back_btn.setFixedWidth(100)
         back_btn.clicked.connect(self.back_requested)
-        top.addWidget(back_btn)
-        top.addStretch()
-        self._html_toggle_btn = QPushButton('< > HTML')
-        self._html_toggle_btn.setCheckable(True)
-        self._html_toggle_btn.toggled.connect(self._toggle_html)
-        top.addWidget(self._html_toggle_btn)
-        layout.addLayout(top)
+        top_row.addWidget(back_btn)
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("Section name")
+        self._name_edit.textChanged.connect(self._on_name_changed)
+        top_row.addWidget(self._name_edit)
+        layout.addLayout(top_row)
 
-        # Section name
-        name_row = QHBoxLayout()
-        name_row.addWidget(QLabel('Section name:'))
-        self.name_edit = QLineEdit()
-        name_row.addWidget(self.name_edit)
-        layout.addLayout(name_row)
-
-        # Encounter set link (shown only for scenario sections)
+        # Encounter set dropdown (scenario sections only)
         self._encounter_row = QWidget()
         enc_layout = QHBoxLayout(self._encounter_row)
         enc_layout.setContentsMargins(0, 0, 0, 0)
-        enc_layout.addWidget(QLabel('Linked Encounter Set:'))
+        enc_layout.addWidget(QLabel("Linked encounter set:"))
         self._encounter_combo = QComboBox()
+        self._encounter_combo.currentIndexChanged.connect(self._on_encounter_changed)
         enc_layout.addWidget(self._encounter_combo)
         self._encounter_row.hide()
         layout.addWidget(self._encounter_row)
 
-        # Stacked: index 0 = field editors, index 1 = raw HTML
-        self.content_stack = QStackedWidget()
+        # Template insert toolbar
+        toolbar = QHBoxLayout()
+        toolbar_lbl = QLabel("Insert:")
+        toolbar_lbl.setStyleSheet("font-size: 8pt; color: gray;")
+        toolbar.addWidget(toolbar_lbl)
+        self._insert_combo = QComboBox()
+        self._insert_combo.setFixedHeight(24)
+        for label, snippet in [
+            ("Story",       ":::story\n*Flavor text here.*\n:::\n\n"),
+            ("Setup",       None),  # generated dynamically from linked encounter set
+            ("Resolution",  ":::resolution\n## DO NOT READ<br>until end of scenario\n\n**If no resolution was reached (each investigator resigned or was defeated):** You all died. Tough luck.\n\n- The investigators lost the campaign.\n\n**Resolution 1**: *Huraa!*\n\n- Each investigator earns experience equal to the Victory X value of each card in the victory display.\n- The investigators win the campaign. Proceed to **Interlude 1 - Title Here**.\n:::\n\n"),
+            ("Codex",       ":::codex\n**Rule name:** Rule description.\n:::\n\n"),
+            ("TOC",         ":::toc\n:::\n\n"),
+            ("Indent",      ":::indent\n\n:::\n\n"),
+            ("Center",      ":::center\n\n:::\n\n"),
+            ("Right",       ":::right\n\n:::\n\n"),
+            ("Image ↑",     ":::image-top\n/path/to/image.png\n:::\n\n"),
+            ("Image ↓",     ":::image-bottom\n/path/to/image.png\n:::\n\n"),
+        ]:
+            self._insert_combo.addItem(label, snippet)
+        toolbar.addWidget(self._insert_combo)
+        insert_btn = QPushButton("Insert")
+        insert_btn.setFixedHeight(24)
+        insert_btn.setStyleSheet("font-size: 8pt;")
+        insert_btn.clicked.connect(self._insert_selected_snippet)
+        toolbar.addWidget(insert_btn)
+        card_btn = QPushButton("Card…")
+        card_btn.setFixedHeight(24)
+        card_btn.setStyleSheet("font-size: 8pt; color: #1a7a8a;")
+        card_btn.clicked.connect(self._insert_card_ref)
+        toolbar.addWidget(card_btn)
+        enc_btn = QPushButton("Enc…")
+        enc_btn.setFixedHeight(24)
+        enc_btn.setStyleSheet("font-size: 8pt; color: #1a7a8a;")
+        enc_btn.clicked.connect(self._insert_encounter_ref)
+        toolbar.addWidget(enc_btn)
+        toolbar.addStretch()
+        layout.addLayout(toolbar)
 
-        # Index 0 — scrollable field editors
-        fields_outer = QWidget()
-        fo_layout = QVBoxLayout(fields_outer)
-        fo_layout.setContentsMargins(0, 0, 0, 0)
-        fo_layout.setSpacing(0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameStyle(QFrame.NoFrame)
-        self._fields_container = QWidget()
-        self._fields_layout = QVBoxLayout(self._fields_container)
-        self._fields_layout.setAlignment(Qt.AlignTop)
-        self._fields_layout.setSpacing(8)
-        scroll.setWidget(self._fields_container)
-        fo_layout.addWidget(scroll, stretch=1)
-        self.content_stack.addWidget(fields_outer)  # index 0
-
-        # Index 1 — raw HTML editor
-        self._html_editor = QTextEdit()
-        self._html_editor.setAcceptRichText(False)
-        self._html_editor.setFont(QFont('Courier', 10))
-        HTMLHighlighter(self._html_editor.document())
-        self.content_stack.addWidget(self._html_editor)  # index 1
-
-        layout.addWidget(self.content_stack, stretch=1)
-
-        save_btn = QPushButton('Save Section')
-        save_btn.clicked.connect(self._save)
-        layout.addWidget(save_btn)
-
-    # ── Loading ───────────────────────────────────────────────────────────────
+        # Markdown editor
+        self._md_editor = MarkdownEditor()
+        self._md_editor.setAcceptRichText(False)
+        self._md_editor.setFont(QFont("Courier", 10))
+        MarkdownHighlighter(self._md_editor.document())
+        self._md_editor.textChanged.connect(self._on_markdown_changed)
+        layout.addWidget(self._md_editor, stretch=1)
 
     def _load(self):
-        result = self.guide.parse_sections()
-        if result is None:
-            return
-        _, sections, _ = result
-        section = next((s for s in sections if s.id == self.section_id), None)
+        section = next((s for s in self.guide.sections if s.id == self.section_id), None)
         if section is None:
             return
-        self._section = section
-        self.name_edit.setText(section.name or '')
+        self._loading = True
+        self._name_edit.setText(section.name or '')
 
-        # Populate encounter set dropdown for scenario sections
         if section.type == 'scenario':
             self._encounter_row.show()
+            self._encounter_combo.blockSignals(True)
             self._encounter_combo.clear()
             self._encounter_combo.addItem('— None —', None)
             try:
@@ -847,310 +740,123 @@ class SectionEditorPanel(QWidget):
                     if self._encounter_combo.itemData(i) == section.encounter_set_id:
                         self._encounter_combo.setCurrentIndex(i)
                         break
-
-        self._populate_fields(section)
-        if not SECTION_FIELDS.get(section.type):
-            # blank / unknown: go straight to HTML editor
-            self._html_toggle_btn.setChecked(True)
-
-    def _populate_fields(self, section):
-        """Build field widgets from SECTION_FIELDS and load values from html_content."""
-        while self._fields_layout.count():
-            item = self._fields_layout.takeAt(0)
-            if item.widget():
-                item.widget().setParent(None)
-        self._field_widgets.clear()
-
-        field_defs = SECTION_FIELDS.get(section.type, [])
-        if not field_defs:
-            lbl = QLabel('No predefined fields for this section type.')
-            lbl.setStyleSheet('color: gray; font-style: italic;')
-            self._fields_layout.addWidget(lbl)
-            return
-
-        soup = BeautifulSoup(f'<div>{section.html_content}</div>', 'html.parser')
-        wrapper = soup.find('div')
-        for fd in field_defs:
-            w = make_field_widget(fd, guide=self.guide)
-            w.load_from_soup(wrapper)
-            self._fields_layout.addWidget(w)
-            self._field_widgets.append(w)
-
-    # ── HTML generation ───────────────────────────────────────────────────────
-
-    def _build_section_html(self) -> str:
-        """Apply field widget values surgically to the section's html_content."""
-        if self.content_stack.currentIndex() == 1:
-            return self._html_editor.toPlainText()
-        if self._section is None:
-            return ''
-        soup = BeautifulSoup(
-            f'<div>{self._section.html_content}</div>', 'html.parser'
-        )
-        wrapper = soup.find('div')
-        for w in self._field_widgets:
-            w.apply_to_soup(wrapper)
-        return wrapper.decode_contents()
-
-    # ── HTML toggle ───────────────────────────────────────────────────────────
-
-    def _toggle_html(self, checked):
-        if checked:
-            self._html_editor.setPlainText(self._build_section_html())
-            self.content_stack.setCurrentIndex(1)
-            self._html_toggle_btn.setText('Form view')
+            self._encounter_combo.blockSignals(False)
         else:
-            if self._section is not None:
-                self._section.html_content = self._html_editor.toPlainText()
-                self._populate_fields(self._section)
-            self.content_stack.setCurrentIndex(0)
-            self._html_toggle_btn.setText('< > HTML')
+            self._encounter_row.hide()
 
-    # ── Save ──────────────────────────────────────────────────────────────────
+        self._md_editor.blockSignals(True)
+        self._md_editor.setPlainText(section.markdown or '')
+        self._md_editor.blockSignals(False)
+        self._loading = False
 
-    def _save(self):
-        result = self.guide.parse_sections()
-        if result is None:
+    def _insert_selected_snippet(self):
+        label = self._insert_combo.currentText()
+        snippet = self._insert_combo.currentData()
+        if label == "Setup":
+            snippet = self._make_setup_snippet()
+        if snippet:
+            self._insert_snippet(snippet)
+
+    def _make_setup_snippet(self) -> str:
+        section = next((s for s in self.guide.sections if s.id == self.section_id), None)
+        es_id = section.encounter_set_id if section else None
+        if not es_id:
+            return "## Setup\n\n- \n\n"
+        try:
+            es = self.guide.project.get_encounter_set(es_id)
+            linked_ids = es.data.get('meta', {}).get('tts', {}).get('included_sets', [])
+            linked = [self.guide.project.get_encounter_set(lid) for lid in linked_ids]
+            linked = [ls for ls in linked if ls]
+        except Exception:
+            return "## Setup\n\n- \n\n"
+
+        lines = [
+            "## Setup",
+            "",
+            f"- Gather the [encounter:{es_id}:name] set.",
+            "",
+            ":::center",
+            f"[encounter:{es_id}:icon]",
+            ":::",
+            "",
+            f"- Put all [encounter:{es_id}:number_of_locations] locations into play, unrevealed side up.",
+        ]
+
+        if linked:
+            name_list = " and ".join(f"[encounter:{ls.id}:name]" for ls in linked)
+            plural = "sets" if len(linked) > 1 else "set"
+            lines.append(f"- Also gather the {name_list} {plural}.")
+            lines.append("")
+            lines.append(":::center")
+            for ls in linked:
+                lines.append(f"[encounter:{ls.id}:icon]")
+            lines.append(":::")
+
+        lines.append("")
+        return "\n".join(lines) + "\n"
+
+    def _insert_card_ref(self):
+        dlg = CardPickerDialog(self.guide, self)
+        if dlg.exec() == QDialog.Accepted:
+            snippet = dlg.result_snippet()
+            if snippet:
+                self._insert_snippet(snippet)
+
+    def _insert_encounter_ref(self):
+        dlg = EncounterPickerDialog(self.guide, self)
+        if dlg.exec() == QDialog.Accepted:
+            snippet = dlg.result_snippet()
+            if snippet:
+                self._insert_snippet(snippet)
+
+    def _insert_snippet(self, text: str):
+        self._md_editor.textCursor().insertText(text)
+        self._md_editor.setFocus()
+
+    def _on_name_changed(self, text):
+        if self._loading:
             return
-        preamble, sections, postamble = result
-        section = next((s for s in sections if s.id == self.section_id), None)
-        if section is None:
+        self._save_to_guide(name_only=True)
+
+    def _on_encounter_changed(self):
+        if self._loading:
             return
-        section.name = self.name_edit.text()
-        section.html_content = self._build_section_html()
-        if self._encounter_row.isVisible():
-            section.encounter_set_id = self._encounter_combo.currentData()
-        if self._section is not None:
-            self._section.html_content = section.html_content
-        self.guide.save_sections(preamble, sections, postamble)
-        self.saved.emit()
+        self._save_to_guide()
 
-
-
-
-
-# ── Guide overview (storyboard) ───────────────────────────────────────────────
-
-class SectionCard(QFrame):
-    edit_clicked = Signal(str)     # section_id
-    delete_clicked = Signal(str)   # section_id
-    move_up_clicked = Signal(str)  # section_id
-    move_down_clicked = Signal(str)
-
-    def __init__(self, section, parent=None):
-        super().__init__(parent)
-        self.section_id = section.id
-        self.setFrameStyle(QFrame.StyledPanel)
-        self.setStyleSheet("QFrame { border-radius: 4px; }")
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)
-
-        color = SECTION_COLORS.get(section.type, '#666')
-        badge = QLabel(SECTION_LABELS.get(section.type, section.type))
-        badge.setStyleSheet(
-            f"background: {color}; color: white; font-weight: bold; "
-            f"padding: 2px 8px; border-radius: 3px; min-width: 70px;"
-        )
-        badge.setAlignment(Qt.AlignCenter)
-        layout.addWidget(badge)
-
-        name_lbl = QLabel(section.name or "(unnamed)")
-        name_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        layout.addWidget(name_lbl)
-
-        for icon, sig in [("▲", self.move_up_clicked), ("▼", self.move_down_clicked)]:
-            btn = QPushButton(icon)
-            btn.setFixedSize(28, 28)
-            btn.clicked.connect(lambda checked=False, s=sig: s.emit(self.section_id))
-            layout.addWidget(btn)
-
-        edit_btn = QPushButton("Edit")
-        edit_btn.setFixedWidth(50)
-        edit_btn.clicked.connect(lambda: self.edit_clicked.emit(self.section_id))
-        layout.addWidget(edit_btn)
-
-        del_btn = QPushButton("✕")
-        del_btn.setFixedSize(28, 28)
-        del_btn.clicked.connect(lambda: self.delete_clicked.emit(self.section_id))
-        layout.addWidget(del_btn)
-
-
-class GuideOverviewPanel(QWidget):
-    edit_section = Signal(str)
-    edit_raw_html = Signal()
-
-    def __init__(self, guide, parent=None):
-        super().__init__(parent)
-        self.guide = guide
-        self._setup_ui()
-        self.refresh()
-
-    def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
-
-        # Guide name
-        self._title_lbl = QLabel()
-        self._title_lbl.setStyleSheet("font-size: 14pt; font-weight: bold;")
-        layout.addWidget(self._title_lbl)
-
-        # Front page setting
-        fp_row = QHBoxLayout()
-        fp_row.addWidget(QLabel("Front page image:"))
-        self._fp_edit = QLineEdit()
-        self._fp_edit.textChanged.connect(lambda t: setattr(self.guide, 'front_page', t))
-        fp_row.addWidget(self._fp_edit)
-        browse_btn = QPushButton(tr("BTN_BROWSE"))
-        browse_btn.clicked.connect(self._browse_front_page)
-        fp_row.addWidget(browse_btn)
-        layout.addLayout(fp_row)
-
-        # Storyboard scroll area
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameStyle(QFrame.NoFrame)
-        self._board_widget = QWidget()
-        self._board_layout = QVBoxLayout(self._board_widget)
-        self._board_layout.setAlignment(Qt.AlignTop)
-        self._board_layout.setSpacing(6)
-        scroll.setWidget(self._board_widget)
-        layout.addWidget(scroll, stretch=1)
-
-        # Add section buttons
-        add_lbl = QLabel("Add section:")
-        add_lbl.setStyleSheet("font-weight: bold;")
-        layout.addWidget(add_lbl)
-        add_row = QHBoxLayout()
-        for stype in SECTION_TYPES:
-            btn = QPushButton(SECTION_LABELS.get(stype, stype))
-            btn.clicked.connect(lambda checked=False, t=stype: self._add_section(t))
-            add_row.addWidget(btn)
-        layout.addLayout(add_row)
-
-        # Action buttons
-        btn_row = QHBoxLayout()
-        export_btn = QPushButton(tr("BTN_EXPORT_PDF"))
-        export_btn.clicked.connect(self._export_pdf)
-        btn_row.addWidget(export_btn)
-        btn_row.addStretch()
-        html_btn = QPushButton("Edit Raw HTML")
-        html_btn.clicked.connect(self.edit_raw_html)
-        btn_row.addWidget(html_btn)
-        layout.addLayout(btn_row)
-
-    def refresh(self):
-        self._title_lbl.setText(f"Guide: {self.guide.name}")
-        self._fp_edit.blockSignals(True)
-        self._fp_edit.setText(self.guide.front_page)
-        self._fp_edit.blockSignals(False)
-
-        # Clear storyboard
-        while self._board_layout.count():
-            item = self._board_layout.takeAt(0)
-            if item.widget():
-                item.widget().setParent(None)
-
-        result = self.guide.parse_sections()
-        if result is None:
-            lbl = QLabel("No structured sections. Add a section below, or 'Edit Raw HTML'.")
-            lbl.setWordWrap(True)
-            lbl.setStyleSheet("color: gray; font-style: italic;")
-            self._board_layout.addWidget(lbl)
+    def _on_markdown_changed(self):
+        if self._loading:
             return
+        if self.save_timer:
+            self.save_timer.stop()
+        self.save_timer = QTimer()
+        self.save_timer.setSingleShot(True)
+        self.save_timer.timeout.connect(self._save_to_guide)
+        self.save_timer.start(500)
+        self.content_changed.emit()
 
-        _, sections, _ = result
-        if not sections:
-            lbl = QLabel("No sections yet. Add one below.")
-            lbl.setStyleSheet("color: gray; font-style: italic;")
-            self._board_layout.addWidget(lbl)
-            return
+    def _save_to_guide(self, name_only=False):
+        sections = self.guide.sections
+        for s in sections:
+            if s.id == self.section_id:
+                s.name = self._name_edit.text()
+                if not name_only:
+                    s.markdown = self._md_editor.toPlainText()
+                    if self._encounter_row.isVisible():
+                        s.encounter_set_id = self._encounter_combo.currentData()
+                break
+        self.guide.save_sections(sections)
 
-        for section in sections:
-            card = SectionCard(section)
-            card.edit_clicked.connect(self.edit_section)
-            card.delete_clicked.connect(self._delete_section)
-            card.move_up_clicked.connect(self._move_section_up)
-            card.move_down_clicked.connect(self._move_section_down)
-            self._board_layout.addWidget(card)
-
-    def _browse_front_page(self):
-        current = self._fp_edit.text().strip()
-        project_folder = self.guide.project.folder
-        if current:
-            p = Path(current)
-            if not p.is_absolute():
-                p = project_folder / p
-            start_dir = str(p.parent) if p.parent.exists() else str(project_folder)
-        else:
-            start_dir = str(project_folder)
-
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select Front Page Image", start_dir,
-            "Images (*.png *.jpg *.jpeg *.webp *.avif)",
-        )
-        if path:
-            self._fp_edit.setText(path)
-
-    def _add_section(self, section_type):
-        result = self.guide.parse_sections()
-        if result is None:
-            self.guide.initialize_sections()
-            result = self.guide.parse_sections()
-        if result is None:
-            QMessageBox.warning(self, "Error", "Could not initialize guide structure.")
-            return
-        preamble, sections, postamble = result
-        name = SECTION_LABELS.get(section_type, section_type)
-        sections.append(GuideSection.new(section_type, name))
-        self.guide.save_sections(preamble, sections, postamble)
-        self.refresh()
-
-    def _delete_section(self, section_id):
-        result = self.guide.parse_sections()
-        if result is None:
-            return
-        preamble, sections, postamble = result
-        sections = [s for s in sections if s.id != section_id]
-        self.guide.save_sections(preamble, sections, postamble)
-        self.refresh()
-
-    def _move_section_up(self, section_id):
-        result = self.guide.parse_sections()
-        if result is None:
-            return
-        preamble, sections, postamble = result
-        idx = next((i for i, s in enumerate(sections) if s.id == section_id), None)
-        if idx is not None and idx > 0:
-            sections[idx - 1], sections[idx] = sections[idx], sections[idx - 1]
-            self.guide.save_sections(preamble, sections, postamble)
-            self.refresh()
-
-    def _move_section_down(self, section_id):
-        result = self.guide.parse_sections()
-        if result is None:
-            return
-        preamble, sections, postamble = result
-        idx = next((i for i, s in enumerate(sections) if s.id == section_id), None)
-        if idx is not None and idx < len(sections) - 1:
-            sections[idx], sections[idx + 1] = sections[idx + 1], sections[idx]
-            self.guide.save_sections(preamble, sections, postamble)
-            self.refresh()
-
-    def _export_pdf(self):
-        self.guide.render_to_file()
-        QMessageBox.information(
-            self, tr("DLG_EXPORT_COMPLETE"),
-            tr("MSG_PDF_EXPORTED").format(path=self.guide.target_path),
-        )
+    def flush(self):
+        """Force-save any pending changes immediately."""
+        if self.save_timer and self.save_timer.isActive():
+            self.save_timer.stop()
+        self._save_to_guide()
 
 
-# ── Main guide editor widget ──────────────────────────────────────────────────
+# ── Main guide editor ─────────────────────────────────────────────────────────
 
 class GuideEditor(QWidget):
-    """Top-level guide editor. Left: storyboard overview / section editor / raw HTML.
-    Right: PDF preview."""
+    """Left: stacked overview/editor. Right: PDF preview."""
 
     def __init__(self, guide):
         super().__init__()
@@ -1158,74 +864,46 @@ class GuideEditor(QWidget):
         self.current_page = 1
         self.render_thread = None
         self.render_timer = None
+        self._active_editor = None
         self._setup_ui()
-        self._show_initial()
+        self.render_page(1)
 
     def _setup_ui(self):
         splitter = QSplitter(Qt.Horizontal)
 
-        # ── Left: stacked panels ──────────────────────────────────────────────
+        # ── Left: stacked overview / editor ──────────────────────────────────
         self.stack = QStackedWidget()
 
-        # Index 0 – overview / storyboard
-        self.overview_panel = GuideOverviewPanel(self.guide)
-        self.overview_panel.edit_section.connect(self.show_section)
-        self.overview_panel.edit_raw_html.connect(self._activate_html)
-        self.stack.addWidget(self.overview_panel)
+        self.overview = GuideOverviewPanel(self.guide)
+        self.overview.section_edit_requested.connect(self._open_section)
+        self.stack.addWidget(self.overview)  # index 0
 
-        # Index 1 – section editor slot (replaced on demand)
-        self.section_slot = QWidget()
-        self.section_slot_layout = QVBoxLayout(self.section_slot)
-        self.section_slot_layout.setContentsMargins(0, 0, 0, 0)
-        self.stack.addWidget(self.section_slot)
-
-        # Index 2 – raw HTML editor for the whole guide
-        html_widget = QWidget()
-        html_layout = QVBoxLayout(html_widget)
-        back_btn = QPushButton("← Back to Overview")
-        back_btn.clicked.connect(self.show_overview)
-        html_layout.addWidget(back_btn)
-
-        self.html_editor = QTextEdit()
-        self.html_editor.setAcceptRichText(False)
-        self.html_editor.setLineWrapMode(QTextEdit.NoWrap)
-        self.html_editor.setFont(QFont("Courier", 10))
-        HTMLHighlighter(self.html_editor.document())
-        self.html_editor.textChanged.connect(self._on_html_changed)
-        html_layout.addWidget(self.html_editor)
-
-        html_btns = QHBoxLayout()
-        save_html_btn = QPushButton("Save HTML")
-        save_html_btn.clicked.connect(self._save_html)
-        html_btns.addWidget(save_html_btn)
-        html_btns.addStretch()
-        export_btn = QPushButton(tr("BTN_EXPORT_PDF"))
-        export_btn.clicked.connect(self._export_pdf_from_html)
-        html_btns.addWidget(export_btn)
-        html_layout.addLayout(html_btns)
-        self.stack.addWidget(html_widget)
+        # index 1 is set dynamically when a section is opened
+        self._editor_slot = QWidget()
+        self._editor_slot_layout = QVBoxLayout(self._editor_slot)
+        self._editor_slot_layout.setContentsMargins(0, 0, 0, 0)
+        self.stack.addWidget(self._editor_slot)  # index 1
 
         splitter.addWidget(self.stack)
 
         # ── Right: PDF preview ────────────────────────────────────────────────
         preview_widget = QWidget()
         pv_layout = QVBoxLayout(preview_widget)
-
-        pv_title = QLabel(tr("TAB_PREVIEW"))
-        pv_title.setStyleSheet("font-size: 14pt; font-weight: bold;")
-        pv_layout.addWidget(pv_title)
+        pv_layout.setContentsMargins(4, 4, 4, 4)
+        pv_layout.setSpacing(4)
 
         zoom_row = QHBoxLayout()
         for icon, delta in [("−", -1), (tr("BTN_ZOOM_100"), 0), ("+", 1)]:
             btn = QPushButton(icon)
             btn.setFixedWidth(50 if delta == 0 else 30)
+            btn.setFixedHeight(24)
             btn.clicked.connect(lambda checked=False, d=delta: self._zoom(d))
             zoom_row.addWidget(btn)
         zoom_row.addStretch()
         pv_layout.addLayout(zoom_row)
 
         self.pdf_viewer = ZoomablePDFViewer()
-        pv_layout.addWidget(self.pdf_viewer)
+        pv_layout.addWidget(self.pdf_viewer, stretch=1)
 
         page_row = QHBoxLayout()
         prev_btn = QPushButton(tr("BTN_PREVIOUS"))
@@ -1247,77 +925,56 @@ class GuideEditor(QWidget):
         pv_layout.addLayout(page_row)
 
         splitter.addWidget(preview_widget)
-        splitter.setSizes([500, 500])
+        splitter.setStretchFactor(0, 4)
+        splitter.setStretchFactor(1, 1)
 
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(splitter)
 
-    def _show_initial(self):
-        if self.guide.parse_sections() is not None:
-            self.stack.setCurrentIndex(0)
-        else:
-            self._load_html_editor()
-            self.stack.setCurrentIndex(2)
-        self.render_page(1)
+    # ── Navigation ────────────────────────────────────────────────────────────
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    def _open_section(self, section_id: str):
+        if self._active_editor:
+            self._active_editor.flush()
 
-    def show_overview(self):
-        self.overview_panel.refresh()
-        self.stack.setCurrentIndex(0)
-
-    def show_section(self, section_id):
-        while self.section_slot_layout.count():
-            item = self.section_slot_layout.takeAt(0)
+        # Remove old editor widget
+        while self._editor_slot_layout.count():
+            item = self._editor_slot_layout.takeAt(0)
             if item.widget():
                 item.widget().setParent(None)
-        panel = SectionEditorPanel(self.guide, section_id)
-        panel.saved.connect(lambda: self.render_page(self.current_page))
-        panel.back_requested.connect(self.show_overview)
-        self.section_slot_layout.addWidget(panel)
+
+        editor = SectionEditorPanel(self.guide, section_id)
+        editor.back_requested.connect(self._show_overview)
+        editor.content_changed.connect(self._schedule_render)
+        self._editor_slot_layout.addWidget(editor)
+        self._active_editor = editor
         self.stack.setCurrentIndex(1)
 
-    # ── Internal slots ────────────────────────────────────────────────────────
+    def _show_overview(self):
+        if self._active_editor:
+            self._active_editor.flush()
+        self.overview.refresh()
+        self.stack.setCurrentIndex(0)
+        self._schedule_render()
 
-    def _activate_html(self):
-        self._load_html_editor()
-        self.stack.setCurrentIndex(2)
-
-    def _load_html_editor(self):
-        self.html_editor.blockSignals(True)
-        self.html_editor.setPlainText(self.guide.get_html())
-        self.html_editor.blockSignals(False)
-
-    def _save_html(self):
-        self.guide.save(self.html_editor.toPlainText())
-        self.render_page(self.current_page)
-
-    def _export_pdf_from_html(self):
-        self.guide.render_to_file(html=self.html_editor.toPlainText())
-        QMessageBox.information(
-            self, tr("DLG_EXPORT_COMPLETE"),
-            tr("MSG_PDF_EXPORTED").format(path=self.guide.target_path),
-        )
-
-    def _on_html_changed(self):
-        if self.render_timer:
-            self.render_timer.stop()
-        self.render_timer = QTimer()
-        self.render_timer.setSingleShot(True)
-        self.render_timer.timeout.connect(lambda: self.render_page(self.current_page))
-        self.render_timer.start(1500)
+    # ── PDF preview ───────────────────────────────────────────────────────────
 
     def render_page(self, page_number):
         if self.render_thread and self.render_thread.isRunning():
             self.render_thread.stop()
             self.render_thread.wait(500)
-        if self.stack.currentIndex() == 2:
-            html = self.html_editor.toPlainText()
-        else:
-            html = self.guide.get_html()
-        self.render_thread = PDFPageRenderer(self.guide, page_number, html)
+        self.render_thread = PDFPageRenderer(self.guide, page_number)
         self.render_thread.page_ready.connect(self._on_page_rendered)
         self.render_thread.start()
+
+    def _schedule_render(self):
+        if self.render_timer:
+            self.render_timer.stop()
+        self.render_timer = QTimer()
+        self.render_timer.setSingleShot(True)
+        self.render_timer.timeout.connect(lambda: self.render_page(self.current_page))
+        self.render_timer.start(500)
 
     def _on_page_rendered(self, page_number, pixmap):
         if page_number == self.current_page:
@@ -1345,6 +1002,8 @@ class GuideEditor(QWidget):
             self.pdf_viewer.update()
 
     def cleanup(self):
+        if self._active_editor:
+            self._active_editor.flush()
         if self.render_thread and self.render_thread.isRunning():
             self.render_thread.stop()
             self.render_thread.wait(1000)
