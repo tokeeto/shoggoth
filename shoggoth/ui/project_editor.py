@@ -124,7 +124,7 @@ class ProjectEditor(QWidget):
         layout.addWidget(stats_group)
 
         # Translations section
-        self.translations_group = QGroupBox("Translations")
+        self.translations_group = QGroupBox(tr("TITLE_TRANSLATIONS"))
         self.translations_layout = QVBoxLayout()
         self.translations_layout.setContentsMargins(8, 8, 8, 8)
         self.translations_group.setLayout(self.translations_layout)
@@ -157,15 +157,15 @@ class ProjectEditor(QWidget):
         layout = QVBoxLayout()
 
         # Info section: parent project and language
-        info_group = QGroupBox("Translation")
+        info_group = QGroupBox(tr("TITLE_TRANSLATION"))
         info_layout = QFormLayout()
 
         parent_label = QLabel(self.project.data.get('project', ''))
         parent_label.setStyleSheet('color: grey;')
-        info_layout.addRow("Parent project:", parent_label)
+        info_layout.addRow(tr("LABEL_PARENT_PROJECT"), parent_label)
 
         lang_label = QLabel(self.project.data.get('language', '').upper())
-        info_layout.addRow("Language:", lang_label)
+        info_layout.addRow(tr("LABEL_LANGUAGE"), lang_label)
 
         self.card_count_label = QLabel("0")
         info_layout.addRow(tr("FIELD_TOTAL_CARDS"), self.card_count_label)
@@ -227,7 +227,7 @@ class ProjectEditor(QWidget):
                     form.addRow(QLabel(lang.upper()), QLabel(path))
                 self.translations_layout.addLayout(form)
             else:
-                self.translations_layout.addWidget(QLabel("No translations registered."))
+                self.translations_layout.addWidget(QLabel(tr("MSG_NO_TRANSLATIONS_REGISTERED")))
 
         self._updating = False
 

@@ -1512,14 +1512,15 @@ class ShoggothMainWindow(QMainWindow):
     def _reset_assets_dialog(self):
         from PySide6.QtWidgets import QMessageBox
         from shoggoth.ui.updater_ui import ResetAssetsDialog
-        confirm = QMessageBox.question(
-            self,
-            tr("DLG_RESET_ASSETS"),
-            tr("MSG_RESET_ASSETS_CONFIRM"),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirm != QMessageBox.Yes:
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(tr("DLG_RESET_ASSETS"))
+        msg_box.setText(tr("MSG_RESET_ASSETS_CONFIRM"))
+        msg_box.setIcon(QMessageBox.Question)
+        yes_btn = msg_box.addButton(tr("DLG_YES"), QMessageBox.YesRole)
+        no_btn = msg_box.addButton(tr("DLG_NO"), QMessageBox.NoRole)
+        msg_box.setDefaultButton(no_btn)
+        msg_box.exec()
+        if msg_box.clickedButton() != yes_btn:
             return
         dialog = ResetAssetsDialog(self)
         dialog.start_reset()

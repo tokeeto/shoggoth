@@ -13,6 +13,27 @@ from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTraitEdit, Labeled
 from shoggoth.ui.card_widgets import IllustrationWidget, IconsWidget
 from shoggoth.i18n import tr
 
+# Map raw card type identifiers to translation keys
+_TYPE_TR_KEYS = {
+    'asset': 'TYPE_ASSET', 'event': 'TYPE_EVENT', 'skill': 'TYPE_SKILL',
+    'investigator': 'TYPE_INVESTIGATOR', 'investigator_back': 'TYPE_INVESTIGATOR_BACK',
+    'enemy': 'TYPE_ENEMY', 'treachery': 'TYPE_TREACHERY',
+    'location': 'TYPE_LOCATION', 'location_back': 'TYPE_LOCATION_BACK',
+    'act': 'TYPE_ACT', 'act_back': 'TYPE_ACT_BACK',
+    'agenda': 'TYPE_AGENDA', 'agenda_back': 'TYPE_AGENDA_BACK',
+    'scenario': 'TYPE_SCENARIO', 'chaos': 'TYPE_CHAOS',
+    'customizable': 'TYPE_CUSTOMIZABLE', 'customizable_back': 'TYPE_CUSTOMIZABLE_BACK',
+    'story': 'TYPE_STORY', 'player': 'TYPE_PLAYER',
+    'encounter': 'TYPE_ENCOUNTER', 'enemy_deck': 'TYPE_ENEMY_DECK',
+    'act_agenda_full': 'TYPE_ACT_AGENDA_FULL', 'act_agenda_full_back': 'TYPE_ACT_AGENDA_FULL_BACK',
+}
+
+
+def get_type_display_name(raw_type: str) -> str:
+    """Return translated display name for a card type, or raw name if no translation."""
+    key = _TYPE_TR_KEYS.get(raw_type)
+    return tr(key) if key else raw_type
+
 
 class FaceEditor(QWidget):
     """Base class for all face editors"""
@@ -52,12 +73,15 @@ class FaceEditor(QWidget):
         self.type_combo = NoScrollComboBox()
         self.type_combo.setEditable(True)
         self.type_combo.setInsertPolicy(QComboBox.NoInsert)
-        self.type_combo.addItems(ALL_CARD_TYPES)
-        self.type_combo.addItem(tr("FULLART_VARIANTS"))
-        self.type_combo.addItems(FULLART_CARD_TYPES)
+        for raw_type in ALL_CARD_TYPES:
+            self.type_combo.addItem(get_type_display_name(raw_type), raw_type)
+        self.type_combo.addItem(tr("FULLART_VARIANTS"), "__separator__")
+        for raw_type in FULLART_CARD_TYPES:
+            self.type_combo.addItem(get_type_display_name(raw_type), raw_type)
 
-        # Add autocomplete
-        completer = QCompleter(ALL_CARD_TYPES+FULLART_CARD_TYPES)
+        # Add autocomplete using display names
+        display_names = [get_type_display_name(t) for t in ALL_CARD_TYPES + FULLART_CARD_TYPES]
+        completer = QCompleter(display_names)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setCompletionMode(QCompleter.PopupCompletion)
         self.type_combo.setCompleter(completer)
@@ -81,7 +105,7 @@ class FaceEditor(QWidget):
         if self.updating:
             return
 
-        value = self.type_combo.currentText()
+        value = self.type_combo.currentData() or self.type_combo.currentText()
         old_type = self.face.get('type')
         if value and value != old_type:
             self.face.set('type', value)
@@ -110,7 +134,13 @@ class FaceEditor(QWidget):
         elif isinstance(widget, QTextEdit):
             widget.setPlainText(str(value) if value else '')
         elif isinstance(widget, QComboBox):
-            widget.setCurrentText(str(value) if value else '')
+            # Try to find by data first (for translated combos like type selector)
+            str_value = str(value) if value else ''
+            for i in range(widget.count()):
+                if widget.itemData(i) == str_value:
+                    widget.setCurrentIndex(i)
+                    return
+            widget.setCurrentText(str_value)
 
     def get_widget_value(self, widget):
         """Get widget value based on type"""

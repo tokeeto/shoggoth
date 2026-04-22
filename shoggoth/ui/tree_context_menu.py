@@ -266,15 +266,16 @@ class TreeContextMenu:
         """Delete a card"""
         from PySide6.QtWidgets import QMessageBox
         
-        reply = QMessageBox.question(
-            self.parent,
-            tr("DLG_DELETE_CARD"),
-            tr("MSG_DELETE_CARD_CONFIRM", card_name=card.name),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-        
-        if reply == QMessageBox.Yes:
+        msg_box = QMessageBox(self.parent)
+        msg_box.setWindowTitle(tr("DLG_DELETE_CARD"))
+        msg_box.setText(tr("MSG_DELETE_CARD_CONFIRM", card_name=card.name))
+        msg_box.setIcon(QMessageBox.Question)
+        yes_btn = msg_box.addButton(tr("DLG_YES"), QMessageBox.YesRole)
+        no_btn = msg_box.addButton(tr("DLG_NO"), QMessageBox.NoRole)
+        msg_box.setDefaultButton(no_btn)
+        msg_box.exec()
+
+        if msg_box.clickedButton() == yes_btn:
             # Remove from project
             card.project.data['cards'].remove(card.data)
             
@@ -402,15 +403,16 @@ class TreeContextMenu:
         """Delete an encounter set"""
         from PySide6.QtWidgets import QMessageBox
         
-        reply = QMessageBox.question(
-            self.parent,
-            tr("DLG_DELETE_ENCOUNTER_SET"),
-            tr("MSG_DELETE_ENCOUNTER_CONFIRM", name=encounter.name, count=len(encounter.cards)),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-        
-        if reply == QMessageBox.Yes:
+        msg_box = QMessageBox(self.parent)
+        msg_box.setWindowTitle(tr("DLG_DELETE_ENCOUNTER_SET"))
+        msg_box.setText(tr("MSG_DELETE_ENCOUNTER_CONFIRM", name=encounter.name, count=len(encounter.cards)))
+        msg_box.setIcon(QMessageBox.Question)
+        yes_btn = msg_box.addButton(tr("DLG_YES"), QMessageBox.YesRole)
+        no_btn = msg_box.addButton(tr("DLG_NO"), QMessageBox.NoRole)
+        msg_box.setDefaultButton(no_btn)
+        msg_box.exec()
+
+        if msg_box.clickedButton() == yes_btn:
             # Remove all cards in the encounter set
             import shoggoth
             project = shoggoth.app.current_project

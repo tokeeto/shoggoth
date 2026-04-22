@@ -188,42 +188,42 @@ class GotoCardDialog(QDialog):
             for card in encounter_set.cards:
                 # Determine subcategory
                 if card.front.get('type') == 'location':
-                    subcategory = "Locations"
+                    subcategory = tr("TREE_LOCATIONS")
                 elif card.back.get('type') == 'encounter':
-                    subcategory = "Encounter"
+                    subcategory = tr("TREE_ENCOUNTER")
                 else:
-                    subcategory = "Story"
-                
-                path = f"Campaign Cards / {encounter_set.name} / {subcategory}"
+                    subcategory = tr("TREE_STORY")
+
+                path = f"{tr('TREE_CAMPAIGN_CARDS')} / {encounter_set.name} / {subcategory}"
                 self.all_cards.append((card, path))
-        
+
         # Process player cards
         for card in self.project.player_cards:
             # Check if it's part of an investigator set
             if investigator := card.data.get('investigator'):
-                path = f"Player Cards / Investigators / {investigator}"
+                path = f"{tr('TREE_PLAYER_CARDS')} / {tr('TREE_INVESTIGATORS')} / {investigator}"
             else:
                 # Get card class
                 card_class = card.get_class()
                 if card_class:
                     class_name = {
-                        'guardian': 'Guardian',
-                        'seeker': 'Seeker',
-                        'rogue': 'Rogue',
-                        'mystic': 'Mystic',
-                        'survivor': 'Survivor',
-                        'neutral': 'Neutral',
-                        'multi': 'Multi-class'
-                    }.get(card_class, 'Other')
-                    path = f"Player Cards / {class_name}"
+                        'guardian': tr('CLASS_GUARDIAN'),
+                        'seeker': tr('CLASS_SEEKER'),
+                        'rogue': tr('CLASS_ROGUE'),
+                        'mystic': tr('CLASS_MYSTIC'),
+                        'survivor': tr('CLASS_SURVIVOR'),
+                        'neutral': tr('CLASS_NEUTRAL'),
+                        'multi': tr('CLASS_MULTI'),
+                    }.get(card_class, tr('CLASS_OTHER'))
+                    path = f"{tr('TREE_PLAYER_CARDS')} / {class_name}"
                 else:
-                    path = "Player Cards / Other"
-            
+                    path = f"{tr('TREE_PLAYER_CARDS')} / {tr('CLASS_OTHER')}"
+
             self.all_cards.append((card, path))
-        
+
         # Process guides
         for guide in self.project.guides:
-            path = "Guides"
+            path = tr("TREE_GUIDES")
             # Create a pseudo-card object for guides
             class GuideWrapper:
                 def __init__(self, guide):
