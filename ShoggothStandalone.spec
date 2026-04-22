@@ -52,30 +52,34 @@ if platform.system() == 'Darwin':
         a.binaries = [b for b in a.binaries if 'libharfbuzz' not in b[0]]
         a.binaries.append(('PIL/.dylibs/libharfbuzz.0.dylib', homebrew_harfbuzz, 'BINARY'))
 
-        # Bundle transitive deps of Homebrew's harfbuzz.
-        # Detect actual filenames via otool to be version-agnostic.
-        dep_specs = {
-            'glib': f'{homebrew_prefix}/opt/glib/lib',
-            'graphite2': f'{homebrew_prefix}/opt/graphite2/lib',
-            'gettext': f'{homebrew_prefix}/opt/gettext/lib',
-            'pcre2': f'{homebrew_prefix}/opt/pcre2/lib',
-        }
-        for pkg, lib_dir in dep_specs.items():
-            if not os.path.isdir(lib_dir):
+        # Bundle all transitive Homebrew deps (recursive).
+        # Walk the dependency tree via otool so we catch indirect deps
+        # (e.g. harfbuzz -> glib -> pcre2).
+        bundled_names = {b[0] for b in a.binaries}
+        to_scan = [homebrew_harfbuzz]
+        seen = set()
+        while to_scan:
+            dylib = to_scan.pop()
+            if dylib in seen:
                 continue
+            seen.add(dylib)
             try:
                 needed = subprocess.check_output(
-                    ['otool', '-L', homebrew_harfbuzz], text=True
+                    ['otool', '-L', dylib], text=True
                 )
-                for line in needed.splitlines():
-                    line = line.strip()
-                    if lib_dir in line:
-                        dylib_path = line.split(' (')[0].strip()
-                        dylib_name = os.path.basename(dylib_path)
-                        if os.path.exists(dylib_path):
-                            a.binaries.append((f'PIL/.dylibs/{dylib_name}', dylib_path, 'BINARY'))
             except (FileNotFoundError, subprocess.CalledProcessError):
-                pass
+                continue
+            for line in needed.splitlines():
+                line = line.strip()
+                if not line.startswith(homebrew_prefix):
+                    continue
+                dep_path = line.split(' (')[0].strip()
+                dep_name = os.path.basename(dep_path)
+                if dep_name in bundled_names or not os.path.exists(dep_path):
+                    continue
+                a.binaries.append((dep_name, dep_path, 'BINARY'))
+                bundled_names.add(dep_name)
+                to_scan.append(dep_path)
 
 pyz = PYZ(a.pure)
 
