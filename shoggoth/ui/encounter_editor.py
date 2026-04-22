@@ -379,15 +379,16 @@ class EncounterSetEditor(QWidget):
         shoggoth.app.new_card_dialog()
 
     def delete_encounter_set(self):
-        reply = QMessageBox.question(
-            self,
-            tr("DLG_DELETE_ENCOUNTER_SET"),
-            tr("CONFIRM_DELETE_ENCOUNTER_SET").format(name=self.encounter_set.name, count=len(self.encounter_set.cards)),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(tr("DLG_DELETE_ENCOUNTER_SET"))
+        msg_box.setText(tr("CONFIRM_DELETE_ENCOUNTER_SET").format(name=self.encounter_set.name, count=len(self.encounter_set.cards)))
+        msg_box.setIcon(QMessageBox.Question)
+        yes_btn = msg_box.addButton(tr("DLG_YES"), QMessageBox.YesRole)
+        no_btn = msg_box.addButton(tr("DLG_NO"), QMessageBox.NoRole)
+        msg_box.setDefaultButton(no_btn)
+        msg_box.exec()
 
-        if reply == QMessageBox.Yes:
+        if msg_box.clickedButton() == yes_btn:
             QMessageBox.information(self, tr("DLG_NOT_IMPLEMENTED"), tr("MSG_ENCOUNTER_SET_DELETION_NOT_IMPLEMENTED"))
 
     def cleanup(self):

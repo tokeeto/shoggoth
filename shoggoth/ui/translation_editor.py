@@ -12,13 +12,14 @@ from PySide6.QtCore import Qt
 from shoggoth.i18n import tr
 
 
-# Face-level fields that are worth translating: (field_name, display_label, multiline)
-FACE_TEXT_FIELDS = [
-    ('title',       'Title',    False),
-    ('subtitle',    'Subtitle', False),
-    ('text',        'Text',     True),
-    ('flavor_text', 'Flavor',   True),
-]
+def get_face_text_fields():
+    """Face-level fields worth translating: (field_name, display_label, multiline)."""
+    return [
+        ('title',       tr('FIELD_TITLE'),    False),
+        ('subtitle',    tr('FIELD_SUBTITLE'), False),
+        ('text',        tr('FIELD_TEXT'),      True),
+        ('flavor_text', tr('FIELD_FLAVOR'),    True),
+    ]
 
 
 class TranslationFieldPair(QWidget):
@@ -98,11 +99,11 @@ class TranslationEditor(QWidget):
         layout.setSpacing(8)
 
         # ── Card-level fields ───────────────────────────────────────────────
-        card_group = QGroupBox('Card')
+        card_group = QGroupBox(tr('TITLE_CARD'))
         card_layout = QVBoxLayout()
         card_layout.setContentsMargins(8, 8, 8, 8)
 
-        w = TranslationFieldPair('Name', card.data.get('name', ''), overlay.get('name', ''))
+        w = TranslationFieldPair(tr('FIELD_NAME'), card.data.get('name', ''), overlay.get('name', ''))
         w.connect_changed(self._save)
         self._fields['name'] = w
         card_layout.addWidget(w)
@@ -115,7 +116,7 @@ class TranslationEditor(QWidget):
         front_layout = QVBoxLayout()
         front_layout.setContentsMargins(8, 8, 8, 8)
 
-        for field, label, multiline in FACE_TEXT_FIELDS:
+        for field, label, multiline in get_face_text_fields():
             original = card.front.get(field, '')
             if not original:
                 continue
@@ -132,7 +133,7 @@ class TranslationEditor(QWidget):
         back_layout = QVBoxLayout()
         back_layout.setContentsMargins(8, 8, 8, 8)
 
-        for field, label, multiline in FACE_TEXT_FIELDS:
+        for field, label, multiline in get_face_text_fields():
             original = card.back.get(field, '')
             if not original:
                 continue
