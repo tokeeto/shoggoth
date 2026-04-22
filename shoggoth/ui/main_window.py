@@ -1718,6 +1718,7 @@ class ShoggothMainWindow(QMainWindow):
             quality = self.config.getint('Shoggoth', 'export_quality', 100)
         if separate_versions is None:
             separate_versions = self.config.getboolean('Shoggoth', 'export_separate_versions', True)
+        include_backs = self.config.getboolean('Shoggoth', 'export_include_backs', False)
 
         try:
             export_folder = Path(self.active_project.file_path).parent / f'Export of {self.active_project.name}'
@@ -1750,7 +1751,7 @@ class ShoggothMainWindow(QMainWindow):
                     args=(card, str(export_folder)),
                     kwargs={
                         'size': self._get_export_size(),
-                        'include_backs': False,
+                        'include_backs': include_backs,
                         'bleed': bleed,
                         'format': format,
                         'quality': quality,
@@ -2284,6 +2285,74 @@ class ShoggothMainWindow(QMainWindow):
         else:
             super().mousePressEvent(event)
 
+    def export_encounter_set(self, encounter_set):
+        """Export all cards in an encounter set using settings from preferences"""
+        import time
+        import multiprocessing
+        start_time = time.time()
+
+        cards = encounter_set.cards
+        if not cards:
+            QMessageBox.information(self, tr("DLG_EXPORT_COMPLETE"), tr("MSG_NO_CARDS_IN_SET"))
+            return
+
+        bleed = self.config.getboolean('Shoggoth', 'export_bleed', True)
+        format = self.config.get('Shoggoth', 'export_format', 'png')
+        quality = self.config.getint('Shoggoth', 'export_quality', 95)
+        separate_versions = self.config.getboolean('Shoggoth', 'export_separate_versions', False)
+        include_backs = self.config.getboolean('Shoggoth', 'export_include_backs', False)
+        cores = max(4, multiprocessing.cpu_count() - 1)
+
+        try:
+            export_folder = Path(self.active_project.file_path).parent / f'Export of {self.active_project.name}'
+            export_folder.mkdir(parents=True, exist_ok=True)
+
+            from PySide6.QtWidgets import QProgressDialog
+            progress = QProgressDialog(
+                tr("STATUS_EXPORTING"), tr("BTN_CANCEL"), 0, len(cards), self
+            )
+            progress.setWindowModality(Qt.WindowModal)
+
+            threads = []
+            for i, card in enumerate(cards):
+                if progress.wasCanceled():
+                    break
+
+                if i >= cores:
+                    threads[i - cores].join()
+                    progress.setValue(i - cores)
+
+                progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
+
+                thread = threading.Thread(
+                    target=self.card_renderer.export_card_images,
+                    args=(card, str(export_folder)),
+                    kwargs={
+                        'size': self._get_export_size(),
+                        'include_backs': include_backs,
+                        'bleed': bleed,
+                        'format': format,
+                        'quality': quality,
+                        'separate_versions': separate_versions
+                    }
+                )
+                threads.append(thread)
+                thread.start()
+
+            for thread in threads:
+                thread.join()
+            print(f'Export encounter set in:', time.time() - start_time)
+
+            progress.setValue(len(cards))
+
+            QMessageBox.information(
+                self,
+                tr("DLG_EXPORT_COMPLETE"),
+                tr("MSG_EXPORTED_CARDS").format(count=len(cards), folder=export_folder)
+            )
+        except Exception as e:
+            QMessageBox.critical(self, tr("DLG_EXPORT_ERROR"), tr("ERR_EXPORT_CARDS").format(error=e))
+
     def export_current(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export the current card using settings from preferences"""
         if not self.current_card:
@@ -2299,6 +2368,7 @@ class ShoggothMainWindow(QMainWindow):
             quality = self.config.getint('Shoggoth', 'export_quality', 95)
         if separate_versions is None:
             separate_versions = self.config.getboolean('Shoggoth', 'export_separate_versions', False)
+        include_backs = self.config.getboolean('Shoggoth', 'export_include_backs', False)
 
         try:
             export_folder = Path(self.active_project.file_path).parent / f'Export of {self.active_project.name}'
@@ -2309,7 +2379,7 @@ class ShoggothMainWindow(QMainWindow):
                 self.current_card,
                 str(export_folder),
                 size=self._get_export_size(),
-                include_backs=False,
+                include_backs=include_backs,
                 bleed=bleed,
                 format=format,
                 quality=quality,

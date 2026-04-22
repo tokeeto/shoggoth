@@ -79,16 +79,22 @@ class TreeContextMenu:
         new_card_action = QAction(tr("CTX_NEW_CARD"), self.parent)
         new_card_action.triggered.connect(lambda: self.new_card_in_encounter(encounter))
         menu.addAction(new_card_action)
-        
+
+        # Export Set
+        import shoggoth
+        export_action = QAction(tr("CTX_EXPORT_SET"), self.parent)
+        export_action.triggered.connect(lambda: shoggoth.app.export_encounter_set(encounter))
+        menu.addAction(export_action)
+
         # Paste (if we have something in clipboard)
         if self.clipboard:
             menu.addSeparator()
             paste_action = QAction(tr("CTX_PASTE_CARD"), self.parent)
             paste_action.triggered.connect(lambda: self.paste_card(encounter, None))
             menu.addAction(paste_action)
-        
+
         menu.addSeparator()
-        
+
         # Delete Encounter Set
         delete_action = QAction(tr("CTX_DELETE_ENCOUNTER_SET"), self.parent)
         delete_action.triggered.connect(lambda: self.delete_encounter(encounter))

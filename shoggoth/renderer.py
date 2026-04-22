@@ -10,7 +10,7 @@ import re
 import json
 import functools
 
-_ILLUS_LRU_MAXSIZE = 12
+_ILLUS_LRU_MAXSIZE = 24
 
 
 class _ImgDims:
@@ -117,7 +117,7 @@ class CardRenderer:
         """
         if path not in self._illus_dims_cache:
             if str(path).endswith('.pdf'):
-                vips_image = pyvips.Image.pdfload(str(path), dpi=600, page=1)
+                vips_image = pyvips.Image.pdfload(str(path), dpi=72)
             else:
                 vips_image = pyvips.Image.new_from_file(str(path))
             self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)

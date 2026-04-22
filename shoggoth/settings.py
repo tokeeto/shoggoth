@@ -101,6 +101,7 @@ class SettingsManager:
             'export_quality': 95,
             'export_bleed': True,
             'export_separate_versions': False,
+            'export_include_backs': False,
             # Update settings
             'auto_check_updates': True,
             'skipped_version': '',
@@ -344,6 +345,13 @@ class SettingsDialog(QDialog):
         )
         options_layout.addRow(tr("LABEL_SEPARATE_VERSIONS"), self.export_separate_versions_checkbox)
 
+        # Include backs checkbox
+        self.export_include_backs_checkbox = QCheckBox(tr("OPT_INCLUDE_BACKS"))
+        self.export_include_backs_checkbox.setToolTip(
+            tr("HELP_INCLUDE_BACKS")
+        )
+        options_layout.addRow(tr("LABEL_INCLUDE_BACKS"), self.export_include_backs_checkbox)
+
         options_group.setLayout(options_layout)
         layout.addWidget(options_group)
 
@@ -451,6 +459,9 @@ class SettingsDialog(QDialog):
         self.export_separate_versions_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'export_separate_versions', False)
         )
+        self.export_include_backs_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'export_include_backs', False)
+        )
 
         # Update settings
         self.auto_check_updates_checkbox.setChecked(
@@ -481,6 +492,7 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'export_quality', self.export_quality_spin.value())
         self.settings.set('Shoggoth', 'export_bleed', self.export_bleed_checkbox.isChecked())
         self.settings.set('Shoggoth', 'export_separate_versions', self.export_separate_versions_checkbox.isChecked())
+        self.settings.set('Shoggoth', 'export_include_backs', self.export_include_backs_checkbox.isChecked())
 
         # Update settings
         self.settings.set('Shoggoth', 'auto_check_updates', self.auto_check_updates_checkbox.isChecked())

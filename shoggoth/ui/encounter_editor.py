@@ -193,6 +193,10 @@ class EncounterSetEditor(QWidget):
         new_card_btn.clicked.connect(self.add_new_card)
         button_layout.addWidget(new_card_btn)
 
+        export_btn = QPushButton(tr("BTN_EXPORT_SET"))
+        export_btn.clicked.connect(self.export_set)
+        button_layout.addWidget(export_btn)
+
         button_layout.addStretch()
 
         delete_btn = QPushButton(tr("BTN_DELETE_ENCOUNTER_SET"))
@@ -377,6 +381,9 @@ class EncounterSetEditor(QWidget):
 
     def add_new_card(self):
         shoggoth.app.new_card_dialog()
+
+    def export_set(self):
+        shoggoth.app.export_encounter_set(self.encounter_set)
 
     def delete_encounter_set(self):
         reply = QMessageBox.question(
