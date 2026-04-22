@@ -43,6 +43,8 @@ class TreeContextMenu:
             self._create_campaign_cards_menu(menu, item_data)
         elif item_type == 'player_cards':
             self._create_player_cards_menu(menu, item_data)
+        elif item_type == 'guide':
+            self._create_guide_menu(menu, item_data)
         elif item_type == 'category':
             # Category nodes (Story, Locations, Encounter, Class groups, etc.)
             category_name = item.text(0)
@@ -132,6 +134,22 @@ class TreeContextMenu:
         new_card_action.triggered.connect(lambda: self.new_player_card(project))
         menu.addAction(new_card_action)
     
+    def _create_guide_menu(self, menu, guide):
+        """Create context menu for a guide"""
+        duplicate_action = QAction(tr("CTX_DUPLICATE"), self.parent)
+        duplicate_action.triggered.connect(lambda: self.duplicate_guide(guide))
+        menu.addAction(duplicate_action)
+
+        export_action = QAction(tr("BTN_EXPORT_PDF"), self.parent)
+        export_action.triggered.connect(lambda: self.export_guide_to_pdf(guide))
+        menu.addAction(export_action)
+
+        menu.addSeparator()
+
+        delete_action = QAction(tr("CTX_DELETE"), self.parent)
+        delete_action.triggered.connect(lambda: self.delete_guide(guide))
+        menu.addAction(delete_action)
+
     def _create_category_menu(self, menu, category_name, parent_data, item_data):
         """Create context menu for category nodes (Story, Locations, etc.)"""
         # Check if this is a class category node (Guardian, Seeker, etc.)
@@ -487,6 +505,61 @@ class TreeContextMenu:
 
         # Trigger refresh
         shoggoth.app.refresh_tree()
+
+    def duplicate_guide(self, guide):
+        """Duplicate a guide within the same project"""
+        import copy
+        import uuid
+        new_data = copy.deepcopy(guide.data)
+        new_data['id'] = str(uuid.uuid4())
+        new_data['name'] = f"{guide.name} (Copy)"
+        for section in new_data.get('sections', []):
+            section['id'] = uuid.uuid4().hex[:8]
+        guide.project.data.setdefault('guides', []).append(new_data)
+        guide.project.save_all()
+        import shoggoth
+        shoggoth.app.refresh_tree()
+
+    def export_guide_to_pdf(self, guide):
+        """Export a guide to PDF via a save-file dialog"""
+        from shoggoth.pdf_exporter import check_prince_installed
+        import shoggoth
+        if not check_prince_installed():
+            from shoggoth.ui.prince_installer import PrinceInstallerDialog
+            from PySide6.QtWidgets import QDialog
+            dlg = PrinceInstallerDialog(parent=self.parent)
+            if dlg.exec() != QDialog.Accepted:
+                return
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from pathlib import Path
+        default_path = str(guide.target_path)
+        path, _ = QFileDialog.getSaveFileName(
+            self.parent, tr("BTN_EXPORT_PDF"), default_path, tr("FILTER_PDF_FILES")
+        )
+        if not path:
+            return
+        guide.render_to_file(output_path=Path(path))
+        QMessageBox.information(
+            self.parent, tr("DLG_EXPORT_COMPLETE"),
+            tr("MSG_PDF_EXPORTED").format(path=path),
+        )
+
+    def delete_guide(self, guide):
+        """Delete a guide after confirmation"""
+        from PySide6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            self.parent,
+            tr("DLG_DELETE_GUIDE"),
+            tr("CONFIRM_DELETE_GUIDE").format(name=guide.name),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            guides = guide.project.data.get('guides', [])
+            guide.project.data['guides'] = [g for g in guides if g['id'] != guide.id]
+            guide.project.save_all()
+            import shoggoth
+            shoggoth.app.refresh_tree()
 
     def set_active_project(self, project):
         """Set a project as the active project"""

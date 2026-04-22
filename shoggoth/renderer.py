@@ -29,10 +29,10 @@ logging.getLogger('pillow').setLevel(logging.ERROR)
 card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
 
 
-def scale(x: int | None):
+def scale(x: int | None, s: float):
     if not x:
         return x
-    return int(x * Region.SCALE)
+    return int(x * s)
 
 
 class Region:
@@ -40,26 +40,21 @@ class Region:
     y: int
     width: int
     height: int
-    SCALE: float = 1
 
-    def __init__(self, data):
+    def __init__(self, data, scale: float = 1.0):
         if not data:
             data = {}
-        self.x = int(data.get('x', 0) * Region.SCALE)
-        self.y = int(data.get('y', 0) * Region.SCALE)
-        self.width = int(data.get('width', 0) * Region.SCALE)
-        self.height = int(data.get('height', 0) * Region.SCALE)
+        self.x = int(data.get('x', 0) * scale)
+        self.y = int(data.get('y', 0) * scale)
+        self.width = int(data.get('width', 0) * scale)
+        self.height = int(data.get('height', 0) * scale)
         self.is_attached = bool(data.get('is_attached', False))
         self.attach_before = data.get('attach_before')
         self.attach_after = data.get('attach_after')
 
     @staticmethod
     def unscaled(data):
-        s = Region.SCALE
-        Region.SCALE = 1
-        r = Region(data)
-        Region.SCALE = s
-        return r
+        return Region(data, scale=1.0)
 
     @property
     def size(self):
@@ -153,10 +148,10 @@ class CardRenderer:
                 self.resized_cache[(path, size)] = image
         elif str(path).endswith('.svg'):
             vips_image = pyvips.Image.new_from_file(str(path))
-            scale = size[0] / vips_image.width
-            if scale > (size[1] / vips_image.height):
-                scale = size[1] / vips_image.height
-            vips_image = pyvips.Image.new_from_file(str(path), scale=scale)
+            svg_scale = size[0] / vips_image.width
+            if svg_scale > (size[1] / vips_image.height):
+                svg_scale = size[1] / vips_image.height
+            vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
             image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
         else:
             # thumbnail() uses JPEG shrink-on-load: decodes at 1/2, 1/4 or 1/8
@@ -194,10 +189,10 @@ class CardRenderer:
                 self.resized_cache[(path, size)] = image
             elif str(path).endswith('.svg'):
                 vips_image = pyvips.Image.new_from_file(str(path))
-                scale = size[0]/vips_image.width
-                if scale > (size[1]/vips_image.height):
-                    scale = size[1]/vips_image.height
-                vips_image = pyvips.Image.new_from_file(str(path), scale=scale)
+                svg_scale = size[0]/vips_image.width
+                if svg_scale > (size[1]/vips_image.height):
+                    svg_scale = size[1]/vips_image.height
+                vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
                 image = Image.frombytes(
                     'RGBA',
                     (vips_image.width, vips_image.height),
@@ -362,12 +357,7 @@ class CardRenderer:
 
     def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72):
         """Render one side of a card"""
-        if width == 1500:
-            Region.SCALE = 1
-        if width == 750:
-            Region.SCALE = .5
-        if width == 375:
-            Region.SCALE = .25
+        s = width / 1500
 
         height, width = height + bleed * 2, width + bleed * 2
         if side.get('orientation', 'vertical') == 'horizontal':
@@ -377,7 +367,7 @@ class CardRenderer:
 
         template_bleed = side.get('template_bleed', False)
         try:
-            self.render_illustration(card_image, side)
+            self.render_illustration(card_image, side, s)
         except Exception as e:
             print('failed illus', e)
         try:
@@ -385,7 +375,7 @@ class CardRenderer:
         except Exception as e:
             print('failed template', e)
         if side['type'] in ('investigator'):
-            self.render_illustration(card_image, side)
+            self.render_illustration(card_image, side, s)
 
         if not template_bleed:
             # make fake mirror bleed
@@ -421,7 +411,7 @@ class CardRenderer:
             self.render_customizable,
         ]:
             try:
-                func(card_image, side)
+                func(card_image, side, s)
             except Exception as e:
                 logging.debug(f'Failed in {func}: {e}')
                 print(f'Failed in {func}: {e}')
@@ -460,7 +450,7 @@ class CardRenderer:
 
         return card_image
 
-    def render_text(self, card_image, side):
+    def render_text(self, card_image, side, s: float = 1.0):
         for field in [
             'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
             'attack', 'evade', 'health', 'stamina', 'sanity', 'victory',
@@ -469,7 +459,7 @@ class CardRenderer:
             'text1', 'text2', 'text3',
         ]:
             value = side.get(field)
-            region = Region(side.get(f'{field}_region', None))
+            region = Region(side.get(f'{field}_region', None), s)
 
             if region.is_attached or not region:
                 # this field is part of another block, and doesn't render on its own.
@@ -506,7 +496,7 @@ class CardRenderer:
                 font = side.get(f'{field}_font', {})
                 polygon = side.get(f'{field}_polygon', None)
                 if polygon:
-                    polygon = [(point[0]*Region.SCALE, point[1]*Region.SCALE) for point in polygon]
+                    polygon = [(point[0]*s, point[1]*s) for point in polygon]
 
                 if font.get('rotation'):
                     temp_image = Image.new('RGBA', region.size, (0, 0, 0, 0))
@@ -515,10 +505,10 @@ class CardRenderer:
                         value,
                         Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
                         font=font.get('font', 'regular'),
-                        font_size=scale(font.get('size', 20)),
-                        min_font_size=scale(font.get('min_size', None)),
+                        font_size=scale(font.get('size', 20), s),
+                        min_font_size=scale(font.get('min_size', None), s),
                         fill=font.get('color', '#231f20'),
-                        outline=scale(font.get('outline', None)),
+                        outline=scale(font.get('outline', None), s),
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
                         polygon=polygon,
@@ -531,10 +521,10 @@ class CardRenderer:
                         value,
                         region,
                         font=font.get('font', 'regular'),
-                        font_size=scale(font.get('size', 20)),
-                        min_font_size=scale(font.get('min_size', None)),
+                        font_size=scale(font.get('size', 20), s),
+                        min_font_size=scale(font.get('min_size', None), s),
                         fill=font.get('color', '#231f20'),
-                        outline=scale(font.get('outline')),
+                        outline=scale(font.get('outline'), s),
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
                         polygon=polygon,
@@ -543,12 +533,12 @@ class CardRenderer:
                 print(f"Error rendering field: {field}\n {e}")
                 continue
 
-    def render_tokens(self, card_image, side):
+    def render_tokens(self, card_image, side, s: float = 1.0):
         value = side.get('tokens')
         if not value:
             return
 
-        region = Region(side['chaos_region'])
+        region = Region(side['chaos_region'], s)
         entry_height = region.height//len(value)
         font = side.get('chaos_font', {})
 
@@ -577,26 +567,26 @@ class CardRenderer:
             overlay_icon = self.get_resized_cached(overlay_path, (native.width * 2, native.height * 2))
             card_image.paste(overlay_icon, (region.x, region.y+(index*entry_height)), overlay_icon)
 
-    def render_connection_icons(self, card_image, side):
+    def render_connection_icons(self, card_image, side, s: float = 1.0):
         try:
 
             # own icon
             value = side.get('connection')
 
             if value and value != "None":
-                region = Region(side.get('connection_region'))
+                region = Region(side.get('connection_region'), s)
                 try:
                     connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{value}.svg", region.size)
                 except:
                     return
 
-                padding = int(24*Region.SCALE)
+                padding = int(24*s)
                 base_image = self.get_resized_cached(
                     self.overlays_path / "location_hi_base.png",
                     (region.width + padding, region.height + padding)
                 )
                 card_image.paste(base_image, region.pos, base_image)
-                card_image.paste(connection_image, (region.x+int(12*Region.SCALE), region.y+int(12*Region.SCALE)), connection_image)
+                card_image.paste(connection_image, (region.x+int(12*s), region.y+int(12*s)), connection_image)
 
             # outgoing connections
             value = side.get('connections')
@@ -608,16 +598,16 @@ class CardRenderer:
             for index, icon in enumerate(value):
                 if not icon or icon == "None":
                     continue
-                region = Region(side.get(f'connection_{index+1}_region'))
+                region = Region(side.get(f'connection_{index+1}_region'), s)
                 try:
                     connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{icon}.svg", region.size)
                 except:
                     continue
-                card_image.paste(connection_image, (region.x+int(12*Region.SCALE), region.y+int(12*Region.SCALE)), connection_image)
+                card_image.paste(connection_image, (region.x+int(12*s), region.y+int(12*s)), connection_image)
         except Exception as e:
             print('error in connection', e)
 
-    def render_icons(self, card_image, side):
+    def render_icons(self, card_image, side, s: float = 1.0):
         """ Renders commit icons """
         value = side.get('icons')
         if not value:
@@ -626,23 +616,23 @@ class CardRenderer:
         box_path = side.get('icons_box', 'skill_box_<class>.png').replace('<class>', side.get_class())
         box_path = self.overlays_path / box_path
 
-        icon_region = Region(side.get('icons_region', {"x": 112, "y": 424, "width": 0, "height": 164}))
-        box_region = Region(side.get('icons_box_region', {"x": -112, "y": -28, "width": 270, "height": 160}))
+        icon_region = Region(side.get('icons_region', {"x": 112, "y": 424, "width": 0, "height": 164}), s)
+        box_region = Region(side.get('icons_box_region', {"x": -112, "y": -28, "width": 270, "height": 160}), s)
         box_image = self.get_resized_cached(box_path, box_region.size)
 
         for index, icon in enumerate(value):
             icon_path = self.overlays_path / 'svg' / f"skill_icon_{icon}.svg"
-            icon_image = self.get_resized_cached(icon_path, (scale(102), scale(102)))
+            icon_image = self.get_resized_cached(icon_path, (scale(102, s), scale(102, s)))
             card_image.paste(box_image, (icon_region.x + box_region.x, index * icon_region.height + icon_region.y + box_region.y), box_image)
             card_image.paste(icon_image, (icon_region.x, index * icon_region.height + icon_region.y), icon_image)
 
-    def render_health(self, card_image, side):
+    def render_health(self, card_image, side, s: float = 1.0):
         """ Add health and sanity overlay, if needed. """
         for stat in ['health', 'sanity']:
             if side.get(f'draw_{stat}_overlay', True) is False:
                 continue
             value = side.get(stat, None)
-            region = Region(side.get(f'{stat}_region'))
+            region = Region(side.get(f'{stat}_region'), s)
             if not side.get(f'draw_{stat}_overlay', False):
                 if (not region) or value is None:
                     continue
@@ -650,12 +640,12 @@ class CardRenderer:
             overlay_path = self.overlays_path/f"{stat}_base.png"
             overlay_icon = self.get_resized_cached(overlay_path, (region.width, region.height))
             center_x = region.x
-            center_y = region.y - (scale(23) if stat == 'health' else scale(15))
+            center_y = region.y - (scale(23, s) if stat == 'health' else scale(15, s))
             card_image.paste(overlay_icon, (center_x, center_y), overlay_icon)
 
-    def render_project_icon(self, card_image, side):
+    def render_project_icon(self, card_image, side, s: float = 1.0):
         """Render the encounter icon """
-        region = Region(side.get('collection_portrait_clip_region'))
+        region = Region(side.get('collection_portrait_clip_region'), s)
         if not region:
             return
 
@@ -676,9 +666,9 @@ class CardRenderer:
         icon.putalpha(alpha)
         card_image.paste(icon, (region.x, region.y), icon)
 
-    def render_encounter_icon(self, card_image, side):
+    def render_encounter_icon(self, card_image, side, s: float = 1.0):
         """Render the encounter icon """
-        region = Region(side.get('encounter_icon_region'))
+        region = Region(side.get('encounter_icon_region'), s)
         if not region:
             return
 
@@ -693,7 +683,7 @@ class CardRenderer:
         if overlay:
             if not Path(overlay).is_file():
                 overlay = overlay_dir / overlay
-            overlay_region = Region(side.get('encounter_overlay_region'))
+            overlay_region = Region(side.get('encounter_overlay_region'), s)
             overlay_image = self.get_resized_cached(Path(overlay), overlay_region.size)
             card_image.paste(overlay_image, overlay_region.pos, overlay_image)
 
@@ -703,13 +693,13 @@ class CardRenderer:
 
         try:
             icon = self.get_cached(icon_path)
-            scale = min(region.width/icon.width, region.height/icon.height)
-            icon = self.get_resized_cached(icon_path, (int(icon.width*scale), int(icon.height*scale)))
+            icon_scale = min(region.width/icon.width, region.height/icon.height)
+            icon = self.get_resized_cached(icon_path, (int(icon.width*icon_scale), int(icon.height*icon_scale)))
             card_image.paste(icon, (region.x + (region.width-icon.width)//2, region.y + (region.height-icon.height)//2), icon if icon.has_transparency_data else None)
         except Exception as e:
             print('icon failure:', e, icon_path, side.card.name)
 
-    def render_slots(self, card_image, side):
+    def render_slots(self, card_image, side, s: float = 1.0):
         """Render the slot icons """
         slots = side.get('slots')
         slot = side.get('slot')
@@ -719,7 +709,7 @@ class CardRenderer:
             slots = [slot]
 
         for index, slot in enumerate(slots):
-            region = Region(side.get(f'slot_{index+1}_region', {}))
+            region = Region(side.get(f'slot_{index+1}_region', {}), s)
             if not region:
                 continue
 
@@ -727,7 +717,7 @@ class CardRenderer:
             slot_image = self.get_resized_cached(path, region.size)
             card_image.paste(slot_image, region.pos, slot_image)
 
-    def render_enemy_stats(self, card_image, side):
+    def render_enemy_stats(self, card_image, side, s: float = 1.0):
         """Render Damage and horror."""
         try:
             for token in ('damage', 'horror'):
@@ -736,9 +726,9 @@ class CardRenderer:
                     continue
                 icon_path = self.overlays_path/f"{token}.png"
                 raw_icon = self.get_cached(icon_path)
-                raw_icon = self.get_resized_cached(icon_path, (int(raw_icon.width*Region.SCALE), int(raw_icon.height*Region.SCALE)))
+                raw_icon = self.get_resized_cached(icon_path, (int(raw_icon.width*s), int(raw_icon.height*s)))
                 for i in range(value):
-                    region = Region(side[f'{token}{i+1}_region'])
+                    region = Region(side[f'{token}{i+1}_region'], s)
                     if not region:
                         continue
                     card_image.paste(raw_icon, (region.x, region.y), raw_icon)
@@ -774,7 +764,7 @@ class CardRenderer:
             template = self.get_resized_cached(template_path, (card_image.width, card_image.height))
             card_image.paste(template, (0, 0), template if template.has_transparency_data else None)
 
-    def render_illustration(self, card_image, side):
+    def render_illustration(self, card_image, side, s: float = 1.0):
         """Render the illustration/portrait"""
         # Get illustration path
         illustration_path = side.get('illustration', None)
@@ -787,9 +777,9 @@ class CardRenderer:
             return
 
         illustration = self.get_illustration_cached(illustration_path)
-        region = Region(side.get('illustration_region'))
+        region = Region(side.get('illustration_region'), s)
         # Calculate scaling
-        illustration_scale = float(side.get('illustration_scale', 0)) * Region.SCALE
+        illustration_scale = float(side.get('illustration_scale', 0)) * s
         if not illustration_scale:
             illustration_scale = region.height / illustration.height
             if region.width / illustration.width > illustration_scale:
@@ -808,12 +798,12 @@ class CardRenderer:
         if side.get('illustration_pan_x', None) is None:
             pan_x = region.x
         else:
-            pan_x = int(side.get('illustration_pan_x', 0) * Region.SCALE)
+            pan_x = int(side.get('illustration_pan_x', 0) * s)
 
         if side.get('illustration_pan_y', None) is None:
             pan_y = region.y
         else:
-            pan_y = int(side.get('illustration_pan_y', 0) * Region.SCALE)
+            pan_y = int(side.get('illustration_pan_y', 0) * s)
         # Position and paste
         if illustration.has_transparency_data:
             card_image.paste(
@@ -827,10 +817,10 @@ class CardRenderer:
                 (pan_x, pan_y)
             )
 
-    def render_level(self, card_image, side):
+    def render_level(self, card_image, side, s: float = 1.0):
         """Render the card level"""
         # Get level
-        region = Region(side.get('level_region'))
+        region = Region(side.get('level_region'), s)
         if not region:
             return
 
@@ -855,7 +845,7 @@ class CardRenderer:
         level_icon = self.get_resized_cached(path, region.size)
         card_image.paste(level_icon, region.pos, level_icon)
 
-    def render_class_symbols(self, card_image, side):
+    def render_class_symbols(self, card_image, side, s: float = 1.0):
         """Render class symbols for multiclass cards"""
         classes = side.get('classes', [])
         if len(classes) < 2:
@@ -864,12 +854,12 @@ class CardRenderer:
         # Render each class symbol
         for index, cls in enumerate(classes):
             symbol_path = self.overlays_path / f"class_symbol_{cls}.png"
-            region = Region(side.get(f"class_symbol_{index+1}_region"))
+            region = Region(side.get(f"class_symbol_{index+1}_region"), s)
 
             symbol = self.get_resized_cached(symbol_path, region.size)
             card_image.paste(symbol, (region.x, region.y), symbol)
 
-    def render_chaos(self, card_image, side):
+    def render_chaos(self, card_image, side, s: float = 1.0):
         """ Renders the scenario reference cards.
 
             This could be handled in a lot of different ways,
@@ -880,11 +870,11 @@ class CardRenderer:
         if not entries:
             return
 
-        region = Region(side.get('chaos_region'))
+        region = Region(side.get('chaos_region'), s)
         if not region:
             return
         font = side.get("chaos_font", {})
-        size = 200*Region.SCALE  # pixel size of token icons
+        token_size = 200*s  # pixel size of token icons
         surfaces = []
 
         for entry in entries:
@@ -894,20 +884,20 @@ class CardRenderer:
             if not isinstance(tokens, list):
                 tokens = [tokens]
 
-            token_surface = Image.new('RGBA', (int(size), int(region.height)), (255, 255, 255, 0))
+            token_surface = Image.new('RGBA', (int(token_size), int(region.height)), (255, 255, 255, 0))
             for token_index, token in enumerate(tokens):
-                token_image = self.get_resized_cached(overlay_dir / f"chaos_{token}.png", (int(size), int(size)))
-                token_surface.paste(token_image, (0, int(size*1.1) * token_index), token_image)
+                token_image = self.get_resized_cached(overlay_dir / f"chaos_{token}.png", (int(token_size), int(token_size)))
+                token_surface.paste(token_image, (0, int(token_size*1.1) * token_index), token_image)
 
             text_surface = Image.new('RGBA', region.size, (255, 255, 255, 0))
             self.rich_text.render_text(
                 text_surface,
                 entry['text'],
-                Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-size*2}),
+                Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-token_size*2}),
                 font=font.get('font', 'regular'),
-                font_size=int(font.get('size', 32)*Region.SCALE),
+                font_size=int(font.get('size', 32)*s),
                 fill=font.get('color', '#231f20'),
-                outline=int(font.get('outline', 0)*Region.SCALE),
+                outline=int(font.get('outline', 0)*s),
                 outline_fill=font.get('outline_color'),
                 alignment=font.get('alignment', 'left'),
             )
@@ -922,9 +912,9 @@ class CardRenderer:
             y = region.y + int(sum(weights[:index]) * weight_pixels)
 
             card_image.paste(chaos, (region.x, y + int(height/2 - chaos.getbbox()[3]/2)), chaos)
-            card_image.paste(text, (region.x + int(size*1.3), y + int(height/2 - text.getbbox()[3]/2)), text)
+            card_image.paste(text, (region.x + int(token_size*1.3), y + int(height/2 - text.getbbox()[3]/2)), text)
 
-    def render_customizable(self, card_image, side):
+    def render_customizable(self, card_image, side, s: float = 1.0):
         """ Renders the scenario reference cards.
 
             This could be handled in a lot of different ways,
@@ -938,7 +928,7 @@ class CardRenderer:
         if not entries:
             return
 
-        region = Region(side['text_region'])
+        region = Region(side['text_region'], s)
         font = side.get("text_font", {})
         parsed_text = ""
         for entry in entries:

@@ -470,12 +470,14 @@ class Guide:
         buffer.seek(0)
         return Image.open(buffer)
 
-    def render_to_file(self, html: str = ''):
+    def render_to_file(self, html: str = '', output_path: 'Path | None' = None):
         prince_cmd, prince_cwd = _resolve_prince()
         if not html:
             html = self.to_html()
+        if output_path is None:
+            output_path = self.target_path
         subprocess.run(
-            [prince_cmd, '-', '-o', str(self.target_path)],
+            [prince_cmd, '-', '-o', str(output_path)],
             cwd=prince_cwd,
             input=html.encode(),
         )

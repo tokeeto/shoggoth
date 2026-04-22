@@ -1989,6 +1989,11 @@ class ShoggothMainWindow(QMainWindow):
             if item.widget():
                 item.widget().setParent(None)
 
+        # Require Prince for guide preview and PDF export
+        from shoggoth.pdf_exporter import check_prince_installed
+        if not check_prince_installed():
+            self.open_prince_installer()
+
         # Create and add guide editor
         from shoggoth.ui.guide_editor import GuideEditor
         editor = GuideEditor(guide)

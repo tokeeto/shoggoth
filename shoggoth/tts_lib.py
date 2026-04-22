@@ -243,7 +243,7 @@ def export_card(card, image_folder):
     else:
         output_path = Path(shoggoth.app.current_project.file_path).parent / f"{card.name}.json"
 
-    with open(output_path, 'w') as file:
+    with open(output_path, 'w', encoding='utf-8') as file:
         json.dump(wrapper, file, indent=4)
 
 
@@ -268,7 +268,7 @@ def export_campaign(project, image_folder):
     else:
         output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} campaign.json"
 
-    with open(output_path, 'w') as file:
+    with open(output_path, 'w', encoding='utf-8') as file:
         json.dump(wrapper, file, indent=4)
 
     return return_status, output_path
@@ -289,7 +289,7 @@ def export_player_cards(cards, image_folder):
     else:
         output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} player cards.json"
 
-    with open(output_path, 'w') as file:
+    with open(output_path, 'w', encoding='utf-8') as file:
         json.dump(wrapper, file, indent=4)
 
     return return_status, output_path

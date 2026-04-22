@@ -116,7 +116,7 @@ def export(cards, target_file, image_folder):
     temp_file = target_folder / '_temp.html'
 
     start_time = time()
-    with open(temp_file, 'w') as html_file:
+    with open(temp_file, 'w', encoding='utf-8') as html_file:
         for txt in _pdf_html(cards, image_folder):
             html_file.write(txt)
 

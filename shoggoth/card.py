@@ -25,7 +25,7 @@ class Face:
             defaults_path = defaults_dir / f'{name}.json'
 
         try:
-            with defaults_path.open('r') as f:
+            with defaults_path.open('r', encoding='utf-8') as f:
                 fallback = json.load(f)
                 if fallback.get('parent'):
                     parent = self.__build_fallback(fallback['parent'])

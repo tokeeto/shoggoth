@@ -15,13 +15,13 @@ from shoggoth.i18n import tr
 from shoggoth.guide import SECTION_TYPES, GuideSection
 
 
-SECTION_LABELS = {
-    'intro': 'Intro',
-    'prelude': 'Prelude',
-    'interlude': 'Interlude',
-    'scenario': 'Scenario',
-    'blank': 'Blank',
-    'cover': 'Cover',
+SECTION_LABEL_KEYS = {
+    'intro': 'GUIDE_SECTION_INTRO',
+    'prelude': 'GUIDE_SECTION_PRELUDE',
+    'interlude': 'GUIDE_SECTION_INTERLUDE',
+    'scenario': 'GUIDE_SECTION_SCENARIO',
+    'blank': 'GUIDE_SECTION_BLANK',
+    'cover': 'GUIDE_SECTION_COVER',
 }
 
 SECTION_COLORS = {
@@ -207,16 +207,16 @@ class GuideOverviewPanel(QWidget):
         layout.setSpacing(6)
 
         # Guide name
-        layout.addWidget(QLabel("Guide name:"))
+        layout.addWidget(QLabel(tr("LABEL_GUIDE_NAME")))
         self._name_edit = QLineEdit()
         self._name_edit.textChanged.connect(self._on_name_changed)
         layout.addWidget(self._name_edit)
 
         # Front page
-        layout.addWidget(QLabel("Front page:"))
+        layout.addWidget(QLabel(tr("LABEL_FRONT_PAGE")))
         fp_row = QHBoxLayout()
         self._fp_edit = QLineEdit()
-        self._fp_edit.setPlaceholderText("Path to cover image…")
+        self._fp_edit.setPlaceholderText(tr("PLACEHOLDER_COVER_IMAGE"))
         self._fp_edit.textChanged.connect(self._on_fp_changed)
         fp_btn = QPushButton("…")
         fp_btn.setFixedWidth(28)
@@ -226,14 +226,14 @@ class GuideOverviewPanel(QWidget):
         layout.addLayout(fp_row)
 
         # Section list
-        layout.addWidget(QLabel("Sections:"))
+        layout.addWidget(QLabel(tr("LABEL_SECTIONS")))
         self._list = QListWidget()
         self._list.itemDoubleClicked.connect(self._on_double_click)
         layout.addWidget(self._list, stretch=1)
 
         # Edit button row
         edit_row = QHBoxLayout()
-        edit_btn = QPushButton("Edit Section")
+        edit_btn = QPushButton(tr("BTN_EDIT_SECTION"))
         edit_btn.clicked.connect(self._on_edit_clicked)
         edit_row.addWidget(edit_btn)
         up_btn = QPushButton("▲")
@@ -242,7 +242,7 @@ class GuideOverviewPanel(QWidget):
         down_btn = QPushButton("▼")
         down_btn.setFixedWidth(30)
         down_btn.clicked.connect(self._move_down)
-        del_btn = QPushButton("Delete")
+        del_btn = QPushButton(tr("DLG_DELETE"))
         del_btn.clicked.connect(self._delete_section)
         edit_row.addWidget(up_btn)
         edit_row.addWidget(down_btn)
@@ -251,11 +251,11 @@ class GuideOverviewPanel(QWidget):
         layout.addLayout(edit_row)
 
         # Add section buttons
-        add_lbl = QLabel("Add section:")
+        add_lbl = QLabel(tr("LABEL_ADD_SECTION"))
         add_lbl.setStyleSheet("font-weight: bold; margin-top: 4px;")
         layout.addWidget(add_lbl)
         for stype in SECTION_TYPES:
-            btn = QPushButton(SECTION_LABELS.get(stype, stype))
+            btn = QPushButton(tr(SECTION_LABEL_KEYS.get(stype, stype)))
             color = SECTION_COLORS.get(stype, '#666')
             btn.setStyleSheet(
                 f"QPushButton {{ color: white; background: {color}; border-radius: 3px; padding: 2px; }}"
@@ -275,7 +275,7 @@ class GuideOverviewPanel(QWidget):
         export_pdf_btn = QPushButton(tr("BTN_EXPORT_PDF"))
         export_pdf_btn.clicked.connect(self._export_pdf)
         export_row.addWidget(export_pdf_btn)
-        export_html_btn = QPushButton("Export HTML")
+        export_html_btn = QPushButton(tr("BTN_EXPORT_HTML"))
         export_html_btn.clicked.connect(self._export_html)
         export_row.addWidget(export_html_btn)
         layout.addLayout(export_row)
@@ -296,7 +296,7 @@ class GuideOverviewPanel(QWidget):
         self._list.clear()
         for s in self.guide.sections:
             color = SECTION_COLORS.get(s.type, '#666')
-            label = SECTION_LABELS.get(s.type, s.type)
+            label = tr(SECTION_LABEL_KEYS.get(s.type, s.type))
             item = QListWidgetItem(f"[{label}]  {s.name}")
             item.setData(Qt.UserRole, s.id)
             item.setForeground(QColor(color))
@@ -325,14 +325,14 @@ class GuideOverviewPanel(QWidget):
 
     def _browse_front_page(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select Front Page Image", str(self.guide.project.folder),
-            "Images (*.png *.jpg *.jpeg *.webp *.avif)",
+            self, tr("DLG_SELECT_FRONT_PAGE_IMAGE"), str(self.guide.project.folder),
+            tr("FILTER_COVER_IMAGES"),
         )
         if path:
             self._fp_edit.setText(path)
 
     def _add_section(self, section_type: str):
-        name = SECTION_LABELS.get(section_type, section_type)
+        name = tr(SECTION_LABEL_KEYS.get(section_type, section_type))
         sections = self.guide.sections
         es_id = None
         if section_type == 'scenario':
@@ -386,19 +386,32 @@ class GuideOverviewPanel(QWidget):
             self.section_edit_requested.emit(sid)
 
     def _export_pdf(self):
-        self.guide.render_to_file()
+        default_path = str(self.guide.target_path)
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("BTN_EXPORT_PDF"), default_path, tr("FILTER_PDF_FILES")
+        )
+        if not path:
+            return
+        from pathlib import Path
+        self.guide.render_to_file(output_path=Path(path))
         QMessageBox.information(
             self, tr("DLG_EXPORT_COMPLETE"),
-            tr("MSG_PDF_EXPORTED").format(path=self.guide.target_path),
+            tr("MSG_PDF_EXPORTED").format(path=path),
         )
 
     def _export_html(self):
+        default_path = str(self.guide.target_path.with_suffix('.html'))
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("BTN_EXPORT_HTML"), default_path, tr("FILTER_HTML_FILES")
+        )
+        if not path:
+            return
         html = self.guide.to_html()
-        html_path = self.guide.target_path.with_suffix('.html')
-        html_path.write_text(html, encoding='utf-8')
+        from pathlib import Path
+        Path(path).write_text(html, encoding='utf-8')
         QMessageBox.information(
-            self, "Export Complete",
-            f"HTML exported to:\n{html_path}",
+            self, tr("DLG_EXPORT_COMPLETE"),
+            tr("MSG_HTML_EXPORTED").format(path=path),
         )
 
 
@@ -410,30 +423,30 @@ class ScenarioEncounterPickerDialog(QDialog):
     def __init__(self, guide, parent=None):
         super().__init__(parent)
         self.guide = guide
-        self.setWindowTitle("Choose Encounter Set for Scenario")
+        self.setWindowTitle(tr("DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO"))
         self.setMinimumSize(300, 350)
         self._setup_ui()
         self._populate()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Select the encounter set for this scenario:"))
+        layout.addWidget(QLabel(tr("MSG_SELECT_ENCOUNTER_FOR_SCENARIO")))
         self._list = QListWidget()
         self._list.itemDoubleClicked.connect(self.accept)
         layout.addWidget(self._list, stretch=1)
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        ok_btn = QPushButton("OK")
+        ok_btn = QPushButton(tr("DLG_OK"))
         ok_btn.setDefault(True)
         ok_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("BTN_CANCEL"))
         cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(ok_btn)
         btn_row.addWidget(cancel_btn)
         layout.addLayout(btn_row)
 
     def _populate(self):
-        none_item = QListWidgetItem("— None —")
+        none_item = QListWidgetItem(tr("OPT_NONE_DASHES"))
         none_item.setData(Qt.UserRole, None)
         self._list.addItem(none_item)
         self._list.setCurrentRow(0)
@@ -457,7 +470,7 @@ class CardPickerDialog(QDialog):
         super().__init__(parent)
         self.guide = guide
         self._all_cards = []
-        self.setWindowTitle("Insert Card Reference")
+        self.setWindowTitle(tr("DLG_INSERT_CARD_REF"))
         self.setMinimumSize(320, 420)
         self._setup_ui()
         self._populate()
@@ -466,7 +479,7 @@ class CardPickerDialog(QDialog):
         layout = QVBoxLayout(self)
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search cards…")
+        self._search.setPlaceholderText(tr("PLACEHOLDER_SEARCH_CARDS"))
         self._search.textChanged.connect(self._filter)
         layout.addWidget(self._search)
 
@@ -475,17 +488,17 @@ class CardPickerDialog(QDialog):
         layout.addWidget(self._list, stretch=1)
 
         prop_row = QHBoxLayout()
-        prop_row.addWidget(QLabel("Property:"))
+        prop_row.addWidget(QLabel(tr("LABEL_PROPERTY")))
         self._prop_edit = QLineEdit("name")
         prop_row.addWidget(self._prop_edit)
         layout.addLayout(prop_row)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        insert_btn = QPushButton("Insert")
+        insert_btn = QPushButton(tr("BTN_INSERT"))
         insert_btn.setDefault(True)
         insert_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("BTN_CANCEL"))
         cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(insert_btn)
         btn_row.addWidget(cancel_btn)
@@ -525,7 +538,7 @@ class EncounterPickerDialog(QDialog):
         super().__init__(parent)
         self.guide = guide
         self._all_sets = []
-        self.setWindowTitle("Insert Encounter Set Reference")
+        self.setWindowTitle(tr("DLG_INSERT_ENCOUNTER_REF"))
         self.setMinimumSize(320, 360)
         self._setup_ui()
         self._populate()
@@ -534,7 +547,7 @@ class EncounterPickerDialog(QDialog):
         layout = QVBoxLayout(self)
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search encounter sets…")
+        self._search.setPlaceholderText(tr("PLACEHOLDER_SEARCH_ENCOUNTERS"))
         self._search.textChanged.connect(self._filter)
         layout.addWidget(self._search)
 
@@ -543,17 +556,17 @@ class EncounterPickerDialog(QDialog):
         layout.addWidget(self._list, stretch=1)
 
         prop_row = QHBoxLayout()
-        prop_row.addWidget(QLabel("Property:"))
+        prop_row.addWidget(QLabel(tr("LABEL_PROPERTY")))
         self._prop_edit = QLineEdit("icon")
         prop_row.addWidget(self._prop_edit)
         layout.addLayout(prop_row)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        insert_btn = QPushButton("Insert")
+        insert_btn = QPushButton(tr("BTN_INSERT"))
         insert_btn.setDefault(True)
         insert_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("BTN_CANCEL"))
         cancel_btn.clicked.connect(self.reject)
         btn_row.addWidget(insert_btn)
         btn_row.addWidget(cancel_btn)
@@ -650,12 +663,12 @@ class SectionEditorPanel(QWidget):
 
         # Back button + section name
         top_row = QHBoxLayout()
-        back_btn = QPushButton("← Sections")
+        back_btn = QPushButton(tr("BTN_BACK_TO_SECTIONS"))
         back_btn.setFixedWidth(100)
         back_btn.clicked.connect(self.back_requested)
         top_row.addWidget(back_btn)
         self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText("Section name")
+        self._name_edit.setPlaceholderText(tr("PLACEHOLDER_SECTION_NAME"))
         self._name_edit.textChanged.connect(self._on_name_changed)
         top_row.addWidget(self._name_edit)
         layout.addLayout(top_row)
@@ -664,7 +677,7 @@ class SectionEditorPanel(QWidget):
         self._encounter_row = QWidget()
         enc_layout = QHBoxLayout(self._encounter_row)
         enc_layout.setContentsMargins(0, 0, 0, 0)
-        enc_layout.addWidget(QLabel("Linked encounter set:"))
+        enc_layout.addWidget(QLabel(tr("LABEL_LINKED_ENCOUNTER_SET")))
         self._encounter_combo = QComboBox()
         self._encounter_combo.currentIndexChanged.connect(self._on_encounter_changed)
         enc_layout.addWidget(self._encounter_combo)
@@ -673,36 +686,36 @@ class SectionEditorPanel(QWidget):
 
         # Template insert toolbar
         toolbar = QHBoxLayout()
-        toolbar_lbl = QLabel("Insert:")
+        toolbar_lbl = QLabel(tr("LABEL_INSERT_SNIPPET"))
         toolbar_lbl.setStyleSheet("font-size: 8pt; color: gray;")
         toolbar.addWidget(toolbar_lbl)
         self._insert_combo = QComboBox()
         self._insert_combo.setFixedHeight(24)
         for label, snippet in [
-            ("Story",       ":::story\n*Flavor text here.*\n:::\n\n"),
-            ("Setup",       None),  # generated dynamically from linked encounter set
-            ("Resolution",  ":::resolution\n## DO NOT READ<br>until end of scenario\n\n**If no resolution was reached (each investigator resigned or was defeated):** You all died. Tough luck.\n\n- The investigators lost the campaign.\n\n**Resolution 1**: *Huraa!*\n\n- Each investigator earns experience equal to the Victory X value of each card in the victory display.\n- The investigators win the campaign. Proceed to **Interlude 1 - Title Here**.\n:::\n\n"),
-            ("Codex",       ":::codex\n**Rule name:** Rule description.\n:::\n\n"),
-            ("TOC",         ":::toc\n:::\n\n"),
-            ("Indent",      ":::indent\n\n:::\n\n"),
-            ("Center",      ":::center\n\n:::\n\n"),
-            ("Right",       ":::right\n\n:::\n\n"),
-            ("Image ↑",     ":::image-top\n/path/to/image.png\n:::\n\n"),
-            ("Image ↓",     ":::image-bottom\n/path/to/image.png\n:::\n\n"),
+            (tr("INSERT_SNIPPET_STORY"),      ":::story\n*Flavor text here.*\n:::\n\n"),
+            (tr("INSERT_SNIPPET_SETUP"),      None),  # generated dynamically from linked encounter set
+            (tr("INSERT_SNIPPET_RESOLUTION"), ":::resolution\n## DO NOT READ<br>until end of scenario\n\n**If no resolution was reached (each investigator resigned or was defeated):** You all died. Tough luck.\n\n- The investigators lost the campaign.\n\n**Resolution 1**: *Huraa!*\n\n- Each investigator earns experience equal to the Victory X value of each card in the victory display.\n- The investigators win the campaign. Proceed to **Interlude 1 - Title Here**.\n:::\n\n"),
+            (tr("INSERT_SNIPPET_CODEX"),      ":::codex\n**Rule name:** Rule description.\n:::\n\n"),
+            (tr("INSERT_SNIPPET_TOC"),        ":::toc\n:::\n\n"),
+            (tr("INSERT_SNIPPET_INDENT"),     ":::indent\n\n:::\n\n"),
+            (tr("INSERT_SNIPPET_CENTER"),     ":::center\n\n:::\n\n"),
+            (tr("INSERT_SNIPPET_RIGHT"),      ":::right\n\n:::\n\n"),
+            (tr("INSERT_SNIPPET_IMAGE_TOP"),  ":::image-top\n/path/to/image.png\n:::\n\n"),
+            (tr("INSERT_SNIPPET_IMAGE_BOTTOM"), ":::image-bottom\n/path/to/image.png\n:::\n\n"),
         ]:
             self._insert_combo.addItem(label, snippet)
         toolbar.addWidget(self._insert_combo)
-        insert_btn = QPushButton("Insert")
+        insert_btn = QPushButton(tr("BTN_INSERT"))
         insert_btn.setFixedHeight(24)
         insert_btn.setStyleSheet("font-size: 8pt;")
         insert_btn.clicked.connect(self._insert_selected_snippet)
         toolbar.addWidget(insert_btn)
-        card_btn = QPushButton("Card…")
+        card_btn = QPushButton(tr("BTN_INSERT_CARD_REF"))
         card_btn.setFixedHeight(24)
         card_btn.setStyleSheet("font-size: 8pt; color: #1a7a8a;")
         card_btn.clicked.connect(self._insert_card_ref)
         toolbar.addWidget(card_btn)
-        enc_btn = QPushButton("Enc…")
+        enc_btn = QPushButton(tr("BTN_INSERT_ENCOUNTER_REF"))
         enc_btn.setFixedHeight(24)
         enc_btn.setStyleSheet("font-size: 8pt; color: #1a7a8a;")
         enc_btn.clicked.connect(self._insert_encounter_ref)
@@ -729,7 +742,7 @@ class SectionEditorPanel(QWidget):
             self._encounter_row.show()
             self._encounter_combo.blockSignals(True)
             self._encounter_combo.clear()
-            self._encounter_combo.addItem('— None —', None)
+            self._encounter_combo.addItem(tr('OPT_NONE_DASHES'), None)
             try:
                 for es in self.guide.project.encounter_sets:
                     self._encounter_combo.addItem(es.name, es.id)
@@ -750,9 +763,8 @@ class SectionEditorPanel(QWidget):
         self._loading = False
 
     def _insert_selected_snippet(self):
-        label = self._insert_combo.currentText()
         snippet = self._insert_combo.currentData()
-        if label == "Setup":
+        if snippet is None:
             snippet = self._make_setup_snippet()
         if snippet:
             self._insert_snippet(snippet)
