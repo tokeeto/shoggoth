@@ -183,6 +183,20 @@ class Card:
         self.data['encounter_number'] = value
 
     @property
+    def grouping(self):
+        """ Returns a string descriping how this card should be grouped """
+        if self.encounter:
+            if self.front.get('grouping'):
+                return self.front.get('grouping')
+            if self.back.get('grouping'):
+                return self.back.get('grouping')
+            if self.front.get('type') == 'location':
+                return 'location'
+            if self.back.get('type') == 'encounter':
+                return 'encounter'
+        return 'other'
+
+    @property
     def versions(self):
         if not isinstance(self.encounter_number, str) or '-' not in self.encounter_number:
             return [self]

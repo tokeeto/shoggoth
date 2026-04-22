@@ -507,9 +507,9 @@ class FileBrowser(QWidget):
             for card in encounter_set.cards:
                 card_spec = self._build_card_spec(card)
 
-                if card.front.get('type') == 'location':
+                if card.grouping == 'location':
                     location_spec['children'].append(card_spec)
-                elif card.back.get('type') == 'encounter':
+                elif card.grouping == 'encounter':
                     encounter_cat_spec['children'].append(card_spec)
                 else:
                     story_spec['children'].append(card_spec)
