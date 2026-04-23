@@ -487,13 +487,11 @@ class LocationView(QGraphicsView):
         self.location_nodes.clear()
         self.arrows.clear()
 
-        # Find all location cards
+        # Find all location cards using the same grouping logic as the tree view
         locations = []
         for card in self.encounter_set.cards:
-            if card.front.get('type') == 'location':
+            if card.grouping == 'location':
                 locations.append((card, card.front, 'front'))
-            if card.back.get('type') == 'location':
-                locations.append((card, card.back, 'back'))
 
         # Load saved positions
         saved_positions = self._get_saved_positions()

@@ -119,6 +119,11 @@ class TTSExportDialog(QDialog):
         info.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
         root.addWidget(info)
 
+        # ── Sync ───────────────────────────────────────────────────────
+        self._cb_sync = QCheckBox(tr("TTS_SEND_TO_TTS"))
+        self._cb_sync.setChecked(True)
+        root.addWidget(self._cb_sync)
+
         # ── Buttons ────────────────────────────────────────────────────
         buttons = QDialogButtonBox(Qt.Horizontal)
         self._export_btn = buttons.addButton(tr("TTS_BTN_EXPORT"), QDialogButtonBox.AcceptRole)
@@ -183,12 +188,13 @@ class TTSExportDialog(QDialog):
 
         try:
             from shoggoth import tts_lib
+            sync = self._cb_sync.isChecked()
             if self._rb_campaign.isChecked():
-                status, path = tts_lib.export_campaign(self.project, image_folder)
+                status, path = tts_lib.export_campaign(self.project, image_folder, sync=sync)
             elif self._rb_player.isChecked():
-                status, path = tts_lib.export_player_cards(self.project.player_cards, image_folder)
+                status, path = tts_lib.export_player_cards(self.project.player_cards, image_folder, sync=sync)
             else:
-                status, path = tts_lib.export_all(self.project, image_folder)
+                status, path = tts_lib.export_all(self.project, image_folder, sync=sync)
         except Exception as e:
             QMessageBox.critical(self, tr("DLG_ERROR"), tr("ERR_EXPORT_TTS").format(error=e))
             return

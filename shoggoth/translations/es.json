@@ -624,6 +624,7 @@
   "TTS_FOLDER_PROJECT": "Carpeta de exportación del proyecto",
   "TTS_FOLDER_CUSTOM": "Carpeta personalizada:",
   "TTS_FORMAT_INFO": "Formato: {fmt}  |  Tamaño: {w}×{h}  |  Sin sangrado",
+  "TTS_SEND_TO_TTS": "¿Enviar a TTS?",
   "TTS_BTN_EXPORT": "Exportar",
   "TTS_DLG_SELECT_FOLDER": "Seleccionar carpeta de imágenes",
   "TTS_EXPORTING_IMAGES": "Exportando imágenes de cartas…",

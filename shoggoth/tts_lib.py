@@ -6,6 +6,7 @@ from shoggoth import files
 from shoggoth.export_helpers import build_gm_notes_string
 from copy import deepcopy
 from pathlib import Path
+from shoggoth import tts_sync
 
 wrapper_template = {
     "SaveName": "",
@@ -233,7 +234,7 @@ def export_all(project, image_folder):
     pass
 
 
-def export_card(card, image_folder):
+def export_card(card, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
     data = card_to_tts(card, 8000, 0, image_folder)
     wrapper['ObjectStates'].append(data)
@@ -245,9 +246,11 @@ def export_card(card, image_folder):
 
     with open(output_path, 'w', encoding='utf-8') as file:
         json.dump(wrapper, file, indent=4)
+    if sync:
+        tts_sync.push_to_tts(wrapper)
 
 
-def export_campaign(project, image_folder):
+def export_campaign(project, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
     current_id = 6000
     for encounter in project.encounter_sets:
@@ -271,10 +274,12 @@ def export_campaign(project, image_folder):
     with open(output_path, 'w', encoding='utf-8') as file:
         json.dump(wrapper, file, indent=4)
 
+    if sync:
+        tts_sync.push_to_tts(wrapper)
     return return_status, output_path
 
 
-def export_player_cards(cards, image_folder):
+def export_player_cards(cards, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
     current_id = 6000
     for card in cards:
@@ -292,4 +297,6 @@ def export_player_cards(cards, image_folder):
     with open(output_path, 'w', encoding='utf-8') as file:
         json.dump(wrapper, file, indent=4)
 
+    if sync:
+        tts_sync.push_to_tts(wrapper)
     return return_status, output_path

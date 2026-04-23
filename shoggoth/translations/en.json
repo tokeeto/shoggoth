@@ -638,6 +638,7 @@
   "TTS_FOLDER_PROJECT": "Project export folder",
   "TTS_FOLDER_CUSTOM": "Custom folder:",
   "TTS_FORMAT_INFO": "Format: {fmt}  |  Size: {w}×{h}  |  No bleed",
+  "TTS_SEND_TO_TTS": "Send to TTS?",
   "TTS_BTN_EXPORT": "Export",
   "TTS_DLG_SELECT_FOLDER": "Select image folder",
   "TTS_EXPORTING_IMAGES": "Exporting card images…",

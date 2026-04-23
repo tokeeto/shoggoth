@@ -629,6 +629,7 @@
   "TTS_FOLDER_PROJECT": "Dossier d'exportation du projet",
   "TTS_FOLDER_CUSTOM": "Dossier personnalisé :",
   "TTS_FORMAT_INFO": "Format: {fmt}  |  Taille: {w}×{h}  |  Sans fond perdu",
+  "TTS_SEND_TO_TTS": "Envoyer vers TTS ?",
   "TTS_BTN_EXPORT": "Exporter",
   "TTS_DLG_SELECT_FOLDER": "Sélectionnez le dossier d'images",
   "TTS_EXPORTING_IMAGES": "Exportation des images de cartes…",
