@@ -314,6 +314,7 @@ class CardRenderer:
         if side.card.project.icon:
             path = side.card.project.find_file(side.card.project.icon)
             value = value.replace('<exi>', f'<image src="{path}">')
+            print('<exi>', f'<image src="{path}">')
         else:
             value = value.replace('<exi>', '')
         value = value.replace('<exn>', str(side.card.project_number))

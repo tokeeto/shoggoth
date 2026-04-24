@@ -108,6 +108,9 @@ class SettingsManager:
             # Language settings - detect from system
             'language': detect_system_language(),
             'card_language': 'en',
+            # Sidebar view
+            'sidebar_view': 'tree',
+            'card_sort_order': 'project_number',
         }
         
         for key, value in defaults.items():

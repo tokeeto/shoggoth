@@ -195,6 +195,35 @@ class TreeContextMenu:
             return
 
         # Encounter set categories (Story, Locations, Encounter)
+        if parent_data and parent_data.get('type') == 'encounter':
+            encounter = parent_data.get('data')
+            if category_name == 'Locations':
+                tmpl = {'front': {'type': 'location'}, 'back': {'type': 'location_back'}}
+                action = QAction(tr("CTX_ADD_NEW_LOCATION"), self.parent)
+                action.triggered.connect(lambda: self.new_card_with_template(encounter, tmpl))
+                menu.addAction(action)
+                if self.clipboard:
+                    menu.addSeparator()
+                    paste_action = QAction(tr("CTX_PASTE_CARD"), self.parent)
+                    paste_action.triggered.connect(lambda: self.paste_card(encounter, tmpl))
+                    menu.addAction(paste_action)
+                return
+            elif category_name == 'Encounter':
+                enemy_tmpl = {'front': {'type': 'enemy'}, 'back': {'type': 'encounter'}}
+                treachery_tmpl = {'front': {'type': 'treachery'}, 'back': {'type': 'encounter'}}
+                enemy_action = QAction(tr("CTX_ADD_NEW_ENEMY"), self.parent)
+                enemy_action.triggered.connect(lambda: self.new_card_with_template(encounter, enemy_tmpl))
+                menu.addAction(enemy_action)
+                treachery_action = QAction(tr("CTX_ADD_NEW_TREACHERY"), self.parent)
+                treachery_action.triggered.connect(lambda: self.new_card_with_template(encounter, treachery_tmpl))
+                menu.addAction(treachery_action)
+                if self.clipboard:
+                    menu.addSeparator()
+                    paste_action = QAction(tr("CTX_PASTE_CARD"), self.parent)
+                    paste_action.triggered.connect(lambda: self.paste_card(encounter, None))
+                    menu.addAction(paste_action)
+                return
+
         template = self._get_template_for_category(category_name, parent_data)
 
         if template:

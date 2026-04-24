@@ -5,14 +5,16 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QTreeWidget, QTreeWidgetItem, QLabel, QMenuBar, QMenu,
     QFileDialog, QMessageBox, QStatusBar, QScrollArea, QDialog,
-    QLineEdit, QPushButton, QDialogButtonBox, QTextBrowser
+    QLineEdit, QPushButton, QDialogButtonBox, QTextBrowser,
+    QStackedWidget, QComboBox
 )
 from PySide6.QtCore import QUrl, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import (
-    QPixmap, QAction, QImage, QKeySequence, QShortcut, QIcon, QDesktopServices
+    QPixmap, QAction, QActionGroup, QImage, QKeySequence, QShortcut, QIcon, QDesktopServices
 )
 from pathlib import Path
 import json
+import base64
 import threading
 from io import BytesIO
 
@@ -270,24 +272,51 @@ class FileBrowser(QWidget):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
 
         # Title
         title = QLabel(tr("TREE_CARDS"))
-        title.setStyleSheet("font-size: 20pt; font-weight: bold;")
+        title.setStyleSheet("font-size: 20pt; font-weight: bold; padding: 4px;")
         layout.addWidget(title)
+
+        # Sort controls (card list view only, hidden by default)
+        self.sort_row = QWidget()
+        sort_layout = QHBoxLayout(self.sort_row)
+        sort_layout.setContentsMargins(4, 0, 4, 4)
+        sort_layout.addWidget(QLabel(tr("SORT_BY")))
+        self.sort_combo = QComboBox()
+        self.sort_combo.addItem(tr("SORT_PROJECT_NUMBER"), "project_number")
+        self.sort_combo.addItem(tr("SORT_NAME"), "name")
+        sort_layout.addWidget(self.sort_combo)
+        self.sort_row.hide()
+        layout.addWidget(self.sort_row)
 
         # Tree widget with drag and drop support
         self.tree = DraggableTreeWidget(self)
         self.tree.setHeaderHidden(True)
-        self.tree.itemClicked.connect(self.on_item_clicked)
+        self.tree.currentItemChanged.connect(self._on_tree_current_changed)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.on_context_menu)
-        layout.addWidget(self.tree)
+
+        # Flat card list tree
+        self.list_tree = QTreeWidget(self)
+        self.list_tree.setHeaderHidden(True)
+        self.list_tree.currentItemChanged.connect(self._on_list_current_changed)
+
+        # Stack the two views
+        self.stacked = QStackedWidget()
+        self.stacked.addWidget(self.tree)       # index 0: tree view
+        self.stacked.addWidget(self.list_tree)  # index 1: card list view
+        layout.addWidget(self.stacked)
 
         self.setLayout(layout)
         self._projects = []  # List of open projects
         self._active_project = None  # The active project for operations
         self._node_map = {}  # Maps node_id -> QTreeWidgetItem for fast lookup
+        self._view_mode = 'tree'  # 'tree' or 'list'
+        self._programmatic_select = False  # suppresses currentItemChanged during setCurrentItem
+
+        self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
 
         # Context menu handler
         from shoggoth.ui.tree_context_menu import TreeContextMenu
@@ -364,6 +393,10 @@ class FileBrowser(QWidget):
 
     def refresh(self):
         """Smart refresh - only update what has changed"""
+        if self._view_mode == 'list':
+            self._build_card_list()
+            return
+
         if not self._projects:
             self.tree.clear()
             self._node_map.clear()
@@ -399,6 +432,8 @@ class FileBrowser(QWidget):
         self._node_map.clear()
 
         if not self._projects:
+            if self._view_mode == 'list':
+                self._build_card_list()
             return
 
         for project in self._projects:
@@ -412,6 +447,9 @@ class FileBrowser(QWidget):
                 font = root_item.font(0)
                 font.setBold(True)
                 root_item.setFont(0, font)
+
+        if self._view_mode == 'list':
+            self._build_card_list()
 
     def _build_all_tree_specs(self):
         """Build tree specs for all open projects"""
@@ -553,7 +591,6 @@ class FileBrowser(QWidget):
                 'children': []
             }
             class_specs[cls] = class_spec
-            player_spec['children'].append(class_spec)
 
         investigator_specs = {}
 
@@ -578,6 +615,11 @@ class FileBrowser(QWidget):
 
             card_spec = self._build_card_spec(card, include_level=True)
             target_spec['children'].append(card_spec)
+
+        # Only add class nodes that have cards
+        for cls in ['investigators', 'seeker', 'rogue', 'guardian', 'mystic', 'survivor', 'neutral', 'other']:
+            if class_specs[cls]['children']:
+                player_spec['children'].append(class_specs[cls])
 
         # Add guides
         if project.guides:
@@ -852,6 +894,88 @@ class FileBrowser(QWidget):
         node_id = f'card:{card_id}'
         return self._node_map.get(node_id)
 
+    def _on_tree_current_changed(self, current, previous):
+        if current and not self._programmatic_select:
+            self.on_item_clicked(current, 0)
+
+    def _on_list_current_changed(self, current, previous):
+        if current and not self._programmatic_select:
+            self._on_list_item_clicked(current, 0)
+
+    def switch_view(self, mode, sort_order=None):
+        """Switch sidebar between 'tree' and 'list' view."""
+        self._view_mode = mode
+        if sort_order is not None:
+            idx = self.sort_combo.findData(sort_order)
+            if idx >= 0:
+                self.sort_combo.blockSignals(True)
+                self.sort_combo.setCurrentIndex(idx)
+                self.sort_combo.blockSignals(False)
+        if mode == 'list':
+            self.stacked.setCurrentIndex(1)
+            self.sort_row.show()
+            self._build_card_list()
+        else:
+            self.stacked.setCurrentIndex(0)
+            self.sort_row.hide()
+            self._full_rebuild()
+
+    def _build_card_list(self):
+        """Populate the flat card list view, one section per project."""
+        self.list_tree.clear()
+        sort_order = self.sort_combo.currentData()
+        for project in self._projects:
+            proj_item = QTreeWidgetItem([project.name])
+            proj_item.setData(0, Qt.UserRole, {
+                'type': 'project', 'data': project,
+                'node_id': f'project:{project.file_path}'
+            })
+            font = proj_item.font(0)
+            font.setBold(project == self._active_project)
+            proj_item.setFont(0, font)
+
+            cards = list(project.cards)
+            if sort_order == 'name':
+                cards.sort(key=lambda c: c.name.lower())
+            else:
+                cards.sort(key=lambda c: (int(c.data.get('project_number') or 0), c.name.lower()))
+
+            for card in cards:
+                pnum = card.data.get('project_number', '')
+                if pnum and sort_order == 'project_number':
+                    display = f"{pnum}: {card.name}"
+                else:
+                    display = card.name
+                if card.dirty:
+                    display = '● ' + display
+                card_item = QTreeWidgetItem([display])
+                card_item.setData(0, Qt.UserRole, {
+                    'type': 'card', 'data': card,
+                    'node_id': f'card:{card.id}'
+                })
+                proj_item.addChild(card_item)
+
+            self.list_tree.addTopLevelItem(proj_item)
+            proj_item.setExpanded(True)
+
+    def _on_list_item_clicked(self, item, column):
+        """Handle click in card list view."""
+        data = item.data(0, Qt.UserRole)
+        if not data:
+            return
+        item_type = data['type']
+        item_data = data['data']
+        if item_type == 'card':
+            self.card_selected.emit(item_data)
+        elif item_type == 'project':
+            self.set_active_project(item_data)
+            self.project_selected.emit(item_data)
+
+    def _on_sort_changed(self, index):
+        """Handle sort order change; rebuild list if in list mode."""
+        if self._view_mode == 'list':
+            self._build_card_list()
+
     def on_item_clicked(self, item, column):
         """Handle tree item click"""
         data = item.data(0, Qt.UserRole)
@@ -979,6 +1103,19 @@ class ShoggothMainWindow(QMainWindow):
         self.file_browser.active_project_changed.connect(self._on_active_project_changed)
         self.main_splitter.addWidget(self.file_browser)
 
+        # Restore sidebar view mode from settings
+        sidebar_mode = self.config.get('Shoggoth', 'sidebar_view', 'tree')
+        card_sort = self.config.get('Shoggoth', 'card_sort_order', 'project_number')
+        self.file_browser.switch_view(sidebar_mode, sort_order=card_sort)
+        if sidebar_mode == 'list':
+            self.sidebar_list_action.setChecked(True)
+        else:
+            self.sidebar_tree_action.setChecked(True)
+
+        self.sidebar_tree_action.triggered.connect(lambda: self._set_sidebar_view('tree'))
+        self.sidebar_list_action.triggered.connect(lambda: self._set_sidebar_view('list'))
+        self.file_browser.sort_combo.currentIndexChanged.connect(self._on_card_sort_changed)
+
         # Right panel - Content area (will contain editor + preview for cards)
         self.content_container = QWidget()
         self.content_layout = QVBoxLayout()
@@ -997,6 +1134,7 @@ class ShoggothMainWindow(QMainWindow):
         # Preview container (detachable)
         from PySide6.QtWidgets import QDockWidget
         self.preview_dock = QDockWidget(tr("CARD_PREVIEW"), self)
+        self.preview_dock.setObjectName("preview_dock")
         self.preview_dock.setFeatures(
             QDockWidget.DockWidgetFloatable |
             QDockWidget.DockWidgetMovable |
@@ -1013,6 +1151,15 @@ class ShoggothMainWindow(QMainWindow):
         self.main_splitter.setCollapsible(0, True)
         self.main_splitter.setSizes([300, 700])
         self._tree_width = 300
+
+        # Debounce timer for persisting layout changes
+        self._layout_save_timer = QTimer()
+        self._layout_save_timer.setSingleShot(True)
+        self._layout_save_timer.setInterval(500)
+        self._layout_save_timer.timeout.connect(self._save_layout)
+        self.main_splitter.splitterMoved.connect(self._on_layout_changed)
+        self.preview_dock.dockLocationChanged.connect(self._on_layout_changed)
+        self.preview_dock.topLevelChanged.connect(self._on_layout_changed)
 
         main_layout.addWidget(self.main_splitter)
         central.setLayout(main_layout)
@@ -1063,11 +1210,13 @@ class ShoggothMainWindow(QMainWindow):
             data = item.data(0, Qt.UserRole)
             if data and data.get('data'):
                 if hasattr(data['data'], 'id') and str(data['data'].id) == str(item_id):
-                    # Expand all parent items
                     self.expand_to_item(item)
-                    # Select and scroll to the item
-                    tree.setCurrentItem(item)
-                    tree.scrollToItem(item)
+                    self.file_browser._programmatic_select = True
+                    try:
+                        tree.setCurrentItem(item)
+                        tree.scrollToItem(item)
+                    finally:
+                        self.file_browser._programmatic_select = False
                     return True
         return False
 
@@ -1316,6 +1465,26 @@ class ShoggothMainWindow(QMainWindow):
         self.toggle_tree_action.triggered.connect(self._toggle_project_tree)
         view_menu.addAction(self.toggle_tree_action)
 
+        # Sidebar view mode
+        view_menu.addSeparator()
+        sidebar_header = QAction(tr("MENU_SIDEBAR_VIEW"), self)
+        sidebar_header.setEnabled(False)
+        view_menu.addAction(sidebar_header)
+
+        sidebar_group = QActionGroup(self)
+        sidebar_group.setExclusive(True)
+
+        self.sidebar_tree_action = QAction(tr("MENU_SIDEBAR_TREE"), self)
+        self.sidebar_tree_action.setCheckable(True)
+        self.sidebar_tree_action.setChecked(True)
+        sidebar_group.addAction(self.sidebar_tree_action)
+        view_menu.addAction(self.sidebar_tree_action)
+
+        self.sidebar_list_action = QAction(tr("MENU_SIDEBAR_LIST"), self)
+        self.sidebar_list_action.setCheckable(True)
+        sidebar_group.addAction(self.sidebar_list_action)
+        view_menu.addAction(self.sidebar_list_action)
+
         # ==================== LANGUAGE MENU ====================
         language_menu = menubar.addMenu(tr("MENU_LANGUAGE"))
         self.language_actions = []
@@ -1370,6 +1539,18 @@ class ShoggothMainWindow(QMainWindow):
             self._tree_width = self.main_splitter.sizes()[0] or 300
             self.main_splitter.setSizes([0, 1000])
 
+    def _set_sidebar_view(self, mode):
+        """Switch sidebar view mode and persist the setting."""
+        self.file_browser.switch_view(mode)
+        self.config.set('Shoggoth', 'sidebar_view', mode)
+        self.config.save()
+
+    def _on_card_sort_changed(self, index):
+        """Persist the card sort order when the user changes it."""
+        order = self.file_browser.sort_combo.currentData()
+        self.config.set('Shoggoth', 'card_sort_order', order)
+        self.config.save()
+
     def change_language(self, lang_code: str):
         """Change the application language"""
         # Update checkmarks in menu
@@ -1402,6 +1583,31 @@ class ShoggothMainWindow(QMainWindow):
         self.render_version += 1
         self._start_background_render()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._on_layout_changed()
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        self._on_layout_changed()
+
+    def _on_layout_changed(self, *args):
+        if hasattr(self, '_layout_save_timer'):
+            self._layout_save_timer.start()
+
+    def _capture_layout(self):
+        """Snapshot current window/splitter state into self.settings (no I/O)."""
+        self.settings.setdefault('session', {})
+        self.settings['session']['window_geometry'] = base64.b64encode(bytes(self.saveGeometry())).decode('ascii')
+        self.settings['session']['window_state'] = base64.b64encode(bytes(self.saveState())).decode('ascii')
+        self.settings['session']['splitter_sizes'] = self.main_splitter.sizes()
+
+    def _save_layout(self):
+        """Capture layout and flush to disk (called by the debounce timer)."""
+        self._capture_layout()
+        with open(root_dir / 'shoggoth.json', 'w') as f:
+            json.dump(self.settings, f)
+
     def load_settings(self):
         """Load application settings"""
         settings_file = root_dir / 'shoggoth.json'
@@ -1412,7 +1618,7 @@ class ShoggothMainWindow(QMainWindow):
             self.settings = {'session': {}, 'last_paths': {}}
 
     def save_settings(self):
-        """Save application settings"""
+        """Flush self.settings to disk. Does not snapshot live window state."""
         with open(root_dir / 'shoggoth.json', 'w') as f:
             json.dump(self.settings, f)
 
@@ -1456,6 +1662,22 @@ class ShoggothMainWindow(QMainWindow):
                 if path == active_project_path:
                     self.file_browser.set_active_project(project)
                     break
+
+        # Restore window geometry before show() so it appears at the right size.
+        from PySide6.QtCore import QByteArray
+        if geo := session.get('window_geometry'):
+            self.restoreGeometry(QByteArray(base64.b64decode(geo)))
+
+        # Dock state and splitter sizes must be deferred: Qt resets them when
+        # the window is shown for the first time, so we apply them after show().
+        state = session.get('window_state')
+        sizes = session.get('splitter_sizes')
+        def _restore_layout():
+            if state:
+                self.restoreState(QByteArray(base64.b64decode(state)))
+            if sizes:
+                self.main_splitter.setSizes(sizes)
+        QTimer.singleShot(0, _restore_layout)
 
         # Restore last selected element
         if last_id := session.get('last_id'):
@@ -2475,6 +2697,7 @@ class ShoggothMainWindow(QMainWindow):
         """Handle window close event - check for unsaved changes"""
         if self.card_file_monitor:
             self.card_file_monitor.stop()
+        self._capture_layout()
         self.save_settings()
 
         if self.has_unsaved_changes():

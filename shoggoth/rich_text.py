@@ -222,6 +222,8 @@ class RichTextRenderer:
             '[action]': 'n',
             '<open>': 'o',
             '<per>': 'p',
+            '<per_large>': 'q',
+            '<investigator>': 'q',
             '[per_investigator]': 'p',
             '<reaction>': 'r',
             '<unique>': 'u',
@@ -905,6 +907,7 @@ class RichTextRenderer:
                     font=cmd['font'],
                     stroke_width=cmd['outline'],
                     stroke_fill=cmd['outline_fill'],
+                    anchor=("la" if cmd['value'] == 'p' else None)
                 )
             elif c == 'image':
                 image.paste(cmd['icon'], (cmd['x'], cmd['y']), cmd['icon'])
