@@ -1325,6 +1325,11 @@ class ShoggothMainWindow(QMainWindow):
         auto_enumerate_action.triggered.connect(self.auto_enumerate)
         project_menu.addAction(auto_enumerate_action)
 
+        # Add Encounter Set
+        add_encounter_set_action = QAction(tr("CTX_NEW_ENCOUNTER_SET"), self)
+        add_encounter_set_action.triggered.connect(self.add_encounter_set)
+        project_menu.addAction(add_encounter_set_action)
+
         # Add Guide
         add_guide_action = QAction(tr("MENU_ADD_GUIDE"), self)
         add_guide_action.triggered.connect(self.add_guide)
@@ -2745,6 +2750,16 @@ class ShoggothMainWindow(QMainWindow):
             return
         self.active_project.assign_card_numbers()
         self.status_bar.showMessage(tr("STATUS_PROJECT_ENUMERATED"))
+
+    def add_encounter_set(self):
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+            return
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, tr("DLG_NEW_ENCOUNTER_SET"), tr("MSG_ENTER_ENCOUNTER_SET"))
+        if ok and name:
+            self.active_project.add_encounter_set(name)
+            self.refresh_tree()
 
     def add_guide(self):
         """Add a guide to the project"""

@@ -434,6 +434,12 @@ class Guide:
         html = html.replace("{{frontpage}}", str(self.front_page))
         html = html.replace("{{a4_empty}}", str(files.guide_dir / 'guide_a4_empty.webp'))
         html = html.replace("{{a4_title}}", str(files.guide_dir / 'guide_a4_title.webp'))
+        html = html.replace("{{arno_pro}}", str(files.font_dir / 'Arno Pro/arnopro_regular.otf'))
+        html = html.replace("{{arno_pro_bold}}", str(files.font_dir / 'Arno Pro/arnopro_bold.otf'))
+        html = html.replace("{{arno_pro_bolditalic}}", str(files.font_dir / 'Arno Pro/arnopro_bolditalic.otf'))
+        html = html.replace("{{arno_pro_italic}}", str(files.font_dir / 'Arno Pro/arnopro_italic.otf'))
+        html = html.replace("{{teutonic}}", str(files.font_dir / 'Arkhamic.ttf'))
+        html = html.replace("{{ahlcgsymbol}}", str(files.font_dir / 'AHLCGSymbol.otf'))
         html = html.replace("{{resolution_glyph_top}}", str(files.guide_dir / 'resolution_glyph_top.png'))
         html = html.replace("{{resolution_glyph_bottom}}", str(files.guide_dir / 'resolution_glyph_bottom.png'))
         try:
