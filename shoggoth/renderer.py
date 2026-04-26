@@ -102,7 +102,8 @@ class CardRenderer:
         self.translations = {}
         if self.locale:
             try:
-                self.translations = json.load(open(translation_dir / f'{self.locale}.json'))
+                with open(translation_dir / f'{self.locale}.json', 'r', encoding='utf-8') as file:
+                    self.translations = json.load(file)
             except Exception as e:
                 print('error while loading translation for renderer:', e)
 
