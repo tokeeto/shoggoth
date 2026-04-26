@@ -247,6 +247,26 @@ _ICON_KEY_TO_SCED = {
 }
 
 
+_ICON_KEY_TO_SKILL = {
+    'W': 'skill_willpower',
+    'I': 'skill_intellect',
+    'C': 'skill_combat',
+    'A': 'skill_agility',
+    'Q': 'skill_wild',
+}
+
+
+def get_skill_icons(face):
+    """Return dict of non-zero arkham.build skill icon fields from a face."""
+    icons = face.get('icons', '')
+    counts = {}
+    for icon in icons:
+        key = _ICON_KEY_TO_SKILL.get(icon)
+        if key:
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def _sced_icon_counts(face):
     """Return dict of non-zero SCED icon count fields from a face."""
     icons = face.get('icons', '')

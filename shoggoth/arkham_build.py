@@ -10,11 +10,17 @@ from shoggoth.export_helpers import (
 )
 
 
-def export_project(project):
+AB_IMAGE_FORMAT = 'jpg'
+AB_IMAGE_SIZE = {'width': 750, 'height': 1050, 'bleed': 36}
+AB_IMAGE_QUALITY = 90
+
+
+def export_project(project, image_pattern=None):
     """
     Export a full Shoggoth project to arkham.build format.
 
     Returns a dict matching the arkham.build project schema.
+    image_pattern: URL template with {code} placeholder, e.g. "https://example.com/cards/{code}.jpg"
     """
     # TODO: These fields should be editable in a project settings UI
     # - author: Currently uses project author field
@@ -63,7 +69,7 @@ def export_project(project):
     # Export all cards
     position = 1
     for card in project.cards:
-        card_data = _export_card(card, project, position)
+        card_data = _export_card(card, project, position, image_pattern)
         if card_data:
             data["data"]["cards"].append(card_data)
             position += 1
@@ -98,7 +104,7 @@ def _determine_project_types(project):
     return types if types else ["campaign"]
 
 
-def _export_card(card, project, position):
+def _export_card(card, project, position, image_pattern=None):
     """Export a single card to arkham.build format"""
     front = card.front
     back = card.back
@@ -191,8 +197,7 @@ def _export_card(card, project, position):
         # "bonded_to": front.get('bonded_to'),  # Bonded card code
         # "tags": front.get('tags', ''),  # Card tags for search
 
-        # TODO: Image URLs need to be generated/hosted elsewhere
-        "image_url": card.data.get('image_url'),
+        "image_url": _image_url(card, image_pattern, back=False),
         "thumbnail_url": card.data.get('thumbnail_url'),
     }
 
@@ -204,8 +209,7 @@ def _export_card(card, project, position):
             "back_flavor": back.get('flavor_text', ''),
             "back_traits": back.get('traits', ''),
             "back_illustrator": back.get('illustrator', ''),
-            # TODO: Back image URLs
-            "back_image_url": card.data.get('back_image_url'),
+            "back_image_url": _image_url(card, image_pattern, back=True),
             "back_thumbnail_url": card.data.get('back_thumbnail_url'),
         })
 
@@ -263,6 +267,17 @@ def _format_customization_text(entries):
             xp, name, text = entry[0], entry[1], entry[2]
             lines.append(f"{'☐' * xp} {name}. {text}")
     return '\n'.join(lines) if lines else None
+
+
+def _image_url(card, pattern, back=False):
+    """Build an image URL from pattern, falling back to stored card data."""
+    if pattern:
+        code = card.data.get('code', card.id)
+        if back:
+            code = code + '_back'
+        return pattern.format(code=code)
+    key = 'back_image_url' if back else 'image_url'
+    return card.data.get(key)
 
 
 def _safe_int(value):

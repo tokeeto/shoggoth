@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from shoggoth.ui.face_editor import FaceEditor
-from shoggoth.ui.field_widgets import LabeledLineEdit
+from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledClassEdit
 from shoggoth.i18n import tr
 
 
@@ -20,8 +20,8 @@ class InvestigatorEditor(FaceEditor):
         self.add_trait_field()
 
         # Classes
-        classes_input = LabeledLineEdit(tr("FIELD_CLASSES"))
-        classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
+        classes_input = LabeledClassEdit(tr("FIELD_CLASSES"))
+        classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_input.input
         self.main_layout.addWidget(classes_input)
 
@@ -88,9 +88,8 @@ class InvestigatorBackEditor(FaceEditor):
         self.add_trait_field()
 
         # Classes
-        classes_input = LabeledLineEdit(tr("FIELD_CLASSES"))
-        classes_input.input.setPlaceholderText(tr("PLACEHOLDER_COMMA_SEPARATED"))
-        classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
+        classes_input = LabeledClassEdit(tr("FIELD_CLASSES"))
+        classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_input.input
         self.main_layout.addWidget(classes_input)
 

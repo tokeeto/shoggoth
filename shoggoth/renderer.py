@@ -341,8 +341,8 @@ class CardRenderer:
             value = value.replace(match[0], self.card_value(side.card.project, match[1], match[2]))
 
         # translations
-        if value.startswith('%:'):
-            value = self.translations.get(value[2:], value[2:])
+        for orig, trans in self.translations.items():
+            value = value.replace(f'%:{orig}', trans)
 
         return value
 

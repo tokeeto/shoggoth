@@ -13,6 +13,12 @@ from shoggoth.i18n import tr
 # Known traits for autocomplete (loaded from highlighter)
 KNOWN_TRAITS = sorted(ArkhamTextHighlighter(None).known_traits)
 
+# Known card classes for autocomplete
+KNOWN_CLASSES = [
+    "seeker", "guardian", "rogue", "mystic", "survivor",
+    "neutral", "story", "weakness", "story weakness", "basic weakness",
+]
+
 
 class FieldWidget:
     """Base class for field widgets that sync with card data"""
@@ -209,6 +215,97 @@ class LabeledTraitEdit(QWidget):
         self.floating_widget.layout().addWidget(self.floating_widget.input)
 
         # Reconnect events
+        self.floating_widget.input.textChanged.connect(self.floating_widget.on_text_changed)
+        self.floating_widget.input.installEventFilter(self.floating_widget)
+
+        self.input = self.floating_widget.input
+        self.input.textChanged.connect(self.textChanged.emit)
+
+        layout.addWidget(self.floating_widget)
+        self.setLayout(layout)
+
+    def text(self):
+        return self.input.text()
+
+    def setText(self, text):
+        self.floating_widget.setText(text)
+
+
+class ClassLineEdit(QLineEdit):
+    """Line edit with autocomplete for Arkham Horror card classes (comma-separated)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.completer = QCompleter(KNOWN_CLASSES)
+        self.completer.setWidget(self)
+        self.completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.completer.setFilterMode(Qt.MatchContains)
+        self.completer.activated.connect(self.insert_completion)
+
+        self.textChanged.connect(self.update_completer)
+
+    def _current_token_bounds(self):
+        text = self.text()
+        cursor_pos = self.cursorPosition()
+        before_cursor = text[:cursor_pos]
+        last_comma = before_cursor.rfind(',')
+        start = last_comma + 1
+        while start < cursor_pos and text[start] == ' ':
+            start += 1
+        return start, cursor_pos
+
+    def update_completer(self):
+        start, end = self._current_token_bounds()
+        prefix = self.text()[start:end].strip()
+        if prefix:
+            self.completer.setCompletionPrefix(prefix)
+            if self.completer.completionCount() > 0:
+                self.completer.complete()
+            else:
+                self.completer.popup().hide()
+        else:
+            self.completer.popup().hide()
+
+    def insert_completion(self, completion):
+        text = self.text()
+        start, end = self._current_token_bounds()
+        new_text = text[:start] + completion + text[end:]
+        self.setText(new_text)
+        self.setCursorPosition(start + len(completion))
+
+    def keyPressEvent(self, event):
+        if self.completer.popup().isVisible():
+            if event.key() in (Qt.Key_Enter, Qt.Key_Return):
+                if self.completer.currentCompletion():
+                    self.insert_completion(self.completer.currentCompletion())
+                    self.completer.popup().hide()
+                    return
+        super().keyPressEvent(event)
+
+
+class LabeledClassEdit(QWidget):
+    """A labeled line edit with class autocomplete and floating label."""
+
+    textChanged = Signal(str)
+
+    def __init__(self, label_text="Classes"):
+        super().__init__()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.floating_widget = FloatingLabelLineEdit(label_text)
+
+        old_input = self.floating_widget.input
+        self.floating_widget.input = ClassLineEdit()
+        self.floating_widget.input.setStyleSheet(old_input.styleSheet())
+
+        self.floating_widget.layout().removeWidget(old_input)
+        old_input.deleteLater()
+        self.floating_widget.layout().addWidget(self.floating_widget.input)
+
         self.floating_widget.input.textChanged.connect(self.floating_widget.on_text_changed)
         self.floating_widget.input.installEventFilter(self.floating_widget)
 

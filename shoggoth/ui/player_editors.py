@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.editor_widgets import SlotsWidget
-from shoggoth.ui.field_widgets import LabeledLineEdit
+from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledClassEdit
 from shoggoth.ui.card_widgets import IconsWidget
 from shoggoth.i18n import tr
 
@@ -29,8 +29,7 @@ class AssetEditor(FaceEditor):
         grid_layout = QFormLayout()
 
         # Classes
-        classes_input = LabeledLineEdit(tr("FIELD_CLASSES"))
-        classes_input.input.setPlaceholderText(tr("PLACEHOLDER_COMMA_SEPARATED"))
+        classes_input = LabeledClassEdit(tr("FIELD_CLASSES"))
         classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_input.input
         grid_layout.addRow(classes_input)
@@ -134,8 +133,8 @@ class EventEditor(FaceEditor):
         grid_widget = QWidget()
         grid_layout = QFormLayout()
 
-        classes_input = LabeledLineEdit(tr("FIELD_CLASSES"))
-        classes_input.input.textChanged.connect(lambda: self.on_field_changed('classes'))
+        classes_input = LabeledClassEdit(tr("FIELD_CLASSES"))
+        classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_input.input
         grid_layout.addRow(classes_input)
 

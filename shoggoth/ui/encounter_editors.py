@@ -20,12 +20,12 @@ class EnemyEditor(FaceEditor):
 
         # Traits with autocomplete
         self.add_trait_field()
+        self.add_class_field()
 
         grid_widget = QWidget()
         grid_layout = QFormLayout()
 
         for field, label in [
-            ("classes", tr("FIELD_CLASSES")),
             ("attack", tr("FIELD_ATTACK")),
             ("health", tr("FIELD_HEALTH")),
             ("evade", tr("FIELD_EVADE")),
@@ -61,7 +61,7 @@ class TreacheryEditor(FaceEditor):
         self.add_labeled_line(tr("FIELD_NAME"), "name")
         self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
         self.add_trait_field()
-        self.add_labeled_line(tr("FIELD_CLASSES"), "classes")
+        self.add_class_field()
         self.add_labeled_line(tr("FIELD_VICTORY"), "victory")
 
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)

@@ -187,7 +187,7 @@ class StoryEditor(FaceEditor):
 
     def setup_ui(self):
         self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_CLASSES"), "classes")
+        self.add_class_field()
 
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
 

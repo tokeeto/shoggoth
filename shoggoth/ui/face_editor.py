@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt
 
 from shoggoth.ui.editor_widgets import NoScrollComboBox, ALL_CARD_TYPES, FULLART_CARD_TYPES
-from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTraitEdit, LabeledTextEdit
+from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTraitEdit, LabeledClassEdit, LabeledTextEdit
 from shoggoth.ui.card_widgets import IllustrationWidget, IconsWidget
 from shoggoth.i18n import tr
 
@@ -179,6 +179,17 @@ class FaceEditor(QWidget):
         if label is None:
             label = tr("FIELD_TRAITS")
         widget = LabeledTraitEdit(label)
+        widget.input.textChanged.connect(lambda: self.on_field_changed(field_name))
+        self.fields[field_name] = widget.input
+        self.field_containers[field_name] = widget
+        self.main_layout.addWidget(widget)
+        return widget
+
+    def add_class_field(self, label=None, field_name="classes"):
+        """Helper to add a classes field with autocomplete"""
+        if label is None:
+            label = tr("FIELD_CLASSES")
+        widget = LabeledClassEdit(label)
         widget.input.textChanged.connect(lambda: self.on_field_changed(field_name))
         self.fields[field_name] = widget.input
         self.field_containers[field_name] = widget

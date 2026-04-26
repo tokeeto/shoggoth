@@ -552,6 +552,10 @@ class FileBrowser(QWidget):
                 else:
                     story_spec['children'].append(card_spec)
 
+            story_spec['children'].sort(key=lambda s: s['text'].lower())
+            location_spec['children'].sort(key=lambda s: s['text'].lower())
+            encounter_cat_spec['children'].sort(key=lambda s: s['text'].lower())
+
             # If only encounter cards exist (no story or location), show cards directly
             if not story_spec['children'] and not location_spec['children']:
                 e_spec['children'] = encounter_cat_spec['children']
@@ -616,6 +620,10 @@ class FileBrowser(QWidget):
             card_spec = self._build_card_spec(card, include_level=True)
             target_spec['children'].append(card_spec)
 
+        # Sort cards within each group
+        for spec in list(investigator_specs.values()) + list(class_specs.values()):
+            spec['children'].sort(key=lambda s: s['text'].lower())
+
         # Only add class nodes that have cards
         for cls in ['investigators', 'seeker', 'rogue', 'guardian', 'mystic', 'survivor', 'neutral', 'other']:
             if class_specs[cls]['children']:
@@ -645,12 +653,21 @@ class FileBrowser(QWidget):
 
         return root_spec
 
+    @staticmethod
+    def _card_display_name(card, include_level=False):
+        """Return the display name for a card node (without dirty indicator)."""
+        if include_level and str(card.front.get('level', '0')) != '0':
+            name = f'{card.name} ({card.front.get("level")})'
+        else:
+            name = card.name
+        index = card.front.get('index')
+        if index:
+            name = f'{index} {name}'
+        return name
+
     def _build_card_spec(self, card, include_level=False):
         """Build a specification for a card node"""
-        if include_level and str(card.front.get('level', '0')) != '0':
-            display_name = f'{card.name} ({card.front.get("level")})'
-        else:
-            display_name = card.name
+        display_name = self._card_display_name(card, include_level)
 
         # Add dirty indicator
         if card.dirty:
@@ -871,17 +888,8 @@ class FileBrowser(QWidget):
         if not card:
             return False
 
-        # Determine if this is a player card (needs level in name)
         include_level = not card.encounter
-
-        # Build new display name
-        if include_level and str(card.front.get('level', '0')) != '0':
-            display_name = f'{card.name} ({card.front.get("level")})'
-        else:
-            display_name = card.name
-
-        # Add dirty indicator
-        display_name = '● ' + display_name
+        display_name = '● ' + self._card_display_name(card, include_level)
 
         # Update only if changed
         if item.text(0) != display_name:
@@ -1419,6 +1427,10 @@ class ShoggothMainWindow(QMainWindow):
         tts_action = QAction(tr("MENU_EXPORT_TTS"), self)
         tts_action.triggered.connect(self.open_tts_export_dialog)
         export_menu.addAction(tts_action)
+
+        ab_action = QAction(tr("MENU_EXPORT_ARKHAM_BUILD"), self)
+        ab_action.triggered.connect(self.open_arkham_build_dialog)
+        export_menu.addAction(ab_action)
 
         self._refresh_pdf_actions()
 
@@ -2916,6 +2928,14 @@ class ShoggothMainWindow(QMainWindow):
             return
         from shoggoth.ui.tts_export_dialog import TTSExportDialog
         dialog = TTSExportDialog(self.active_project, self.card_renderer, parent=self)
+        dialog.exec()
+
+    def open_arkham_build_dialog(self):
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+            return
+        from shoggoth.ui.arkham_build_dialog import ArkhamBuildExportDialog
+        dialog = ArkhamBuildExportDialog(self.active_project, self.card_renderer, parent=self)
         dialog.exec()
 
     # ==================== FILE MENU ACTIONS ====================
