@@ -113,7 +113,7 @@ def get_card_export_type(card):
         - double_sided: Whether the card has meaningful content on both sides
         - is_encounter: Whether this is an encounter card (vs player card)
     """
-    front_type = card.front.get('type')
+    front_type = card.front.get('grouping', card.front.get('type'))
 
     if front_type not in CARD_TYPE_INFO:
         return {

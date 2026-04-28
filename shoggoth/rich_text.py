@@ -1,4 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
+import io
 import os
 import platform
 import pathlib
@@ -313,9 +314,20 @@ class RichTextRenderer:
             return self.font_cache[size]
         loaded_fonts = {}
         for font_type, font_info in self.fonts.items():
-            loaded_fonts[font_type] = ImageFont.truetype(str(font_info['path']), size)
+            # Read into BytesIO so FreeType does not keep the file handle open.
+            # On Windows an open FT_Face holds a CreateFile handle that blocks
+            # the asset updater from overwriting the font file mid-session.
+            font_bytes = io.BytesIO(pathlib.Path(font_info['path']).read_bytes())
+            loaded_fonts[font_type] = ImageFont.truetype(font_bytes, size)
         self.font_cache[size] = loaded_fonts
         return loaded_fonts
+
+    def clear_caches(self):
+        """Drop all in-memory caches so updated assets are picked up on next render."""
+        self.font_cache.clear()
+        self._wcache.clear()
+        self.icon_cache.clear()
+        self.inverted_icon_cache.clear()
 
     def load_font(self, font):
         if font not in self.fonts:

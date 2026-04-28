@@ -6,7 +6,7 @@ import sys
 import threading
 import logging
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QObject, Signal
 
 from shoggoth.ui.main_window import ShoggothMainWindow
 from shoggoth.settings import SettingsManager, apply_appearance
@@ -14,6 +14,11 @@ from shoggoth.i18n import load_language
 from shoggoth import updater
 
 logger = logging.getLogger(__name__)
+
+
+class _AssetUpdateSignal(QObject):
+    """Carries the 'assets were updated' notification from the background thread."""
+    triggered = Signal()
 
 
 def main():
@@ -57,20 +62,31 @@ def main():
             sys.exit(0)
         # Assets are now present; fall through to create the main window.
 
-    # Subsequent runs: run incremental asset update silently in the background.
-    threading.Thread(target=_incremental_update_background, daemon=True).start()
-
-    # Create and show main window
+    # Create the main window first so the signal connection is established
+    # before the background thread can emit.
     window = ShoggothMainWindow()
-    window.show()
 
+    # Subsequent runs: run incremental asset update silently in the background.
+    # The signal is connected before the thread starts to guarantee delivery
+    # even if the download completes before the Qt event loop ticks.
+    _update_signal = _AssetUpdateSignal()
+    _update_signal.triggered.connect(window.on_assets_updated)
+    threading.Thread(
+        target=_incremental_update_background,
+        args=(_update_signal,),
+        daemon=True,
+    ).start()
+
+    window.show()
     sys.exit(app.exec())
 
 
-def _incremental_update_background():
+def _incremental_update_background(signal: _AssetUpdateSignal):
     """Run ensure_assets_current() in a background thread on non-first runs."""
     try:
-        updater.ensure_assets_current()
+        changed = updater.ensure_assets_current()
+        if changed:
+            signal.triggered.emit()
     except Exception as exc:
         logger.warning(f"Background asset update failed: {exc}")
 

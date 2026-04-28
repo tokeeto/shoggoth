@@ -212,7 +212,7 @@ def reset_assets(branch: Optional[str] = None, progress_callback=None) -> None:
     _save_local_asset_state(branch, remote_sha, file_hashes)
 
 
-def ensure_assets_current() -> None:
+def ensure_assets_current() -> bool:
     """Ensure the asset pack is downloaded and up to date.
 
     - First run or branch change (app upgrade): downloads the full repo zip.
@@ -221,6 +221,8 @@ def ensure_assets_current() -> None:
     - If assets are current, checks for missing files and re-downloads them.
     - If the asset directory is a git repo, all integrity/repair checks are skipped.
     - If the network is unavailable and assets already exist, continues with existing files.
+
+    Returns True if any asset files were added or updated, False otherwise.
     """
     branch = ASSET_BRANCH
     local_branch, local_sha, local_hashes = _get_local_asset_state()
@@ -235,6 +237,7 @@ def ensure_assets_current() -> None:
             logger.info(f"Asset branch changed ({local_branch} -> {branch}); re-downloading.")
         file_hashes = download_full_assets(branch)
         _save_local_asset_state(branch, remote_sha, file_hashes)
+        return True
     elif remote_sha is None:
         logger.warning("Could not check for asset updates; using existing files.")
         if local_sha and local_hashes:
@@ -242,17 +245,21 @@ def ensure_assets_current() -> None:
                 _repair_missing_assets(local_hashes, local_sha)
             except Exception as e:
                 logger.warning(f"Asset repair failed: {e}")
+        return False
     elif remote_sha != local_sha:
         try:
             updated_hashes = _update_changed_assets(local_sha, remote_sha, local_hashes)
             _save_local_asset_state(branch, remote_sha, updated_hashes)
+            return updated_hashes != local_hashes
         except Exception as e:
             logger.warning(f"Incremental asset update failed ({e}); falling back to full download.")
             try:
                 file_hashes = download_full_assets(branch)
                 _save_local_asset_state(branch, remote_sha, file_hashes)
+                return True
             except Exception as e2:
                 logger.error(f"Full asset download also failed: {e2}; using existing files.")
+                return False
     else:
         logger.info("Assets are up to date.")
         if local_hashes:
@@ -260,6 +267,7 @@ def ensure_assets_current() -> None:
                 _repair_missing_assets(local_hashes, local_sha)
             except Exception as e:
                 logger.warning(f"Asset integrity check failed: {e}")
+        return False
 
 
 class InstallationType(Enum):

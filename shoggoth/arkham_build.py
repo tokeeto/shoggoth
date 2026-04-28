@@ -46,14 +46,25 @@ def export_project(project, image_pattern=None):
             "external_link": project.data.get('website_url'),  # TODO: Add to project editor
             "generator": "Shoggoth",
             "status": project.data.get('status', 'draft'),  # TODO: Add status dropdown to project editor
-            "tags": project.data.get('tags', ''),  # TODO: Add tags field to project editor
+            "tags": project.data.get('tags', []),  # TODO: Add tags field to project editor
             "types": _determine_project_types(project),
             "url": project.data.get('hosting_url'),  # TODO: Add to project editor
         },
         "data": {
             "cards": [],
             "encounter_sets": [],
-            "packs": [],  # TODO: Determine if packs are needed
+            "packs": [{
+                "code": project.get('code'),
+                "cycle_code": project.get('code'),
+                "date_release": datetime.date.today().isoformat(),
+                "cgdb_id": None,
+                "replaced": False,
+                "reprint_packs": [],
+                "chapter": 2,
+                "name": project.get('name'),
+                "position": 1,
+                "size": None,
+            }],  # TODO: Determine if packs are needed
         }
     }
 
@@ -212,10 +223,6 @@ def _export_card(card, project, position, image_pattern=None):
             "back_image_url": _image_url(card, image_pattern, back=True),
             "back_thumbnail_url": card.data.get('back_thumbnail_url'),
         })
-
-        # For locations, include back-specific stats
-        if export_info['type_code'] == 'location':
-            card_data["back_link"] = back.get('connection', '')
 
     # Add customization options if present
     if front.get('type') == 'customizable':

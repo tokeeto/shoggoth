@@ -207,6 +207,17 @@ class CardRenderer:
                 self.resized_cache[(path, size)] = img.resize(size)
         return self.resized_cache[(path, size)]
 
+    def clear_asset_caches(self):
+        """Drop all caches that hold data derived from on-disk assets.
+
+        Called after a background asset update so the next render picks up
+        updated fonts, icons, and templates without restarting.
+        """
+        self.rich_text.clear_caches()
+        self.cache = {}
+        self.resized_cache = {}
+        self.card_wo_illus_cache = {}
+
     def invalidate_cache(self, path=None):
         """Invalidate cached images.
 

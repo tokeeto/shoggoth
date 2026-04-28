@@ -25,6 +25,7 @@ from shoggoth.file_monitor import CardFileMonitor
 from shoggoth.files import defaults_dir, asset_dir, font_dir, overlay_dir, root_dir, translation_dir
 from shoggoth.ui.preview_widget import ImprovedCardPreview
 from shoggoth.ui.goto_dialog import GotoCardDialog
+from shoggoth.ui.command_palette import Command, CommandPaletteDialog
 from shoggoth.ui.encounter_editor import EncounterSetEditor
 from shoggoth.i18n import get_available_languages, get_available_languages_from_dir, load_language, get_current_language, tr
 from shoggoth.ui.card_editor import CardEditor
@@ -1182,10 +1183,6 @@ class ShoggothMainWindow(QMainWindow):
 
     def setup_shortcuts(self):
         """Setup global keyboard shortcuts"""
-        # Ctrl+P - Go to Card
-        # TODO: Re-enable shortcuts once issues are resolved
-        # goto_shortcut = QShortcut(QKeySequence("Ctrl+P"), self)
-        # goto_shortcut.activated.connect(self.show_goto_dialog)
         pass
 
     def show_goto_dialog(self):
@@ -1210,6 +1207,161 @@ class ShoggothMainWindow(QMainWindow):
             self.show_card(card)
             # Find and select in tree
             self.select_item_in_tree(card.id)
+
+    # ──────────────────────────────────────────────
+    # Command palette
+    # ──────────────────────────────────────────────
+
+    def show_command_palette(self):
+        """Show the command palette."""
+        commands = self.build_commands()
+        dialog = CommandPaletteDialog(commands, self)
+        dialog.exec()
+
+    def build_commands(self) -> list[Command]:
+        """Build the full command list for the command palette."""
+        commands: list[Command] = []
+
+        # 1. All QActions from the menu bar
+        for menu_action in self.menuBar().actions():
+            menu = menu_action.menu()
+            if menu:
+                cat = menu_action.text().replace('&', '')
+                commands.extend(self._collect_menu_commands(menu, cat))
+
+        # 2. Settings toggles
+        commands.extend(self._build_settings_commands())
+
+        # 3. Context-sensitive card commands
+        commands.extend(self._build_card_commands())
+
+        return commands
+
+    def _collect_menu_commands(self, menu, category: str) -> list[Command]:
+        """Recursively collect QActions from a menu into Command objects."""
+        import re
+        commands: list[Command] = []
+        for action in menu.actions():
+            if action.isSeparator():
+                continue
+            if action.objectName() == "palette_skip":
+                continue
+            submenu = action.menu()
+            if submenu:
+                sub_cat = re.sub(r'&(.)', r'\1', action.text())
+                commands.extend(self._collect_menu_commands(submenu, sub_cat))
+                continue
+            raw = action.text()
+            if not raw:
+                continue
+            # Strip accelerator marker and trailing (Shortcut) hints
+            name = re.sub(r'&(.)', r'\1', raw)
+            name = re.sub(r'\s*\([^)]*\)\s*$', '', name).strip()
+            if not name:
+                continue
+            shortcut = action.shortcut().toString(QKeySequence.NativeText)
+            act = action
+            commands.append(Command(
+                name=name,
+                category=category,
+                shortcut=shortcut,
+                action=lambda a=act: a.trigger(),
+                enabled=lambda a=act: a.isEnabled(),
+            ))
+        return commands
+
+    def _build_settings_commands(self) -> list[Command]:
+        """Commands that directly toggle or set individual settings."""
+        from shoggoth.settings import EXPORT_SIZES
+        cat = tr("CMD_CATEGORY_SETTINGS")
+        commands: list[Command] = []
+
+        def toggle(key: str, after=None):
+            def _run():
+                current = self.config.getboolean('Shoggoth', key, False)
+                self.config.set('Shoggoth', key, not current)
+                self.config.save()
+                if after:
+                    after()
+            return _run
+
+        commands.append(Command(
+            name=tr("CMD_TOGGLE_SHOW_BLEED"),
+            category=cat,
+            action=toggle('show_bleed', self.schedule_preview_update),
+        ))
+        commands.append(Command(
+            name=tr("CMD_TOGGLE_EXPORT_BLEED"),
+            category=cat,
+            action=toggle('export_bleed'),
+        ))
+        commands.append(Command(
+            name=tr("CMD_TOGGLE_EXPORT_SEPARATE"),
+            category=cat,
+            action=toggle('export_separate_versions'),
+        ))
+        commands.append(Command(
+            name=tr("CMD_TOGGLE_EXPORT_BACKS"),
+            category=cat,
+            action=toggle('export_include_backs'),
+        ))
+        commands.append(Command(
+            name=tr("CMD_TOGGLE_AUTO_UPDATES"),
+            category=cat,
+            action=toggle('auto_check_updates'),
+        ))
+
+        for i, (label, _) in enumerate(EXPORT_SIZES):
+            idx = i
+            commands.append(Command(
+                name=tr("CMD_SET_EXPORT_SIZE").format(size=label),
+                category=cat,
+                action=lambda i=idx: (
+                    self.config.set('Shoggoth', 'export_size', i),
+                    self.config.save(),
+                ),
+            ))
+
+        for fmt in ('PNG', 'JPEG', 'WebP'):
+            commands.append(Command(
+                name=tr("CMD_SET_EXPORT_FORMAT").format(format=fmt),
+                category=cat,
+                action=lambda f=fmt.lower(): (
+                    self.config.set('Shoggoth', 'export_format', f),
+                    self.config.save(),
+                ),
+            ))
+
+        return commands
+
+    def _build_card_commands(self) -> list[Command]:
+        """Context-sensitive commands that operate on the currently viewed card."""
+        cat = tr("CMD_CATEGORY_CARD")
+
+        def has_card():
+            return self.current_card is not None
+
+        ctx = self.file_browser.context_menu
+        return [
+            Command(
+                name=tr("CMD_COPY_CARD"),
+                category=cat,
+                action=lambda: ctx.copy_card(self.current_card),
+                enabled=has_card,
+            ),
+            Command(
+                name=tr("CMD_DUPLICATE_CARD"),
+                category=cat,
+                action=lambda: ctx.duplicate_card(self.current_card),
+                enabled=has_card,
+            ),
+            Command(
+                name=tr("CMD_DELETE_CARD"),
+                category=cat,
+                action=lambda: ctx.delete_card(self.current_card),
+                enabled=has_card,
+            ),
+        ]
 
     def select_item_in_tree(self, item_id):
         """Find and select an item in the tree by ID, expanding parents"""
@@ -1281,7 +1433,7 @@ class ShoggothMainWindow(QMainWindow):
 
         # Go to Card
         goto_card_action = QAction(tr("MENU_GOTO_CARD"), self)
-        goto_card_action.setShortcut("Ctrl+P")
+        goto_card_action.setShortcut("Ctrl+R")
         goto_card_action.triggered.connect(self.show_goto_dialog)
         file_menu.addAction(goto_card_action)
 
@@ -1467,6 +1619,14 @@ class ShoggothMainWindow(QMainWindow):
         # View menu
         view_menu = menubar.addMenu(tr("MENU_VIEW"))
 
+        # Command Palette
+        palette_action = QAction(tr("MENU_COMMAND_PALETTE"), self)
+        palette_action.setShortcut("Ctrl+P")
+        palette_action.triggered.connect(self.show_command_palette)
+        view_menu.addAction(palette_action)
+
+        view_menu.addSeparator()
+
         # Toggle Preview
         self.toggle_preview_action = QAction(tr("MENU_SHOW_PREVIEW"), self)
         self.toggle_preview_action.setCheckable(True)
@@ -1486,6 +1646,7 @@ class ShoggothMainWindow(QMainWindow):
         view_menu.addSeparator()
         sidebar_header = QAction(tr("MENU_SIDEBAR_VIEW"), self)
         sidebar_header.setEnabled(False)
+        sidebar_header.setObjectName("palette_skip")
         view_menu.addAction(sidebar_header)
 
         sidebar_group = QActionGroup(self)
@@ -1509,6 +1670,7 @@ class ShoggothMainWindow(QMainWindow):
         # UI Language section header
         ui_lang_header = QAction(tr("MENU_UI_LANGUAGE"), self)
         ui_lang_header.setEnabled(False)
+        ui_lang_header.setObjectName("palette_skip")
         language_menu.addAction(ui_lang_header)
 
         available_languages = get_available_languages()
@@ -1527,6 +1689,7 @@ class ShoggothMainWindow(QMainWindow):
         language_menu.addSeparator()
         card_lang_header = QAction(tr("MENU_CARD_LANGUAGE"), self)
         card_lang_header.setEnabled(False)
+        card_lang_header.setObjectName("palette_skip")
         language_menu.addAction(card_lang_header)
 
         self.card_language_actions = []
@@ -2362,6 +2525,15 @@ class ShoggothMainWindow(QMainWindow):
         """Refresh preview if the currently-selected card was affected by a connection change"""
         if self.current_card and any(c.id == self.current_card.id for c in affected_cards):
             self.schedule_preview_update()
+
+    def on_assets_updated(self):
+        """Called (on the main thread) after a background asset update writes new files.
+
+        Clears all renderer caches so the next preview render picks up updated
+        fonts, icons, and templates without requiring a restart.
+        """
+        self.card_renderer.clear_asset_caches()
+        self.schedule_preview_update()
 
     def schedule_preview_update(self):
         """Schedule a debounced preview update (400ms delay)"""

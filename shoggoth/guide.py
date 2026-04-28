@@ -1,5 +1,6 @@
 import uuid
 import subprocess
+import sys
 import re
 import html as html_module
 from io import BytesIO
@@ -150,6 +151,15 @@ _ICON_TAGS: dict[str, str] = {
     '[willpower]': 'w',
 }
 
+_REPLACEMENT_TAGS: dict[str, str] = {
+    '<quote>': '\u2018',
+    '<dquote>': '\u201c',
+    '<quoteend>': '\u2019',
+    '<dquoteend>': '\u201d',
+    '---': '\u2014',
+    '--': '\u2013',
+}
+
 # Pre-sorted longest-first so shorter aliases don't shadow longer ones.
 _ICON_TAGS_SORTED = sorted(_ICON_TAGS.items(), key=lambda kv: len(kv[0]), reverse=True)
 
@@ -157,9 +167,10 @@ _ICON_TAGS_SORTED = sorted(_ICON_TAGS.items(), key=lambda kv: len(kv[0]), revers
 def _apply_icons(text: str) -> str:
     """Replace icon tags with AHLCGSymbol spans before markdown processing."""
     for tag, char in _ICON_TAGS_SORTED:
-        if tag in text:
-            span = f'<span class="icon">{html_module.escape(char)}</span>'
-            text = text.replace(tag, span)
+        span = f'<span class="icon">{html_module.escape(char)}</span>'
+        text = text.replace(tag, span)
+    for tag, repl in _REPLACEMENT_TAGS.items():
+        text = text.replace(tag, repl)
     return text
 
 
@@ -182,7 +193,7 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
                 for es in guide.project.encounter_sets:
                     if es.name.lower() == name.lower() and es.icon:
                         icon_path = (guide.project.folder / es.icon).resolve()
-                        return f'<img src="file://{icon_path}" class="encounter-icon" title="{html_module.escape(name)}">'
+                        return f'<img src="{icon_path.as_uri()}" class="encounter-icon" title="{html_module.escape(name)}">'
                 return m.group(0)
 
             es_id, prop = parts[0].strip(), parts[1].strip()
@@ -191,12 +202,12 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
                 return m.group(0)
             if prop == 'icon':
                 icon_path = (guide.project.folder / es.icon).resolve()
-                return f'<img src="file://{icon_path}" class="encounter-icon" title="{html_module.escape(es.name)}">'
+                return f'<img src="{icon_path.as_uri()}" class="encounter-icon" title="{html_module.escape(es.name)}">'
 
             if prop == 'location_overview':
                 export_folder = guide.project.folder / f'Export of {guide.project.name}'
                 img_path = (export_folder / f'{es_id}_location_overview.png').resolve()
-                return f'<img src="file://{img_path}" class="location-overview">'
+                return f'<img src="{img_path.as_uri()}" class="location-overview">'
 
             try:
                 value = getattr(es, prop)
@@ -306,7 +317,7 @@ def _apply_project_refs(text: str, guide=None) -> str:
         try:
             if prop == 'icon':
                 icon_path = (guide.project.folder / guide.project.icon).resolve()
-                return f'<img src="file://{icon_path}" class="project-icon">'
+                return f'<img src="{icon_path.as_uri()}" class="project-icon">'
             value = getattr(guide.project, prop, None)
             if value is None:
                 value = guide.project.data.get(prop, '')
@@ -431,19 +442,20 @@ class Guide:
         return self.project.folder / 'guide.pdf'
 
     def html_format(self, html: str) -> str:
-        html = html.replace("{{frontpage}}", str(self.front_page))
-        html = html.replace("{{a4_empty}}", str(files.guide_dir / 'guide_a4_empty.webp'))
-        html = html.replace("{{a4_title}}", str(files.guide_dir / 'guide_a4_title.webp'))
-        html = html.replace("{{arno_pro}}", str(files.font_dir / 'Arno Pro/arnopro_regular.otf'))
-        html = html.replace("{{arno_pro_bold}}", str(files.font_dir / 'Arno Pro/arnopro_bold.otf'))
-        html = html.replace("{{arno_pro_bolditalic}}", str(files.font_dir / 'Arno Pro/arnopro_bolditalic.otf'))
-        html = html.replace("{{arno_pro_italic}}", str(files.font_dir / 'Arno Pro/arnopro_italic.otf'))
-        html = html.replace("{{teutonic}}", str(files.font_dir / 'Arkhamic.ttf'))
-        html = html.replace("{{ahlcgsymbol}}", str(files.font_dir / 'AHLCGSymbol.otf'))
-        html = html.replace("{{resolution_glyph_top}}", str(files.guide_dir / 'resolution_glyph_top.png'))
-        html = html.replace("{{resolution_glyph_bottom}}", str(files.guide_dir / 'resolution_glyph_bottom.png'))
+        if self.front_page:
+            html = html.replace("file://{{frontpage}}", Path(self.front_page).resolve().as_uri())
+        html = html.replace("file://{{a4_empty}}", (files.guide_dir / 'guide_a4_empty.webp').as_uri())
+        html = html.replace("file://{{a4_title}}", (files.guide_dir / 'guide_a4_title.webp').as_uri())
+        html = html.replace("file://{{arno_pro}}", (files.font_dir / 'Arno Pro/arnopro_regular.otf').as_uri())
+        html = html.replace("file://{{arno_pro_bold}}", (files.font_dir / 'Arno Pro/arnopro_bold.otf').as_uri())
+        html = html.replace("file://{{arno_pro_bolditalic}}", (files.font_dir / 'Arno Pro/arnopro_bolditalic.otf').as_uri())
+        html = html.replace("file://{{arno_pro_italic}}", (files.font_dir / 'Arno Pro/arnopro_italic.otf').as_uri())
+        html = html.replace("file://{{teutonic}}", (files.font_dir / 'Arkhamic.ttf').as_uri())
+        html = html.replace("file://{{ahlcgsymbol}}", (files.font_dir / 'AHLCGSymbol.otf').as_uri())
+        html = html.replace("file://{{resolution_glyph_top}}", (files.guide_dir / 'resolution_glyph_top.png').as_uri())
+        html = html.replace("file://{{resolution_glyph_bottom}}", (files.guide_dir / 'resolution_glyph_bottom.png').as_uri())
         try:
-            html = html.replace("{{project.icon}}", str((self.project.folder / self.project.icon).resolve()))
+            html = html.replace("file:///{{project.icon}}", (self.project.folder / self.project.icon).resolve().as_uri())
         except Exception:
             pass
         return html
@@ -451,7 +463,7 @@ class Guide:
     def to_html(self) -> str:
         """Generate complete guide HTML from template + section content."""
         template_path = files.guide_dir / 'guide_template.html'
-        with open(template_path, 'r') as f:
+        with open(template_path, 'r', encoding='utf-8') as f:
             template = f.read()
         sections_html = '\n'.join(s.to_html(self) for s in self.sections)
         html = re.sub(
@@ -464,13 +476,17 @@ class Guide:
 
     def get_page(self, page: int, html: str = '') -> Image.Image:
         prince_cmd, prince_cwd = _resolve_prince()
+        if not prince_cmd:
+            raise RuntimeError("Prince is not installed")
         if not html:
             html = self.to_html()
+        kwargs = {'input': html.encode(), 'stdout': subprocess.PIPE, 'stderr': subprocess.DEVNULL}
+        if sys.platform == 'win32':
+            kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
         p = subprocess.run(
             [prince_cmd, '-', '--raster-output=-', '--raster-format=jpg', f'--raster-pages={page}'],
             cwd=prince_cwd,
-            input=html.encode(),
-            stdout=subprocess.PIPE,
+            **kwargs,
         )
         buffer = BytesIO(p.stdout)
         buffer.seek(0)
@@ -478,12 +494,17 @@ class Guide:
 
     def render_to_file(self, html: str = '', output_path: 'Path | None' = None):
         prince_cmd, prince_cwd = _resolve_prince()
+        if not prince_cmd:
+            raise RuntimeError("Prince is not installed")
         if not html:
             html = self.to_html()
         if output_path is None:
             output_path = self.target_path
+        kwargs = {'input': html.encode(), 'stderr': subprocess.DEVNULL}
+        if sys.platform == 'win32':
+            kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
         subprocess.run(
             [prince_cmd, '-', '-o', str(output_path)],
             cwd=prince_cwd,
-            input=html.encode(),
+            **kwargs,
         )
