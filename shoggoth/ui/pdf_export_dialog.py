@@ -5,18 +5,20 @@ from pathlib import Path
 import threading
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
+    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
     QCheckBox, QLabel, QLineEdit, QPushButton, QButtonGroup, QRadioButton,
     QProgressDialog, QMessageBox, QDialogButtonBox, QFileDialog,
-    QFrame
+    QFrame, QComboBox, QSpinBox,
 )
 from PySide6.QtCore import Qt
 
 from shoggoth.i18n import tr
+from shoggoth.settings import EXPORT_SIZES
 
-PDF_IMAGE_SIZE    = {'width': 1500, 'height': 2100, 'bleed': 72}
-PDF_IMAGE_FORMAT  = 'png'
-PDF_IMAGE_QUALITY = 100
+# Fixed constants used for MBPrint (not user-configurable)
+_MBPRINT_SIZE    = {'width': 1500, 'height': 2100, 'bleed': 72}
+_MBPRINT_FORMAT  = 'png'
+_MBPRINT_QUALITY = 100
 
 
 class PDFExportDialog(QDialog):
@@ -97,14 +99,41 @@ class PDFExportDialog(QDialog):
         images_layout.addWidget(self._folder_frame)
         root.addWidget(images_group)
 
-        # Format info bar
-        info = QLabel(tr("PDF_FORMAT_INFO").format(
-            fmt=PDF_IMAGE_FORMAT.upper(),
-            w=PDF_IMAGE_SIZE['width'],
-            h=PDF_IMAGE_SIZE['height'],
-        ))
-        info.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
-        root.addWidget(info)
+        # ── Format ─────────────────────────────────────────────────────
+        if self.mbprint:
+            info = QLabel(tr("PDF_FORMAT_INFO").format(
+                fmt=_MBPRINT_FORMAT.upper(),
+                w=_MBPRINT_SIZE['width'],
+                h=_MBPRINT_SIZE['height'],
+            ))
+            info.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
+            root.addWidget(info)
+        else:
+            format_group = QGroupBox(tr("GROUP_EXPORT_FORMAT"))
+            format_form = QFormLayout(format_group)
+            format_form.setRowWrapPolicy(QFormLayout.DontWrapRows)
+
+            self._size_combo = QComboBox()
+            self._size_combo.addItems([label for label, _ in EXPORT_SIZES])
+            self._size_combo.setCurrentIndex(0)
+            format_form.addRow(tr("LABEL_EXPORT_SIZE"), self._size_combo)
+
+            self._format_combo = QComboBox()
+            self._format_combo.addItems(['png', 'jpeg', 'webp'])
+            self._format_combo.currentTextChanged.connect(self._on_format_changed)
+            format_form.addRow(tr("LABEL_FORMAT"), self._format_combo)
+
+            self._quality_spin = QSpinBox()
+            self._quality_spin.setRange(1, 100)
+            self._quality_spin.setValue(100)
+            self._quality_spin.setSuffix("%")
+            self._quality_spin.setEnabled(False)
+            format_form.addRow(tr("LABEL_QUALITY"), self._quality_spin)
+
+            self._cb_backs = QCheckBox(tr("OPT_INCLUDE_BACKS"))
+            format_form.addRow(tr("LABEL_INCLUDE_BACKS"), self._cb_backs)
+
+            root.addWidget(format_group)
 
         # ── PDF output path ────────────────────────────────────────────
         output_group = QGroupBox(tr("PDF_OUTPUT_LABEL"))
@@ -141,6 +170,9 @@ class PDFExportDialog(QDialog):
         self._custom_folder_input.setEnabled(not project_selected)
         self._browse_folder_btn.setEnabled(not project_selected)
 
+    def _on_format_changed(self, fmt):
+        self._quality_spin.setEnabled(fmt in ('jpeg', 'webp'))
+
     def _browse_image_folder(self):
         folder = QFileDialog.getExistingDirectory(
             self, tr("PDF_DLG_SELECT_FOLDER"),
@@ -174,6 +206,26 @@ class PDFExportDialog(QDialog):
         custom = self._custom_folder_input.text().strip()
         return Path(custom) if custom else self._default_image_folder()
 
+    def _selected_size(self):
+        if self.mbprint:
+            return _MBPRINT_SIZE
+        return EXPORT_SIZES[self._size_combo.currentIndex()][1]
+
+    def _selected_format(self):
+        if self.mbprint:
+            return _MBPRINT_FORMAT
+        return self._format_combo.currentText()
+
+    def _selected_quality(self):
+        if self.mbprint:
+            return _MBPRINT_QUALITY
+        return self._quality_spin.value()
+
+    def _selected_include_backs(self):
+        if self.mbprint:
+            return False
+        return self._cb_backs.isChecked()
+
     # ------------------------------------------------------------------
     # Export
     # ------------------------------------------------------------------
@@ -195,7 +247,12 @@ class PDFExportDialog(QDialog):
             if self.mbprint:
                 pdf_exporter.create_mbprint_pdf(self.cards, pdf_path, image_folder)
             else:
-                pdf_exporter.export(self.cards, pdf_path, image_folder)
+                pdf_exporter.export(
+                    self.cards, pdf_path, image_folder,
+                    size=self._selected_size(),
+                    format=self._selected_format(),
+                    include_backs=self._selected_include_backs(),
+                )
         except Exception as e:
             print(e)
             QMessageBox.critical(self, tr("DLG_ERROR"), tr("MSG_PDF_EXPORT_FAILED").format(error=str(e)))
@@ -205,7 +262,7 @@ class PDFExportDialog(QDialog):
         self.accept()
 
     def _export_images(self, image_folder):
-        """Export card images as PNG to image_folder. Returns False if cancelled."""
+        """Export card images to image_folder. Returns False if cancelled."""
         if not self.cards:
             return True
 
@@ -220,6 +277,11 @@ class PDFExportDialog(QDialog):
         threads = []
         cancelled = [False]
 
+        size    = self._selected_size()
+        fmt     = self._selected_format()
+        quality = self._selected_quality()
+        backs   = self._selected_include_backs()
+
         for i, card in enumerate(self.cards):
             if progress.wasCanceled():
                 cancelled[0] = True
@@ -232,10 +294,12 @@ class PDFExportDialog(QDialog):
                 target=self.renderer.export_card_images,
                 args=(card, str(image_folder)),
                 kwargs={
-                    'size': PDF_IMAGE_SIZE,
-                    'bleed': True,
-                    'format': PDF_IMAGE_FORMAT,
-                    'quality': PDF_IMAGE_QUALITY,
+                    'size':          size,
+                    'bleed':         True,
+                    'format':        fmt,
+                    'quality':       quality,
+                    'include_backs': backs,
+                    'rotate':        True,
                 }
             )
             threads.append(t)

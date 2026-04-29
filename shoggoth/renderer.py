@@ -24,6 +24,7 @@ class _ImgDims:
 import logging
 logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('pillow').setLevel(logging.ERROR)
+logger = logging.getLogger('shoggoth')
 
 
 card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
@@ -72,7 +73,7 @@ class Region:
         return self.width > 0 and self.height > 0 or self.is_attached
 
     def __repr__(self):
-        return f'<Region pos({self.x},{self.x}) size({self.width},{self.height})>'
+        return f'<Region pos({self.x},{self.y}) size({self.width},{self.height})>'
 
 
 class CardRenderer:
@@ -251,7 +252,30 @@ class CardRenderer:
         print(f'get_card_textures in {time.time()-t}')
         return front, back
 
-    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
+    @staticmethod
+    def _filename_base(variant, filename_format):
+        """Return the base filename stem for a card variant."""
+        import re
+        def safe(s):
+            return re.sub(r'[^\w\-.]', '_', str(s))
+
+        if filename_format == 'name':
+            return safe(variant.name)
+        if filename_format == 'order':
+            enc = variant.encounter_number
+            if enc is not None and enc != -1:
+                return safe(str(enc).zfill(3) if isinstance(enc, int) else str(enc))
+            return str(variant.project_number).zfill(3)
+        if filename_format == 'code_name':
+            project_code = variant.project.get('code', '') or ''
+            if variant.encounter:
+                enc_code = variant.encounter.get('code', '') or safe(variant.encounter.name)
+                return safe(f'{project_code}_{enc_code}_{variant.name}')
+            return safe(f'{project_code}_{variant.project_number}_{variant.name}')
+        # default: 'id'
+        return variant.id
+
+    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id'):
         lossless = quality == 100
         outputs = []
 
@@ -261,17 +285,18 @@ class CardRenderer:
             faces = [card]
 
         for index, variant in enumerate(faces):
+            base = self._filename_base(variant, filename_format)
             for face, name in ((variant.front, 'front'), (variant.back, 'back')):
                 # if this is a repeated card, only export it once
                 if face['type'] in ('player', 'encounter') and not include_backs:
                     file_path = Path(folder) / f'{face["type"]}.{format}'
                     if not file_path.exists():
-                        image = self.render_card_side(variant, face, include_bleed=bleed, **size)
+                        image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
                         image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
                     outputs.append(str(file_path))
                 else:
-                    file_path = Path(folder) / f'{variant.id}_{name}_{index}.{format}'
-                    image = self.render_card_side(variant, face, include_bleed=bleed, **size)
+                    file_path = Path(folder) / f'{base}_{name}_{index}.{format}'
+                    image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
                     image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
                     outputs.append(str(file_path))
         return outputs
@@ -367,7 +392,7 @@ class CardRenderer:
         self.card_wo_illus_cache[card] = self.render_card_side(c, side, include_bleed)
         return self.card_wo_illus_cache[card]
 
-    def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72):
+    def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72, rotation=False):
         """Render one side of a card"""
         s = width / 1500
 
@@ -381,11 +406,12 @@ class CardRenderer:
         try:
             self.render_illustration(card_image, side, s)
         except Exception as e:
-            print('failed illus', e)
+            logger.error('Failed to render Illustration', e, exc_info=True)
+
         try:
             self.render_template(card_image, side, bleed, template_bleed)
         except Exception as e:
-            print('failed template', e)
+            logger.error('Failed to render Template', e, exc_info=True)
         if side['type'] in ('investigator'):
             self.render_illustration(card_image, side, s)
 
@@ -421,11 +447,12 @@ class CardRenderer:
             self.render_slots,
             self.render_chaos,
             self.render_customizable,
+            self.render_images,
         ]:
             try:
                 func(card_image, side, s)
             except Exception as e:
-                logging.debug(f'Failed in {func}: {e}')
+                logging.debug(f'Failed in {func}:', e, exc_info=True)
                 print(f'Failed in {func}: {e}')
 
         # cut out bleed
@@ -460,7 +487,24 @@ class CardRenderer:
             )
             card_image.paste(mark_image, mask=mark_image)
 
+        if rotation and side.get('orientation', 'vertical') == 'horizontal':
+            degrees = -90
+            if card.back == side:
+                degrees = 90
+            card_image = card_image.rotate(degrees, expand=True)
         return card_image
+
+    def render_images(self, card_image, side, s: float = 1.0):
+        for n in range(5):
+            value = side.get(f'image{n}')
+            if not value:
+                continue
+            region = Region(side.get(f'image{n}_region', None), s)
+            if not region:
+                continue
+
+            image = self.get_illustration_resized_cached(value, region.size)
+            card_image.paste(image, region.pos, image)
 
     def render_text(self, card_image, side, s: float = 1.0):
         for field in [
@@ -580,17 +624,12 @@ class CardRenderer:
             card_image.paste(overlay_icon, (region.x, region.y+(index*entry_height)), overlay_icon)
 
     def render_connection_icons(self, card_image, side, s: float = 1.0):
+        # own icon
         try:
-
-            # own icon
             value = side.get('connection')
-
             if value and value != "None":
                 region = Region(side.get('connection_region'), s)
-                try:
-                    connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{value}.svg", region.size)
-                except:
-                    return
+                connection_image = self.get_resized_cached(self.overlays_path / 'svg' / f"connection_{value}.svg", region.size)
 
                 padding = int(24*s)
                 base_image = self.get_resized_cached(
@@ -599,16 +638,18 @@ class CardRenderer:
                 )
                 card_image.paste(base_image, region.pos, base_image)
                 card_image.paste(connection_image, (region.x+int(12*s), region.y+int(12*s)), connection_image)
+        except Exception as e:
+            logger.error('Error while rendering own connection', e)
 
-            # outgoing connections
+        # outgoing connections
+        try:
             value = side.get('connections')
-
             if not value:
                 return
 
             # grab and paint each icon
             for index, icon in enumerate(value):
-                if not icon or icon == "None":
+                if not icon or icon.lower() == "none":
                     continue
                 region = Region(side.get(f'connection_{index+1}_region'), s)
                 try:
@@ -617,7 +658,7 @@ class CardRenderer:
                     continue
                 card_image.paste(connection_image, (region.x+int(12*s), region.y+int(12*s)), connection_image)
         except Exception as e:
-            print('error in connection', e)
+            logger.error('Error while rendering connection icons:', e)
 
     def render_icons(self, card_image, side, s: float = 1.0):
         """ Renders commit icons """
@@ -700,15 +741,20 @@ class CardRenderer:
             card_image.paste(overlay_image, overlay_region.pos, overlay_image)
 
         if not Path(icon_path).is_absolute():
-            icon_path = Path(side.card.project.file_path).parent / Path(icon_path)
-            icon_path = icon_path.absolute()
+            relative_path = Path(side.card.project.file_path).parent / Path(icon_path)
+            if relative_path.exists():
+                icon_path = relative_path
+            else:
+                icon_path = overlay_dir / icon_path
+        icon_path = Path(icon_path).absolute()
 
         try:
             icon = self.get_cached(icon_path)
             icon_scale = min(region.width/icon.width, region.height/icon.height)
             icon = self.get_resized_cached(icon_path, (int(icon.width*icon_scale), int(icon.height*icon_scale)))
-            card_image.paste(icon, (region.x + (region.width-icon.width)//2, region.y + (region.height-icon.height)//2), icon if icon.has_transparency_data else None)
+            card_image.paste(icon, region.pos, icon if icon.has_transparency_data else None)
         except Exception as e:
+            logger.error('icon failure:', e, icon_path, side.card.name, exc_info=True)
             print('icon failure:', e, icon_path, side.card.name)
 
     def render_slots(self, card_image, side, s: float = 1.0):

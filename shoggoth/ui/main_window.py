@@ -548,7 +548,7 @@ class FileBrowser(QWidget):
 
                 if card.grouping == 'location':
                     location_spec['children'].append(card_spec)
-                elif card.grouping == 'encounter':
+                elif card.grouping in ('treachery', 'enemy'):
                     encounter_cat_spec['children'].append(card_spec)
                 else:
                     story_spec['children'].append(card_spec)
@@ -1450,20 +1450,6 @@ class ShoggothMainWindow(QMainWindow):
 
         file_menu.addSeparator()
 
-        # Export Current Card
-        export_current = QAction(tr("MENU_EXPORT_CURRENT"), self)
-        export_current.setShortcut("Ctrl+E")
-        export_current.triggered.connect(lambda: self.export_current())
-        file_menu.addAction(export_current)
-
-        # Export All Cards
-        export_all = QAction(tr("MENU_EXPORT_ALL"), self)
-        export_all.setShortcut("Ctrl+Shift+E")
-        export_all.triggered.connect(lambda: self.export_all())
-        file_menu.addAction(export_all)
-
-        file_menu.addSeparator()
-
         # Settings
         settings_action = QAction(tr("MENU_SETTINGS"), self)
         settings_action.triggered.connect(self.open_settings)
@@ -1528,6 +1514,20 @@ class ShoggothMainWindow(QMainWindow):
 
         # ==================== EXPORT MENU ====================
         export_menu = menubar.addMenu(tr("MENU_EXPORT"))
+
+        # Quick Export Current Card
+        quick_export_action = QAction(tr("MENU_QUICK_EXPORT_CURRENT"), self)
+        quick_export_action.setShortcut("Ctrl+E")
+        quick_export_action.triggered.connect(lambda: self.export_current())
+        export_menu.addAction(quick_export_action)
+
+        # Export to Images (modal dialog)
+        export_images_action = QAction(tr("MENU_EXPORT_IMAGES"), self)
+        export_images_action.setShortcut("Ctrl+Shift+E")
+        export_images_action.triggered.connect(self.open_image_export_dialog)
+        export_menu.addAction(export_images_action)
+
+        export_menu.addSeparator()
 
         # Export card to PDF
         card_pdf_action = QAction(tr("MENU_CARD_TO_PDF"), self)
@@ -2098,6 +2098,15 @@ class ShoggothMainWindow(QMainWindow):
         index = self.config.getint('Shoggoth', 'export_size', 1)
         index = min(index, len(EXPORT_SIZES) - 1)
         return EXPORT_SIZES[index][1]
+
+    def open_image_export_dialog(self):
+        """Open the Export to Images modal dialog."""
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
+            return
+        from shoggoth.ui.image_export_dialog import ImageExportDialog
+        dialog = ImageExportDialog(self.active_project, self.card_renderer, self)
+        dialog.exec()
 
     def export_all(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export all cards in the project using settings from preferences"""

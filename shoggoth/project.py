@@ -281,6 +281,59 @@ class Project:
     def remove_encounter_set(self, index):
         self.data['encounter_sets'].pop(index)
 
+    def gather_images(self):
+        """ Walks through the project and copies to all relevant images to a nearby folder for easier distribution.
+            Also updates all used paths to point to the new images using a relative path.
+        """
+        import shutil
+
+        image_paths = {}  # old path string -> new relative path string
+        output_folder = self.folder / f'{self.name} images'
+        output_folder.mkdir(exist_ok=True)
+
+        def copy_image(path_str):
+            if not path_str:
+                return path_str
+            if path_str in image_paths:
+                return image_paths[path_str]
+
+            resolved = self.find_file(path_str)
+            if not resolved:
+                return path_str
+
+            try:
+                resolved.relative_to(output_folder)
+                image_paths[path_str] = str(resolved.relative_to(self.folder))
+                return image_paths[path_str]
+            except ValueError:
+                pass
+
+            dest_path = output_folder / resolved.name
+            counter = 1
+            while dest_path.exists() and dest_path.resolve() != resolved:
+                dest_path = output_folder / f'{resolved.stem}_{counter}{resolved.suffix}'
+                counter += 1
+
+            if not dest_path.exists():
+                shutil.copy2(resolved, dest_path)
+
+            image_paths[path_str] = str(dest_path.relative_to(self.folder))
+            return image_paths[path_str]
+
+        if self.icon:
+            self.data['icon'] = copy_image(self.icon)
+
+        for encounter_set in self.encounter_sets:
+            if encounter_set.icon:
+                encounter_set.data['icon'] = copy_image(encounter_set.icon)
+
+        for card in self.cards:
+            for side in (card.front, card.back):
+                for key in ('illustration', 'image1', 'image2', 'image3', 'image4', 'image5'):
+                    image = side.data.get(key)
+                    if image:
+                        side.data[key] = copy_image(image)
+
 
     @staticmethod
     def new(name, code, icon):

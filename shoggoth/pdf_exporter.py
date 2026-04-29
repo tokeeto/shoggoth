@@ -71,8 +71,8 @@ def _mbprint_html(cards, folder):
     yield "</body>"
 
 
-def _pdf_html(cards, folder):
-    """ Simpel document template for pdf prints """
+def _pdf_html(cards, folder, size, format='png', include_backs=False):
+    """ Simple document template for pdf prints """
     yield """
         <!DOCTYPE html>
         <html>
@@ -87,10 +87,6 @@ def _pdf_html(cards, folder):
                     display: inline-block;
                     margin: 2mm;
                 }
-                img.wide {
-                    height: 66.5mm;
-                    width: 91mm;
-                }
                 @page {
                     margin: 10mm;
                     size: a4;
@@ -101,23 +97,25 @@ def _pdf_html(cards, folder):
     """
 
     for card in cards:
-        css = 'wide' if card.front.get('orientation') == 'horizontal' else ''
-        for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png'):
-            yield f'<img class="{css}" src="{path}">\n'
+        for path in CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=include_backs):
+            yield f'<img src="{path}">\n'
     yield "</body>"
 
 
-def export(cards, target_file, image_folder):
+def export(cards, target_file, image_folder, size=None, format='png', include_backs=False):
     prince_cmd, prince_cwd = _resolve_prince()
     if prince_cmd is None:
         raise Exception("can't export without prince")
+
+    if size is None:
+        size = EXPORT_SIZES[0][1]
 
     target_folder = Path(target_file).parent
     temp_file = target_folder / '_temp.html'
 
     start_time = time()
     with open(temp_file, 'w', encoding='utf-8') as html_file:
-        for txt in _pdf_html(cards, image_folder):
+        for txt in _pdf_html(cards, image_folder, size, format=format, include_backs=include_backs):
             html_file.write(txt)
 
     print(f"PDF html time: {time()-start_time}")
