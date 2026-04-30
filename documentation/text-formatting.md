@@ -12,16 +12,13 @@ Open **Help → Text Options** inside Shoggoth to see this reference at any time
 |---|---|
 | `<b>` / `</b>` | Bold |
 | `<i>` / `</i>` | Italic |
-| `<bi>` / `</bi>` | Bold italic |
-| `<t>` / `</t>` | Trait emphasis (bold italic) |
-| `[[` / `]]` | Trait emphasis shorthand (bold italic) |
-| `<center>` / `</center>` | Center-align the enclosed text |
+| `<t>` / `</t>` | Trait |
+| `<center>` / `</center>` | Center-align the paragraph and onward |
 | `<left>` / `</left>` | Left-align (default) |
 | `<right>` / `</right>` | Right-align |
-| `<story>` / `</story>` | Indented story/flavor block |
-| `<blockquote>` / `</blockquote>` | Block quote formatting |
+| `<blockquote>` / `</blockquote>` | Block quote formatting - this matches flavor/story text on Story cards, as well as on Agenda/Act back sides |
 | `<br>` | Explicit line break |
-| `</indent>` | End an active indent |
+| `<indent>` / `</indent>` | Create an indented block. Useful for aligning a couple of lines |
 
 ---
 
@@ -31,21 +28,21 @@ Open **Help → Text Options** inside Shoggoth to see this reference at any time
 
 | Tag | Symbol |
 |---|---|
-| `<action>` or `[action]` | Action (arrow in circle) |
-| `<fast>` or `[fast]` | Fast / free trigger (lightning bolt) |
+| `<action>` | Action (arrow in circle) |
+| `<free>` | Fast / free trigger (lightning bolt) |
 | `<reaction>` | Reaction (lightning bolt with arc) |
 
 ### Stat Icons
 
 | Tag | Symbol |
 |---|---|
-| `[willpower]` or `<willpower>` or `<wil>` | Willpower |
-| `[intellect]` or `<intellect>` or `<int>` | Intellect |
-| `[combat]` or `<combat>` or `<com>` | Combat |
-| `[agility]` or `<agility>` or `<agi>` | Agility |
-| `[per_investigator]` or `<per>` | Per investigator |
+| `<willpower>` | Willpower |
+| `<intellect>` | Intellect |
+| `<combat>` | Combat |
+| `<agility>` | Agility |
+| `<wild>` | Wild icon |
 
-### Damage & Resources
+### Damage & Resources (unofficial)
 
 | Tag | Symbol |
 |---|---|
@@ -61,8 +58,12 @@ Open **Help → Text Options** inside Shoggoth to see this reference at any time
 | `<cultist>` | Cultist |
 | `<tablet>` | Tablet |
 | `<elder_thing>` | Elder Thing |
+| `<curse>` | Curse |
+| `<bless>` | Bless |
+| `<frost>` | Frost token |
 | `<elder_sign>` | Elder Sign |
 | `<auto_fail>` | Auto-fail (tentacle) |
+
 
 ### Class Icons
 
@@ -78,15 +79,12 @@ Open **Help → Text Options** inside Shoggoth to see this reference at any time
 
 | Tag | Symbol |
 |---|---|
-| `<unique>` | Unique (diamond) |
+| `<unique>` | Unique |
 | `<bullet>` | Bullet point |
-| `<blessing>` | Bless token |
-| `<curse>` | Curse token |
-| `<frost>` | Frost token |
 | `<resolution>` | Resolution |
-| `<codex>` | Codex |
-| `<day>` | Day |
-| `<night>` | Night |
+| `<codex>` | Codex icon |
+| `<day>` | Day icon |
+| `<night>` | Night icon |
 
 ---
 
@@ -100,7 +98,7 @@ These expand to bold labeled text in the current translation language:
 | `<for>` | **Forced –** |
 | `<prey>` | **Prey –** |
 | `<spawn>` | **Spawn –** |
-| `<obj>` or `<objective>` | **Objective –** |
+| `<objective>` | **Objective –** |
 
 ---
 
@@ -126,7 +124,7 @@ These expand to bold labeled text in the current translation language:
 
 <for> After you draw this card: Discard it.
 
-This card costs 1 less resource for each [[Blessed]] card in your hand.
+This card costs 1 less resource for each <t>Blessed</t> card in your hand.
 
 <center><i>"I have seen things that cannot be unseen."</i></center>
 ```

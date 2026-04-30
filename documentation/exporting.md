@@ -32,8 +32,12 @@ Choose which cards to export:
 | Option | Details |
 |---|---|
 | **Size** | Print (standard), large, or thumbnail |
-| **Format** | PNG (lossless), JPEG, or WebP |
+| **Format** | PNG (lossless), JPEG (fast), or WebP (lossless at 100%, typically smaller but slower to open than PNG) |
 | **Quality** | Compression quality for JPEG and WebP (1–100%) |
+
+For a quick experience, use 750x1050, jpeg at 95% quality.
+
+Use the PNG at max size, with bleed enabled, when you want to send your project to a professional printing service.
 
 ### Filename Format
 
@@ -43,10 +47,10 @@ Controls how exported files are named. Options include card name, card index, or
 
 | Option | Effect |
 |---|---|
-| **Include backs** | Exports the back face of each card alongside the front |
+| **Include backs** | Exports the back face of cards alongside the front. Without this, only a single copy of the player back and encounter back will be exported. |
 | **Include bleed** | Adds a bleed border for print services that require it (recommended for printing) |
-| **Rotate** | Rotates the exported images 90° (useful for landscape-format cards) |
-| **Separate versions** | Exports each version of a multi-version card as a separate file |
+| **Rotate** | Ensures all cards are vertical. This is useful for printing layout. If you export for digital purposes, this should be disabled. |
+| **Separate versions** | Exports each version of a multi-version card as a separate file. For instance, if your encounter set has 3 copies of Evil Monster (encounter number 3, 4 and 5), this will export one card with "3/7" one with "4/7", and one with "5/7". Without this option, onely one copy - "3-5/7" - will be exported. |
 
 ---
 
@@ -54,7 +58,7 @@ Controls how exported files are named. Options include card name, card index, or
 
 **Export → Export Card/Campaign/Player to PDF**
 
-Generates a print-ready PDF. Requires [Prince XML](https://www.princexml.com/) to be installed — Prince is free for non-commercial use. Shoggoth will prompt you to install it if it isn't found.
+Generates a print-ready PDF. Requires PrinceXML. Shoggoth will prompt you to install it if it isn't found.
 
 Use **Export → Install Prince** if you need to set it up.
 
@@ -73,13 +77,17 @@ Choose to export a single card, all campaign cards, or all player cards.
 | **Include backs** | Whether to include card backs in the PDF |
 | **Output path** | Where to save the final PDF |
 
+Once the image export is done, the pdf generation begins. This is handled by Prince and can take a good while for large projects. Shoggoth (and your system) might appear frozen while this runs. A full campaign can take upwards of 5 minutes at full print resoltion, and will generate a 4GB pdf file.
+
+A full compaign at medium resolution, in jpeg format, will take a few seconds to run, and result in a 250MB pdf.
+
 ---
 
 ## Export to MBPrint PDF
 
 **Export → Export Card/Campaign/Player to MBPrint PDF**
 
-Same as PDF export but uses a fixed size and format optimized for uploading to [Make Playing Cards](https://www.makeplayingcards.com/) (MBPrint format). Intermediate images are rendered at the exact resolution MPC expects.
+Same as PDF export but uses a fixed size and format optimized for uploading to MBPrint. Intermediate images are rendered at the exact resolution MPC expects.
 
 ---
 
@@ -101,11 +109,13 @@ Generates a TTS-compatible deck configuration.
 
 By default Shoggoth renders and exports the card images alongside the TTS JSON. You can point the image folder to the project folder or a custom location.
 
-If you uncheck **Export images**, the TTS JSON will reference images by name only (useful if you've already uploaded images somewhere and are just regenerating the deck data).
+If you uncheck **Export images**, the TTS JSON will reference images by id/path only (useful if you've already uploaded images somewhere and are just regenerating the deck data).
+
+Shoggoth will write the deck JSON directly to TTS's `Saved Objects` folder if it can detect TTS on your system. Otherwise it will be saved to the project folder.
 
 ### Sync to TTS
 
-With **Send to Tabletop Simulator** checked, Shoggoth will write the deck JSON directly to TTS's `Saved Objects` folder so it appears immediately in the game — no manual file copying needed.
+With **Send to Tabletop Simulator** checked, Shoggoth will send the updated deck information directly to the running instance of TTS so it appears immediately in the game — no reload needed.
 
 ---
 
@@ -113,7 +123,9 @@ With **Send to Tabletop Simulator** checked, Shoggoth will write the deck JSON d
 
 **Export → Export to arkham.build**
 
-Generates a JSON file compatible with the [arkham.build](https://arkham.build) deckbuilder, allowing players to browse and add your custom cards to decks.
+Generates a JSON file compatible with the [arkham.build](https://arkham.build) deckbuilder, allowing you to build decks with your custom cards.
+
+For getting your custom content published, check with arkham.build itself.
 
 ### Image URL Pattern
 
@@ -125,7 +137,7 @@ https://mysite.com/cards/{filename}
 
 The generated JSON will reference the full URL for each card image.
 
-If you leave this blank, the JSON will contain local image paths, which only works if you also send the image files separately.
+If you leave this blank, the JSON will contain local image paths.
 
 ---
 
@@ -133,4 +145,3 @@ If you leave this blank, the JSON will contain local image paths, which only wor
 
 - Run **File → Gather Images** before exporting to ensure all image paths are relative and portable.
 - For print-on-demand services, use **Include bleed** in the image export settings. Most services require 3mm of bleed.
-- PDF export with Prince produces the most accurate, print-ready output and handles multi-page layouts correctly.

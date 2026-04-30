@@ -61,5 +61,4 @@ Because the translation file references cards by ID, it stays in sync even if ca
 ## Tips
 
 - Keep translation files in the same folder as the project file for easy portability.
-- The `documentation/` folder alongside the project is a good place for both.
-- If a translator only covers some cards, the untranslated cards will still display correctly in the original language during export.
+- If a translator only covers some cards, the untranslated cards will still appear in the original language during export.
