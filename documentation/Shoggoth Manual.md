@@ -47,7 +47,9 @@ Shoggoth is not affiliated with, nor endorsed by Fantasy Flight Games.
 
 ## Installation
 
-Download the latest release for your platform from the [releases page](link-to-releases). No installation is required — just extract and run the executable.
+For Windows and Mac: Download the latest release for your platform from the [releases page](https://github.com/tokeeto/shoggoth/releases). No installation is required — just extract and run the executable.
+
+For linux: Install Shoggoth via python. `pip install shoggoth`. It's recommended to use `pipx shoggoth` (or `uvx shoggoth`) to install Shoggoth in it's own isolated environment. You can also request linux standalone binaries if you want them. So far, no one has had a need of those though.
 
 ### Building from Source
 
@@ -57,7 +59,7 @@ If you want to build Shoggoth yourself or contribute to development:
 2. Clone this repository
 3. Run `uv run shoggoth`
 
-Shoggoth downloads its asset pack (card templates, fonts, icons) automatically on first launch from the [shoggoth-assets](https://github.com/tokeeto/shoggoth_assets) repository. You only need to clone that repo if you want to modify the assets themselves.
+Shoggoth downloads its asset pack (card templates, fonts, icons) automatically on first launch from the [shoggoth-assets](https://github.com/tokeeto/shoggoth_assets) repository. You only need to clone that repo if you want to modify the assets themselves. Shoggoth will stop managing that repo/folder as soon as it sees a .git folder, so make sure to delete .git if you want to go back to Shoggoth automatically downloading updates again.
 
 ---
 
@@ -67,11 +69,11 @@ Shoggoth organizes content the same way Arkham Horror products are structured:
 
 | Concept | What it means |
 |---|---|
-| **Project** | An "expansion" — a campaign box, investigator pack, or any grouped product. Stored as a single `.json` file. |
+| **Project** | An "expansion" — a campaign box, investigator pack, or any product containing a collection of cards. Stored as a single `.json` file. |
 | **Encounter Set** | A named group of encounter cards sharing an icon and sequential numbering. |
 | **Card** | A single card with a front and a back **Face**. |
-| **Face** | One side of a card. Each face has a **type** that determines its default artwork and layout. |
-| **Type** | A set of default values for a face (images, fields, layout). Built-in types include `investigator`, `asset`, `location`, `enemy`, etc. Types can also point to custom templates. |
+| **Face** | One side of a card. Each face must have a **type** that determines its default template and layout. |
+| **Type** | A set of default values for a face (images, fields, layout). Built-in types include `investigator`, `asset`, `location`, `enemy`, etc. Types can also point to custom templates. On a technical level, a Type is just a `.json` file describing the default values of a card. |
 
 Because everything is just a card with typed faces, Shoggoth doesn't enforce rigid categories. You can always override any field or point to a custom template to create something entirely unique.
 
@@ -95,11 +97,11 @@ The tree shows your entire project hierarchy. Player cards are grouped by class 
 
 - **Click** an item to open its editor.
 - **Right-click** any item to see context-specific actions (rename, duplicate, delete, add child, etc.).
-- **Drag and drop** cards to move them between encounter sets or class groups.
+- **Drag and drop** cards to move them between encounter sets or class groups. This will generally attempt to do what you intend where possible.
 
 The tree has two display modes switchable from the View menu:
-- **Tree view** — hierarchical, showing encounter sets as folders
-- **List view** — flat list of all cards, sortable by name or type
+- **Tree view** — hierarchical, showing encounter sets as folders.
+- **List view** — flat list of all cards, sortable by name or collection number.
 
 ### The Editing Area
 
@@ -113,7 +115,7 @@ Most items in the tree open a dedicated editor when selected:
 
 ### The Card Preview
 
-Enable the preview panel from **View → Show Preview** (or press **Ctrl+Shift+P** if bound). The preview renders the card exactly as it will look when exported. Click the card image to switch between front and back faces.
+Enable the preview panel from **View → Show Preview**. The preview renders the card as it will look when exported. Click the front/back tabs to switch between front and back faces. The bleed area of the card (if shown) will be marked in red. This is the part of the card that is not meant to printed or seen, but acts as a safety margin when getting cards printed professionally.
 
 ### The Command Palette
 
@@ -128,8 +130,8 @@ Press **Ctrl+P** to open the command palette. It lists every menu action and mos
 When creating a new project, you'll set:
 
 - **Name** — used for display and as the default export filename
-- **Save location** — the project `.json` file will be created here; all relative image paths are resolved from this folder
-- **Encounter set icon** — an image used for the default encounter set (you can change it later)
+- **Save location** — the project `.json` file will be created here; all relative image paths are resolved from this folder. It can generally be a good idea to create a new folder for each project.
+- **Encounter set icon** — an image used for the default encounter set (you can change it later).
 
 After creation, the project editor opens. From here you can rename encounter sets, add new ones, add guides, or jump straight to creating cards.
 
@@ -138,6 +140,11 @@ After creation, the project editor opens. From here you can rename encounter set
 ### Project Templates
 
 **Project → Add Scenario**, **Add Campaign**, **Add Investigator**, or **Add Investigator Expansion** pre-populate your project with the right encounter sets and card skeletons for that format, so you don't have to set them up from scratch.
+
+- **Add Scenario** — Adds a new encounter set with 3 enemies, 7 treacheries, a bunch of locations and some acts and agendas. This split mirrors an average scenario.
+- **Add Campaign** — Adds 8 scenarios.
+- **Add Investigator** — Adds a new investigator card, an asset card and a treachery weakness card, all linked to the chosen investigator name.
+- **Add Investigator Expansion** — Adds a whole set of player cards matching the average distribution of cards in an official player expansion: A bunch of level 0 cards, some upgrades, in each class, with a split between assets, events and a few skills.
 
 ---
 
@@ -149,26 +156,28 @@ In the New Card dialog, choose:
 
 - **Template** — the card face type (see below)
 - **Name** — the card's name
-- **Encounter set** — which encounter set or player card pool to add it to
+- **Encounter set** — Should be set to player card. If you pick an encounter set, you're now creating a story card.
 
-Player cards live under the class-grouped section of the Project Tree (Guardian, Seeker, Rogue, Mystic, Survivor, or Other).
+Player cards live under the class-grouped section of the Project Tree (Guardian, Seeker, Rogue, Mystic, Survivor, Multi or Other).
 
 ### Asset
 
-Assets are the most common player card type: weapons, tomes, allies, and other items you put into play.
+Assets are the most common player card type: Weapons, Tomes, Allies, and other Items you put into play.
 
 **Front fields:**
-- Name, subname (flavour subheading)
+- Name, subtitle
 - Class(es)
-- Cost (resource cost; use `X` for variable)
-- Level (0–5)
+- Cost
+- Level (0–5, None or customizable)
 - Traits
-- Slot(s)
+- Slots
 - Willpower / Intellect / Combat / Agility skill icons
-- Body text (supports [Arkham text syntax](text-formatting.md))
+- Body text
 - Flavor text
-- Health / Sanity (for ally assets)
+- Health / Sanity
 - Illustration
+
+All text fields support the same [formatting](text-formatting.md).
 
 **Back:** Generic player card back by default; customizable.
 
@@ -183,12 +192,13 @@ One-use cards that are played and discarded.
 Skill cards committed to skill tests.
 
 **Front fields:**
-- Name, subname
+- Name, subtitle
 - Class(es)
 - Level
 - Traits
-- Skill icons (the icons committed to tests)
-- Body text, flavor text
+- Skill icons
+- Body text
+- Flavor text
 - Illustration
 
 ### Investigator
@@ -196,26 +206,24 @@ Skill cards committed to skill tests.
 A full two-sided investigator card.
 
 **Front fields:**
-- Name, subname (title)
+- Name, subtitle
 - Class(es)
 - Willpower / Intellect / Combat / Agility stats
 - Health / Sanity
 - Traits
-- Elder Sign ability text
 - Illustration
-- Signature card / weakness card names
 
 **Back fields:**
 - Class(es)
-- Deck-building restrictions / special rules text
-- Flavor / quote text
+- Deck-building restrictions
 - Deckbuilding options and requirements
+- Flavor text
 
 ### Customizable
 
 Customizable cards have upgrade boxes on the front.
 
-The **Customizable** editor adds an upgrade table where each row has a checkbox count, XP cost, and upgrade text. The **Customizable Back** type is a plain player card back used for the separate level-0 version.
+The **Customizable** editor adds an upgrade table where each row has a checkbox count, name and upgrade text. The **Customizable Back** type is a purpple version of the player card back.
 
 ---
 
@@ -225,35 +233,36 @@ Scenario cards follow the same **File → New Card** / right-click flow. They're
 
 ### Enemy
 
-**Fields:** Fight, Health, Evade, damage, horror, class/keyword traits, body text, victory points, flavor text, illustration.
+**Fields:** Fight, Health, Evade, damage, horror, class (eg. weakness), traits, body text, victory points, flavor text, illustration.
 
 ### Treachery
 
-**Fields:** Class, traits, body text, flavor text, illustration.
+**Fields:** Class, traits, text, flavor text, illustration.
 
 ### Location
 
-Locations have a **front** (the unrevealed side) and a **back** (the revealed side).
+Locations have a **front** (the revealed side) and a **back** (the unrevealed side). They have the same properties and the same UI, but different templates. Also, the back has a default value of "\<copy\>" for a lot of its fields, meaning it will take on the value of the front unless changed.
 
-**Front:** Shroud value, connection dots (directions), location icon, flavor text, illustration.  
-**Back:** Clues, connection arrows, traits, body text, victory points, flavor text, illustration.
+**Fields:** Clues, shroud, connection icon, connections, traits, text, victory points, flavor text, illustration.
 
-The location view (**View → Location View**) arranges all locations in your project on a canvas so you can check connection layouts visually.
+The location view (**View → Location View**) arranges all locations in your project on a canvas so you can check connection layouts visually. You can also use this to create a location overview map for your campaign guide, as well as right-drag new connections between locations. You can press **F** or **Shift+F** to flip a single/all cards respectively, to see the other side (which may change connections).
 
 ### Act & Agenda
 
 Acts and Agendas have matching front and back types (`act` / `act_back`, `agenda` / `agenda_back`).
 
-**Front:** Act/Agenda number and letter (e.g. "1a"), title, body text, flavor text.  
-**Back:** Act/Agenda number and letter (e.g. "1b"), title, doom/clue threshold, body text, resolution text.
+**Front:** Act/Agenda index (e.g. "1a"), title, body text, flavor text, doom/clue threshold.
+**Back:** Act/Agenda index (e.g. "1b"), title, body text, resolution text.
 
 ### Story
 
-A catch-all card type for interlude/story cards, scenario reference cards, etc.
+A rather generic card face for writing story or instructions for the players. Usually put on the back of story critical locations or enemies. Features a single text field.
 
-### Chaos Bag Reference Card
+### Chaos
 
-The `chaos` type renders a chaos bag odds reference card.
+Also known as a Scenario Reference card.
+
+Shows effect of each symbol token in the current scenario. You can combine multiple tokens into one effect with a comma (eg. "cultist, tablet").
 
 ---
 
@@ -267,21 +276,18 @@ For a full reference of every tag, see **[Text Formatting Reference](text-format
 
 | Tag | Effect |
 |---|---|
-| `<b>...</b>` | Bold |
-| `<i>...</i>` | Italic |
-| `[[...]]` | Bold italic (trait/flavor emphasis) |
-| `<action>` or `[action]` | Action symbol |
-| `<fast>` or `[fast]` | Fast (free trigger) symbol |
+| `<b>...</b>` | Bold, Action type |
+| `<i>...</i>` | Italic, flavor text |
+| `<t>...</t>` | Trait |
+| `<action>` | Action symbol |
+| `<free>` | Fast trigger symbol |
 | `<reaction>` | Reaction symbol |
-| `<resource>` | Resource symbol |
 | `<skull>`, `<cultist>`, `<tablet>`, `<elder_thing>` | Chaos token icons |
 | `<elder_sign>`, `<auto_fail>` | Special chaos token icons |
-| `[willpower]`, `[intellect]`, `[combat]`, `[agility]` | Stat icons |
-| `<damage>`, `<horror>` | Damage / horror icons |
+| `<willpower>`, `<intellect>`, `<combat>`, `<agility>` | Stat icons |
 | `<for>` | Expands to **Forced –** |
 | `<rev>` | Expands to **Revelation –** |
 | `<prey>` | Expands to **Prey –** |
-| `<center>...</center>` | Center-align text |
 | `<br>` | Line break |
 | `--` | En dash (–) |
 | `---` | Em dash (—) |
@@ -299,24 +305,26 @@ Supported formats: JPEG, PNG, WebP, and most other common image formats.
 
 ### Gather Images
 
-**File → Gather Images** copies all referenced images into a subfolder next to the project file and rewrites all paths to relative ones. Use this before sharing your project to ensure all images travel with the project file.
+**File → Gather Images** copies all referenced images into a subfolder next to the project file.
 
-**File → Gather and Update Images** does the same but also pulls in any updated versions of images that have changed on disk.
+**File → Gather and Update Images** does the same but also updates the entire project to use these new files. Use this if you want to make it easier to share your project with someone else.
 
 ---
 
 ## Guides
 
-A Guide is a Markdown-formatted document attached to your project — useful for scenario rules, campaign logs, or reference sheets. Guides can also incorporate a PDF as a front page.
+Scenario or Campaign guides is a Markdown-formatted document attached to your project.
 
 **Project → Add Guide** opens the guide creation dialog.
 
 The guide editor provides:
-- A Markdown editor with syntax highlighting
-- A section list for organizing content
-- A PDF viewer for any attached front page
+- A Markdown editor with syntax highlighting.
+- A section list for organizing content.
+- A PDF viewer to preview your work.
 
-Guides are exported alongside your cards as part of the PDF export workflow.
+While I'm trying to keep things consistent between cards and the campaign guide, it is, at its core, two very different rendering systems.
+
+There's a lot of nifty things you can do in the campaign though, such as link to card attributes so if you later change the name of a card, the campaign guide will automatically update, or reference the layout of a scenario automatically and generate setup instructions based on the links between encounter sets.
 
 ---
 
@@ -333,9 +341,9 @@ Shoggoth offers several export paths. See **[Exporting Reference](exporting.md)*
 - Filename format
 - Optional card backs and bleed border
 
-**Export → Export to PDF** — generates a print-ready PDF via the Prince XML renderer. Requires [Prince](https://www.princexml.com/) to be installed (available free for non-commercial use). Also supports **MBprint** format for Make Playing Cards compatible files.
+**Export → Export to PDF** — generates a print-ready PDF via the PrinceXML renderer. Also supports certain specific formats required by print shops.
 
-**Export → Export to Tabletop Simulator** — generates a TTS deck JSON with card sheet images ready to import into Tabletop Simulator.
+**Export → Export to TTS** — generates a Tabletop Simulator deck JSON with card images ready to import into Tabletop Simulator. This export can also make a running instance of TTS update its cards immediately on export, updating all cards where they are. The export is local only, so for publication you'll still need to upload your images somewhere.
 
 **Export → Export to arkham.build** — generates a JSON file compatible with the arkham.build deckbuilder, with an optional image URL pattern so your hosted images load automatically.
 
@@ -345,9 +353,11 @@ Shoggoth offers several export paths. See **[Exporting Reference](exporting.md)*
 
 Shoggoth supports layered translations: the original text is never modified; translated text is stored in a separate overlay file.
 
+This makes it easy to make translations of Shoggoth projects, without having to reconstruct the entire project in hand. Illustrations, set numbers, etc. always stay the same, only the text can be changed. This makes a translation dependent on the project file, but it also makes it possible to make a translation without needing anything but the project .json file. (No images needed, since the original author, or project owner, can export the translation easily afterwards)
+
 1. **Project → Add Translation** — creates a new translation (set language and file path).
 2. Select any card in the tree — the editor will show both original and translated fields side by side.
-3. Type into the translated fields; changes save automatically.
+3. Type into the translated fields.
 4. **Project → Load Translation** — load an existing translation file created by someone else.
 
 When exporting with a translation active, the exported images use the translated text.
@@ -366,7 +376,7 @@ See **[Translation Guide](translations.md)** for details on sharing and managing
 | `Ctrl+R` | Go to card (search by name) |
 | `Ctrl+M` | Auto-enumerate cards |
 | `Ctrl+E` | Quick export current card |
-| `Ctrl+Shift+E` | Export to images dialog |
+| `Ctrl+Shift+E` | Export images dialog |
 | `Ctrl+P` | Command palette |
 | `Ctrl+K` | Toggle project tree |
 
@@ -385,12 +395,15 @@ My Campaign/
     art_location_1.jpg
     art_enemy_boss.png
     ...
+  export of My Campaign/  ← created by Export
+    card1_front.png
+    card1_back.png
 ```
 
 After running **Gather Images**, all paths in the project file are relative, so the entire folder can be zipped and shared. Recipients open `My Campaign.json` in Shoggoth directly.
 
 ### Working with a Text Editor
 
-The `.json` format is designed to be human-readable and hand-editable. You can open the project file in any text editor to make bulk changes (find-and-replace, batch field updates, etc.). Shoggoth detects external changes and reloads automatically in viewer mode (`uv run shoggoth -v project.json`).
+The `.json` format is designed to be human-readable and hand-editable. You can open the project file in any text editor to make bulk changes (find-and-replace, batch field updates, etc.).
 
 For an explanation of the JSON schema, see **[Advanced: Editing JSON Directly](advanced-json.md)**.

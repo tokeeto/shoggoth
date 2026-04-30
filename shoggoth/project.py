@@ -281,7 +281,7 @@ class Project:
     def remove_encounter_set(self, index):
         self.data['encounter_sets'].pop(index)
 
-    def gather_images(self):
+    def gather_images(self, update=False):
         """ Walks through the project and copies to all relevant images to a nearby folder for easier distribution.
             Also updates all used paths to point to the new images using a relative path.
         """
@@ -321,19 +321,27 @@ class Project:
             return image_paths[path_str]
 
         if self.icon:
-            self.data['icon'] = copy_image(self.icon)
+            if update:
+                self.data['icon'] = copy_image(self.icon)
+            else:
+                copy_image(self.icon)
 
         for encounter_set in self.encounter_sets:
             if encounter_set.icon:
-                encounter_set.data['icon'] = copy_image(encounter_set.icon)
+                if update:
+                    encounter_set.data['icon'] = copy_image(encounter_set.icon)
+                else:
+                    copy_image(encounter_set.icon)
 
         for card in self.cards:
             for side in (card.front, card.back):
                 for key in ('illustration', 'image1', 'image2', 'image3', 'image4', 'image5'):
                     image = side.data.get(key)
                     if image:
-                        side.data[key] = copy_image(image)
-
+                        if update:
+                            side.data[key] = copy_image(image)
+                        else:
+                            copy_image(image)
 
     @staticmethod
     def new(name, code, icon):
