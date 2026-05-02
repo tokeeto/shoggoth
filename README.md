@@ -25,7 +25,7 @@ Simply start Shoggoth for the UI mode.
 In UI mode, you'll have an experience similar to other card designers, where the UI will help guide you along to create cards similar to official cards.
 If you installed Shoggoth via Python you can also use shoggoth as a cli tool. Run `shoggoth --help` for more information.
 
-See also the [documentation](documentation/Shoggoth Manual.md)
+See also the [documentation](documentation/manual.md)
 
 ## Development
 
