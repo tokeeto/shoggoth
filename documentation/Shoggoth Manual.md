@@ -1,5 +1,15 @@
 # Shoggoth Manual
 
+---
+
+## What is Shoggoth?
+
+Shoggoth is a desktop application for creating custom cards and related content for **Arkham Horror: The Card Game** by Fantasy Flight Games.
+
+Shoggoth is not affiliated with, nor endorsed by Fantasy Flight Games.
+
+---
+
 ## Table of Contents
 
 - [What is Shoggoth?](#what-is-shoggoth)
@@ -34,12 +44,6 @@
 - [Advanced: Editing JSON Directly](advanced-json.md)
 
 ---
-
-## What is Shoggoth?
-
-Shoggoth is a desktop application for creating custom cards and related content for **Arkham Horror: The Card Game** by Fantasy Flight Games.
-
-Shoggoth is not affiliated with, nor endorsed by Fantasy Flight Games.
 
 ![Shoggoth main window](screenshots/main_window.jpg)
 
