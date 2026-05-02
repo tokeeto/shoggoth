@@ -2,9 +2,11 @@
 ## Card creation software for Arkham Horror: The Card Game
 
 ## Status
-Under development. Viewermode probably out of date. Lots of stuff has only been implemented with surface level functionality or only works with specific setups.
+Under development. We're getting close to a 1.0.0 release though. Most things work, many advanced features has been implemented, and many nice-to-have's are coming together.
 
 Shoggoth allows you to create homebrew cards for Arkham Horror: The Card Game. It features a sensible templating system with inheritance, that makes it easy to define new cards in very few rules.
+
+Shoggoth has been translated into multiple languages by the community.
 
 ## Installation:
 The easiest way is to head to [releases](https://github.com/tokeeto/shoggoth/releases/latest) and grab the file for your system.
@@ -21,75 +23,9 @@ All of this is intended and expected. That being said, Shoggoth is not reviewed 
 ## Usage
 Simply start Shoggoth for the UI mode.
 In UI mode, you'll have an experience similar to other card designers, where the UI will help guide you along to create cards similar to official cards.
-You can also use shoggoth as a cli tool. Run `shoggoth --help` for more information.
+If you installed Shoggoth via Python you can also use shoggoth as a cli tool. Run `shoggoth --help` for more information.
 
-## Card and data design
-Shoggoth is built for Arkham Horror: The Card Game (trademarked by Fantasy Flight Games. No affiliation, nor endorsement whatsoever).
-In theory, there's only 7 card types in AHTCG, but over time, there has been so many variations and exceptions. This has led to Shoggoth adopting the following design:
-
-All Cards are contained within a Project - what's typically called an "expansion". A project could be as small as 1 card, or over 600 cards.
-
-A Project can have cards directly or Encounter Sets that contain cards. Player cards will typically belong directly to a project, whereas encounter cards are grouped by Encounter Sets.
-
-All Cards are built from some standard information, and 2 Faces, the front and back. All faces are identical in fields - there's no feature available for one face that's not available for every other. Enemies can have Shroud, Clues, Doom, and locations can have Attack, Health and Horror.
-The UI makes it easy to generate standard compliant cards, but if you edit the json data directly, you have full control.
-
-### Structure and Fields
-Project
-```json
-{
-    "name": "Full Name of Project",
-    "icon": "path/to/icon.jpeg",
-    "code": "FNoP",
-    "encounter_sets": [],
-    "cards": [],
-    "id": "random-generated-guid"
-}```
-
-Encounter Set
-```json
-{
-    "name": "Name of Set",
-    "icon": "path/to/encounter/icon.png",
-    "code": "NoS",  // Shorthand code for set
-    "card_amount": 40,  // automatically calculated, stored for convinience
-    "id": "random-generated-guid",
-    "order": 1  // manual order, such as scenario order, in the project
-}```
-
-Cards
-```json
-{
-    "name": "Werewolf",  // Primary name of card. The actual title text on the card can be different, but this is the identifier. 
-    "front": {},  // Front side of the card.
-    "back": {},
-    "encounter_number": "10",  // Number in the encounter set, if any. This can be given as a range "10-15" or a single number.
-    "project_number": 50,  // Card number in the project.
-    "id": "0a1b2a69-b55f-4571-8b20-90eaa2fea43b",  // random guid
-    "encounter_set": "c959bdf0-6833-4e10-b1ee-7af118b18f15",  // id of the containing encounter set.
-    "investigator": "Astrid"  // Mainly for player cards - used for grouping cards related to an investigator, such as signatures and weakness together with the investigator.
-}
-```
-
-Faces
-```json
-{
-    "type": "enemy",  // Which template should be used. This either references one of the defaults in the asset package, or a file location of your json templte.
-    "text": "",  // Main body text of the card.
-    "flavor_text": "",  // Flavor text, background story, etc, all goes here.
-    "traits": "Monster.", // Traits of the card  
-    "victory": "Victory 1.",  // The victory field
-    "illustration": "/path/to/werewolf.png", // path to the primary image for this card. 
-    "health": "5<per>", // health of this card.
-    "evade": "5",  // evasion value of this card
-    "attack": "3", // attack value
-    "damage": 1,  // number of damage per attack
-    "horror": 2,  // number of horror per attack
-    "classes": [] // variation of this card. For enemies this can be ["weakness"] or ["basic_weakness"], for assets it could be ["seeker", "guardian"].
-}
-```
-
-Many more fields are available. Almost all fields are text fields, and takes a string to render. A few are intergers, lists or file paths. The full specification will be available later. Check out the defaults in the asset package. 
+See also the [documentation](documentation/manual.md)
 
 ## Development
 
