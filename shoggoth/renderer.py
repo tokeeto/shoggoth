@@ -243,12 +243,12 @@ class CardRenderer:
         image = self.render_card_side(card, card.front, include_bleed=False, width=375, height=525, bleed=18)
         return image
 
-    def get_card_textures(self, card, size, bleed=True, format='jpeg', quality=80):
+    def get_card_textures(self, card, size, bleed=True, format='jpeg', quality=80, show_regions=False):
         """Render both sides of a card"""
         import time
         t = time.time()
-        front = self.render_card_side(card, card.front, include_bleed=bleed, **size)
-        back = self.render_card_side(card, card.back, include_bleed=bleed, **size)
+        front = self.render_card_side(card, card.front, include_bleed=bleed, show_regions=show_regions, **size)
+        back = self.render_card_side(card, card.back, include_bleed=bleed, show_regions=show_regions, **size)
         print(f'get_card_textures in {time.time()-t}')
         return front, back
 
@@ -257,25 +257,26 @@ class CardRenderer:
         """Return the base filename stem for a card variant."""
         import re
         def safe(s):
-            return re.sub(r'[^\w\-.]', '_', str(s))
+            return re.sub(r'[^\w\-.]', '_', str(s)).lower()
 
         if filename_format == 'name':
-            return safe(variant.name)
+            # 1_cardname_back.png
+            return f'{variant.project_number}_{safe(variant.name)}_{{face}}.{{format}}'
         if filename_format == 'order':
-            enc = variant.encounter_number
-            if enc is not None and enc != -1:
-                return safe(str(enc).zfill(3) if isinstance(enc, int) else str(enc))
-            return str(variant.project_number).zfill(3)
+            # 001-card-a.png
+            return '{order}-card-{face_letter}.{format}'
         if filename_format == 'code_name':
-            project_code = variant.project.get('code', '') or ''
+            # bow_skl_001_back.png
+            project_code = variant.project.get('code', '')
             if variant.encounter:
                 enc_code = variant.encounter.get('code', '') or safe(variant.encounter.name)
-                return safe(f'{project_code}_{enc_code}_{variant.name}')
-            return safe(f'{project_code}_{variant.project_number}_{variant.name}')
-        # default: 'id'
-        return variant.id
+                return safe(f'{project_code}_{enc_code}_{variant.encounter_number}_{{face}}.{{format}}')
+            return safe(f'{project_code}_{variant.project_number}_{{face}}.{{format}}')
+        # default
+        # abcd-012345-abcde-02442_cardname_back.png
+        return f'{variant.id}_{variant.name}_{{face}}.{{format}}'
 
-    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id'):
+    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0):
         lossless = quality == 100
         outputs = []
 
@@ -295,7 +296,8 @@ class CardRenderer:
                         image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
                     outputs.append(str(file_path))
                 else:
-                    file_path = Path(folder) / f'{base}_{name}_{index}.{format}'
+                    face_letter = 'a' if name == 'front' else 'b'
+                    file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter)
                     image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
                     image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
                     outputs.append(str(file_path))
@@ -392,7 +394,7 @@ class CardRenderer:
         self.card_wo_illus_cache[card] = self.render_card_side(c, side, include_bleed)
         return self.card_wo_illus_cache[card]
 
-    def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72, rotation=False):
+    def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72, rotation=False, show_regions=False):
         """Render one side of a card"""
         s = width / 1500
 
@@ -454,6 +456,13 @@ class CardRenderer:
             except Exception as e:
                 logging.debug(f'Failed in {func}:', e, exc_info=True)
                 print(f'Failed in {func}: {e}')
+
+        # debug regions
+        if show_regions:
+            try:
+                card_image = self.render_regions(card_image, side, scale=s)
+            except Exception as e:
+                print('render region failed', e)
 
         # cut out bleed
         if not include_bleed:
@@ -568,6 +577,7 @@ class CardRenderer:
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
                         polygon=polygon,
+                        scale=s,
                     )
                     temp_image = temp_image.rotate(font.get('rotation'), expand=True)
                     card_image.paste(temp_image, (region.x, region.y), temp_image)
@@ -584,10 +594,39 @@ class CardRenderer:
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
                         polygon=polygon,
+                        scale=s,
                     )
             except Exception as e:
                 print(f"Error rendering field: {field}\n {e}")
                 continue
+
+    def render_regions(self, card_image, side, scale=1.0):
+        draw = ImageDraw.Draw(card_image)
+
+        def string_to_color(s: str) -> str:
+            import hashlib
+            h = hashlib.md5(s.encode()).digest()
+            return f"#{h[0]:02x}{h[1]:02x}{h[2]:02x}"
+
+        for key in side.data:
+            if '_region' in key:
+                region = Region(side.get(key), scale)
+                draw.rectangle((region.x, region.y, region.x + region.width, region.y+region.height), None, string_to_color(key), 2)
+                draw.text((region.x, region.y-22), key, font_size=20, fill=string_to_color(key))
+            if '_polygon' in key:
+                polygon = side.get(key)
+                draw.line([(n[0]*scale, n[1]*scale) for n in polygon], string_to_color(key), 5)
+                draw.text((polygon[0][0], polygon[0][1]-22), key, font_size=20, fill=string_to_color(key))
+        for key in side._fallback:
+            if '_region' in key:
+                region = Region(side.get(key), scale)
+                draw.rectangle((region.x, region.y, region.x + region.width, region.y+region.height), None, string_to_color(key), 2)
+                draw.text((region.x, region.y-22), key, font_size=20, fill=string_to_color(key))
+            if '_polygon' in key:
+                polygon = side.get(key)
+                draw.line([(n[0]*scale, n[1]*scale) for n in polygon], string_to_color(key), 5)
+                draw.text((polygon[0][0], polygon[0][1]-22), key, font_size=20, fill=string_to_color(key))
+        return card_image
 
     def render_tokens(self, card_image, side, s: float = 1.0):
         value = side.get('tokens')
@@ -958,6 +997,7 @@ class CardRenderer:
                 outline=int(font.get('outline', 0)*s),
                 outline_fill=font.get('outline_color'),
                 alignment=font.get('alignment', 'left'),
+                scale=s,
             )
             surfaces.append((token_surface, text_surface))
 

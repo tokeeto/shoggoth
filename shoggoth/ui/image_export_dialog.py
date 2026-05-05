@@ -145,14 +145,14 @@ class ImageExportDialog(QDialog):
         export_folder = Path(self.project.file_path).parent / f'Export of {self.project.name}'
         export_folder.mkdir(parents=True, exist_ok=True)
 
-        fmt            = self._format_combo.currentText()
-        quality        = self._quality_spin.value()
-        size           = self._selected_size()
-        bleed          = self._cb_bleed.isChecked()
-        separate       = self._cb_separate.isChecked()
-        include_backs  = self._cb_backs.isChecked()
-        rotate         = self._cb_rotate.isChecked()
-        filename_fmt   = self._selected_filename_format()
+        fmt = self._format_combo.currentText()
+        quality = self._quality_spin.value()
+        size = self._selected_size()
+        bleed = self._cb_bleed.isChecked()
+        separate = self._cb_separate.isChecked()
+        include_backs = self._cb_backs.isChecked()
+        rotate = self._cb_rotate.isChecked()
+        filename_fmt = self._selected_filename_format()
 
         progress = QProgressDialog(
             tr("TTS_EXPORTING_IMAGES"), tr("BTN_CANCEL"), 0, len(cards), self
@@ -165,6 +165,7 @@ class ImageExportDialog(QDialog):
         threads = []
 
         try:
+            number = 1
             for i, card in enumerate(cards):
                 if progress.wasCanceled():
                     break
@@ -179,18 +180,20 @@ class ImageExportDialog(QDialog):
                     target=self.renderer.export_card_images,
                     args=(card, str(export_folder)),
                     kwargs={
-                        'size':            size,
-                        'bleed':           bleed,
-                        'format':          fmt,
-                        'quality':         quality,
-                        'include_backs':   include_backs,
+                        'size': size,
+                        'bleed': bleed,
+                        'format': fmt,
+                        'quality': quality,
+                        'include_backs': include_backs,
                         'separate_versions': separate,
-                        'rotate':          rotate,
+                        'rotate': rotate,
                         'filename_format': filename_fmt,
+                        'number': number,
                     }
                 )
                 threads.append(t)
                 t.start()
+                number += card.amount
 
             for t in threads:
                 t.join()

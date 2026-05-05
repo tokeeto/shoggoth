@@ -92,6 +92,7 @@ class SettingsManager:
             'prince_cmd': 'prince',
             'prince_dir': '',
             'show_bleed': True,
+            'show_regions': False,
             # Appearance
             'color_scheme': 'system',
             'ui_style': 'Fusion',
@@ -283,6 +284,11 @@ class SettingsDialog(QDialog):
         )
         preview_layout.addRow(tr("LABEL_BLEED_DISPLAY"), self.show_bleed_checkbox)
 
+        # Show regions checkbox (debug)
+        self.show_regions_checkbox = QCheckBox(tr("OPT_SHOW_REGIONS"))
+        self.show_regions_checkbox.setToolTip(tr("HELP_SHOW_REGIONS"))
+        preview_layout.addRow(tr("LABEL_SHOW_REGIONS"), self.show_regions_checkbox)
+
         preview_group.setLayout(preview_layout)
         layout.addWidget(preview_group)
 
@@ -432,6 +438,9 @@ class SettingsDialog(QDialog):
         self.show_bleed_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_bleed', True)
         )
+        self.show_regions_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'show_regions', False)
+        )
 
         # Appearance settings
         saved_style = self.settings.get('Shoggoth', 'ui_style', 'Fusion')
@@ -476,6 +485,7 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
         self.settings.set('Shoggoth', 'prince_dir', self.prince_dir_input.text())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
+        self.settings.set('Shoggoth', 'show_regions', self.show_regions_checkbox.isChecked())
 
         # Appearance
         ui_style = self.style_combo.currentData()

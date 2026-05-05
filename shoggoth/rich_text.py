@@ -476,6 +476,48 @@ class RichTextRenderer:
         text = text.replace('\x00SQ\x00', "'")
         return text
 
+    def _merge_last_two_words(self, toks):
+        """Merge the last two plain-text words in a token list into a non-breaking unit."""
+        last_space_i = None
+        for i in range(len(toks) - 1, -1, -1):
+            if toks[i]['type'] == 'text' and toks[i]['value'] == ' ':
+                last_space_i = i
+                break
+
+        if last_space_i is None:
+            return list(toks)
+
+        # Everything after the last space must be plain text (the last word only)
+        suffix = toks[last_space_i + 1:]
+        if not suffix or any(t['type'] != 'text' or t['value'] == ' ' for t in suffix):
+            return list(toks)
+
+        # The token immediately before the space must also be plain text
+        pre_i = last_space_i - 1
+        if pre_i < 0 or toks[pre_i]['type'] != 'text' or toks[pre_i]['value'] == ' ':
+            return list(toks)
+
+        # Merge: embed the space inside the token so the layout engine won't break there
+        combined = toks[pre_i]['value'] + ' ' + ''.join(t['value'] for t in suffix)
+        return list(toks[:pre_i]) + [{'type': 'text', 'value': combined}]
+
+    def _prevent_runts(self, tokens):
+        """Combine the last two plain-text words of each paragraph to prevent single-word last lines."""
+        if not tokens:
+            return tokens
+
+        result = []
+        para = []
+        for tok in tokens:
+            if tok['type'] == 'newline':
+                result.extend(self._merge_last_two_words(para))
+                result.append(tok)
+                para = []
+            else:
+                para.append(tok)
+        result.extend(self._merge_last_two_words(para))
+        return result
+
     def parse_text(self, text):
         tokens = []
         text = self._expand_bullet_shorthand(text)
@@ -586,11 +628,12 @@ class RichTextRenderer:
                 pos += 1
             tok_append({'type': 'text', 'value': text[start:pos]})
 
+        tokens = self._prevent_runts(tokens)
         return tokens
 
     def _layout(self, tokens, region, polygon, font_size, base_font='regular',
                 alignment='left', fill='#231f20', outline=0, outline_fill=None,
-                force=False):
+                force=False, scale=1.0):
         fonts = self.load_fonts(font_size)
         current_fonts = fonts
         size_stack = []
@@ -720,8 +763,11 @@ class RichTextRenderer:
             def _emit_merged():
                 nonlocal merge_text, merge_font, merge_w, merge_strike
                 if not merge_text:
-                    return
+                    return 0.0
                 val = ''.join(merge_text)
+                # True advance (with kerning) may differ from our per-char sum.
+                # Return the correction so callers can fix x_pos at font boundaries.
+                true_advance = merge_font.getlength(val)
                 cmd_append({
                     'cmd': 'text',
                     'x': merge_x, 'y': y,
@@ -739,6 +785,7 @@ class RichTextRenderer:
                     })
                 merge_text = []
                 merge_font = None  # force next run to start fresh at current x_pos
+                return true_advance - merge_w
 
             for item in items:
                 c = item['cmd']
@@ -750,7 +797,7 @@ class RichTextRenderer:
                         merge_text.append(item['value'])
                         merge_w += item['width']
                     else:
-                        _emit_merged()
+                        x_pos += _emit_merged()
                         merge_font = fobj
                         merge_strike = st
                         merge_x = x_pos
@@ -758,7 +805,7 @@ class RichTextRenderer:
                         merge_text = [item['value']]
                     x_pos += item['width']
                 elif c == 'image':
-                    _emit_merged()
+                    x_pos += _emit_merged()
                     if item['icon'] is not None:
                         icon_y = int(y - (item['icon'].height - font_size) // 2)
                         cmd_append({'cmd': 'image',
@@ -821,8 +868,9 @@ class RichTextRenderer:
 
             elif t == 'size':
                 size_stack.append(current_fonts)
-                current_fonts = self.load_fonts(int(token['value']))
-                line_height = int(token['value']) * 1.30
+                scaled_size = int(round(int(token['value']) * scale))
+                current_fonts = self.load_fonts(scaled_size)
+                line_height = scaled_size * 1.30
 
             elif t == 'size_pop':
                 current_fonts = size_stack.pop() if size_stack else fonts
@@ -932,7 +980,7 @@ class RichTextRenderer:
 
     def render_text(self, image, text, region, polygon=None, alignment='left',
                     font_size=32, min_font_size=None, font=None, outline=0,
-                    outline_fill=None, fill='#231f20', halign='top'):
+                    outline_fill=None, fill='#231f20', halign='top', scale=1.0):
         if not text:
             return
 
@@ -950,7 +998,7 @@ class RichTextRenderer:
                 tokens, region, polygon, current_size,
                 base_font=font, alignment=alignment,
                 fill=fill, outline=outline, outline_fill=outline_fill,
-                force=force,
+                force=force, scale=scale,
             )
             if fits or force:
                 self._render(image, commands)

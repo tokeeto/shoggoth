@@ -140,6 +140,11 @@ class ZoomablePDFViewer(QFrame):
         self.pan_y = 0
         self.update()
 
+    def update_pixmap(self, pixmap):
+        """Replace the displayed image without resetting zoom or pan."""
+        self.pixmap = pixmap
+        self.update()
+
     def paintEvent(self, event):
         super().paintEvent(event)
         if not self.pixmap:
@@ -870,7 +875,9 @@ class SectionEditorPanel(QWidget):
 class GuideEditor(QWidget):
     """Left: stacked overview/editor. Right: PDF preview."""
 
-    def __init__(self, guide):
+    splitter_sizes_changed = Signal(list)
+
+    def __init__(self, guide, splitter_sizes=None):
         super().__init__()
         self.guide = guide
         self.current_page = 1
@@ -878,10 +885,14 @@ class GuideEditor(QWidget):
         self.render_timer = None
         self._active_editor = None
         self._setup_ui()
+        if splitter_sizes:
+            QTimer.singleShot(0, lambda: self.splitter.setSizes(splitter_sizes))
         self.render_page(1)
 
     def _setup_ui(self):
-        splitter = QSplitter(Qt.Horizontal)
+        self.splitter = QSplitter(Qt.Horizontal)
+        splitter = self.splitter
+        splitter.splitterMoved.connect(lambda pos, idx: self.splitter_sizes_changed.emit(splitter.sizes()))
 
         # ── Left: stacked overview / editor ──────────────────────────────────
         self.stack = QStackedWidget()
@@ -990,9 +1001,10 @@ class GuideEditor(QWidget):
 
     def _on_page_rendered(self, page_number, pixmap):
         if page_number == self.current_page:
-            self.pdf_viewer.set_pixmap(pixmap)
+            self.pdf_viewer.update_pixmap(pixmap)
 
     def _on_page_changed(self, page_number):
+        self.pdf_viewer.reset_view()
         self.current_page = page_number
         self.render_page(page_number)
 

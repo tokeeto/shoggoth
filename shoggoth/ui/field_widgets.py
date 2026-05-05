@@ -257,6 +257,8 @@ class ClassLineEdit(QLineEdit):
         return start, cursor_pos
 
     def update_completer(self):
+        if not self.hasFocus():
+            return
         start, end = self._current_token_bounds()
         prefix = self.text()[start:end].strip()
         if prefix:

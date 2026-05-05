@@ -1291,6 +1291,11 @@ class ShoggothMainWindow(QMainWindow):
             action=toggle('show_bleed', self.schedule_preview_update),
         ))
         commands.append(Command(
+            name=tr("CMD_TOGGLE_SHOW_REGIONS"),
+            category=cat,
+            action=toggle('show_regions', self.schedule_preview_update),
+        ))
+        commands.append(Command(
             name=tr("CMD_TOGGLE_EXPORT_BLEED"),
             category=cat,
             action=toggle('export_bleed'),
@@ -1602,6 +1607,13 @@ class ShoggothMainWindow(QMainWindow):
         # ==================== HELP MENU ====================
         help_menu = menubar.addMenu(tr("MENU_HELP"))
 
+        # Manual
+        manual_action = QAction(tr("MENU_MANUAL"), self)
+        manual_action.triggered.connect(self.show_manual)
+        help_menu.addAction(manual_action)
+
+        help_menu.addSeparator()
+
         # Text options
         text_options_action = QAction(tr("MENU_TEXT_OPTIONS"), self)
         text_options_action.triggered.connect(self.show_text_options)
@@ -1787,6 +1799,11 @@ class ShoggothMainWindow(QMainWindow):
         self._capture_layout()
         with open(root_dir / 'shoggoth.json', 'w') as f:
             json.dump(self.settings, f)
+
+    def _on_guide_splitter_changed(self, sizes):
+        self.settings.setdefault('session', {})
+        self.settings['session']['guide_splitter_sizes'] = sizes
+        self._on_layout_changed()
 
     def load_settings(self):
         """Load application settings"""
@@ -2408,7 +2425,9 @@ class ShoggothMainWindow(QMainWindow):
 
         # Create and add guide editor
         from shoggoth.ui.guide_editor import GuideEditor
-        editor = GuideEditor(guide)
+        guide_splitter_sizes = self.settings.get('session', {}).get('guide_splitter_sizes')
+        editor = GuideEditor(guide, splitter_sizes=guide_splitter_sizes)
+        editor.splitter_sizes_changed.connect(self._on_guide_splitter_changed)
         self.content_layout.addWidget(editor)
 
         self.current_guide = guide
@@ -2562,12 +2581,13 @@ class ShoggothMainWindow(QMainWindow):
         card = self.current_card
         version = self.render_version
         bleed = 'mark' if self.config.getboolean('Shoggoth', 'show_bleed', True) else False
+        show_regions = self.config.getboolean('Shoggoth', 'show_regions', False)
         renderer = self.card_renderer
 
         def render_task():
             try:
                 front_image, back_image = renderer.get_card_textures(
-                    card, {'width': 1500, 'height': 2100, 'bleed': 72}, bleed=bleed
+                    card, {'width': 1500, 'height': 2100, 'bleed': 72}, bleed=bleed, show_regions=show_regions
                 )
                 # Emit result signal (will be handled on main thread)
                 self.render_result_signal.emit(version, front_image, back_image)
@@ -2601,9 +2621,10 @@ class ShoggothMainWindow(QMainWindow):
             bleed = False
             if self.config.getboolean('Shoggoth', 'show_bleed', True):
                 bleed = 'mark'
+            show_regions = self.config.getboolean('Shoggoth', 'show_regions', False)
 
             front_image, back_image = self.card_renderer.get_card_textures(
-                self.current_card, {'width': 1500, 'height': 2100, 'bleed': 72}, bleed=bleed
+                self.current_card, {'width': 1500, 'height': 2100, 'bleed': 72}, bleed=bleed, show_regions=show_regions
             )
             self.card_preview.set_card_images(front_image, back_image)
         except Exception as e:
@@ -2832,6 +2853,44 @@ class ShoggothMainWindow(QMainWindow):
             # Update the preview (increment version and start background render immediately)
             self.render_version += 1
             self._start_background_render()
+
+    def show_manual(self):
+        from pathlib import Path
+        from PySide6.QtCore import QUrl
+        manual_path = Path(__file__).parent.parent.parent / "documentation" / "manual.md"
+        if not manual_path.exists():
+            QDesktopServices.openUrl(QUrl("https://github.com/tokeeto/shoggoth/blob/manual/documentation/manual.md"))
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(tr("MENU_MANUAL"))
+        dialog.resize(960, 720)
+        layout = QVBoxLayout()
+
+        browser = QTextBrowser()
+        browser.setSearchPaths([str(manual_path.parent)])
+        browser.setMarkdown(manual_path.read_text(encoding="utf-8"))
+        browser.setOpenLinks(False)
+
+        def on_link_clicked(url):
+            if url.scheme() in ("http", "https"):
+                QDesktopServices.openUrl(url)
+            elif not url.path() and url.fragment():
+                browser.scrollToAnchor(url.fragment())
+            else:
+                QDesktopServices.openUrl(QUrl(
+                    "https://github.com/tokeeto/shoggoth/blob/manual/documentation/" + url.path()
+                ))
+
+        browser.anchorClicked.connect(on_link_clicked)
+        layout.addWidget(browser)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        dialog.setLayout(layout)
+        dialog.exec()
 
     def show_about(self):
         """Show about dialog"""
