@@ -264,14 +264,14 @@ class CardRenderer:
             return f'{variant.project_number}_{safe(variant.name)}_{{face}}.{{format}}'
         if filename_format == 'order':
             # 001-card-a.png
-            return '{order}-card-{face_letter}.{format}'
+            return '{order:03d}-card-{face_letter}.{format}'
         if filename_format == 'code_name':
             # bow_skl_001_back.png
             project_code = variant.project.get('code', '')
             if variant.encounter:
                 enc_code = variant.encounter.get('code', '') or safe(variant.encounter.name)
-                return safe(f'{project_code}_{enc_code}_{variant.encounter_number}_{{face}}.{{format}}')
-            return safe(f'{project_code}_{variant.project_number}_{{face}}.{{format}}')
+                return f'{project_code}_{enc_code}_{variant.encounter_number}_{{face}}.{{format}}'
+            return f'{project_code}_{variant.project_number}_{{face}}.{{format}}'
         # default
         # abcd-012345-abcde-02442_cardname_back.png
         return f'{variant.id}_{variant.name}_{{face}}.{{format}}'
