@@ -901,18 +901,23 @@ class CardRenderer:
             pan_y = region.y
         else:
             pan_y = int(side.get('illustration_pan_y', 0) * s)
+
+        mask_template = side.get('mask_template', False)
+        if mask_template:
+            temp = Image.new('RGBA', card_image.size, (0,0,0,0))
+            filter = self.get_resized_cached(overlay_dir/'investigator_filter_1.png', card_image.size)
+            temp.paste(illustration, (pan_x, pan_y))
+            temp2 = Image.new('RGBA', card_image.size, (0,0,0,0))
+            temp2.paste(temp, (0, 0), filter)
+            card_image.paste(temp2, (0, 0), temp2)
+            return
+
         # Position and paste
-        if illustration.has_transparency_data:
-            card_image.paste(
-                illustration,
-                (pan_x, pan_y),
-                illustration
-            )
-        else:
-            card_image.paste(
-                illustration,
-                (pan_x, pan_y)
-            )
+        card_image.paste(
+            illustration,
+            (pan_x, pan_y),
+            illustration if illustration.has_transparency_data else None
+        )
 
     def render_level(self, card_image, side, s: float = 1.0):
         """Render the card level"""

@@ -3,11 +3,12 @@ Investigator card editors for Shoggoth
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-    QLineEdit, QPlainTextEdit
+    QLineEdit, QPlainTextEdit, QLabel
 )
 
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledClassEdit
+from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.i18n import tr
 
 
@@ -71,10 +72,51 @@ class InvestigatorEditor(FaceEditor):
         # Illustration
         self.add_illustration_widget()
 
+        # Mask template dropdown
+        mask_row = QWidget()
+        mask_layout = QHBoxLayout()
+        mask_layout.setContentsMargins(0, 0, 0, 0)
+        mask_label = QLabel(tr("FIELD_APPLY_MASK"))
+        mask_label.setMinimumWidth(80)
+        self._mask_combo = NoScrollComboBox()
+        self._mask_combo.addItem(tr("OPTION_DEFAULT"), userData=None)
+        self._mask_combo.addItem(tr("OPTION_TRUE"), userData=True)
+        self._mask_combo.addItem(tr("OPTION_FALSE"), userData=False)
+        self._mask_combo.currentIndexChanged.connect(self._on_mask_changed)
+        mask_layout.addWidget(mask_label)
+        mask_layout.addWidget(self._mask_combo)
+        mask_layout.addStretch()
+        mask_row.setLayout(mask_layout)
+        self.main_layout.addWidget(mask_row)
+
         # Copyright and collection
         self.add_copyright_collection_row()
 
         self.main_layout.addStretch()
+
+    def _on_mask_changed(self):
+        if self.updating:
+            return
+        value = self._mask_combo.currentData()
+        self.face.set('mask_template', value)
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
+
+    def load_data(self):
+        super().load_data()
+        self.updating = True
+        value = self.face.get('mask_template')
+        if value is True:
+            self._mask_combo.setCurrentIndex(1)
+        elif value is False:
+            self._mask_combo.setCurrentIndex(2)
+        else:
+            self._mask_combo.setCurrentIndex(0)
+        self.updating = False
 
 
 class InvestigatorBackEditor(FaceEditor):
