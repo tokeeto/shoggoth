@@ -512,6 +512,7 @@ class CardRenderer:
             if not region:
                 continue
 
+            value = side.card.project.find_file(value)
             image = self.get_illustration_resized_cached(value, region.size)
             card_image.paste(image, region.pos, image)
 
