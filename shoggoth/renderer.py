@@ -708,13 +708,13 @@ class CardRenderer:
         box_path = side.get('icons_box', 'skill_box_<class>.png').replace('<class>', side.get_class())
         box_path = self.overlays_path / box_path
 
-        icon_region = Region(side.get('icons_region', {"x": 112, "y": 424, "width": 0, "height": 164}), s)
-        box_region = Region(side.get('icons_box_region', {"x": -112, "y": -28, "width": 270, "height": 160}), s)
+        icon_region = Region(side.get('icons_region', {"x": 112, "y": 422, "width": 0, "height": 164}), s)
+        box_region = Region(side.get('icons_box_region', {"x": -112, "y": -26, "width": 270, "height": 160}), s)
         box_image = self.get_resized_cached(box_path, box_region.size)
 
         for index, icon in enumerate(value):
             icon_path = self.overlays_path / 'svg' / f"skill_icon_{icon}.svg"
-            icon_image = self.get_resized_cached(icon_path, (scale(102, s), scale(102, s)))
+            icon_image = self.get_resized_cached(icon_path, (scale(102, s), scale(106, s)))
             card_image.paste(box_image, (icon_region.x + box_region.x, index * icon_region.height + icon_region.y + box_region.y), box_image)
             card_image.paste(icon_image, (icon_region.x, index * icon_region.height + icon_region.y), icon_image)
 
