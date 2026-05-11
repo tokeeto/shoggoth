@@ -316,7 +316,7 @@ def _process_lines(lines: list, guide) -> str:
             elif block_type in ('image-top', 'image-bottom'):
                 css = 'top' if block_type == 'image-top' else 'bottom'
                 src = '\n'.join(inner_lines).strip()
-                src = guide.project.find_file(src) or src
+                src = str(guide.project.find_file(src) or src)
                 if src and not src.startswith('file://') and not src.startswith('http'):
                     src = f'file://{src}'
                 block_html = f'<div><img class="{css}" src="{html_module.escape(src)}"></div>'
