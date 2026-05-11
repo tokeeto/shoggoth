@@ -521,7 +521,7 @@ class CardRenderer:
             'attack', 'evade', 'health', 'stamina', 'sanity', 'victory',
             'clues', 'doom', 'shroud', 'willpower', 'intellect',
             'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty',
-            'text1', 'text2', 'text3',
+            'text1', 'text2', 'text3', 'chaos_extra',
         ]:
             value = side.get(field)
             region = Region(side.get(f'{field}_region', None), s)
@@ -968,10 +968,7 @@ class CardRenderer:
             but this allows for easy json formatting of the card.
             It's essentially just a list of image and text.
         """
-        entries = side.get('entries')
-        if not entries:
-            return
-
+        entries = side.get('entries', [])
         region = Region(side.get('chaos_region'), s)
         if not region:
             return
@@ -1016,6 +1013,21 @@ class CardRenderer:
 
             card_image.paste(chaos, (region.x, y + int(height/2 - chaos.getbbox()[3]/2)), chaos)
             card_image.paste(text, (region.x + int(token_size*1.3), y + int(height/2 - text.getbbox()[3]/2)), text)
+
+        # Token area
+        token_region = Region(side.get('chaos_extra_region'), s)
+        if not token_region:
+            return
+        draw = ImageDraw.Draw(card_image, "RGBA")
+        draw.rounded_rectangle(
+            [
+                token_region.x, token_region.y-20*s,
+                token_region.x + token_region.width,  token_region.y + token_region.height
+            ],
+            25*s,
+            fill=(52, 42, 20, 50),
+        )
+
 
     def render_customizable(self, card_image, side, s: float = 1.0):
         """ Renders the scenario reference cards.

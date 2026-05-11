@@ -2,7 +2,8 @@
 Campaign card editors for Shoggoth (act, agenda, chaos, story)
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLineEdit
+    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLineEdit,
+    QCheckBox, QSpinBox, QLabel
 )
 
 from shoggoth.ui.face_editor import FaceEditor
@@ -119,6 +120,38 @@ class ChaosEditor(FaceEditor):
         entries_group.setLayout(entries_layout)
         self.main_layout.addWidget(entries_group)
 
+        # Token area section
+        token_area_group = QGroupBox(tr("GROUP_TOKEN_AREA"))
+        token_area_layout = QVBoxLayout()
+        token_area_layout.setSpacing(4)
+        token_area_layout.setContentsMargins(6, 6, 6, 6)
+
+        self.token_area_enabled = QCheckBox(tr("FIELD_TOKEN_AREA_ENABLED"))
+        self.token_area_enabled.toggled.connect(self.on_token_area_changed)
+        token_area_layout.addWidget(self.token_area_enabled)
+
+        fields_widget = QWidget()
+        fields_layout = QHBoxLayout()
+        fields_layout.setContentsMargins(0, 0, 0, 0)
+
+        fields_layout.addWidget(QLabel(tr("FIELD_TOKEN_AREA_HEIGHT")))
+        self.token_area_height = QSpinBox()
+        self.token_area_height.setRange(10, 500)
+        self.token_area_height.setValue(100)
+        self.token_area_height.valueChanged.connect(self.on_token_area_changed)
+        fields_layout.addWidget(self.token_area_height)
+
+        fields_layout.addWidget(QLabel(tr("FIELD_TOKEN_AREA_TITLE")))
+        self.token_area_title = QLineEdit()
+        self.token_area_title.textChanged.connect(self.on_token_area_changed)
+        fields_layout.addWidget(self.token_area_title)
+
+        fields_widget.setLayout(fields_layout)
+        token_area_layout.addWidget(fields_widget)
+
+        token_area_group.setLayout(token_area_layout)
+        self.main_layout.addWidget(token_area_group)
+
         # Copyright and collection
         self.add_copyright_collection_row()
 
@@ -151,6 +184,13 @@ class ChaosEditor(FaceEditor):
                 token_input.setText('')
                 text_input.setText('')
 
+        # Load token area — read raw data to avoid fallback confusion
+        extra_region = self.face.data.get('chaos_extra_region')
+        self.token_area_enabled.setChecked(bool(extra_region))
+        if extra_region:
+            self.token_area_height.setValue(extra_region.get('height', 100))
+        self.token_area_title.setText(self.face.data.get('chaos_extra_title', '') or '')
+
         self.updating = False
 
     def on_entries_changed(self):
@@ -174,6 +214,39 @@ class ChaosEditor(FaceEditor):
             self.face.set('entries', None)
 
         # Emit data_changed signal
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
+
+    def on_token_area_changed(self):
+        """Handle changes to token area fields"""
+        if self.updating:
+            return
+
+        if self.token_area_enabled.isChecked():
+            height = self.token_area_height.value()
+            title = self.token_area_title.text().strip() or None
+
+            self.face.set('chaos_extra_region', {
+                'x': 248,
+                'y': 1900 - height,
+                'width': 1140,
+                'height': height,
+            })
+
+            chaos_region = dict(self.face.get('chaos_region', {}))
+            chaos_region['height'] = 1220 - 30 - height
+            self.face.set('chaos_region', chaos_region)
+
+            self.face.set('chaos_extra', title)
+        else:
+            self.face.set('chaos_extra_region', None)
+            self.face.set('chaos_region', None)
+            self.face.set('chaos_extra', None)
+
         parent = self.parent()
         while parent:
             if hasattr(parent, 'data_changed'):
