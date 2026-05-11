@@ -286,6 +286,7 @@ class Project:
             Also updates all used paths to point to the new images using a relative path.
         """
         import shutil
+        import os
 
         image_paths = {}  # old path string -> new relative path string
         output_folder = self.folder / f'{self.name} images'
@@ -338,6 +339,14 @@ class Project:
                 for key in ('illustration', 'image1', 'image2', 'image3', 'image4', 'image5'):
                     image = side.data.get(key)
                     if image:
+                        # check for things already in the subfolder
+                        path = os.path.realpath(image)
+                        relative = os.path.relpath(path, output_folder)
+
+                        if relative.startswith(os.pardir):
+                            # already inside the folder
+                            continue
+
                         if update:
                             side.data[key] = copy_image(image)
                         else:
