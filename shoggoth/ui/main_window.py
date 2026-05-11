@@ -1156,6 +1156,20 @@ class ShoggothMainWindow(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self.preview_dock)
         self.preview_dock.hide()
 
+        # Guide preview dock (shown when editing a guide)
+        from shoggoth.ui.guide_editor import GuidePDFPreviewWidget
+        self.guide_preview_dock = QDockWidget(tr("GUIDE_PREVIEW"), self)
+        self.guide_preview_dock.setObjectName("guide_preview_dock")
+        self.guide_preview_dock.setFeatures(
+            QDockWidget.DockWidgetFloatable |
+            QDockWidget.DockWidgetMovable |
+            QDockWidget.DockWidgetClosable
+        )
+        self.guide_preview_widget = GuidePDFPreviewWidget()
+        self.guide_preview_dock.setWidget(self.guide_preview_widget)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.guide_preview_dock)
+        self.guide_preview_dock.hide()
+
         # Set initial splitter sizes
         self.main_splitter.setCollapsible(0, True)
         self.main_splitter.setSizes([300, 700])
@@ -1169,6 +1183,8 @@ class ShoggothMainWindow(QMainWindow):
         self.main_splitter.splitterMoved.connect(self._on_layout_changed)
         self.preview_dock.dockLocationChanged.connect(self._on_layout_changed)
         self.preview_dock.topLevelChanged.connect(self._on_layout_changed)
+        self.guide_preview_dock.dockLocationChanged.connect(self._on_layout_changed)
+        self.guide_preview_dock.topLevelChanged.connect(self._on_layout_changed)
 
         main_layout.addWidget(self.main_splitter)
         central.setLayout(main_layout)
@@ -1800,11 +1816,6 @@ class ShoggothMainWindow(QMainWindow):
         with open(root_dir / 'shoggoth.json', 'w') as f:
             json.dump(self.settings, f)
 
-    def _on_guide_splitter_changed(self, sizes):
-        self.settings.setdefault('session', {})
-        self.settings['session']['guide_splitter_sizes'] = sizes
-        self._on_layout_changed()
-
     def load_settings(self):
         """Load application settings"""
         settings_file = root_dir / 'shoggoth.json'
@@ -2341,6 +2352,7 @@ class ShoggothMainWindow(QMainWindow):
 
         # Hide preview for non-card views
         self.preview_dock.hide()
+        self.guide_preview_dock.hide()
 
         # Clear content layout
         while self.content_layout.count():
@@ -2376,6 +2388,7 @@ class ShoggothMainWindow(QMainWindow):
 
         # Hide preview for non-card views
         self.preview_dock.hide()
+        self.guide_preview_dock.hide()
         self.toggle_preview_action.setChecked(False)
 
         # Clear content layout
@@ -2409,8 +2422,11 @@ class ShoggothMainWindow(QMainWindow):
         self.settings['session']['last_type'] = 'guide'
         self._save_session()
 
-        # Hide preview for non-card views
+        # Switch docks: hide card preview, show guide preview
         self.preview_dock.hide()
+        self.guide_preview_widget.cleanup()
+        self.guide_preview_widget.set_guide(guide)
+        self.guide_preview_dock.show()
 
         # Clear content layout
         while self.content_layout.count():
@@ -2425,9 +2441,8 @@ class ShoggothMainWindow(QMainWindow):
 
         # Create and add guide editor
         from shoggoth.ui.guide_editor import GuideEditor
-        guide_splitter_sizes = self.settings.get('session', {}).get('guide_splitter_sizes')
-        editor = GuideEditor(guide, splitter_sizes=guide_splitter_sizes)
-        editor.splitter_sizes_changed.connect(self._on_guide_splitter_changed)
+        editor = GuideEditor(guide)
+        editor.guide_content_changed.connect(self.guide_preview_widget.schedule_render)
         self.content_layout.addWidget(editor)
 
         self.current_guide = guide
@@ -2448,6 +2463,7 @@ class ShoggothMainWindow(QMainWindow):
 
         # Hide preview for non-card views
         self.preview_dock.hide()
+        self.guide_preview_dock.hide()
 
         # Clear content layout
         while self.content_layout.count():
@@ -2607,7 +2623,7 @@ class ShoggothMainWindow(QMainWindow):
             return
 
         if front_image is not None:
-            self.card_preview.set_card_images(front_image, back_image)
+            self.card_preview.update_card_images(front_image, back_image)
         else:
             self.status_bar.showMessage(tr("ERR_RENDER_CARD"))
 

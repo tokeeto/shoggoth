@@ -51,6 +51,7 @@
   "// ===== MAIN WINDOW - TITLES AND LABELS =====": "",
   "APP_TITLE": "Shoggoth - Creación de Cartas",
   "CARD_PREVIEW": "Vista Previa de Carta",
+  "GUIDE_PREVIEW": "Vista Previa de Guía",
   "CARDS": "Cartas",
   "WELCOME_MESSAGE": "Abre o crea un proyecto para comenzar",
   "STATUS_READY": "Listo",

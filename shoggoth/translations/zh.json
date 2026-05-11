@@ -51,6 +51,7 @@
   "// ===== MAIN WINDOW - TITLES AND LABELS =====": "",
   "APP_TITLE": "Shoggoth 卡牌创作器",
   "CARD_PREVIEW": "卡牌预览",
+  "GUIDE_PREVIEW": "指南预览",
   "CARDS": "卡牌",
   "WELCOME_MESSAGE": "打开或创建一个项目以开始",
   "STATUS_READY": "就绪",

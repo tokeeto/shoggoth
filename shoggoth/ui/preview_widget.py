@@ -60,6 +60,12 @@ class ZoomableImageLabel(QLabel):
         self._update_cursor()
         self._rebuild_scaled()
 
+    def update_pixmap(self, pixmap):
+        """Replace the displayed image without resetting zoom or pan."""
+        self.original_pixmap = pixmap
+        self._update_cursor()
+        self._rebuild_scaled()
+
     def set_illustration_mode(self, enabled):
         """Enable/disable illustration-positioning mode."""
         self.illustration_mode = enabled
@@ -267,6 +273,13 @@ class CardPreviewTab(QWidget):
         self.image_label.setPixmap(toqpixmap(image))
         self.zoom_label.setText("100%")
 
+    def update_image(self, image):
+        """Update the displayed image while preserving zoom and pan."""
+        if not image:
+            return
+        from PIL.ImageQt import toqpixmap
+        self.image_label.update_pixmap(toqpixmap(image))
+
 
 class ImprovedCardPreview(QWidget):
     """Improved card preview with tabs for front/back and zoom capabilities"""
@@ -329,6 +342,13 @@ class ImprovedCardPreview(QWidget):
             self.front_tab.set_image(front_buffer)
         if back_buffer:
             self.back_tab.set_image(back_buffer)
+
+    def update_card_images(self, front_buffer, back_buffer):
+        """Update card images while preserving zoom and pan."""
+        if front_buffer:
+            self.front_tab.update_image(front_buffer)
+        if back_buffer:
+            self.back_tab.update_image(back_buffer)
 
     def show_front(self):
         self.tabs.setCurrentIndex(0)

@@ -51,6 +51,7 @@
   "// ===== MAIN WINDOW - TITLES AND LABELS =====": "",
   "APP_TITLE": "Shoggoth - Kartenersteller",
   "CARD_PREVIEW": "Kartenvorschau",
+  "GUIDE_PREVIEW": "Guide-Vorschau",
   "CARDS": "Karten",
   "WELCOME_MESSAGE": "Öffne oder erstelle ein Projekt um anzufangen",
   "STATUS_READY": "Bereit",

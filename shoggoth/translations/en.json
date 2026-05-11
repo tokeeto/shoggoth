@@ -55,6 +55,7 @@
   "// ===== MAIN WINDOW - TITLES AND LABELS =====": "",
   "APP_TITLE": "Shoggoth Card Creator",
   "CARD_PREVIEW": "Card Preview",
+  "GUIDE_PREVIEW": "Guide Preview",
   "CARDS": "Cards",
   "WELCOME_MESSAGE": "Open or create a project to get started",
   "STATUS_READY": "Ready",

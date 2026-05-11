@@ -1,7 +1,7 @@
 """Guide editor — markdown-based section editing with PDF preview."""
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QSpinBox, QTextEdit, QSplitter, QFileDialog,
+    QSpinBox, QTextEdit, QFileDialog,
     QFrame, QMessageBox, QLineEdit, QStackedWidget,
     QListWidget, QListWidgetItem, QComboBox, QSizePolicy, QDialog,
 )
@@ -870,50 +870,24 @@ class SectionEditorPanel(QWidget):
         self._save_to_guide()
 
 
-# ── Main guide editor ─────────────────────────────────────────────────────────
+# ── Guide PDF preview widget (lives in the detachable dock) ───────────────────
 
-class GuideEditor(QWidget):
-    """Left: stacked overview/editor. Right: PDF preview."""
+class GuidePDFPreviewWidget(QWidget):
+    """Standalone PDF preview panel — zoom/pan persist across page changes and re-renders."""
 
-    splitter_sizes_changed = Signal(list)
-
-    def __init__(self, guide, splitter_sizes=None):
-        super().__init__()
-        self.guide = guide
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.guide = None
         self.current_page = 1
         self.render_thread = None
         self.render_timer = None
-        self._active_editor = None
+        self._fit_on_next_render = False
         self._setup_ui()
-        if splitter_sizes:
-            QTimer.singleShot(0, lambda: self.splitter.setSizes(splitter_sizes))
-        self.render_page(1)
 
     def _setup_ui(self):
-        self.splitter = QSplitter(Qt.Horizontal)
-        splitter = self.splitter
-        splitter.splitterMoved.connect(lambda pos, idx: self.splitter_sizes_changed.emit(splitter.sizes()))
-
-        # ── Left: stacked overview / editor ──────────────────────────────────
-        self.stack = QStackedWidget()
-
-        self.overview = GuideOverviewPanel(self.guide)
-        self.overview.section_edit_requested.connect(self._open_section)
-        self.stack.addWidget(self.overview)  # index 0
-
-        # index 1 is set dynamically when a section is opened
-        self._editor_slot = QWidget()
-        self._editor_slot_layout = QVBoxLayout(self._editor_slot)
-        self._editor_slot_layout.setContentsMargins(0, 0, 0, 0)
-        self.stack.addWidget(self._editor_slot)  # index 1
-
-        splitter.addWidget(self.stack)
-
-        # ── Right: PDF preview ────────────────────────────────────────────────
-        preview_widget = QWidget()
-        pv_layout = QVBoxLayout(preview_widget)
-        pv_layout.setContentsMargins(4, 4, 4, 4)
-        pv_layout.setSpacing(4)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
 
         zoom_row = QHBoxLayout()
         for icon, delta in [("−", -1), (tr("BTN_ZOOM_100"), 0), ("+", 1)]:
@@ -923,10 +897,10 @@ class GuideEditor(QWidget):
             btn.clicked.connect(lambda checked=False, d=delta: self._zoom(d))
             zoom_row.addWidget(btn)
         zoom_row.addStretch()
-        pv_layout.addLayout(zoom_row)
+        layout.addLayout(zoom_row)
 
         self.pdf_viewer = ZoomablePDFViewer()
-        pv_layout.addWidget(self.pdf_viewer, stretch=1)
+        layout.addWidget(self.pdf_viewer, stretch=1)
 
         page_row = QHBoxLayout()
         prev_btn = QPushButton(tr("BTN_PREVIOUS"))
@@ -937,7 +911,7 @@ class GuideEditor(QWidget):
         self.page_spin = QSpinBox()
         self.page_spin.setMinimum(1)
         self.page_spin.setMaximum(999)
-        self.page_spin.valueChanged.connect(self._on_page_changed)
+        self.page_spin.valueChanged.connect(self._on_page_spin_changed)
         page_row.addWidget(self.page_spin)
         self.page_label = QLabel(tr("LABEL_OF_PAGES").format(total="?"))
         page_row.addWidget(self.page_label)
@@ -945,45 +919,31 @@ class GuideEditor(QWidget):
         next_btn = QPushButton(tr("BTN_NEXT"))
         next_btn.clicked.connect(self._next_page)
         page_row.addWidget(next_btn)
-        pv_layout.addLayout(page_row)
+        layout.addLayout(page_row)
 
-        splitter.addWidget(preview_widget)
-        splitter.setStretchFactor(0, 4)
-        splitter.setStretchFactor(1, 1)
+    def set_guide(self, guide):
+        self.guide = guide
+        self.current_page = 1
+        self._fit_on_next_render = True
+        self.page_spin.blockSignals(True)
+        self.page_spin.setValue(1)
+        self.page_spin.blockSignals(False)
+        self.page_label.setText(tr("LABEL_OF_PAGES").format(total="?"))
+        self.pdf_viewer.pixmap = None
+        self.pdf_viewer.update()
+        self._render_page(1)
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.addWidget(splitter)
+    def schedule_render(self):
+        if self.render_timer:
+            self.render_timer.stop()
+        self.render_timer = QTimer()
+        self.render_timer.setSingleShot(True)
+        self.render_timer.timeout.connect(lambda: self._render_page(self.current_page))
+        self.render_timer.start(500)
 
-    # ── Navigation ────────────────────────────────────────────────────────────
-
-    def _open_section(self, section_id: str):
-        if self._active_editor:
-            self._active_editor.flush()
-
-        # Remove old editor widget
-        while self._editor_slot_layout.count():
-            item = self._editor_slot_layout.takeAt(0)
-            if item.widget():
-                item.widget().setParent(None)
-
-        editor = SectionEditorPanel(self.guide, section_id)
-        editor.back_requested.connect(self._show_overview)
-        editor.content_changed.connect(self._schedule_render)
-        self._editor_slot_layout.addWidget(editor)
-        self._active_editor = editor
-        self.stack.setCurrentIndex(1)
-
-    def _show_overview(self):
-        if self._active_editor:
-            self._active_editor.flush()
-        self.overview.refresh()
-        self.stack.setCurrentIndex(0)
-        self._schedule_render()
-
-    # ── PDF preview ───────────────────────────────────────────────────────────
-
-    def render_page(self, page_number):
+    def _render_page(self, page_number):
+        if not self.guide:
+            return
         if self.render_thread and self.render_thread.isRunning():
             self.render_thread.stop()
             self.render_thread.wait(500)
@@ -991,22 +951,18 @@ class GuideEditor(QWidget):
         self.render_thread.page_ready.connect(self._on_page_rendered)
         self.render_thread.start()
 
-    def _schedule_render(self):
-        if self.render_timer:
-            self.render_timer.stop()
-        self.render_timer = QTimer()
-        self.render_timer.setSingleShot(True)
-        self.render_timer.timeout.connect(lambda: self.render_page(self.current_page))
-        self.render_timer.start(500)
-
     def _on_page_rendered(self, page_number, pixmap):
-        if page_number == self.current_page:
+        if page_number != self.current_page:
+            return
+        if self._fit_on_next_render:
+            self._fit_on_next_render = False
+            self.pdf_viewer.set_pixmap(pixmap)
+        else:
             self.pdf_viewer.update_pixmap(pixmap)
 
-    def _on_page_changed(self, page_number):
-        self.pdf_viewer.reset_view()
+    def _on_page_spin_changed(self, page_number):
         self.current_page = page_number
-        self.render_page(page_number)
+        self._render_page(page_number)
 
     def _prev_page(self):
         if self.current_page > 1:
@@ -1026,8 +982,6 @@ class GuideEditor(QWidget):
             self.pdf_viewer.update()
 
     def cleanup(self):
-        if self._active_editor:
-            self._active_editor.flush()
         if self.render_thread and self.render_thread.isRunning():
             self.render_thread.stop()
             self.render_thread.wait(1000)
@@ -1036,3 +990,63 @@ class GuideEditor(QWidget):
                 self.render_thread.wait()
         if self.render_timer:
             self.render_timer.stop()
+
+
+# ── Main guide editor ─────────────────────────────────────────────────────────
+
+class GuideEditor(QWidget):
+    """Stacked overview/section editor panel. PDF preview lives in a separate dock."""
+
+    guide_content_changed = Signal()
+
+    def __init__(self, guide):
+        super().__init__()
+        self.guide = guide
+        self._active_editor = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.stack = QStackedWidget()
+
+        self.overview = GuideOverviewPanel(self.guide)
+        self.overview.section_edit_requested.connect(self._open_section)
+        self.stack.addWidget(self.overview)  # index 0
+
+        self._editor_slot = QWidget()
+        self._editor_slot_layout = QVBoxLayout(self._editor_slot)
+        self._editor_slot_layout.setContentsMargins(0, 0, 0, 0)
+        self.stack.addWidget(self._editor_slot)  # index 1
+
+        main_layout.addWidget(self.stack)
+
+    # ── Navigation ────────────────────────────────────────────────────────────
+
+    def _open_section(self, section_id: str):
+        if self._active_editor:
+            self._active_editor.flush()
+
+        while self._editor_slot_layout.count():
+            item = self._editor_slot_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        editor = SectionEditorPanel(self.guide, section_id)
+        editor.back_requested.connect(self._show_overview)
+        editor.content_changed.connect(self.guide_content_changed)
+        self._editor_slot_layout.addWidget(editor)
+        self._active_editor = editor
+        self.stack.setCurrentIndex(1)
+
+    def _show_overview(self):
+        if self._active_editor:
+            self._active_editor.flush()
+        self.overview.refresh()
+        self.stack.setCurrentIndex(0)
+        self.guide_content_changed.emit()
+
+    def cleanup(self):
+        if self._active_editor:
+            self._active_editor.flush()
