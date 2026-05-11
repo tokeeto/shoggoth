@@ -161,6 +161,7 @@ class RichTextRenderer:
             '<blockquote>': {'start': True, 'format': 'quote', 'block': True},
             '</blockquote>': {'start': False, 'format': 'quote', 'block': True},
             '<br>': {'break': True},
+            '<hr>': {'hr': True},
             '</indent>': {'indent_pop': True},
         }
 
@@ -269,6 +270,8 @@ class RichTextRenderer:
                 fmt_map[tag] = {'type': 'story', 'value': info['format'], 'start': info['start']}
             elif 'break' in info:
                 fmt_map[tag] = {'type': 'break'}
+            elif 'hr' in info:
+                fmt_map[tag] = {'type': 'hr'}
             elif 'indent_pop' in info:
                 fmt_map[tag] = {'type': 'indent_pop'}
         self._fmt_trie = _build_trie(fmt_map)
@@ -294,6 +297,8 @@ class RichTextRenderer:
                 text += f'  {tag}  ({options["format"]})\n'
             elif options.get('break'):
                 text += f'  {tag}  (line break)\n'
+            elif options.get('hr'):
+                text += f'  {tag}  (horizontal rule)\n'
             elif options.get('indent_pop'):
                 text += f'  {tag}  (end indent)\n'
             else:
@@ -812,6 +817,16 @@ class RichTextRenderer:
                                     'x': int(x_pos), 'y': icon_y,
                                     'icon': item['icon']})
                     x_pos += item['width']
+                elif c == 'hr':
+                    x_pos += _emit_merged()
+                    hr_y = int(y + font_size * 0.5)
+                    cmd_append({
+                        'cmd': 'line',
+                        'x1': int(eff_x), 'y1': hr_y,
+                        'x2': int(eff_x + eff_w), 'y2': hr_y,
+                        'fill': fill, 'width': max(1, font_size // 18),
+                    })
+                    x_pos += item['width']
 
             _emit_merged()
 
@@ -898,7 +913,7 @@ class RichTextRenderer:
                 y += current_fonts['regular'].size
                 overflow_check_pending = True
 
-            elif t in ('text', 'font_icon', 'image_icon'):
+            elif t in ('text', 'font_icon', 'image_icon', 'hr'):
                 if overflow_check_pending:
                     overflow_check_pending = False
                     if y + line_height > region.y + max_height:
@@ -921,10 +936,13 @@ class RichTextRenderer:
                     item = {'cmd': 'glyph', 'value': token['value'], 'font': font_obj, 'width': w}
                     if token['value'] == 'b' and not pending:
                         current_indent = wcache.width('b ', font_obj)
-                else:  # image_icon
+                elif t == 'image_icon':
                     icon_img = self._get_inverted_icon(token['value'], current_fonts['regular'].size)
                     w = icon_img.width if icon_img else 0
                     item = {'cmd': 'image', 'icon': icon_img, 'width': w}
+                else:  # hr
+                    w = wrap_width(y)
+                    item = {'cmd': 'hr', 'width': w}
 
                 if current_line_width + w > wrap_width(y):
                     flush()

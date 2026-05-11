@@ -18,7 +18,9 @@ Open **Help → Text Options** inside Shoggoth to see this reference at any time
 | `<right>` / `</right>` | Right-align |
 | `<blockquote>` / `</blockquote>` | Block quote formatting - this matches flavor/story text on Story cards, as well as on Agenda/Act back sides |
 | `<br>` | Explicit line break |
+| `<hr>` | Horizontal rule spanning the full line width - primarily used on story, act and agenda cards. |
 | `<indent>` / `</indent>` | Create an indented block. Useful for aligning a couple of lines |
+| `<font "Name">` / `</font>` | Render text in a different font (either shoggoth-specific name or ttf/otf file path) |
 
 ---
 

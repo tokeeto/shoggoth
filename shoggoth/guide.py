@@ -225,7 +225,7 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
                 name = parts[0].strip()
                 for es in guide.project.encounter_sets:
                     if es.name.lower() == name.lower() and es.icon:
-                        icon_path = (guide.project.folder / es.icon).resolve()
+                        icon_path = guide.project.find_file(es.icon) or es.icon
                         return f'<img src="{icon_path.as_uri()}" class="encounter-icon" title="{html_module.escape(name)}">'
                 return m.group(0)
 
@@ -234,7 +234,7 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
             if es is None:
                 return m.group(0)
             if prop == 'icon':
-                icon_path = (guide.project.folder / es.icon).resolve()
+                icon_path = guide.project.find_file(es.icon) or es.icon
                 return f'<img src="{icon_path.as_uri()}" class="encounter-icon" title="{html_module.escape(es.name)}">'
 
             if prop == 'location_overview':
@@ -300,7 +300,7 @@ def _render_block(block_type: str, inner_html: str) -> str:
     return f'<div class="{block_type}">\n{inner_html}\n</div>'
 
 
-def _process_lines(lines: list, guide=None) -> str:
+def _process_lines(lines: list, guide) -> str:
     """Recursively convert ::: blocks and render remaining text as markdown."""
     result = []
     i = 0
@@ -316,6 +316,7 @@ def _process_lines(lines: list, guide=None) -> str:
             elif block_type in ('image-top', 'image-bottom'):
                 css = 'top' if block_type == 'image-top' else 'bottom'
                 src = '\n'.join(inner_lines).strip()
+                src = guide.project.find_file(src) or src
                 if src and not src.startswith('file://') and not src.startswith('http'):
                     src = f'file://{src}'
                 block_html = f'<div><img class="{css}" src="{html_module.escape(src)}"></div>'
@@ -349,7 +350,7 @@ def _apply_project_refs(text: str, guide=None) -> str:
         prop = m.group(1).strip()
         try:
             if prop == 'icon':
-                icon_path = (guide.project.folder / guide.project.icon).resolve()
+                icon_path = guide.project.find_file(guide.project.icon) or guide.project.icon
                 return f'<img src="{icon_path.as_uri()}" class="project-icon">'
             value = getattr(guide.project, prop, None)
             if value is None:
@@ -386,6 +387,11 @@ def _apply_card_refs(text: str, guide=None) -> str:
     return re.sub(r'\[card:([^\]]+)\]', _replace, text)
 
 
+def _apply_replacements(text: str, guide) -> str:
+    text = text.replace('[pagebreak]', '<div class="pagebreak"></div>')
+    return text
+
+
 def markdown_to_html(md_text: str, guide=None) -> str:
     """Convert guide markdown (with ::: fenced blocks and icon tags) to HTML."""
     text = _apply_encounter_refs(md_text, guide)
@@ -393,6 +399,7 @@ def markdown_to_html(md_text: str, guide=None) -> str:
     text = _apply_traits(text)
     text = _apply_project_refs(text, guide)
     text = _apply_card_refs(text, guide)
+    text = _apply_replacements(text, guide)
     return _process_lines(text.splitlines(), guide)
 
 
