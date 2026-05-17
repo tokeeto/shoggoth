@@ -160,6 +160,10 @@ class RichTextRenderer:
             '</story>': {'start': False, 'indent': 4},
             '<blockquote>': {'start': True, 'format': 'quote', 'block': True},
             '</blockquote>': {'start': False, 'format': 'quote', 'block': True},
+            '<u>': {'start': True, 'underline': True},
+            '</u>': {'start': False, 'underline': True},
+            '<dbl>': {'start': True, 'dbl_underline': True},
+            '</dbl>': {'start': False, 'dbl_underline': True},
             '<br>': {'break': True},
             '<hr>': {'hr': True},
             '</indent>': {'indent_pop': True},
@@ -274,6 +278,10 @@ class RichTextRenderer:
                 fmt_map[tag] = {'type': 'hr'}
             elif 'indent_pop' in info:
                 fmt_map[tag] = {'type': 'indent_pop'}
+            elif 'underline' in info:
+                fmt_map[tag] = {'type': 'underline', 'start': info['start']}
+            elif 'dbl_underline' in info:
+                fmt_map[tag] = {'type': 'dbl_underline', 'start': info['start']}
         self._fmt_trie = _build_trie(fmt_map)
 
         # Icon trie: payload = character
@@ -301,6 +309,10 @@ class RichTextRenderer:
                 text += f'  {tag}  (horizontal rule)\n'
             elif options.get('indent_pop'):
                 text += f'  {tag}  (end indent)\n'
+            elif options.get('underline'):
+                text += f'  {tag}  (underline)\n'
+            elif options.get('dbl_underline'):
+                text += f'  {tag}  (double underline heading)\n'
             else:
                 text += f'  {tag}\n'
         text += "\n" + tr("HELP_REPLACEMENT_TAGS") + "\n"
@@ -671,6 +683,11 @@ class RichTextRenderer:
         quote = False
         quote_last = False
 
+        # Underline state
+        current_underline = False
+        underline_stack = []
+        dbl_underline_pending = False
+
         # Line buffer
         pending = []
         pending_append = pending.append
@@ -722,10 +739,11 @@ class RichTextRenderer:
             return region.width - block_indent
 
         def flush():
-            nonlocal quote_last, has_renderable
+            nonlocal quote_last, has_renderable, dbl_underline_pending
 
             if not has_renderable:
                 quote_last = False
+                dbl_underline_pending = False
                 return
 
             indent = current_indent if indent_current else 0
@@ -756,6 +774,8 @@ class RichTextRenderer:
             else:
                 x_pos = eff_x
 
+            line_x_start = x_pos  # capture for double underline
+
             # ── Merge adjacent same-font text/glyph items into single draws ──
             # This is the critical optimisation: a typical line of 10 words + spaces
             # becomes 2-3 draw.text() calls instead of ~20.
@@ -764,9 +784,10 @@ class RichTextRenderer:
             merge_x = 0.0
             merge_w = 0.0
             merge_strike = False
+            merge_underline = False
 
             def _emit_merged():
-                nonlocal merge_text, merge_font, merge_w, merge_strike
+                nonlocal merge_text, merge_font, merge_w, merge_strike, merge_underline
                 if not merge_text:
                     return 0.0
                 val = ''.join(merge_text)
@@ -788,6 +809,14 @@ class RichTextRenderer:
                         'x2': int(merge_x + merge_w), 'y2': sy,
                         'fill': fill, 'width': max(1, font_size // 16),
                     })
+                if merge_underline:
+                    uy = int(y + font_size * 0.88)
+                    cmd_append({
+                        'cmd': 'line',
+                        'x1': int(merge_x), 'y1': uy,
+                        'x2': int(merge_x + merge_w), 'y2': uy,
+                        'fill': fill, 'width': max(1, font_size // 18),
+                    })
                 merge_text = []
                 merge_font = None  # force next run to start fresh at current x_pos
                 return true_advance - merge_w
@@ -797,14 +826,16 @@ class RichTextRenderer:
                 if c in ('text', 'glyph'):
                     fobj = item['font']
                     st = item.get('strikethrough', False)
-                    # Continue merging if same font and same strikethrough state
-                    if fobj is merge_font and st == merge_strike:
+                    ul = item.get('underline', False)
+                    # Continue merging if same font, strikethrough, and underline state
+                    if fobj is merge_font and st == merge_strike and ul == merge_underline:
                         merge_text.append(item['value'])
                         merge_w += item['width']
                     else:
                         x_pos += _emit_merged()
                         merge_font = fobj
                         merge_strike = st
+                        merge_underline = ul
                         merge_x = x_pos
                         merge_w = item['width']
                         merge_text = [item['value']]
@@ -829,6 +860,18 @@ class RichTextRenderer:
                     x_pos += item['width']
 
             _emit_merged()
+
+            if dbl_underline_pending:
+                dbl_underline_pending = False
+                u_thick = max(1, font_size // 18)
+                u_y1 = int(y + font_size * 0.88)
+                u_y2 = u_y1 + u_thick + max(2, font_size // 10)
+                u_x1 = int(line_x_start)
+                u_x2 = int(line_x_start + line_w)
+                cmd_append({'cmd': 'line', 'x1': u_x1, 'y1': u_y1,
+                            'x2': u_x2, 'y2': u_y1, 'fill': fill, 'width': u_thick})
+                cmd_append({'cmd': 'line', 'x1': u_x1, 'y1': u_y2,
+                            'x2': u_x2, 'y2': u_y2, 'fill': fill, 'width': u_thick})
 
             quote_last = False
 
@@ -863,6 +906,17 @@ class RichTextRenderer:
             elif t == 'font_pop':
                 current_font = font_stack.pop() if font_stack else base_font
                 current_strikethrough = strikethrough_stack.pop() if strikethrough_stack else False
+
+            elif t == 'underline':
+                if token['start']:
+                    underline_stack.append(current_underline)
+                    current_underline = True
+                else:
+                    current_underline = underline_stack.pop() if underline_stack else False
+
+            elif t == 'dbl_underline':
+                if not token['start']:
+                    dbl_underline_pending = True
 
             elif t == 'align':
                 if token['start']:
@@ -929,6 +983,7 @@ class RichTextRenderer:
                         'font': font_obj,
                         'width': w,
                         'strikethrough': current_strikethrough,
+                        'underline': current_underline,
                     }
                 elif t == 'font_icon':
                     font_obj = current_fonts['icon']
