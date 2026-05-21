@@ -295,6 +295,14 @@ def _render_block(block_type: str, inner_html: str) -> str:
             '<img class="glyph bottom" src="file://{{resolution_glyph_bottom}}">\n'
             '</div>'
         )
+    if block_type == 'standalone':
+        return (
+            '<div class="standalone_box">\n'
+            '<img class="glyph top" src="file://{{text_glyph_top}}">\n'
+            f'<div class="content">\n{inner_html}\n</div>\n'
+            '<img class="glyph bottom" src="file://{{text_glyph_bottom}}">\n'
+            '</div>'
+        )
     if block_type == 'indent':
         return f'<div style="margin-left: 2em;">\n{inner_html}\n</div>'
     return f'<div class="{block_type}">\n{inner_html}\n</div>'
@@ -306,20 +314,64 @@ def _process_lines(lines: list, guide) -> str:
     i = 0
     while i < len(lines):
         line = lines[i]
-        m = re.match(r'^:::([\w][\w-]*)$', line.rstrip())
+        m = re.match(r'^:::([\w\-\_]*)\s?(.*)?$', line.rstrip())
         if m:
             block_type = m.group(1)
             inner_lines, end_i = _collect_block(lines, i + 1)
 
             if block_type == 'toc':
                 block_html = _generate_toc_html(guide)
-            elif block_type in ('image-top', 'image-bottom'):
-                css = 'top' if block_type == 'image-top' else 'bottom'
+
+            elif block_type in ('image-top', 'image-bottom', 'image-block', 'image-column'):
+                css = block_type.split('-')[1]
                 src = '\n'.join(inner_lines).strip()
                 src = str(guide.project.find_file(src) or src)
-                if src and not src.startswith('file://') and not src.startswith('http'):
-                    src = f'file://{src}'
-                block_html = f'<div><img class="{css}" src="{html_module.escape(src)}"></div>'
+                block_html = f'<image class="{css}" src="{html_module.escape(src)}">'
+
+            elif block_type in ('image-fade-top', 'image-fade-bottom', 'image-fade-block', 'image-fade-column'):
+                css = block_type.split('-')[2]
+                src = '\n'.join(inner_lines).strip()
+                src = str(guide.project.find_file(src) or src)
+
+                params = m.group(2).split(' ')
+                height_param = '100mm'
+                width_param = '100%'
+                alignment = 'xMidYMid'
+                if len(params) == 1:
+                    height_param = params[0]
+                if len(params) > 1:
+                    width_param = params[0]
+                    height_param = params[1]
+                if len(params) == 3:
+                    align = params[2]
+                    x, y = 'Mid', 'Mid'
+                    if align.startswith('top'):
+                        y = 'Min'
+                    if align.startswith('center'):
+                        y = 'Mid'
+                    if align.startswith('bottom'):
+                        y = 'Max'
+                    if align.endswith('left'):
+                        x = 'Min'
+                    if align.endswith('center'):
+                        x = 'Mid'
+                    if align.endswith('right'):
+                        x = 'Max'
+                    alignment = f'x{x}Y{y}'
+
+                block_html = f"""
+<svg class="{css}" width="{width_param}" height="{height_param}">
+  <defs>
+    <filter id="fade-blur" filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox">
+      <feGaussianBlur stdDeviation="0.03"/>
+    </filter>
+    <mask id="fade-mask" maskContentUnits="objectBoundingBox">
+      <rect x="0.05" y="0.05" width="0.9" height="0.9" rx="0.05" ry="0.05" fill="white" filter="url(#fade-blur)"/>
+    </mask>
+  </defs>
+  <image href="{html_module.escape(src)}" width="100%" height="100%" preserveAspectRatio="{alignment} slice" mask="url(#fade-mask)"/>
+</svg>
+                """
             else:
                 inner_html = _process_lines(inner_lines, guide)
                 block_html = _render_block(block_type, inner_html)
@@ -494,6 +546,9 @@ class Guide:
         html = html.replace("file://{{ahlcgsymbol}}", (files.font_dir / 'AHLCGSymbol.otf').as_uri())
         html = html.replace("file://{{resolution_glyph_top}}", (files.guide_dir / 'resolution_glyph_top.png').as_uri())
         html = html.replace("file://{{resolution_glyph_bottom}}", (files.guide_dir / 'resolution_glyph_bottom.png').as_uri())
+        html = html.replace("file://{{text_glyph_top}}", (files.guide_dir / 'text_glyph_top.png').as_uri())
+        html = html.replace("file://{{text_glyph_bottom}}", (files.guide_dir / 'text_glyph_bottom.png').as_uri())
+        html = html.replace("{{project.name}}", self.project.name)
         try:
             html = html.replace("file:///{{project.icon}}", (self.project.folder / self.project.icon).resolve().as_uri())
         except Exception:

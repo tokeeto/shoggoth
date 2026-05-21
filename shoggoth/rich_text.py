@@ -195,6 +195,7 @@ class RichTextRenderer:
             '<entry>': 'B',
             '<cultist>': 'C',
             '<blessing>': 'D',
+            '<blood>': 'W',
             '<elder_sign>': 'E',
             '<fleur>': 'F',
             '<guardian>': 'G',
