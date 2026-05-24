@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Signal, Qt
 
-from shoggoth.ui.editor_widgets import NoScrollComboBox, ALL_CARD_TYPES, FULLART_CARD_TYPES
+from shoggoth.ui.editor_widgets import NoScrollComboBox, ALL_CARD_TYPES, FULLART_CARD_TYPES, CHAPTER2_CARD_TYPES
 from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTraitEdit, LabeledClassEdit, LabeledTextEdit
 from shoggoth.ui.card_widgets import IllustrationWidget, IconsWidget
 from shoggoth.i18n import tr
@@ -53,11 +53,15 @@ class FaceEditor(QWidget):
         self.type_combo.setEditable(True)
         self.type_combo.setInsertPolicy(QComboBox.NoInsert)
         self.type_combo.addItems(ALL_CARD_TYPES)
-        self.type_combo.addItem(tr("FULLART_VARIANTS"))
+        self.type_combo.addItem("")
+        self.type_combo.addItem('-- ' + tr("FULLART_VARIANTS") + ' --')
         self.type_combo.addItems(FULLART_CARD_TYPES)
+        self.type_combo.addItem("")
+        self.type_combo.addItem('-- ' + tr("CH2_PREVIEW_VARIANTS") + ' --')
+        self.type_combo.addItems(CHAPTER2_CARD_TYPES)
 
         # Add autocomplete
-        completer = QCompleter(ALL_CARD_TYPES+FULLART_CARD_TYPES)
+        completer = QCompleter(ALL_CARD_TYPES + FULLART_CARD_TYPES + CHAPTER2_CARD_TYPES)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setCompletionMode(QCompleter.PopupCompletion)
         self.type_combo.setCompleter(completer)

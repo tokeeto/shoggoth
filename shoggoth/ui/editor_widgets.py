@@ -35,6 +35,9 @@ FULLART_CARD_TYPES = [
     'fullart_scanning_back',
     'fullart_encounter_with_connections',
 ]
+CHAPTER2_CARD_TYPES = [
+    'chapter_2/enemy',
+]
 
 
 class NoScrollComboBox(QComboBox):

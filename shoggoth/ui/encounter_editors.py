@@ -2,7 +2,7 @@
 Encounter card editors for Shoggoth (enemy, treachery, location)
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel
 )
 
 from shoggoth.ui.face_editor import FaceEditor
@@ -18,34 +18,55 @@ class EnemyEditor(FaceEditor):
         self.add_labeled_line(tr("FIELD_NAME"), "name")
         self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
 
-        # Traits with autocomplete
-        self.add_trait_field()
-        self.add_class_field()
-
-        grid_widget = QWidget()
-        grid_layout = QFormLayout()
-
+        # Attack, Health, Evade on one row (1/3 each)
+        combat_widget = QWidget()
+        combat_layout = QHBoxLayout()
+        combat_layout.setContentsMargins(0, 0, 0, 0)
+        combat_layout.setSpacing(4)
         for field, label in [
             ("attack", tr("FIELD_ATTACK")),
             ("health", tr("FIELD_HEALTH")),
             ("evade", tr("FIELD_EVADE")),
-            ("damage", tr("FIELD_DAMAGE")),
-            ("horror", tr("FIELD_HORROR")),
-            ("victory", tr("FIELD_VICTORY")),
         ]:
             widget = LabeledLineEdit(label)
             self.fields[field] = widget.input
-            # Use a factory function to create proper closure
             def make_callback(field_name):
                 return lambda: self.on_field_changed(field_name)
             widget.input.textChanged.connect(make_callback(field))
-            grid_layout.addRow(widget)
+            combat_layout.addWidget(widget)
+        combat_widget.setLayout(combat_layout)
+        self.main_layout.addWidget(combat_widget)
 
-        grid_widget.setLayout(grid_layout)
-        self.main_layout.addWidget(grid_widget)
+        # Traits with autocomplete
+        self.add_trait_field()
+        self.add_class_field()
 
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+
+        # Flavor text at reduced height (2 lines)
+        flavor_widget = self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        flavor_widget.input.setMinimumHeight(58)
+        flavor_widget.input.setMaximumHeight(58)
+
+        # Damage and Horror on one row
+        dmg_widget = QWidget()
+        dmg_layout = QHBoxLayout()
+        dmg_layout.setContentsMargins(0, 0, 0, 0)
+        dmg_layout.setSpacing(4)
+        for field, label in [
+            ("damage", tr("FIELD_DAMAGE")),
+            ("horror", tr("FIELD_HORROR")),
+        ]:
+            widget = LabeledLineEdit(label)
+            self.fields[field] = widget.input
+            def make_callback(field_name):
+                return lambda: self.on_field_changed(field_name)
+            widget.input.textChanged.connect(make_callback(field))
+            dmg_layout.addWidget(widget)
+        dmg_widget.setLayout(dmg_layout)
+        self.main_layout.addWidget(dmg_widget)
+
+        self.add_labeled_line(tr("FIELD_VICTORY"), "victory")
         self.add_illustration_widget()
 
         # Copyright and collection

@@ -559,6 +559,17 @@ class CardRenderer:
             value = self.text_replacement(field, value, side)
 
             try:
+                overlay = side.get(f'{field}_overlay')
+                overlay_region = Region(side.get(f'{field}_overlay_region'), s)
+                if overlay and overlay_region:
+                    if not Path(overlay).exists():
+                        overlay = overlay_dir / overlay
+                    overlay_image = self.get_resized_cached(overlay, overlay_region.size)
+                    card_image.paste(overlay_image, overlay_region.pos, overlay_image)
+            except Exception as e:
+                print(f"Error rendering field overlay: {field}\n {e}")
+
+            try:
                 font = side.get(f'{field}_font', {})
                 polygon = side.get(f'{field}_polygon', None)
                 if polygon:
@@ -974,25 +985,30 @@ class CardRenderer:
         if not region:
             return
         font = side.get("chaos_font", {})
-        token_size = 200*s  # pixel size of token icons
+        token_size = 200 * s  # pixel size of token icons
         surfaces = []
 
         for entry in entries:
-            if not entry['token'] and not entry['text']:
+            if not entry.get('token') and not entry.get('text'):
                 continue
-            tokens = entry['token']
+            tokens = entry.get('token')
             if not isinstance(tokens, list):
                 tokens = [tokens]
 
             token_surface = Image.new('RGBA', (int(token_size), int(region.height)), (255, 255, 255, 0))
             for token_index, token in enumerate(tokens):
-                token_image = self.get_resized_cached(overlay_dir / f"chaos_{token}.png", (int(token_size), int(token_size)))
+                token_path = side.card.project.find_file(token)
+                if not token_path:
+                    token_path = overlay_dir / f"chaos_{token}.png"
+                if not token_path.exists():
+                    continue
+                token_image = self.get_resized_cached(token_path, (int(token_size), int(token_size)))
                 token_surface.paste(token_image, (0, int(token_size*1.1) * token_index), token_image)
 
             text_surface = Image.new('RGBA', region.size, (255, 255, 255, 0))
             self.rich_text.render_text(
                 text_surface,
-                entry['text'],
+                entry.get('text', ''),
                 Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-token_size*2}),
                 font=font.get('font', 'regular'),
                 font_size=int(font.get('size', 32)*s),
@@ -1004,7 +1020,8 @@ class CardRenderer:
             )
             surfaces.append((token_surface, text_surface))
 
-        weights = [max(n.getbbox()[3], m.getbbox()[3]) for n,m in surfaces]
+        weights = [max(n.getbbox()[3] if n.getbbox() else 0, m.getbbox()[3]if m.getbbox() else 0) for n, m in surfaces]
+        print(weights)
         weight_pixels = region.height/sum(weights)
 
         for index, weight in enumerate(weights):
@@ -1012,8 +1029,10 @@ class CardRenderer:
             height = weight_pixels * weight
             y = region.y + int(sum(weights[:index]) * weight_pixels)
 
-            card_image.paste(chaos, (region.x, y + int(height/2 - chaos.getbbox()[3]/2)), chaos)
-            card_image.paste(text, (region.x + int(token_size*1.3), y + int(height/2 - text.getbbox()[3]/2)), text)
+            if chaos.getbbox():
+                card_image.paste(chaos, (region.x, y + int(height/2 - chaos.getbbox()[3]/2)), chaos)
+            if text.getbbox():
+                card_image.paste(text, (region.x + int(token_size*1.3), y + int(height/2 - text.getbbox()[3]/2)), text)
 
         # Token area
         token_region = Region(side.get('chaos_extra_region'), s)
@@ -1023,9 +1042,9 @@ class CardRenderer:
         draw.rounded_rectangle(
             [
                 token_region.x, token_region.y-20*s,
-                token_region.x + token_region.width,  token_region.y + token_region.height
+                token_region.x + token_region.width, token_region.y + token_region.height
             ],
-            25*s,
+            25 * s,
             fill=(52, 42, 20, 50),
         )
 
