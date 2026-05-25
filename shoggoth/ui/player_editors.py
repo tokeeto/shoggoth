@@ -3,11 +3,11 @@ Player card editors for Shoggoth (asset, event, skill, customizable)
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QComboBox, QLineEdit, QSpinBox
+    QLineEdit, QSpinBox
 )
 
 from shoggoth.ui.face_editor import FaceEditor
-from shoggoth.ui.editor_widgets import SlotsWidget
+from shoggoth.ui.editor_widgets import SlotsWidget, NoScrollComboBox
 from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledClassEdit
 from shoggoth.ui.card_widgets import IconsWidget
 from shoggoth.i18n import tr
@@ -41,7 +41,7 @@ class AssetEditor(FaceEditor):
         grid_layout.addRow(cost_input)
 
         # Level
-        level_combo = QComboBox()
+        level_combo = NoScrollComboBox()
         level_combo.addItems([tr('OPTION_NONE'), '0', '1', '2', '3', '4', '5', tr('OPTION_CUSTOM')])
         level_combo.setItemData(0, 'None')
         level_combo.setItemData(7, 'Custom')
@@ -143,7 +143,7 @@ class EventEditor(FaceEditor):
         self.fields['cost'] = cost_input.input
         grid_layout.addRow(cost_input)
 
-        level_combo = QComboBox()
+        level_combo = NoScrollComboBox()
         level_combo.addItems([tr('OPTION_NONE'), '0', '1', '2', '3', '4', '5', tr('OPTION_CUSTOM')])
         level_combo.setItemData(0, 'None')
         level_combo.setItemData(7, 'Custom')
