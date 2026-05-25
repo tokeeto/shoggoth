@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt
 
 from shoggoth.i18n import tr
 from shoggoth.settings import EXPORT_SIZES
+import multiprocessing
 
 FILENAME_FORMATS = [
     ('id',        'UUID ({id})'),
@@ -26,10 +27,11 @@ FILENAME_FORMATS = [
 class ImageExportDialog(QDialog):
     """Modal dialog that collects image export options and runs the export."""
 
-    def __init__(self, project, renderer, parent=None):
+    def __init__(self, project, renderer, parent=None, encounter_set=None):
         super().__init__(parent)
         self.project  = project
         self.renderer = renderer
+        self._initial_encounter_set = encounter_set
 
         self.setWindowTitle(tr("IMG_EXPORT_DLG_TITLE"))
         self.setMinimumWidth(460)
@@ -49,10 +51,37 @@ class ImageExportDialog(QDialog):
         self._rb_campaign = QRadioButton(tr("TTS_SCOPE_CAMPAIGN"))
         self._rb_player   = QRadioButton(tr("TTS_SCOPE_PLAYER"))
         self._rb_all      = QRadioButton(tr("TTS_SCOPE_ALL"))
-        self._rb_all.setChecked(True)
+        self._rb_encounter = QRadioButton(tr("TTS_SCOPE_ENCOUNTER_SET"))
+
+        encounter_sets = list(self.project.encounter_sets)
+        self._encounter_combo = QComboBox()
+        self._encounter_combo.setEnabled(False)
+        for es in encounter_sets:
+            self._encounter_combo.addItem(es.name, es)
+
+        encounter_row = QHBoxLayout()
+        encounter_row.setContentsMargins(0, 0, 0, 0)
+        encounter_row.addWidget(self._rb_encounter)
+        encounter_row.addWidget(self._encounter_combo, 1)
+
+        if self._initial_encounter_set is not None:
+            self._rb_encounter.setChecked(True)
+            self._encounter_combo.setEnabled(True)
+            for i, es in enumerate(encounter_sets):
+                if es.id == self._initial_encounter_set.id:
+                    self._encounter_combo.setCurrentIndex(i)
+                    break
+        else:
+            self._rb_all.setChecked(True)
+
         for rb in (self._rb_campaign, self._rb_player, self._rb_all):
             self._scope_group.addButton(rb)
             scope_layout.addWidget(rb)
+        self._scope_group.addButton(self._rb_encounter)
+        scope_layout.addLayout(encounter_row)
+
+        self._rb_encounter.toggled.connect(self._encounter_combo.setEnabled)
+
         root.addWidget(scope_group)
 
         # ── Format ─────────────────────────────────────────────────────
@@ -134,10 +163,14 @@ class ImageExportDialog(QDialog):
             return cards
         if self._rb_player.isChecked():
             return list(self.project.player_cards)
+        if self._rb_encounter.isChecked():
+            es = self._encounter_combo.currentData()
+            return list(es.cards) if es else []
         return list(self.project.get_all_cards())
 
     def _run_export(self):
         cards = self._cards_for_scope()
+        cards.sort(key=lambda x: x.project_number)
         if not cards:
             QMessageBox.information(self, tr("IMG_EXPORT_DLG_TITLE"), tr("MSG_NO_CARDS_IN_SET"))
             return
@@ -160,7 +193,6 @@ class ImageExportDialog(QDialog):
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
 
-        import multiprocessing
         cores = max(4, multiprocessing.cpu_count() - 1)
         threads = []
 

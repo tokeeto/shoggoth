@@ -2136,6 +2136,15 @@ class ShoggothMainWindow(QMainWindow):
         dialog = ImageExportDialog(self.active_project, self.card_renderer, self)
         dialog.exec()
 
+    def open_encounter_set_export_dialog(self, encounter_set=None):
+        """Open the Export to Images modal dialog pre-scoped to an encounter set."""
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
+            return
+        from shoggoth.ui.image_export_dialog import ImageExportDialog
+        dialog = ImageExportDialog(self.active_project, self.card_renderer, self, encounter_set=encounter_set)
+        dialog.exec()
+
     def export_all(self, bleed=None, format=None, quality=None, separate_versions=None):
         """Export all cards in the project using settings from preferences"""
         import time
@@ -2312,6 +2321,9 @@ class ShoggothMainWindow(QMainWindow):
             if face_editor and hasattr(face_editor, 'illustration_widget'):
                 widget = face_editor.illustration_widget
                 widget.illustration_mode_changed.connect(self._on_illustration_mode_changed)
+                face = face_editor.face
+                widget.scale_resolver = lambda f=face: self.card_renderer.get_implicit_illustration_scale(f)
+                widget.update_scale_warning()
 
     def _on_illustration_mode_changed(self, enabled, side):
         """Handle illustration mode toggle from editor"""

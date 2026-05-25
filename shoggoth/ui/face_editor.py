@@ -114,7 +114,7 @@ class FaceEditor(QWidget):
         elif isinstance(widget, QTextEdit):
             widget.setPlainText(str(value) if value else '')
         elif isinstance(widget, QComboBox):
-            widget.setCurrentText(str(value) if value else '')
+            widget.setCurrentText('' if value in (None, '') else str(value))
 
     def get_widget_value(self, widget):
         """Get widget value based on type"""

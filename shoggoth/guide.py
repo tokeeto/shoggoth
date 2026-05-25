@@ -576,16 +576,20 @@ class Guide:
         if not html:
             html = self.to_html()
         kwargs = {'input': html.encode(), 'stdout': subprocess.PIPE, 'stderr': subprocess.DEVNULL}
-        if sys.platform == 'win32':
-            kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
-        p = subprocess.run(
-            [prince_cmd, '-', '--raster-output=-', '--raster-format=jpg', f'--raster-pages={page}'],
-            cwd=prince_cwd,
-            **kwargs,
-        )
-        buffer = BytesIO(p.stdout)
-        buffer.seek(0)
-        return Image.open(buffer)
+        try:
+            if sys.platform == 'win32':
+                kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+            p = subprocess.run(
+                [prince_cmd, '-', '--raster-output=-', '--raster-format=jpg', f'--raster-pages={page}'],
+                cwd=prince_cwd,
+                **kwargs,
+            )
+            buffer = BytesIO(p.stdout)
+            buffer.seek(0)
+            return Image.open(buffer)
+        except Exception as e:
+            print('subprocess failed:')
+            print(e)
 
     def render_to_file(self, html: str = '', output_path: 'Path | None' = None):
         prince_cmd, prince_cwd = _resolve_prince()

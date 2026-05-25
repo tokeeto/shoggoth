@@ -9,7 +9,13 @@ import pyvips
 import re
 import json
 import functools
+import logging
 
+logging.getLogger('PIL').setLevel(logging.ERROR)
+logging.getLogger('pillow').setLevel(logging.ERROR)
+logger = logging.getLogger('shoggoth')
+
+card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
 _ILLUS_LRU_MAXSIZE = 24
 
 
@@ -20,14 +26,6 @@ class _ImgDims:
     def __init__(self, w, h):
         self.width = w
         self.height = h
-
-import logging
-logging.getLogger('PIL').setLevel(logging.ERROR)
-logging.getLogger('pillow').setLevel(logging.ERROR)
-logger = logging.getLogger('shoggoth')
-
-
-card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
 
 
 def scale(x: int | None, s: float):
@@ -245,11 +243,11 @@ class CardRenderer:
 
     def get_card_textures(self, card, size, bleed=True, format='jpeg', quality=80, show_regions=False):
         """Render both sides of a card"""
-        import time
-        t = time.time()
+        # import time
+        # t = time.time()
         front = self.render_card_side(card, card.front, include_bleed=bleed, show_regions=show_regions, **size)
         back = self.render_card_side(card, card.back, include_bleed=bleed, show_regions=show_regions, **size)
-        print(f'get_card_textures in {time.time()-t}')
+        # print(f'get_card_textures in {time.time()-t}')
         return front, back
 
     @staticmethod
@@ -277,31 +275,36 @@ class CardRenderer:
         return f'{variant.id}_{variant.name}_{{face}}.{{format}}'
 
     def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0):
-        lossless = quality == 100
-        outputs = []
+        try:
+            lossless = quality == 100
+            outputs = []
 
-        # should each version (eg. 1/2 and 2/2) be printed seperately or as 1-2/2?
-        faces = card.versions
-        if not separate_versions:
-            faces = [card]
+            # should each version (eg. 1/2 and 2/2) be printed seperately or as 1-2/2?
+            faces = card.versions
+            if not separate_versions:
+                faces = [card]
 
-        for index, variant in enumerate(faces):
-            base = self._filename_base(variant, filename_format)
-            for face, name in ((variant.front, 'front'), (variant.back, 'back')):
-                # if this is a repeated card, only export it once
-                if face['type'] in ('player', 'encounter') and not include_backs:
-                    file_path = Path(folder) / f'{face["type"]}.{format}'
-                    if not file_path.exists():
+            for index, variant in enumerate(faces):
+                base = self._filename_base(variant, filename_format)
+                for face, name in ((variant.front, 'front'), (variant.back, 'back')):
+                    # if this is a repeated card, only export it once
+                    if face['type'] in ('player', 'encounter') and not include_backs:
+                        file_path = Path(folder) / f'{face["type"]}.{format}'
+                        if not file_path.exists():
+                            image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
+                            image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+                        outputs.append(str(file_path))
+                    else:
+                        face_letter = 'a' if name == 'front' else 'b'
+                        file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter)
                         image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
                         image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
-                    outputs.append(str(file_path))
-                else:
-                    face_letter = 'a' if name == 'front' else 'b'
-                    file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter)
-                    image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
-                    image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
-                    outputs.append(str(file_path))
-        return outputs
+                        outputs.append(str(file_path))
+            return outputs
+        except Exception as e:
+            print('failed to export card', card)
+            print(e)
+            logger.error('failed to export card', card, exc_info=True)
 
     @staticmethod
     def expected_export_paths(card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
@@ -372,6 +375,7 @@ class CardRenderer:
             value = value.replace('<esi>', '')
 
         value = value.replace('<copyright>', side.card.get('copyright') or '')
+        value = value.replace('<valign>', '')
 
         # card reference
         references = re.findall(card_value_pattern, value)
@@ -531,7 +535,6 @@ class CardRenderer:
                 # this field is part of another block, and doesn't render on its own.
                 continue
 
-            # Checkboxes - primarily for Customizable
             if region.attach_before:
                 attachment = side.get(region.attach_before)
                 if attachment:
@@ -542,8 +545,11 @@ class CardRenderer:
                 attachment = side.get(region.attach_after)
                 if attachment:
                     format = side.get(f'{region.attach_after}_format', '\n{value}')
+                    if not value:
+                        format = format.strip('\n')
                     value = value + format.format(value=attachment)
 
+            # Checkboxes - primarily for Customizable
             if field == 'text':
                 cb_value = side.get('checkbox_entries')
                 if cb_value:
@@ -554,6 +560,9 @@ class CardRenderer:
 
             if not value:
                 continue
+
+            # Valign reading, must happen before replacement
+            valign = 'center' if '<valign>' in value else 'top'
 
             # Replacements
             value = self.text_replacement(field, value, side)
@@ -588,8 +597,10 @@ class CardRenderer:
                         outline=scale(font.get('outline', None), s),
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
+                        valignment=font.get('valignment', valign),
                         polygon=polygon,
                         scale=s,
+                        project=side.card.project,
                     )
                     temp_image = temp_image.rotate(font.get('rotation'), expand=True)
                     card_image.paste(temp_image, (region.x, region.y), temp_image)
@@ -605,8 +616,10 @@ class CardRenderer:
                         outline=scale(font.get('outline'), s),
                         outline_fill=font.get('outline_color'),
                         alignment=font.get('alignment', 'left'),
+                        valignment=font.get('valignment', valign),
                         polygon=polygon,
                         scale=s,
+                        project=side.card.project,
                     )
             except Exception as e:
                 print(f"Error rendering field: {field}\n {e}")
@@ -1021,7 +1034,6 @@ class CardRenderer:
             surfaces.append((token_surface, text_surface))
 
         weights = [max(n.getbbox()[3] if n.getbbox() else 0, m.getbbox()[3]if m.getbbox() else 0) for n, m in surfaces]
-        print(weights)
         weight_pixels = region.height/sum(weights)
 
         for index, weight in enumerate(weights):
@@ -1047,7 +1059,6 @@ class CardRenderer:
             25 * s,
             fill=(52, 42, 20, 50),
         )
-
 
     def render_customizable(self, card_image, side, s: float = 1.0):
         """ Renders the scenario reference cards.
@@ -1082,3 +1093,28 @@ class CardRenderer:
             outline_fill=font.get('outline_color'),
             alignment=font.get('alignment', 'left'),
         )
+
+    def get_implicit_illustration_scale(self, side):
+        """ Returns the implicit zoom level of a given illustration path for a given side.
+        """
+        illustration_scale = float(side.get('illustration_scale', 0))
+        if illustration_scale:
+            return illustration_scale
+
+        illustration_path = side.get('illustration')
+        if not illustration_path:
+            return None
+        illustration_path = Path(illustration_path)
+        if not illustration_path.is_absolute():
+            illustration_path = side.card.project.find_file(illustration_path)
+        if not illustration_path:
+            return None
+
+        illustration = self.get_illustration_cached(illustration_path)
+        region = Region(side.get('illustration_region'), 1)
+
+        # Calculate scaling
+        illustration_scale = region.height / illustration.height
+        if region.width / illustration.width > illustration_scale:
+            illustration_scale = region.width / illustration.width
+        return illustration_scale

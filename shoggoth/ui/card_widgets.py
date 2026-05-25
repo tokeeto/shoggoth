@@ -185,6 +185,7 @@ class IllustrationWidget(QWidget):
         self.face_side = face_side
         self.project = project
         self.illustration_mode = False
+        self.scale_resolver = None
         layout = QVBoxLayout()
 
         # Image path
@@ -205,6 +206,13 @@ class IllustrationWidget(QWidget):
         pan_scale_layout.addWidget(self.pan_x_input)
         pan_scale_layout.addWidget(self.scale_input)
 
+        # Scale quality warning indicator
+        self.scale_warning = QLabel("?")
+        self.scale_warning.setFixedSize(18, 18)
+        self.scale_warning.setAlignment(Qt.AlignCenter)
+        self.scale_warning.hide()
+        pan_scale_layout.addWidget(self.scale_warning)
+
         # Edit position button
         self.edit_position_btn = QPushButton(tr("BTN_EDIT_POSITION"))
         self.edit_position_btn.setCheckable(True)
@@ -214,11 +222,40 @@ class IllustrationWidget(QWidget):
 
         layout.addLayout(pan_scale_layout)
 
+        self.scale_input.input.textChanged.connect(self.update_scale_warning)
+        self.path_input.input.textChanged.connect(self.update_scale_warning)
+
         # Artist
         self.artist_input = LabeledLineEdit(tr("FIELD_ARTIST"))
         layout.addWidget(self.artist_input)
 
         self.setLayout(layout)
+
+    def update_scale_warning(self):
+        """Show/hide a colored warning indicator based on the effective illustration scale."""
+        scale_text = self.scale_input.text().strip()
+        scale = None
+        if scale_text:
+            try:
+                scale = float(scale_text)
+            except ValueError:
+                pass
+        if scale is None and self.scale_resolver is not None:
+            try:
+                scale = self.scale_resolver()
+            except Exception:
+                pass
+
+        if scale is None or scale <= 1.0:
+            self.scale_warning.hide()
+        else:
+            color = "#e8a000" if scale <= 2.0 else "#c83030"
+            self.scale_warning.setStyleSheet(
+                f"QLabel {{ background-color: {color}; color: white;"
+                " border-radius: 9px; font-weight: bold; font-size: 11px; }"
+            )
+            self.scale_warning.setToolTip(tr("TOOLTIP_SCALE_WARNING", scale=f"{scale:.2f}"))
+            self.scale_warning.show()
 
     def toggle_illustration_mode(self, checked):
         """Toggle illustration positioning mode"""

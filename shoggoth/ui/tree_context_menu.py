@@ -83,7 +83,7 @@ class TreeContextMenu:
         # Export Set
         import shoggoth
         export_action = QAction(tr("CTX_EXPORT_SET"), self.parent)
-        export_action.triggered.connect(lambda: shoggoth.app.export_encounter_set(encounter))
+        export_action.triggered.connect(lambda: shoggoth.app.open_encounter_set_export_dialog(encounter))
         menu.addAction(export_action)
 
         # Paste (if we have something in clipboard)

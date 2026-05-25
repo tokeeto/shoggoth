@@ -396,14 +396,18 @@ class RichTextRenderer:
                         return font_file
         return None
 
-    def _resolve_font(self, name):
+    def _resolve_font(self, name, project=None):
         if name in self.fonts:
             return name, False
         if name in self._user_font_keys:
             entry = self._user_font_keys[name]
             return ('regular', True) if entry is None else (entry, False)
         font_key = f'__user__{name}'
-        p = pathlib.Path(name)
+        p = None
+        if project:
+            p = project.find_file(name)
+        if not p:
+            p = pathlib.Path(name)
         if p.exists() and p.suffix.lower() in ('.ttf', '.otf'):
             self.fonts[font_key] = {'path': p, 'scale': 1, 'fallback': None}
             self.font_cache.clear()
@@ -536,7 +540,7 @@ class RichTextRenderer:
         result.extend(self._merge_last_two_words(para))
         return result
 
-    def parse_text(self, text):
+    def parse_text(self, text, project=None):
         tokens = []
         text = self._expand_bullet_shorthand(text)
         text = self._apply_smart_quotes(text)
@@ -612,7 +616,7 @@ class RichTextRenderer:
 
                     m = _font_re.match(remaining)
                     if m:
-                        font_key, strikethrough = self._resolve_font(m[1])
+                        font_key, strikethrough = self._resolve_font(m[1], project=project)
                         tok_append({'type': 'font_push', 'font': font_key, 'strikethrough': strikethrough})
                         pos += len(m[0])
                         continue
@@ -1054,11 +1058,12 @@ class RichTextRenderer:
 
     def render_text(self, image, text, region, polygon=None, alignment='left',
                     font_size=32, min_font_size=None, font=None, outline=0,
-                    outline_fill=None, fill='#231f20', halign='top', scale=1.0):
+                    outline_fill=None, fill='#231f20', halign='top', scale=1.0,
+                    project=None, valignment='top'):
         if not text:
             return
 
-        tokens = self.parse_text(text)
+        tokens = self.parse_text(text, project=project)
 
         if not font:
             font = 'regular'
@@ -1075,6 +1080,17 @@ class RichTextRenderer:
                 force=force, scale=scale,
             )
             if fits or force:
+                if valignment == 'center' and commands:
+                    ys = [cmd['y'] for cmd in commands if 'y' in cmd]
+                    if ys:
+                        text_bottom = max(ys) + int(current_size * 1.30)
+                        text_height = text_bottom - region.y
+                        offset = (region.height - text_height) // 2
+                        if offset > 0:
+                            for cmd in commands:
+                                for key in ('y', 'y1', 'y2'):
+                                    if key in cmd:
+                                        cmd[key] += offset
                 self._render(image, commands)
                 break
 
