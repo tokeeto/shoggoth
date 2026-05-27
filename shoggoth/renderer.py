@@ -874,9 +874,8 @@ class CardRenderer:
             sub = side.get('subtitle', '')
             template_value = template_value.replace('<subtitle>', '_subtitle' if sub else '')
 
-        if Path(template_value).is_file():
-            template_path = Path(template_value)
-        else:
+        template_path = side.card.project.find_file(template_value)
+        if not template_path:
             template_path = self.templates_path / (template_value + '.png')
 
         if not template_path.exists():
