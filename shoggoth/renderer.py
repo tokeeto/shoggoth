@@ -867,6 +867,9 @@ class CardRenderer:
             side_class = side.get('classes', ['guardian'])
             card_class = side_class[0] if len(side_class) == 1 else 'multi'
             template_value = template_value.replace('<class>', card_class)
+        if '<class_length>' in template_value:
+            side_class = side.get('classes', [])
+            template_value = template_value.replace('<class_length>', str(len(side_class)))
         if '<subtitle>' in template_value:
             sub = side.get('subtitle', '')
             template_value = template_value.replace('<subtitle>', '_subtitle' if sub else '')
@@ -979,7 +982,7 @@ class CardRenderer:
             return
 
         # Render each class symbol
-        for index, cls in enumerate(classes):
+        for index, cls in enumerate(classes[::-1]):
             symbol_path = self.overlays_path / f"class_symbol_{cls}.png"
             region = Region(side.get(f"class_symbol_{index+1}_region"), s)
 

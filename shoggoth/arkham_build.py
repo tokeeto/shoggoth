@@ -5,7 +5,7 @@ Schema reference: https://github.com/arkham-build/fan-made-content/blob/main/sch
 """
 import datetime
 from shoggoth.export_helpers import (
-    get_card_export_type, get_skill_icons, parse_slot,
+    get_card_export_type, get_skill_icons,
     is_player_card, is_investigator_card
 )
 
@@ -115,6 +115,17 @@ def _determine_project_types(project):
     return types if types else ["campaign"]
 
 
+def parse_slot(face):
+    slots = face.get('slots', [])
+    slot = face.get('slot')
+
+    if slots:
+        return '. '.join([n.capitalize() for n in slots[::-1]])
+    elif slot:
+        return slot.capitalize()
+    return None
+
+
 def _export_card(card, project, position, image_pattern=None):
     """Export a single card to arkham.build format"""
     front = card.front
@@ -140,6 +151,7 @@ def _export_card(card, project, position, image_pattern=None):
         "pack_code": pack_code,
         "position": position,
         "quantity": card.data.get('amount', 1),
+        "deck_limit": card.data.get('amount', 2),
         "type_code": export_info['type_code'],
 
         # Optional faction fields
@@ -152,8 +164,8 @@ def _export_card(card, project, position, image_pattern=None):
         "traits": front.get('traits', ''),
         "text": _convert_text(front.get('text', '')),
         "flavor": front.get('flavor_text', ''),
-        "illustrator": front.get('illustrator', ''),
-        "is_unique": '<unique>' in front.get('title', '') or '<unique>' in back.get('title', ''),
+        "illustrator": front.get('illustrator', '').strip('Illus. '),
+        "is_unique": '<unique>' in front.get('name', '') or '<unique>' in back.get('name', ''),
 
         # Skill icons
         **skill_icons,
@@ -197,9 +209,6 @@ def _export_card(card, project, position, image_pattern=None):
         "exceptional": 'Exceptional.' in front.get('text', ''),
         "myriad": 'Myriad.' in front.get('text', ''),
         "hidden": 'Hidden.' in front.get('text', ''),
-
-        # Deck building
-        "deck_limit": front.get('amount'),
 
         # TODO: These need UI support in the card editor
         # "deck_options": back.get('deck_options'),  # JSON string for investigator deck building
@@ -245,6 +254,20 @@ def _convert_text(text):
     """
     if not text:
         return ''
+    text = (
+        text.replace('<combat>', '[combat]')
+        .replace('<willpower>', '[willpower]')
+        .replace('<intellect>', '[intellect]')
+        .replace('<agility>', '[agility]')
+        .replace('<action>', '[action]')
+        .replace('<damage>', 'damage')
+        .replace('<horror>', 'horror')
+        .replace('<resource>', 'resources')
+        .replace('<free>', '[free]')
+        .replace('<for>', 'Forced -')
+        .replace('<spa>', 'Spawn -')
+        .replace('<rev>', 'Revelation -')
+    )
 
     return text
 

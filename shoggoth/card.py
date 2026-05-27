@@ -49,6 +49,10 @@ class Face:
             return self.data[key]
 
         cls = self.get_class()
+        if cls == 'multi':
+            for pattern in self.get_multi_patterns():
+                if f'{key}_{pattern}' in self.fallback:
+                    return self.fallback[f'{key}_{pattern}']
         if f'{key}_{cls}' in self.fallback:
             return self.fallback[f'{key}_{cls}']
         return self.fallback[key]
@@ -85,12 +89,21 @@ class Face:
         shoggoth.app.update_card_in_tree(self.card.id)
 
     def get_class(self):
-        cls = self.data.get('classes', ['guardian'])
+        cls = self.data.get('classes')
         if not cls:
             return None
         if len(cls) == 1:
             return cls[0]
         return 'multi'
+
+    def get_multi_patterns(self):
+        """ Returns a number of patterns to match for multi class cards """
+        cls_count = len(self.data.get('classes'))
+        # 1st - straight count: multi3
+        yield f'multi{cls_count}'
+        # 2nd - plus, ranging from highest to lowest: multi4+
+        for n in range(cls_count, 0, -1):
+            yield f'multi{n}+'
 
     def get_editor(self):
         """ Returns the expected editor type for this face
