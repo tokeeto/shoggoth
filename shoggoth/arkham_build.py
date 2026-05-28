@@ -114,15 +114,19 @@ def _determine_project_types(project):
 
     return types if types else ["campaign"]
 
+SLOT_MAP = {
+    'hands': 'Hand x2',
+    'arcanes': 'Arcane x2',
+}
 
 def parse_slot(face):
     slots = face.get('slots', [])
     slot = face.get('slot')
-
+    
     if slots:
-        return '. '.join([n.capitalize() for n in slots[::-1]])
+        return '. '.join([SLOT_MAP.get(n, n.capitalize()) for n in slots[::-1]])
     elif slot:
-        return slot.capitalize()
+        return SLOT_MAP.get(slot, slot.capitalize())
     return None
 
 
