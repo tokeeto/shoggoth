@@ -129,6 +129,12 @@ def parse_slot(face):
         return SLOT_MAP.get(slot, slot.capitalize())
     return None
 
+SUBTITLE_MAP = {
+    'BASIC WEAKNESS': 'basicweakness',
+    '%:BASIC WEAKNESS': 'basicweakness',
+    'WEAKNESS': 'weakness',
+    '%:WEAKNESS': 'weakness'
+}
 
 def _export_card(card, project, position, image_pattern=None):
     """Export a single card to arkham.build format"""
@@ -164,7 +170,8 @@ def _export_card(card, project, position, image_pattern=None):
 
         # Card properties
         "double_sided": export_info['double_sided'],
-        "subname": front.get('subtitle', ''),
+        "subname": '' if front.get('subtitle', '') in SUBTITLE_MAP else front.get('subtitle', ''),
+        "subtype_code": SUBTITLE_MAP.get(front.get('subtitle', '')),
         "traits": front.get('traits', ''),
         "text": _convert_text(front.get('text', '')),
         "flavor": front.get('flavor_text', ''),
