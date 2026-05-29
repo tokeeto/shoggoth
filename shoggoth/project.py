@@ -1,6 +1,7 @@
 import json
 from uuid import uuid4
 from pathlib import Path
+from itertools import combinations
 
 import shoggoth
 from shoggoth.card import TEMPLATES, Card
@@ -31,20 +32,74 @@ class_order = {
     "rogue": 2,
     "mystic": 3,
     "survivor": 4,
-    "neutral": 5,
-    "multi": 6  # Multi-class cards are sorted last
+    "multi": 5,
+    "neutral": 6,
+    "basic weakness": 7
+}
+multi_class_order = {
+    frozenset(combo): i
+    for i, combo in enumerate(
+        combo for r in (2, 3) for combo in combinations(['guardian', 'seeker', 'rogue', 'mystic', 'survivor'], r)
+    )
+    # This generates the 20 combinations of two-class and three-class cards, and sorts them as normal for classes
+    # The three-class sorting in EotE is a bit weird, and I don't know what to make of it
+}
+
+def class_sort_key(card):
+    cls = card.get_class()
+    if cls == 'multi':
+        classes = frozenset(card.front.get('classes', []))
+        return f'5_{multi_class_order.get(classes, 99):02d}'
+    return str(class_order.get(cls, 15))
+
+player_type_order = {
+    "asset": 0,
+    "event": 1,
+    "skill": 2,
 }
 
 
 def sort_cards(cards):
-    cards.sort(key=lambda card: (
+    # TODO find a way to sort Bonded cards right after the cards they're bound to
+    
+    # Separate the linked cards
+    linked = [c for c in cards if c.data.get('investigator')]
+    rest   = [c for c in cards if not c.data.get('investigator')]
+
+    rest.sort(key=lambda card: (
         str(type_order.get(card.front['type'], 15)),
         str(card.front.get('agenda_index', 15)),
         str(card.front.get('act_index', 15)),
-        str(class_order.get(card.get_class(), 15)),
+        class_sort_key(card), # helper to sort the cards within the multi-colored segment if there are any, otherwise defaults to what was here before
         str(card.front.get('level', 15)),
+        str(player_type_order.get(card.front['type'], 15)), 
         str(card.name),
     ))
+
+    # Group the linked cards
+    groups = {}
+    for card in linked:
+        key = card.data.get('investigator')
+        groups.setdefault(key, []).append(card)
+
+    # Sort within the group in case of an investigator with multiple signatures
+    for group in groups.values():
+        group.sort(key=lambda card: (
+            0 if card.front.get('type') == 'investigator' else
+            2 if card.get_class() == 'weakness' else 1,
+            player_type_order.get(card.front.get('type', ''), 15),
+            card.name,
+        ))
+
+    # Sort groups by class (checking the class of the investigator)
+    def group_key(group):
+        inv = next((c for c in group if c.front.get('type') == 'investigator'), group[0])
+        return class_order.get(inv.get_class(), 15)
+    
+    sorted_groups = sorted(groups.values(), key=group_key)
+
+    # Reassemble in place
+    cards[:] = [c for group in sorted_groups for c in group] + rest
 
 
 class Project:
