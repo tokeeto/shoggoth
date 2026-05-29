@@ -63,19 +63,19 @@ def sort_cards(cards):
     # Separate the linked and bonded cards
     linked, bonded, rest = [], [], []
     for card in cards:
-        if card.get('investigator'):
-            #TODO ^ This should be card.meta.get once meta tags are implemented (assuming the linking will be a part of the meta tags)
+        if card.get('meta', {}).get('investigator', card.get('investigator')):
+            #TODO ^ This can be cleaned up once meta tags are implemented (assuming the linking will be a part of the meta tags)
             linked.append(card)
-        elif card.get('bonded'):
-            #TODO ^ This should be card.meta.get once meta tags are implemented
+        elif card.get('meta', {}).get('bonded', card.get('bonded')):
+            #TODO ^ This can be cleaned up once meta tags are implemented
             bonded.append(card)
         else:
             rest.append(card)
 
     # Sort cards normally
     rest.sort(key=lambda card: (
-        not card.get('meta', {}).get('sorting', True), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
-        #TODO ^ This can be cleaned up to be card.meta.get once meta tags are implemented
+        not card.get('meta', {}).get('sorting', card.get('sorting', True)), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
+        #TODO ^ This can be cleaned up once meta tags are implemented
         str(type_order.get(card.front['type'], 15)),
         str(card.front.get('agenda_index', 15)),
         str(card.front.get('act_index', 15)),
