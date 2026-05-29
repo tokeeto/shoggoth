@@ -114,17 +114,27 @@ def _determine_project_types(project):
 
     return types if types else ["campaign"]
 
+SLOT_MAP = {
+    'hands': 'Hand x2',
+    'arcanes': 'Arcane x2',
+}
 
 def parse_slot(face):
     slots = face.get('slots', [])
     slot = face.get('slot')
-
+    
     if slots:
-        return '. '.join([n.capitalize() for n in slots[::-1]])
+        return '. '.join([SLOT_MAP.get(n, n.capitalize()) for n in slots[::-1]])
     elif slot:
-        return slot.capitalize()
+        return SLOT_MAP.get(slot, slot.capitalize())
     return None
 
+SUBTITLE_MAP = {
+    'BASIC WEAKNESS': 'basicweakness',
+    '%:BASIC WEAKNESS': 'basicweakness',
+    'WEAKNESS': 'weakness',
+    '%:WEAKNESS': 'weakness'
+}
 
 def _export_card(card, project, position, image_pattern=None):
     """Export a single card to arkham.build format"""
@@ -160,7 +170,8 @@ def _export_card(card, project, position, image_pattern=None):
 
         # Card properties
         "double_sided": export_info['double_sided'],
-        "subname": front.get('subtitle', ''),
+        "subname": '' if front.get('subtitle', '') in SUBTITLE_MAP else front.get('subtitle', ''),
+        "subtype_code": SUBTITLE_MAP.get(front.get('subtitle', '')),
         "traits": front.get('traits', ''),
         "text": _convert_text(front.get('text', '')),
         "flavor": front.get('flavor_text', ''),
