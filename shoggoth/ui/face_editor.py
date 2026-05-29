@@ -9,8 +9,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt
 
 from shoggoth.ui.editor_widgets import NoScrollComboBox, ALL_CARD_TYPES, FULLART_CARD_TYPES, CHAPTER2_CARD_TYPES
-from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTraitEdit, LabeledClassEdit, LabeledTextEdit
+from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTraitEdit, LabeledTextEdit, ClassSelectorWidget
 from shoggoth.ui.card_widgets import IllustrationWidget, IconsWidget
+from shoggoth.ui.floating_label_widget import FloatingLabelLineEdit, FloatingLabelTextEdit
 from shoggoth.i18n import tr
 
 
@@ -100,13 +101,57 @@ class FaceEditor(QWidget):
         """Load data from face into fields"""
         self.updating = True
         for field_name, widget in self.fields.items():
-            value = self.face.get(field_name, '')
-            self.set_widget_value(widget, value)
+            if field_name in self.face.data:
+                # Explicitly set — clear any placeholder, then show the value
+                self._set_widget_placeholder(field_name, '')
+                value = self.face.get(field_name, '')
+                self.set_widget_value(widget, value)
+            elif self._has_floating_label(field_name):
+                # Inherited from fallback and widget supports placeholder text —
+                # set placeholder first (prevents animation fight), then clear value
+                fallback = self.face.get(field_name, '')
+                self._set_widget_placeholder(field_name, self._format_placeholder(field_name, fallback))
+                self.set_widget_value(widget, '')
+            else:
+                # Comboboxes and other non-floating-label widgets: display fallback normally
+                value = self.face.get(field_name, '')
+                self.set_widget_value(widget, value)
         self.updating = False
+
+    def _has_floating_label(self, field_name):
+        """Return True if the field's widget has a FloatingLabel parent"""
+        widget = self.fields.get(field_name)
+        if widget is None:
+            return False
+        return isinstance(widget.parent(), (FloatingLabelLineEdit, FloatingLabelTextEdit))
+
+    def _format_placeholder(self, field_name, value):
+        """Format a fallback value as placeholder text"""
+        if value is None or value == '':
+            return ''
+        if field_name in self.LIST_FIELDS and isinstance(value, list):
+            return ', '.join(str(v) for v in value)
+        return str(value)
+
+    def _set_widget_placeholder(self, field_name, text):
+        """Set placeholder text on the floating-label widget for a field"""
+        widget = self.fields.get(field_name)
+        if widget is None:
+            return
+        # Walk up to find the FloatingLabel wrapper (the direct parent of the inner input)
+        parent = widget.parent() if widget else None
+        if isinstance(parent, (FloatingLabelLineEdit, FloatingLabelTextEdit)):
+            parent.setPlaceholderText(text)
+            return
+        # Fallback for plain widgets without floating labels
+        if isinstance(widget, (QLineEdit, QTextEdit)):
+            widget.setPlaceholderText(text)
 
     def set_widget_value(self, widget, value):
         """Set widget value based on type"""
-        if isinstance(widget, QLineEdit):
+        if isinstance(widget, ClassSelectorWidget):
+            widget.set_classes(value)
+        elif isinstance(widget, QLineEdit):
             if isinstance(value, list):
                 widget.setText(', '.join(str(v) for v in value))
             else:
@@ -118,7 +163,9 @@ class FaceEditor(QWidget):
 
     def get_widget_value(self, widget):
         """Get widget value based on type"""
-        if isinstance(widget, QLineEdit):
+        if isinstance(widget, ClassSelectorWidget):
+            return widget.get_classes()
+        elif isinstance(widget, QLineEdit):
             return widget.text()
         elif isinstance(widget, QTextEdit):
             return widget.toPlainText()
@@ -129,7 +176,7 @@ class FaceEditor(QWidget):
     # Fields that require type conversion
     INTEGER_FIELDS = {}
     FLOAT_FIELDS = {'illustration_scale', 'illustration_pan_x', 'illustration_pan_y'}
-    LIST_FIELDS = {'classes'}  # Fields stored as lists but displayed as comma-separated
+    LIST_FIELDS = set()  # Fields stored as lists but displayed as comma-separated
 
     def on_field_changed(self, field_name):
         """Handle field change"""
@@ -143,23 +190,28 @@ class FaceEditor(QWidget):
         value = self.get_widget_value(widget)
 
         # Convert value to appropriate type
-        if value:
+        if value is not None and value != '' and value != []:
             if field_name in self.INTEGER_FIELDS:
                 try:
                     value = int(value)
-                except ValueError:
+                except (ValueError, TypeError):
                     return  # Invalid integer, don't update
             elif field_name in self.FLOAT_FIELDS:
                 try:
                     value = float(value)
-                except ValueError:
+                except (ValueError, TypeError):
                     return  # Invalid float, don't update
-            elif field_name in self.LIST_FIELDS:
-                # Convert comma-separated string to list
+            elif field_name in self.LIST_FIELDS and isinstance(value, str):
+                # Convert comma-separated string to list (already a list for ClassSelectorWidget)
                 value = [v.strip() for v in value.split(',') if v.strip()]
             self.face.set(field_name, value)
+            if self._has_floating_label(field_name):
+                self._set_widget_placeholder(field_name, '')
         else:
             self.face.set(field_name, None)
+            if self._has_floating_label(field_name):
+                fallback = self.face.get(field_name, '')
+                self._set_widget_placeholder(field_name, self._format_placeholder(field_name, fallback))
 
         # Emit data_changed signal on parent CardEditor if it exists
         parent = self.parent()
@@ -190,12 +242,10 @@ class FaceEditor(QWidget):
         return widget
 
     def add_class_field(self, label=None, field_name="classes"):
-        """Helper to add a classes field with autocomplete"""
-        if label is None:
-            label = tr("FIELD_CLASSES")
-        widget = LabeledClassEdit(label)
-        widget.input.textChanged.connect(lambda: self.on_field_changed(field_name))
-        self.fields[field_name] = widget.input
+        """Helper to add a class selector widget"""
+        widget = ClassSelectorWidget()
+        widget.classesChanged.connect(lambda: self.on_field_changed(field_name))
+        self.fields[field_name] = widget
         self.field_containers[field_name] = widget
         self.main_layout.addWidget(widget)
         return widget
