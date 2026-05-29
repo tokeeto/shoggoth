@@ -60,16 +60,22 @@ player_type_order = {
 
 
 def sort_cards(cards):
-    # TODO find a way to sort Bonded cards right after the cards they're bound to
-    
-    # Separate the linked cards
-    linked = [c for c in cards if c.data.get('investigator')]
-    rest   = [c for c in cards if not c.data.get('investigator')]
-    
+    # Separate the linked and bonded cards
+    linked, bonded, rest = [], [], []
+    for card in cards:
+        if card.get('investigator'):
+            #TODO ^ This should be card.meta.get once meta tags are implemented (assuming the linking will be a part of the meta tags)
+            linked.append(card)
+        elif card.get('bonded'):
+            #TODO ^ This should be card.meta.get once meta tags are implemented
+            bonded.append(card)
+        else:
+            rest.append(card)
 
+    # Sort cards normally
     rest.sort(key=lambda card: (
-        not card.get('sorting', True), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
-
+        not card.get('meta', {}).get('sorting', True), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
+        #TODO ^ This can be cleaned up to be card.meta.get once meta tags are implemented
         str(type_order.get(card.front['type'], 15)),
         str(card.front.get('agenda_index', 15)),
         str(card.front.get('act_index', 15)),
@@ -80,13 +86,13 @@ def sort_cards(cards):
     ))
 
     # Group the linked cards
-    groups = {}
+    linked_groups = {}
     for card in linked:
-        key = card.data.get('investigator')
-        groups.setdefault(key, []).append(card)
+        key = card.get('investigator')
+        linked_groups.setdefault(key, []).append(card)
 
     # Sort within the group in case of an investigator with multiple signatures
-    for group in groups.values():
+    for group in linked_groups.values():
         group.sort(key=lambda card: (
             0 if card.front.get('type') == 'investigator' else
             2 if card.get_class() == 'weakness' else 1,
@@ -99,11 +105,29 @@ def sort_cards(cards):
         inv = next((c for c in group if c.front.get('type') == 'investigator'), group[0])
         return class_order.get(inv.get_class(), 15)
     
-    sorted_groups = sorted(groups.values(), key=group_key)
+    sorted_linked_groups = sorted(linked_groups.values(), key=group_key)
 
-    # Reassemble in place
-    cards[:] = [c for group in sorted_groups for c in group] + rest
+    # Group bonded cards together by the first ID of their parent
+    bonded_groups = {}
+    for card in bonded:
+        bonded_val = card.get('bonded')
+        first_id = bonded_val[0] if isinstance(bonded_val, list) else bonded_val
+        bonded_groups.setdefault(first_id, []).append(card)
 
+    for group in bonded_groups.values():
+        group.sort(key=lambda c: c.name)
+
+    # Reassemble the linked cards and the rest
+    sorted_main = [c for group in sorted_linked_groups for c in group] + rest
+
+    # Add bonded cards after their first indicated parent
+    result = []
+    for card in sorted_main:
+        result.append(card)
+        if card.get('id') in bonded_groups:
+            result.extend(bonded_groups[card.get('id')])
+            
+    cards[:] = result
 
 class Project:
     """ Class to handle project files
