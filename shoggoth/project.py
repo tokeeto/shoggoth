@@ -65,8 +65,11 @@ def sort_cards(cards):
     # Separate the linked cards
     linked = [c for c in cards if c.data.get('investigator')]
     rest   = [c for c in cards if not c.data.get('investigator')]
+    
 
     rest.sort(key=lambda card: (
+        not card.get('sorting', True), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
+
         str(type_order.get(card.front['type'], 15)),
         str(card.front.get('agenda_index', 15)),
         str(card.front.get('act_index', 15)),
