@@ -1,6 +1,7 @@
 import json
 from uuid import uuid4
 from pathlib import Path
+from itertools import combinations
 
 import shoggoth
 from shoggoth.card import TEMPLATES, Card
@@ -31,21 +32,102 @@ class_order = {
     "rogue": 2,
     "mystic": 3,
     "survivor": 4,
-    "neutral": 5,
-    "multi": 6  # Multi-class cards are sorted last
+    "multi": 5,
+    "neutral": 6,
+    "basic weakness": 7
+}
+multi_class_order = {
+    frozenset(combo): i
+    for i, combo in enumerate(
+        combo for r in (2, 3) for combo in combinations(['guardian', 'seeker', 'rogue', 'mystic', 'survivor'], r)
+    )
+    # This generates the 20 combinations of two-class and three-class cards, and sorts them as normal for classes
+    # The three-class sorting in EotE is a bit weird, and I don't know what to make of it
+}
+
+def class_sort_key(card):
+    cls = card.get_class()
+    if cls == 'multi':
+        classes = frozenset(card.front.get('classes', []))
+        return f'5_{multi_class_order.get(classes, 99):02d}'
+    return str(class_order.get(cls, 15))
+
+player_type_order = {
+    "asset": 0,
+    "event": 1,
+    "skill": 2,
 }
 
 
 def sort_cards(cards):
-    cards.sort(key=lambda card: (
+    # Separate the linked and bonded cards
+    linked, bonded, rest = [], [], []
+    for card in cards:
+        if card.get('meta', {}).get('investigator', card.get('investigator')):
+            #TODO ^ This can be cleaned up once meta tags are implemented (assuming the linking will be a part of the meta tags)
+            linked.append(card)
+        elif card.get('meta', {}).get('bonded', card.get('bonded')):
+            #TODO ^ This can be cleaned up once meta tags are implemented
+            bonded.append(card)
+        else:
+            rest.append(card)
+
+    # Sort cards normally
+    rest.sort(key=lambda card: (
+        not card.get('meta', {}).get('sorting', card.get('sorting', True)), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
+        #TODO ^ This can be cleaned up once meta tags are implemented
         str(type_order.get(card.front['type'], 15)),
         str(card.front.get('agenda_index', 15)),
         str(card.front.get('act_index', 15)),
-        str(class_order.get(card.get_class(), 15)),
+        class_sort_key(card), # helper to sort the cards within the multi-colored segment if there are any, otherwise defaults to what was here before
         str(card.front.get('level', 15)),
+        str(player_type_order.get(card.front['type'], 15)), 
         str(card.name),
     ))
 
+    # Group the linked cards
+    linked_groups = {}
+    for card in linked:
+        key = card.get('investigator')
+        linked_groups.setdefault(key, []).append(card)
+
+    # Sort within the group in case of an investigator with multiple signatures
+    for group in linked_groups.values():
+        group.sort(key=lambda card: (
+            0 if card.front.get('type') == 'investigator' else
+            2 if card.get_class() == 'weakness' else 1,
+            player_type_order.get(card.front.get('type', ''), 15),
+            card.name,
+        ))
+
+    # Sort groups by class (checking the class of the investigator)
+    def group_key(group):
+        inv = next((c for c in group if c.front.get('type') == 'investigator'), group[0])
+        return class_order.get(inv.get_class(), 15)
+    
+    sorted_linked_groups = sorted(linked_groups.values(), key=group_key)
+
+    # Group bonded cards together by the first ID of their parent
+    bonded_groups = {}
+    for card in bonded:
+        bonded_val = card.get('bonded')
+        first_id = bonded_val[0] if isinstance(bonded_val, list) else bonded_val
+        bonded_groups.setdefault(first_id, []).append(card)
+
+    for group in bonded_groups.values():
+        group.sort(key=lambda c: c.name)
+
+    # Reassemble the linked cards and the rest
+    sorted_main = [c for group in sorted_linked_groups for c in group] + rest
+
+    # Add bonded cards after their first indicated parent
+    result = []
+    for card in sorted_main:
+        result.append(card)
+        if card.get('id') in bonded_groups:
+            result.extend(bonded_groups[card.get('id')])
+            
+    cards[:] = result
 
 class Project:
     """ Class to handle project files
