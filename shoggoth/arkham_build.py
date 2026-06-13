@@ -4,6 +4,7 @@ arkham.build export - exports a Shoggoth project to arkham.build format
 Schema reference: https://github.com/arkham-build/fan-made-content/blob/main/schemas/project.schema.json
 """
 import datetime
+import re
 from shoggoth.export_helpers import (
     get_card_export_type, get_skill_icons,
     is_player_card, is_investigator_card
@@ -269,22 +270,65 @@ def _convert_text(text):
 
     TODO: This may need more comprehensive conversion of tags.
     """
+    REPLACEMENTS = {
+        '<combat>': '[combat]',
+        '<com>': '[combat]',
+        '<willpower>': '[willpower]',
+        '<wil>': '[willpower]',
+        '<intellect>': '[intellect]',
+        '<int>': '[intellect]',
+        '<agility>': '[agility]',
+        '<agi>': '[agility]',
+        '<action>': '[action]',
+        '<act>': '[action]',
+        '<damage>': 'damage',
+        '<horror>': 'horror',
+        '<resource>': 'resources',
+        '<free>': '[free]',
+        '<for>': '<b>Forced</b> -',
+        '<spawn>': '<b>Spawn</b> -',
+        '<rev>': '<b>Revelation</b> -',
+        '<obj>': '<b>Objective</b> -',
+        '<codex>': '[codex]',
+        '<star>': '[star]',
+        '<dash>': '-',
+        '<sign_1>': '[seal_a]',
+        '<sign_2>': '[seal_b]',
+        '<sign_3>': '[seal_c]',
+        '<sign_4>': '[seal_d]',
+        '<sign_5>': '[seal_e]',
+        '<question>': '[wild]',
+        '<tablet>': '[tablet]',
+        '<entry>': '[entry]',
+        '<cultist>': '[cultist]',
+        '<blessing>': '[blessing]',
+        '<blood>': '[blood]',
+        '<elder_sign>': '[elder_sign]',
+        '<guardian>': '[guardian]',
+        '<frost>': '[frost]',
+        '<seeker>': '[seeker]',
+        '<elder_thing>': '[elder_thing]',
+        '<mystic>': '[mystic]',
+        '<rogue>': '[rogue]',
+        '<skull>': '[skull]',
+        '<auto_fail>': '[auto_fail]',
+        '<curse>': '[curse]',
+        '<survivor>': '[survivor]',
+        '<bullet>': '[bullet]',
+        '<resolution>': '[resolution]',
+        '<open>': '[open]',
+        '<per>': '[per]',
+        '<per_large>': '[per]',
+        '<investigator>': '[per]',
+        '<reaction>': '[reaction]',
+        '<unique>': '[unique]',
+        '<day>': '[day]',
+        '<night>': '[night]'
+    }
     if not text:
         return ''
-    text = (
-        text.replace('<combat>', '[combat]')
-        .replace('<willpower>', '[willpower]')
-        .replace('<intellect>', '[intellect]')
-        .replace('<agility>', '[agility]')
-        .replace('<action>', '[action]')
-        .replace('<damage>', 'damage')
-        .replace('<horror>', 'horror')
-        .replace('<resource>', 'resources')
-        .replace('<free>', '[free]')
-        .replace('<for>', 'Forced -')
-        .replace('<spa>', 'Spawn -')
-        .replace('<rev>', 'Revelation -')
-    )
+    pattern = re.compile("|".join(re.escape(key) for key in REPLACEMENTS.keys()))
+    text = pattern.sub(lambda match: REPLACEMENTS[match.group(0)], text)
 
     return text
 
