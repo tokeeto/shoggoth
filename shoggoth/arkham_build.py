@@ -181,6 +181,12 @@ def _export_card(card, project, position, image_pattern=None):
         # Skill icons
         **skill_icons,
 
+        # Skills (for investigators)
+        "willpower": _safe_int(front.get('willpower')),
+        "intellect": _safe_int(front.get('intellect')),
+        "combat": _safe_int(front.get('combat')),
+        "agility": _safe_int(front.get('agility')),
+
         # Cost and XP
         "cost": _safe_int(front.get('cost')),
         "xp": _safe_int(front.get('level')),
