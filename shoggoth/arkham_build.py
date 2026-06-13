@@ -183,10 +183,10 @@ def _export_card(card, project, position, image_pattern=None):
         **skill_icons,
 
         # Skills (for investigators)
-        "willpower": _safe_int(front.get('willpower')),
-        "intellect": _safe_int(front.get('intellect')),
-        "combat": _safe_int(front.get('combat')),
-        "agility": _safe_int(front.get('agility')),
+        "skill_willpower": _safe_int(front.get('willpower')),
+        "skill_intellect": _safe_int(front.get('intellect')),
+        "skill_combat": _safe_int(front.get('combat')),
+        "skill_agility": _safe_int(front.get('agility')),
 
         # Cost and XP
         "cost": _safe_int(front.get('cost')),
@@ -323,7 +323,9 @@ def _convert_text(text):
         '<reaction>': '[reaction]',
         '<unique>': '[unique]',
         '<day>': '[day]',
-        '<night>': '[night]'
+        '<night>': '[night]',
+        '<t>': '<b><em>',
+        '</t>': '</em></b>'
     }
     if not text:
         return ''
