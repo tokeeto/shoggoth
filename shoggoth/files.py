@@ -7,7 +7,14 @@ import shoggoth
 dirs = PlatformDirs("Shoggoth", "Shoggoth")
 root_dir = Path(dirs.user_data_dir)
 
-asset_dir = root_dir / "assets"
+# Check if a custom asset directory is set via environment variable
+custom_asset_dir = os.environ.get("SHOGGOTH_ASSET_DIR")
+
+if custom_asset_dir:
+    asset_dir = Path(custom_asset_dir)
+else:
+    asset_dir = root_dir / "assets"
+
 defaults_dir = asset_dir / "defaults"
 font_dir = asset_dir / "fonts"
 overlay_dir = asset_dir / "overlays"
