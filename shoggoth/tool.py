@@ -18,6 +18,9 @@ def run():
     # Required for multiprocessing to work with frozen executables (PyInstaller on Windows)
     multiprocessing.freeze_support()
 
+    # Remove any leftover *_old.exe from a previous Windows in-place update
+    updater.cleanup_old_binary()
+
     parser = argparse.ArgumentParser(description='Shoggoth Card Creator')
     parser.add_argument('-r', '--render', metavar='FILE', help='Render a specific file directly')
     parser.add_argument('-id', '--card_id', metavar='STRING', help='Only render the card with the given ID.')

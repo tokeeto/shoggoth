@@ -5,6 +5,7 @@ Imports core logic from updater.py; this module should only be imported
 in UI/Qt contexts (not from tool.py CLI paths).
 """
 import sys
+import shutil
 import logging
 import threading
 import requests
@@ -313,15 +314,20 @@ class UpdateChecker(QObject):
             download_url = None
             assets = data.get('assets', [])
             system = platform.system().lower()
+            machine = platform.machine().lower()
 
             for asset in assets:
                 name = asset.get('name', '').lower()
                 if system == 'windows' and 'win' in name:
                     download_url = asset.get('browser_download_url')
                     break
-                elif system == 'darwin' and 'mac' in name:
-                    download_url = asset.get('browser_download_url')
-                    break
+                elif system == 'darwin':
+                    if machine == 'arm64' and 'mac' in name and 'intel' not in name:
+                        download_url = asset.get('browser_download_url')
+                        break
+                    elif machine != 'arm64' and 'mac-intel' in name:
+                        download_url = asset.get('browser_download_url')
+                        break
 
             return VersionInfo(
                 version=data.get('tag_name', '').lstrip('v'),
@@ -586,7 +592,16 @@ class UpdateProgressDialog(QDialog):
         if not self.download_path or not self.download_path.exists():
             return
         try:
-            if sys.platform == 'win32':
+            if sys.platform == 'win32' and getattr(sys, 'frozen', False):
+                # Windows can't replace a running exe, but it can be renamed.
+                # Rename the running exe, copy the new one into its place, then relaunch.
+                current_exe = Path(sys.executable)
+                old_exe = current_exe.with_stem(current_exe.stem + '_old')
+                current_exe.rename(old_exe)
+                shutil.copy2(self.download_path, current_exe)
+                subprocess.Popen([str(current_exe)])
+                QApplication.quit()
+            elif sys.platform == 'win32':
                 import os
                 os.startfile(str(self.download_path))
             elif sys.platform == 'darwin':
@@ -594,7 +609,7 @@ class UpdateProgressDialog(QDialog):
             else:
                 self.download_path.chmod(self.download_path.stat().st_mode | 0o111)
                 subprocess.Popen([str(self.download_path)])
-            QApplication.quit()
+                QApplication.quit()
         except Exception as e:
             QMessageBox.critical(
                 self,

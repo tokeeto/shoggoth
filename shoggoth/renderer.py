@@ -355,7 +355,7 @@ class CardRenderer:
         value = value.replace('<copy>', other_side.get(field, '<copy>'))
         if side.card.project.icon:
             path = side.card.project.find_file(side.card.project.icon)
-            value = value.replace('<exi>', f'<image src="{path}">')
+            value = value.replace('<exi>', f'<image src="{path}" color="inverted">')
         else:
             value = value.replace('<exi>', '')
         value = value.replace('<exn>', str(side.card.project_number))
@@ -370,7 +370,7 @@ class CardRenderer:
             value = value.replace('<est>', '')
         if side.card.encounter and side.card.encounter.icon:
             path = side.card.project.find_file(side.card.project.icon)
-            value = value.replace('<esi>', f'<image src="{path}">')
+            value = value.replace('<esi>', f'<image src="{path}" color="inverted">')
         else:
             value = value.replace('<esi>', '')
 
@@ -757,7 +757,7 @@ class CardRenderer:
             overlay_path = self.overlays_path/f"{stat}_base.png"
             overlay_icon = self.get_resized_cached(overlay_path, (region.width, region.height))
             center_x = region.x
-            center_y = region.y - (scale(23, s) if stat == 'health' else scale(15, s))
+            center_y = region.y - (scale(18, s) if stat == 'health' else scale(4, s))
             card_image.paste(overlay_icon, (center_x, center_y), overlay_icon)
 
     def render_project_icon(self, card_image, side, s: float = 1.0):

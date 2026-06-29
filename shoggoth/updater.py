@@ -316,6 +316,19 @@ def detect_installation_type() -> InstallationType:
         return InstallationType.DEVELOPMENT
 
 
+def cleanup_old_binary() -> None:
+    """Delete leftover *_old.exe files from a previous Windows in-place update."""
+    if not getattr(sys, 'frozen', False) or sys.platform != 'win32':
+        return
+    exe_dir = Path(sys.executable).parent
+    for old_exe in exe_dir.glob('*_old.exe'):
+        try:
+            old_exe.unlink()
+            logger.info(f"Cleaned up old binary: {old_exe.name}")
+        except Exception as e:
+            logger.warning(f"Could not remove old binary {old_exe.name}: {e}")
+
+
 def compare_versions(current: str, latest: str) -> bool:
     """Return True if latest > current."""
     def normalize(v: str) -> tuple:

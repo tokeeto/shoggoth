@@ -1,4 +1,7 @@
 import json
+import os
+from pathlib import Path
+import tempfile
 
 
 class Writer:
@@ -14,12 +17,10 @@ class Writer:
                 continue
             orig_data[key] = project.data[key]
 
-        with open(project.file_path, 'w', encoding='utf-8') as f:
-            self.dirty = False
-            json.dump(project.data, f, indent=4)
+        self.dirty = False
+        atomic_write(project.file_path, json.dumps(project.data, indent=4))
 
     def save_card(self, card):
-        print('saving card of project', card.id)
         with open(self.project.file_path, 'r', encoding='utf-8') as f:
             orig_data = json.load(f)
         index = None
@@ -29,15 +30,14 @@ class Writer:
                 break
         if index:
             orig_data['cards'][index] = card.data
-        with open(self.project.file_path, 'w', encoding='utf-8') as f:
-            self.project.set_dirty(card.id, False)
-            json.dump(orig_data, f, indent=4)
+
+        self.project.set_dirty(card.id, False)
+        atomic_write(self.project.file_path, json.dumps(orig_data, indent=4))
 
     def save_all(self):
         """Save data to file"""
-        with open(self.project.file_path, 'w', encoding='utf-8') as f:
-            self.project.clear_dirty()
-            json.dump(self.project.data, f, indent=4)
+        self.project.clear_dirty()
+        atomic_write(self.project.file_path, json.dumps(self.project.data, indent=4))
 
     def save_face(self):
         pass
@@ -57,9 +57,8 @@ class TranslationWriter(Writer):
         orig_data["project_name"] = project.name
         orig_data['guides'] = project.data['guides']
 
-        with open(self.translation.file_path, 'w') as f:
-            project.dirty = False
-            json.dump(orig_data, f, indent=4)
+        project.dirty = False
+        atomic_write(self.translation.file_path, json.dumps(orig_data, indent=4))
 
     def save_encounter_set(self, encounter_set):
         """Save data to file"""
@@ -71,9 +70,8 @@ class TranslationWriter(Writer):
         orig_data['encounter_sets'][encounter_set.id] = {}
         orig_data['encounter_sets'][encounter_set.id]['name'] = encounter_set.name
 
-        with open(self.translation.file_path, 'w') as f:
-            encounter_set.dirty = False
-            json.dump(orig_data, f, indent=4)
+        encounter_set.dirty = False
+        atomic_write(self.translation.file_path, json.dumps(orig_data, indent=4))
 
     def save_card(self, card):
         with open(self.translation.file_path, 'r', encoding='utf-8') as f:
@@ -90,9 +88,8 @@ class TranslationWriter(Writer):
                 if field in card.data[side]:
                     orig_data['cards'][card.id][side][field] = card.data[side][field]
 
-        with open(self.translation.file_path, 'w', encoding='utf-8') as f:
-            card.dirty = False
-            json.dump(orig_data, f, indent=4)
+        card.dirty = False
+        atomic_write(self.translation.file_path, json.dumps(orig_data, indent=4))
 
     def save_all(self):
         """Save data to file"""
@@ -104,3 +101,17 @@ class TranslationWriter(Writer):
             if card.dirty:
                 self.save_card(card)
         self.save_project(project)
+
+
+def atomic_write(filepath, data, mode="w", **kwargs):
+    path = Path(filepath)
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(tmp_fd, mode, **kwargs) as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())  # ensure it's on disk before rename
+        os.replace(tmp_path, path)  # atomic on both POSIX and Windows
+    except Exception:
+        os.unlink(tmp_path)  # clean up on failure
+        raise

@@ -468,9 +468,7 @@ class ClassSelectorWidget(QWidget):
             text = self.custom_input.text().strip()
             if not text:
                 return None
-            if ',' in text:
-                return [v.strip() for v in text.split(',') if v.strip()]
-            return text
+            return [v.strip() for v in text.split(',') if v.strip()]
 
     def set_classes(self, value):
         """Set widget state from a classes list value (or None)."""
