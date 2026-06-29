@@ -14,3 +14,4 @@ settings.json
 /test_case/*.jpeg
 /test_case/*.png
 /test_case/*.webp
+.env
