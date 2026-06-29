@@ -1082,7 +1082,6 @@ class RichTextRenderer:
                 force=force, scale=scale,
             )
             if fits or force:
-                print('will now print', current_size, text)
                 if valignment == 'center' and commands:
                     ys = [cmd['y'] for cmd in commands if 'y' in cmd]
                     if ys:
