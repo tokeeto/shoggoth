@@ -2,12 +2,14 @@
 Field widgets for Shoggoth using PySide6
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLineEdit, QTextEdit, QComboBox, QCompleter
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QCompleter,
+    QLabel, QPushButton, QCheckBox, QStackedWidget
 )
 from PySide6.QtCore import Qt, Signal
 
 from shoggoth.ui.text_editor import ArkhamTextEdit, ArkhamTextHighlighter
 from shoggoth.ui.floating_label_widget import FloatingLabelTextEdit, FloatingLabelLineEdit
+from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.i18n import tr
 
 # Known traits for autocomplete (loaded from highlighter)
@@ -322,6 +324,183 @@ class LabeledClassEdit(QWidget):
 
     def setText(self, text):
         self.floating_widget.setText(text)
+
+
+class ClassSelectorWidget(QWidget):
+    """Class selector with mode dropdown and context-specific controls.
+
+    Modes:
+      None         → classes = None
+      Player       → 5 toggle buttons; none selected = ['neutral'], else selected list
+      Weakness     → Basic checkbox; ['weakness'] or ['basic weakness']
+      Story        → ['story'], no extra controls
+      Custom       → free-text field (comma-separated)
+    """
+
+    classesChanged = Signal()
+
+    PLAYER_CLASSES = ['guardian', 'seeker', 'rogue', 'mystic', 'survivor']
+
+    MODE_NONE = 0
+    MODE_PLAYER = 1
+    MODE_WEAKNESS = 2
+    MODE_STORY = 3
+    MODE_CUSTOM = 4
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._updating = False
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+
+        # Top row: label + mode dropdown
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        label = QLabel(tr("FIELD_CLASSES"))
+        label.setMinimumWidth(50)
+
+        self.mode_combo = NoScrollComboBox()
+        self.mode_combo.addItems([
+            tr("CLASS_MODE_NONE"),
+            tr("CLASS_MODE_PLAYER"),
+            tr("CLASS_MODE_WEAKNESS"),
+            tr("CLASS_MODE_STORY"),
+            tr("CLASS_MODE_CUSTOM"),
+        ])
+
+        top_row.addWidget(label)
+        top_row.addWidget(self.mode_combo, 1)
+        top_widget = QWidget()
+        top_widget.setLayout(top_row)
+        layout.addWidget(top_widget)
+
+        # Stacked content area (hidden when mode has no extra controls)
+        self.stack = QStackedWidget()
+
+        # Page 0: None — empty
+        self.stack.addWidget(QWidget())
+
+        # Page 1: Player classes — 5 toggle buttons
+        player_page = QWidget()
+        player_layout = QHBoxLayout()
+        player_layout.setContentsMargins(0, 0, 0, 0)
+        player_layout.setSpacing(2)
+        self._class_buttons = {}
+        for cls in self.PLAYER_CLASSES:
+            key = f"CLASS_{cls.upper()}"
+            btn = QPushButton(tr(key))
+            btn.setCheckable(True)
+            btn.setFixedHeight(26)
+            btn.clicked.connect(self._on_player_changed)
+            player_layout.addWidget(btn)
+            self._class_buttons[cls] = btn
+        player_page.setLayout(player_layout)
+        self.stack.addWidget(player_page)
+
+        # Page 2: Weakness — checkbox
+        weakness_page = QWidget()
+        weakness_layout = QHBoxLayout()
+        weakness_layout.setContentsMargins(0, 0, 0, 0)
+        self.basic_checkbox = QCheckBox(tr("CLASS_WEAKNESS_BASIC"))
+        self.basic_checkbox.stateChanged.connect(self._on_weakness_changed)
+        weakness_layout.addWidget(self.basic_checkbox)
+        weakness_layout.addStretch()
+        weakness_page.setLayout(weakness_layout)
+        self.stack.addWidget(weakness_page)
+
+        # Page 3: Story — no extra controls
+        self.stack.addWidget(QWidget())
+
+        # Page 4: Custom — free-text input
+        custom_page = QWidget()
+        custom_layout = QVBoxLayout()
+        custom_layout.setContentsMargins(0, 0, 0, 0)
+        self.custom_input = ClassLineEdit()
+        self.custom_input.textChanged.connect(self._on_custom_changed)
+        custom_layout.addWidget(self.custom_input)
+        custom_page.setLayout(custom_layout)
+        self.stack.addWidget(custom_page)
+
+        layout.addWidget(self.stack)
+        self.setLayout(layout)
+
+        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+        self._update_stack_visibility(self.MODE_NONE)
+
+    def _update_stack_visibility(self, index):
+        has_content = index in (self.MODE_PLAYER, self.MODE_WEAKNESS, self.MODE_CUSTOM)
+        self.stack.setVisible(has_content)
+        if has_content:
+            self.stack.setCurrentIndex(index)
+
+    def _on_mode_changed(self, index):
+        self._update_stack_visibility(index)
+        if not self._updating:
+            self.classesChanged.emit()
+
+    def _on_player_changed(self):
+        if not self._updating:
+            self.classesChanged.emit()
+
+    def _on_weakness_changed(self):
+        if not self._updating:
+            self.classesChanged.emit()
+
+    def _on_custom_changed(self):
+        if not self._updating:
+            self.classesChanged.emit()
+
+    def get_classes(self):
+        """Return the current classes as a list, or None."""
+        mode = self.mode_combo.currentIndex()
+        if mode == self.MODE_NONE:
+            return None
+        elif mode == self.MODE_PLAYER:
+            selected = [c for c in self.PLAYER_CLASSES if self._class_buttons[c].isChecked()]
+            return selected if selected else ['neutral']
+        elif mode == self.MODE_WEAKNESS:
+            return ['basic weakness'] if self.basic_checkbox.isChecked() else ['weakness']
+        elif mode == self.MODE_STORY:
+            return ['story']
+        else:  # Custom
+            text = self.custom_input.text().strip()
+            if not text:
+                return None
+            return [v.strip() for v in text.split(',') if v.strip()]
+
+    def set_classes(self, value):
+        """Set widget state from a classes list value (or None)."""
+        self._updating = True
+        if not value:  # None or empty string or empty list
+            self._set_mode(self.MODE_NONE)
+        elif isinstance(value, list):
+            player_set = set(self.PLAYER_CLASSES)
+            value_set = set(value)
+            if value_set <= (player_set | {'neutral'}):
+                self._set_mode(self.MODE_PLAYER)
+                for cls, btn in self._class_buttons.items():
+                    btn.setChecked(cls in value_set)
+            elif value == ['weakness']:
+                self._set_mode(self.MODE_WEAKNESS)
+                self.basic_checkbox.setChecked(False)
+            elif value == ['basic weakness']:
+                self._set_mode(self.MODE_WEAKNESS)
+                self.basic_checkbox.setChecked(True)
+            elif value == ['story']:
+                self._set_mode(self.MODE_STORY)
+            else:
+                self._set_mode(self.MODE_CUSTOM)
+                self.custom_input.setText(', '.join(str(v) for v in value))
+        else:
+            self._set_mode(self.MODE_CUSTOM)
+            self.custom_input.setText(str(value) if value else '')
+        self._updating = False
+
+    def _set_mode(self, index):
+        self.mode_combo.setCurrentIndex(index)
+        self._update_stack_visibility(index)
 
 
 class LabeledTextEdit(QWidget):

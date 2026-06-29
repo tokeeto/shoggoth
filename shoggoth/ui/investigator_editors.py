@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from shoggoth.ui.face_editor import FaceEditor
-from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledClassEdit
+from shoggoth.ui.field_widgets import LabeledLineEdit, ClassSelectorWidget
 from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.i18n import tr
 
@@ -21,10 +21,11 @@ class InvestigatorEditor(FaceEditor):
         self.add_trait_field()
 
         # Classes
-        classes_input = LabeledClassEdit(tr("FIELD_CLASSES"))
-        classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
-        self.fields['classes'] = classes_input.input
-        self.main_layout.addWidget(classes_input)
+        classes_widget = ClassSelectorWidget()
+        classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
+        self.fields['classes'] = classes_widget
+        self.field_containers['classes'] = classes_widget
+        self.main_layout.addWidget(classes_widget)
 
         # Stats in a grid
         box_widget = QWidget()
@@ -130,10 +131,11 @@ class InvestigatorBackEditor(FaceEditor):
         self.add_trait_field()
 
         # Classes
-        classes_input = LabeledClassEdit(tr("FIELD_CLASSES"))
-        classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
-        self.fields['classes'] = classes_input.input
-        self.main_layout.addWidget(classes_input)
+        classes_widget = ClassSelectorWidget()
+        classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
+        self.fields['classes'] = classes_widget
+        self.field_containers['classes'] = classes_widget
+        self.main_layout.addWidget(classes_widget)
 
         # Deck building entries section
         self._entries_group = QGroupBox(tr("GROUP_DECK_BUILDING_OPTIONS"))

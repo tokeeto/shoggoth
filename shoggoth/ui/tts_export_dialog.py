@@ -239,6 +239,7 @@ class TTSExportDialog(QDialog):
                 kwargs={
                     'size': TTS_IMAGE_SIZE,
                     'bleed': False,
+                    'separate_versions': False,
                     'format': TTS_IMAGE_FORMAT,
                     'quality': TTS_IMAGE_QUALITY,
                     'include_backs': False,

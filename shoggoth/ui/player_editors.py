@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.editor_widgets import SlotsWidget, NoScrollComboBox
-from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledClassEdit
+from shoggoth.ui.field_widgets import LabeledLineEdit, ClassSelectorWidget
 from shoggoth.ui.card_widgets import IconsWidget
 from shoggoth.i18n import tr
 
@@ -29,10 +29,11 @@ class AssetEditor(FaceEditor):
         grid_layout = QFormLayout()
 
         # Classes
-        classes_input = LabeledClassEdit(tr("FIELD_CLASSES"))
-        classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
-        self.fields['classes'] = classes_input.input
-        grid_layout.addRow(classes_input)
+        classes_widget = ClassSelectorWidget()
+        classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
+        self.fields['classes'] = classes_widget
+        self.field_containers['classes'] = classes_widget
+        grid_layout.addRow(classes_widget)
 
         # Cost
         cost_input = LabeledLineEdit(tr("FIELD_COST"))
@@ -133,10 +134,11 @@ class EventEditor(FaceEditor):
         grid_widget = QWidget()
         grid_layout = QFormLayout()
 
-        classes_input = LabeledClassEdit(tr("FIELD_CLASSES"))
-        classes_input.textChanged.connect(lambda: self.on_field_changed('classes'))
-        self.fields['classes'] = classes_input.input
-        grid_layout.addRow(classes_input)
+        classes_widget = ClassSelectorWidget()
+        classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
+        self.fields['classes'] = classes_widget
+        self.field_containers['classes'] = classes_widget
+        grid_layout.addRow(classes_widget)
 
         cost_input = LabeledLineEdit(tr("FIELD_COST"))
         cost_input.input.textChanged.connect(lambda: self.on_field_changed('cost'))

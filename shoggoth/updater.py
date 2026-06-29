@@ -20,7 +20,7 @@ ASSETS_REPO = "tokeeto/shoggoth_assets"
 ASSETS_API = f"https://api.github.com/repos/{ASSETS_REPO}"
 ASSETS_RAW_BASE = f"https://raw.githubusercontent.com/{ASSETS_REPO}"
 ASSETS_STATE_FILE = ".asset_state"
-ASSET_BRANCH = "v1"  # keep in sync with [tool.shoggoth] asset-version in pyproject.toml
+ASSET_BRANCH = "v2"  # keep in sync with [tool.shoggoth] asset-version in pyproject.toml
 GITHUB_HEADERS = {"Accept": "application/vnd.github.v3+json", "User-Agent": "Shoggoth-AssetManager"}
 
 logger = logging.getLogger(__name__)
@@ -314,6 +314,19 @@ def detect_installation_type() -> InstallationType:
         return InstallationType.PYPI
     except Exception:
         return InstallationType.DEVELOPMENT
+
+
+def cleanup_old_binary() -> None:
+    """Delete leftover *_old.exe files from a previous Windows in-place update."""
+    if not getattr(sys, 'frozen', False) or sys.platform != 'win32':
+        return
+    exe_dir = Path(sys.executable).parent
+    for old_exe in exe_dir.glob('*_old.exe'):
+        try:
+            old_exe.unlink()
+            logger.info(f"Cleaned up old binary: {old_exe.name}")
+        except Exception as e:
+            logger.warning(f"Could not remove old binary {old_exe.name}: {e}")
 
 
 def compare_versions(current: str, latest: str) -> bool:

@@ -5,7 +5,7 @@ import platform
 import pathlib
 import numpy as np
 import re
-from shoggoth.files import font_dir, icon_dir, overlay_dir
+from shoggoth.files import font_dir
 from shoggoth.i18n import tr
 
 # Only keep regexes for the rare parametric tags (size, margin, indent, font, image)
@@ -23,6 +23,7 @@ def _parse_tag_attributes(tag_string):
 
 class _TrieNode:
     __slots__ = ('children', 'value', 'tag_len')
+
     def __init__(self):
         self.children = {}
         self.value = None
@@ -61,6 +62,7 @@ def _trie_match(root, text, pos):
             best_val = node.value
             best_len = i - pos
     return best_val, best_len
+
 
 def recolor_icon(icon, color):
     data = np.array(icon)
@@ -125,7 +127,6 @@ class RichTextRenderer:
     def __init__(self, card_renderer):
         self.card_renderer = card_renderer
         self.icon_cache = {}
-        self.inverted_icon_cache = {}    # NEW: cache inverted icons
         self.font_cache = {}
         self.user_font_cache = {}
         self._user_font_keys = {}
@@ -188,9 +189,12 @@ class RichTextRenderer:
             '<codex>': '#',
             '<star>': '*',
             '<dash>': '-',
-            '<sign_1>': '1', '<sign_2>': '2', '<sign_3>': '3',
-            '<sign_4>': '4', '<sign_5>': '5',
-            '<question>': '?',
+            '<sign_1>': '1',
+            '<sign_2>': '2',
+            '<sign_3>': '3',
+            '<sign_4>': '4',
+            '<sign_5>': '5',
+            '<wild>': '?',
             '<tablet>': 'A',
             '<entry>': 'B',
             '<cultist>': 'C',
@@ -242,16 +246,16 @@ class RichTextRenderer:
         }
 
         self.fonts = {
-            'regular':   {'path': font_dir / "Arno Pro" / "arnopro_regular.otf"},
-            'caption':   {'path': font_dir / "Arno Pro" / "arnopro_caption.otf"},
-            'bold':      {'path': font_dir / "Arno Pro" / "arnopro_bold.otf"},
-            'semibold':  {'path': font_dir / "Arno Pro" / "arnopro_semibold.ttf"},
-            'italic':    {'path': font_dir / "Arno Pro" / "arnopro_italic.otf"},
-            'bolditalic':{'path': font_dir / "Arno Pro" / "arnopro_bolditalic.otf"},
-            'icon':      {'path': font_dir / "AHLCGSymbol.otf"},
-            'cost':      {'path': font_dir / "Arkhamic.ttf"},
-            'title':     {'path': font_dir / "Arkhamic.ttf"},
-            'skill':     {'path': font_dir / "Bolton.ttf"},
+            'regular': {'path': font_dir / "Arno Pro" / "arnopro_regular.otf"},
+            'caption': {'path': font_dir / "Arno Pro" / "arnopro_caption.otf"},
+            'bold': {'path': font_dir / "Arno Pro" / "arnopro_bold.otf"},
+            'semibold': {'path': font_dir / "Arno Pro" / "arnopro_semibold.ttf"},
+            'italic': {'path': font_dir / "Arno Pro" / "arnopro_italic.otf"},
+            'bolditalic': {'path': font_dir / "Arno Pro" / "arnopro_bolditalic.otf"},
+            'icon': {'path': font_dir / "AHLCGSymbol.otf"},
+            'cost': {'path': font_dir / "Arkhamic.ttf"},
+            'title': {'path': font_dir / "Arkhamic.ttf"},
+            'skill': {'path': font_dir / "Bolton.ttf"},
         }
 
         self._rebuild_tries()
@@ -435,15 +439,15 @@ class RichTextRenderer:
         self.icon_cache[(icon_path, height)] = icon
         return icon
 
-    def _get_inverted_icon(self, icon_path, font_size):
-        """Load + invert an icon, caching the inverted result."""
-        key = (icon_path, font_size)
-        if key in self.inverted_icon_cache:
-            return self.inverted_icon_cache[key]
+    def _get_icon(self, icon_path, font_size, color=None):
+        """Returns an image as a in-line icon """
+        key = (icon_path, font_size, color)
+        if key in self.icon_cache:
+            return self.icon_cache[key]
         icon_img = self.load_icon(icon_path, font_size)
-        if icon_img:
+        if color == "inverted":
             icon_img = invert_icon(icon_img)
-        self.inverted_icon_cache[key] = icon_img
+        self.icon_cache[key] = icon_img
         return icon_img
 
     def _expand_bullet_shorthand(self, text):
@@ -635,7 +639,7 @@ class RichTextRenderer:
                     if m:
                         attrs = _parse_tag_attributes(m[0])
                         if 'src' in attrs:
-                            tok_append({'type': 'image_icon', 'value': attrs['src']})
+                            tok_append({'type': 'image_icon', 'value': attrs['src'], 'color': attrs.get('color')})
                         pos += len(m[0])
                         continue
 
@@ -663,7 +667,7 @@ class RichTextRenderer:
         line_height = int(font_size * 1.30)
 
         x_orig = region.x
-        y = region.y
+        y = region.y + font_size
         max_height = region.height
 
         commands = []
@@ -753,17 +757,19 @@ class RichTextRenderer:
 
             indent = current_indent if indent_current else 0
 
+            line_y = y
+
             if quote or quote_last:
-                bar_bottom = y + (font_size * 0.8 if quote_last else line_height)
+                bar_bottom = line_y + (font_size * 0.8 if quote_last else line_height)
                 cmd_append({'cmd': 'line',
-                            'x1': x_orig, 'y1': y, 'x2': x_orig, 'y2': bar_bottom,
+                            'x1': x_orig, 'y1': line_y, 'x2': x_orig, 'y2': bar_bottom,
                             'fill': fill, 'width': 2})
                 cmd_append({'cmd': 'line',
-                            'x1': x_orig + 10, 'y1': y, 'x2': x_orig + 10, 'y2': bar_bottom,
+                            'x1': x_orig + 10, 'y1': line_y, 'x2': x_orig + 10, 'y2': bar_bottom,
                             'fill': fill, 'width': 2})
                 indent = 20
 
-            eff_x, eff_w = eff_bounds(y)
+            eff_x, eff_w = eff_bounds(line_y)
             eff_x += indent
             eff_w -= indent
 
@@ -801,13 +807,14 @@ class RichTextRenderer:
                 true_advance = merge_font.getlength(val)
                 cmd_append({
                     'cmd': 'text',
-                    'x': merge_x, 'y': y,
+                    'x': merge_x, 'y': line_y,
                     'value': val,
                     'font': merge_font,
+                    'line_height': line_height,
                     'fill': fill, 'outline': outline, 'outline_fill': outline_fill,
                 })
                 if merge_strike:
-                    sy = int(y + font_size * 0.45)
+                    sy = int(line_y + font_size * 0.45)
                     cmd_append({
                         'cmd': 'line',
                         'x1': int(merge_x), 'y1': sy,
@@ -815,7 +822,7 @@ class RichTextRenderer:
                         'fill': fill, 'width': max(1, font_size // 16),
                     })
                 if merge_underline:
-                    uy = int(y + font_size * 0.88)
+                    uy = int(line_y + font_size * 0.88)
                     cmd_append({
                         'cmd': 'line',
                         'x1': int(merge_x), 'y1': uy,
@@ -848,14 +855,14 @@ class RichTextRenderer:
                 elif c == 'image':
                     x_pos += _emit_merged()
                     if item['icon'] is not None:
-                        icon_y = int(y - (item['icon'].height - font_size) // 2)
+                        icon_y = int(line_y - (item['icon'].height))
                         cmd_append({'cmd': 'image',
                                     'x': int(x_pos), 'y': icon_y,
                                     'icon': item['icon']})
                     x_pos += item['width']
                 elif c == 'hr':
                     x_pos += _emit_merged()
-                    hr_y = int(y + font_size * 0.5)
+                    hr_y = int(line_y + font_size * 0.5)
                     cmd_append({
                         'cmd': 'line',
                         'x1': int(eff_x), 'y1': hr_y,
@@ -869,7 +876,7 @@ class RichTextRenderer:
             if dbl_underline_pending:
                 dbl_underline_pending = False
                 u_thick = max(1, font_size // 18)
-                u_y1 = int(y + font_size * 0.88)
+                u_y1 = int(line_y + font_size * 0.12)
                 u_y2 = u_y1 + u_thick + max(2, font_size // 10)
                 u_x1 = int(line_x_start)
                 u_x2 = int(line_x_start + line_w)
@@ -975,7 +982,7 @@ class RichTextRenderer:
             elif t in ('text', 'font_icon', 'image_icon', 'hr'):
                 if overflow_check_pending:
                     overflow_check_pending = False
-                    if y + line_height > region.y + max_height:
+                    if y > region.y + max_height:
                         if not force:
                             return commands, False, i / num_tokens
 
@@ -997,7 +1004,7 @@ class RichTextRenderer:
                     if token['value'] == 'b' and not pending:
                         current_indent = wcache.width('b ', font_obj)
                 elif t == 'image_icon':
-                    icon_img = self._get_inverted_icon(token['value'], current_fonts['regular'].size)
+                    icon_img = self._get_icon(token['value'], current_fonts['regular'].size, color=token.get('color'))
                     w = icon_img.width if icon_img else 0
                     item = {'cmd': 'image', 'icon': icon_img, 'width': w}
                 else:  # hr
@@ -1011,7 +1018,7 @@ class RichTextRenderer:
                     has_renderable = False
                     current_line_width = 0
                     y += current_fonts['regular'].size
-                    if y + line_height > region.y + max_height:
+                    if y > region.y + max_height:
                         if not force:
                             return commands, False, i / num_tokens
 
@@ -1022,11 +1029,6 @@ class RichTextRenderer:
         # Final line
         if pending:
             flush()
-            if y + line_height > region.y + max_height:
-                if not force:
-                    return commands, False, 1.0
-
-        if not pending and overflow_check_pending:
             if y > region.y + max_height:
                 if not force:
                     return commands, False, 1.0
@@ -1045,7 +1047,7 @@ class RichTextRenderer:
                     font=cmd['font'],
                     stroke_width=cmd['outline'],
                     stroke_fill=cmd['outline_fill'],
-                    anchor=("la" if cmd['value'] == 'p' else None)
+                    anchor='ls'
                 )
             elif c == 'image':
                 image.paste(cmd['icon'], (cmd['x'], cmd['y']), cmd['icon'])

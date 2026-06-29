@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QLabel, QMenuBar, QMenu,
     QFileDialog, QMessageBox, QStatusBar, QScrollArea, QDialog,
     QLineEdit, QPushButton, QDialogButtonBox, QTextBrowser,
-    QStackedWidget, QComboBox
+    QStackedWidget, QComboBox, QStyledItemDelegate, QStyleOptionViewItem
 )
 from PySide6.QtCore import QUrl, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import (
@@ -51,6 +51,22 @@ def _make_inverted_icon(icon_path, project_file_path, size=16):
         size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
     )
     return QIcon(pixmap)
+
+
+class CompactLeafDelegate(QStyledItemDelegate):
+    """Shifts leaf nodes left by one indentation to remove expand-arrow dead space."""
+
+    def __init__(self, tree):
+        super().__init__(tree)
+        self._tree = tree
+
+    def paint(self, painter, option, index):
+        if not index.model().hasChildren(index):
+            opt = QStyleOptionViewItem(option)
+            opt.rect = option.rect.adjusted(-self._tree.indentation(), 0, 0, 0)
+            super().paint(painter, opt, index)
+        else:
+            super().paint(painter, option, index)
 
 
 class DraggableTreeWidget(QTreeWidget):
@@ -295,6 +311,7 @@ class FileBrowser(QWidget):
         # Tree widget with drag and drop support
         self.tree = DraggableTreeWidget(self)
         self.tree.setHeaderHidden(True)
+        self.tree.setItemDelegate(CompactLeafDelegate(self.tree))
         self.tree.currentItemChanged.connect(self._on_tree_current_changed)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.on_context_menu)
