@@ -319,6 +319,7 @@ class EncounterSetEditor(QWidget):
 
     def on_field_changed(self, field, value):
         field.update_card(self.encounter_set, value)
+        self.encounter_set.project.writer.save_encounter_set(self.encounter_set)
 
     def _update_icon_preview(self, path_text):
         path = Path(path_text.strip()) if path_text.strip() else None

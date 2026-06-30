@@ -664,7 +664,7 @@ class Translation:
 
         # encounter sets
         for encounter_id in self.data.get('encounter_sets', {}):
-            encounter = self.project.get_card(encounter_id)
+            encounter = self.project.get_encounter_set(encounter_id)
             if not encounter:
                 continue
             encounter.data['name'] = self.data['encounter_sets'][encounter_id]['name']

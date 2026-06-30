@@ -45,6 +45,9 @@ class Writer:
     def save_encounter(self):
         pass
 
+    def save_encounter_set(self, encounter_set):
+        pass
+
 
 class TranslationWriter(Writer):
     def __init__(self, translation):

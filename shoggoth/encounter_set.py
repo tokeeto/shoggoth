@@ -4,7 +4,6 @@ from shoggoth.card import Card
 
 class EncounterSet:
     def __init__(self, data, project):
-        self.name = data['name']
         self.data = data
         self.project = project
         if 'id' not in self.data:
@@ -12,6 +11,14 @@ class EncounterSet:
         self.get = self.data.get
         self.__getitem__ = self.data.__getitem__
         self.dirty = False
+
+    @property
+    def name(self):
+        return self.data['name']
+
+    @name.setter
+    def name(self, value):
+        self.data['name'] = value
 
     def __eq__(self, other):
         return other is not None and self.id == other.id
@@ -80,7 +87,8 @@ class EncounterSetTranslation(EncounterSet):
     def __init__(self, data, translation_data, project):
         self.translation_data = translation_data
         super().__init__(data, project)
-        self.name = self.translation_data.get('name', self.name)
+        if 'name' in self.translation_data:
+            self.data['name'] = self.translation_data['name']
 
     @property
     def cards(self):
@@ -93,4 +101,5 @@ class EncounterSetTranslation(EncounterSet):
 
     def set(self, key, value):
         self.translation_data[key] = value
+        self.data[key] = value
         self.dirty = True
