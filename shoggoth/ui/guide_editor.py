@@ -11,6 +11,10 @@ from PySide6.QtGui import (
 )
 
 import re
+import subprocess
+import sys
+import threading
+from io import BytesIO
 from shoggoth.i18n import tr
 from shoggoth.guide import SECTION_TYPES, GuideSection
 
@@ -95,24 +99,78 @@ class PDFPageRenderer(QThread):
         self.guide = guide
         self.page_number = page_number
         self._stop = False
+        self._proc = None
+        self._proc_lock = threading.Lock()
 
     def run(self):
         if self._stop:
             return
         try:
-            img = self.guide.get_page(self.page_number)
+            from shoggoth.pdf_exporter import _resolve_prince
+            from PIL import Image
+            from PIL.ImageQt import ImageQt
+
+            prince_cmd, prince_cwd = _resolve_prince()
+            if not prince_cmd or self._stop:
+                return
+
+            html = self.guide.to_html()
             if self._stop:
                 return
-            from PIL.ImageQt import ImageQt
+
+            popen_kwargs = {
+                'stdin': subprocess.PIPE,
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.DEVNULL,
+            }
+            if sys.platform == 'win32':
+                popen_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+
+            proc = subprocess.Popen(
+                [prince_cmd, '-', '--raster-output=-', '--raster-format=jpg',
+                 f'--raster-pages={self.page_number}'],
+                cwd=prince_cwd,
+                **popen_kwargs,
+            )
+            with self._proc_lock:
+                self._proc = proc
+
+            # Stopped between Popen and storing proc — kill it ourselves.
+            if self._stop:
+                proc.kill()
+                proc.wait()
+                return
+
+            stdout, _ = proc.communicate(input=html.encode())
+
+            with self._proc_lock:
+                self._proc = None
+
+            if self._stop or proc.returncode != 0 or not stdout:
+                return
+
+            img = Image.open(BytesIO(stdout))
+            img.load()
+
+            if self._stop:
+                return
+
             qimage = ImageQt(img)
             pixmap = QPixmap.fromImage(qimage)
             if not self._stop:
                 self.page_ready.emit(self.page_number, pixmap)
+
         except Exception as e:
             print(f"Error rendering page {self.page_number}: {e}")
 
     def stop(self):
         self._stop = True
+        with self._proc_lock:
+            if self._proc is not None:
+                try:
+                    self._proc.kill()
+                except Exception:
+                    pass
 
 
 # ── Zoomable / pannable PDF viewer ────────────────────────────────────────────

@@ -584,12 +584,15 @@ class Guide:
                 cwd=prince_cwd,
                 **kwargs,
             )
+            if p.returncode != 0 or not p.stdout:
+                return None
             buffer = BytesIO(p.stdout)
             buffer.seek(0)
             return Image.open(buffer)
         except Exception as e:
             print('subprocess failed:')
             print(e)
+            return None
 
     def render_to_file(self, html: str = '', output_path: 'Path | None' = None):
         prince_cmd, prince_cwd = _resolve_prince()
