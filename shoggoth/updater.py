@@ -1,4 +1,5 @@
 import io
+import os
 import sys
 import json
 import hashlib
@@ -34,10 +35,6 @@ def _hash_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _is_git_repo(directory: Path) -> bool:
-    return (directory / ".git").exists()
-
-
 def _get_local_asset_state() -> tuple[Optional[str], Optional[str], dict]:
     """Return (branch, sha, file_hashes) from the local state file."""
     state_file = asset_dir / ASSETS_STATE_FILE
@@ -70,6 +67,8 @@ def _get_remote_asset_sha(branch: str) -> Optional[str]:
 
 def assets_available() -> bool:
     """Return True if a complete asset pack is present locally."""
+    if os.environ.get("SHOGGOTH_UNMANAGED_ASSETS"):
+        return True
     local_branch, local_sha, _ = _get_local_asset_state()
     return (
         asset_dir.is_dir()
@@ -181,12 +180,7 @@ def _update_changed_assets(old_sha: str, new_sha: str, local_hashes: dict) -> di
 
 
 def _repair_missing_assets(file_hashes: dict, sha: str) -> None:
-    """Re-download any files recorded in file_hashes that are absent from disk.
-
-    Skips everything if the asset directory is a git repo (developer workflow).
-    """
-    if _is_git_repo(asset_dir):
-        return
+    """Re-download any files recorded in file_hashes that are absent from disk."""
     missing = [p for p in file_hashes if not (asset_dir / p).exists()]
     if not missing:
         return
@@ -219,11 +213,15 @@ def ensure_assets_current() -> bool:
     - Subsequent runs: fetches only changed files via the GitHub compare API,
       skipping any file whose on-disk hash differs from the stored hash (user-modified).
     - If assets are current, checks for missing files and re-downloads them.
-    - If the asset directory is a git repo, all integrity/repair checks are skipped.
+    - If SHOGGOTH_UNMANAGED_ASSETS is set, all update/repair checks are skipped.
     - If the network is unavailable and assets already exist, continues with existing files.
 
     Returns True if any asset files were added or updated, False otherwise.
     """
+    if os.environ.get("SHOGGOTH_UNMANAGED_ASSETS"):
+        logger.info("SHOGGOTH_UNMANAGED_ASSETS is set; skipping asset update.")
+        return False
+
     branch = ASSET_BRANCH
     local_branch, local_sha, local_hashes = _get_local_asset_state()
 
