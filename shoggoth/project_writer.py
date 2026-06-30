@@ -65,6 +65,7 @@ class TranslationWriter(Writer):
 
     def save_encounter_set(self, encounter_set):
         """Save data to file"""
+        print('saving encounter set', encounter_set)
         with open(self.translation.file_path, 'r', encoding='utf-8') as f:
             orig_data = json.load(f)
         if not orig_data.get('encounter_sets'):
@@ -87,7 +88,7 @@ class TranslationWriter(Writer):
 
         for side in ('front', 'back'):
             orig_data['cards'][card.id][side] = {}
-            for field in ('name', 'text', 'flavor_text'):
+            for field in ('name', 'text', 'flavor_text', 'subtitle', 'victory', 'traits'):
                 if field in card.data[side]:
                     orig_data['cards'][card.id][side][field] = card.data[side][field]
 
@@ -98,6 +99,7 @@ class TranslationWriter(Writer):
         """Save data to file"""
         project = self.translation.project
         for encounter_set in project.encounter_sets:
+            print('checking encounter set', encounter_set, encounter_set.dirty)
             if encounter_set.dirty:
                 self.save_encounter_set(encounter_set)
         for card in project.get_all_cards():

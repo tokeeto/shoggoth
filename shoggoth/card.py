@@ -419,7 +419,7 @@ class TEMPLATES:
         card = cls.ENEMY()
         card['amount'] = 1
         card['front']['type'] = 'enemy'
-        card['front']['class'] = 'weakness'
+        card['front']['classes'] = ['weakness']
         card['back']['type'] = 'player'
         return card
     
@@ -428,6 +428,6 @@ class TEMPLATES:
         card = cls.TREACHERY()
         card['amount'] = 1
         card['front']['type'] = 'treachery'
-        card['front']['class'] = 'weakness'
+        card['front']['classes'] = ['weakness']
         card['back']['type'] = 'player'
         return card

@@ -10,7 +10,6 @@ class EncounterSet:
             self.data['id'] = str(uuid4())
         self.get = self.data.get
         self.__getitem__ = self.data.__getitem__
-        self.dirty = False
 
     @property
     def name(self):
@@ -39,6 +38,14 @@ class EncounterSet:
     @staticmethod
     def is_valid(data):
         return 'name' in data and 'icon' in data
+
+    @property
+    def dirty(self):
+        return self.project.is_dirty(self.id)
+
+    @dirty.setter
+    def dirty(self, value):
+        self.project.set_dirty(self.id, value)
 
     @property
     def icon(self):
@@ -79,27 +86,8 @@ class EncounterSet:
         self.data['card_amount'] = current_number-1
 
     def set(self, key, value):
+        print('encounter set, setting', key, value)
         self.data[key] = value
         self.dirty = True
+        print('is dirty', self.dirty)
 
-
-class EncounterSetTranslation(EncounterSet):
-    def __init__(self, data, translation_data, project):
-        self.translation_data = translation_data
-        super().__init__(data, project)
-        if 'name' in self.translation_data:
-            self.data['name'] = self.translation_data['name']
-
-    @property
-    def cards(self):
-        result = []
-        for c in self.project.cards:
-            if c.get('encounter_set') == self.id:
-                result.append(c)
-        result.sort(key=lambda c: c.name)
-        return result
-
-    def set(self, key, value):
-        self.translation_data[key] = value
-        self.data[key] = value
-        self.dirty = True
