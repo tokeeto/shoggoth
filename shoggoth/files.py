@@ -12,8 +12,10 @@ custom_asset_dir = os.environ.get("SHOGGOTH_ASSET_DIR")
 
 if custom_asset_dir:
     asset_dir = Path(custom_asset_dir)
+    print('custom asset dir', asset_dir)
 else:
     asset_dir = root_dir / "assets"
+    print('standard asset dir', asset_dir)
 
 defaults_dir = asset_dir / "defaults"
 font_dir = asset_dir / "fonts"

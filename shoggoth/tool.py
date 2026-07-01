@@ -1,11 +1,20 @@
 import logging
 import argparse
 import multiprocessing
+from dotenv import load_dotenv
+import os, sys
+
+# Load environment variables from .env
+# look for .env file in the directory of the current executable
+exe_folder = os.path.dirname(sys.executable)
+dotenv_path = os.path.join(exe_folder, ".env")
+load_dotenv(dotenv_path=dotenv_path)
+
+
 from shoggoth.files import asset_dir, root_dir
 from shoggoth.settings import EXPORT_SIZES
 from shoggoth import updater
 from os import makedirs
-
 
 logger = logging.getLogger('shoggoth')
 log_file = root_dir / 'session.log'

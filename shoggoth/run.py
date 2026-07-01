@@ -4,10 +4,6 @@ Simple run script for Shoggoth PySide6 version
 """
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
-
-# Load environment variables from .env
-load_dotenv()
 
 # Add the parent directory to Python path so we can import shoggoth modules
 parent_dir = Path(__file__).parent.parent
