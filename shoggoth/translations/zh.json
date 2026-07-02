@@ -101,6 +101,8 @@
   "BTN_SHOW_DETAILS": "显示详情...",
   "BTN_HIDE_DETAILS": "隐藏详情...",
   "DLG_ABOUT_TITLE": "关于 Shoggoth",
+  "DLG_ASSET_LOCATION_TITLE": "资源文件夹位置",
+  "DLG_ASSET_LOCATION_OPEN": "打开文件夹",
   "DLG_DEVELOPMENT_MODE": "开发模式",
   "DLG_EXPORT_COMPLETE": "导出完成",
   "DLG_LANGUAGE_CHANGED": "语言已更改",

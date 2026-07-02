@@ -86,6 +86,8 @@ class AssetEditor(FaceEditor):
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
+        self.add_victory_field()
+
         # Illustration
         self.add_illustration_widget()
 
@@ -163,6 +165,7 @@ class EventEditor(FaceEditor):
 
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.add_victory_field()
         self.add_illustration_widget()
 
         # Copyright and collection

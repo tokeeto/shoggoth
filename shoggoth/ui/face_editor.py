@@ -13,6 +13,7 @@ from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTraitEdit, Labeled
 from shoggoth.ui.card_widgets import IllustrationWidget, IconsWidget
 from shoggoth.ui.floating_label_widget import FloatingLabelLineEdit, FloatingLabelTextEdit
 from shoggoth.i18n import tr
+import shoggoth
 
 
 class FaceEditor(QWidget):
@@ -225,6 +226,50 @@ class FaceEditor(QWidget):
         """Helper to add a labeled line edit"""
         widget = LabeledLineEdit(label)
         widget.input.textChanged.connect(lambda: self.on_field_changed(field_name))
+        self.fields[field_name] = widget.input
+        self.field_containers[field_name] = widget
+        self.main_layout.addWidget(widget)
+        return widget
+
+    def _victory_format_template(self):
+        """Return the "victory format" template for the current card language.
+
+        Falls back to the English default if the card language has no
+        translation for this key, or no card renderer is available yet.
+        """
+        renderer = getattr(shoggoth.app, 'card_renderer', None)
+        fmt = renderer.translations.get('victory format') if renderer else None
+        return fmt or "Victory {input}."
+
+    def _handle_victory_autoformat(self, field_name):
+        """Auto-expand a bare number typed into the Victory field.
+
+        "2" becomes "Victory 2." (or the localized equivalent) with the
+        cursor placed right after the number, before the trailing dot.
+        Left untouched if the field contains any letters, so custom values
+        like "Vengeance 3." remain editable as free text.
+        """
+        if not self.updating:
+            widget = self.fields.get(field_name)
+            text = widget.text() if widget else ''
+            if text and text.isdigit():
+                fmt = self._victory_format_template()
+                prefix_len = fmt.find('{input}')
+                if prefix_len == -1:
+                    fmt = "Victory {input}."
+                    prefix_len = fmt.find('{input}')
+                widget.blockSignals(True)
+                widget.setText(fmt.format(input=text))
+                widget.blockSignals(False)
+                widget.setCursorPosition(prefix_len + len(text))
+        self.on_field_changed(field_name)
+
+    def add_victory_field(self, label=None, field_name="victory"):
+        """Helper to add the Victory field with bare-number auto-formatting"""
+        if label is None:
+            label = tr("FIELD_VICTORY")
+        widget = LabeledLineEdit(label)
+        widget.input.textChanged.connect(lambda: self._handle_victory_autoformat(field_name))
         self.fields[field_name] = widget.input
         self.field_containers[field_name] = widget
         self.main_layout.addWidget(widget)

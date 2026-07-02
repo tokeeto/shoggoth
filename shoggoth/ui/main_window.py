@@ -2992,8 +2992,33 @@ class ShoggothMainWindow(QMainWindow):
         dialog.exec()
 
     def open_asset_location(self):
-        """Open the asset folder in the system file explorer"""
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(asset_dir)))
+        """Show the current asset folder location, with an option to open it"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle(tr("DLG_ASSET_LOCATION_TITLE"))
+        dialog.setMinimumWidth(450)
+
+        layout = QVBoxLayout()
+
+        path_edit = QLineEdit(str(asset_dir))
+        path_edit.setReadOnly(True)
+        layout.addWidget(path_edit)
+
+        button_row = QHBoxLayout()
+
+        open_button = QPushButton(tr("DLG_ASSET_LOCATION_OPEN"))
+        open_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(asset_dir))))
+        button_row.addWidget(open_button)
+
+        button_row.addStretch()
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(dialog.accept)
+        button_row.addWidget(button_box)
+
+        layout.addLayout(button_row)
+
+        dialog.setLayout(layout)
+        dialog.exec()
 
     def closeEvent(self, event):
         """Handle window close event - check for unsaved changes"""

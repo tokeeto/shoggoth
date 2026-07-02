@@ -263,6 +263,7 @@ class StoryEditor(FaceEditor):
         self.add_class_field()
 
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.add_victory_field()
 
         # Copyright and collection
         self.add_copyright_collection_row()

@@ -101,6 +101,8 @@
   "BTN_SHOW_DETAILS": "Zeige Details...",
   "BTN_HIDE_DETAILS": "Verstecke Details...",
   "DLG_ABOUT_TITLE": "Über Shoggoth",
+  "DLG_ASSET_LOCATION_TITLE": "Asset-Ordner-Speicherort",
+  "DLG_ASSET_LOCATION_OPEN": "Ordner öffnen",
   "DLG_DEVELOPMENT_MODE": "Entwicklermodus",
   "DLG_EXPORT_COMPLETE": "Export abgeschlossen",
   "DLG_LANGUAGE_CHANGED": "Sprache geändert",

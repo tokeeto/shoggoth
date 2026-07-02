@@ -101,6 +101,8 @@
   "BTN_SHOW_DETAILS": "Mostrar detalles...",
   "BTN_HIDE_DETAILS": "Ocultar detalles...",
   "DLG_ABOUT_TITLE": "Acerca de Shoggoth",
+  "DLG_ASSET_LOCATION_TITLE": "Ubicación de la Carpeta de Recursos",
+  "DLG_ASSET_LOCATION_OPEN": "Abrir Carpeta",
   "DLG_DEVELOPMENT_MODE": "Modo Desarrollo",
   "DLG_EXPORT_COMPLETE": "Exportación Completa",
   "DLG_LANGUAGE_CHANGED": "Idioma Cambiado",

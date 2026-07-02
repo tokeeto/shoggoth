@@ -101,6 +101,8 @@
   "BTN_SHOW_DETAILS": "Afficher les détails...",
   "BTN_HIDE_DETAILS": "Masquer les détails...",
   "DLG_ABOUT_TITLE": "À propos de Shoggoth",
+  "DLG_ASSET_LOCATION_TITLE": "Emplacement du Dossier de Ressources",
+  "DLG_ASSET_LOCATION_OPEN": "Ouvrir le Dossier",
   "DLG_DEVELOPMENT_MODE": "Mode développeur",
   "DLG_EXPORT_COMPLETE": "Export terminé",
   "DLG_LANGUAGE_CHANGED": "Langue changée",

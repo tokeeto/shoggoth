@@ -66,7 +66,7 @@ class EnemyEditor(FaceEditor):
         dmg_widget.setLayout(dmg_layout)
         self.main_layout.addWidget(dmg_widget)
 
-        self.add_labeled_line(tr("FIELD_VICTORY"), "victory")
+        self.add_victory_field()
         self.add_illustration_widget()
 
         # Copyright and collection
@@ -83,7 +83,7 @@ class TreacheryEditor(FaceEditor):
         self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
         self.add_trait_field()
         self.add_class_field()
-        self.add_labeled_line(tr("FIELD_VICTORY"), "victory")
+        self.add_victory_field()
 
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
@@ -142,7 +142,7 @@ class LocationEditor(FaceEditor):
         self.add_labeled_line(tr("FIELD_SHROUD"), "shroud")
         self.add_trait_field()
         self.add_labeled_line(tr("FIELD_CLUES"), "clues")
-        self.add_labeled_line(tr("FIELD_VICTORY"), "victory")
+        self.add_victory_field()
 
         # Connections section - single row of icon dropdowns
         connections_row = QHBoxLayout()
