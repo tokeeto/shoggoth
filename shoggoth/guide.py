@@ -469,7 +469,7 @@ class GuideSection:
         if section_type == 'scenario':
             content = _scenario_markdown(encounter_set_id)
         else:
-            content = _DEFAULT_MARKDOWN.get(section_type) or f'# {name}\n\n'
+            content = _DEFAULT_MARKDOWN.get(section_type,  f'# {name}\n\n')
         return cls(section_type, name, content, encounter_set_id=encounter_set_id)
 
     def to_dict(self) -> dict:
