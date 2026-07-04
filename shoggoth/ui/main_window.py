@@ -1071,7 +1071,8 @@ class ShoggothMainWindow(QMainWindow):
         self.current_card = None
         self.current_editor = None
         card_lang = self.config.get('Shoggoth', 'card_language', 'en')
-        self.card_renderer = CardRenderer(locale=card_lang)
+        hyphenation_enabled = self.config.getboolean('Shoggoth', 'hyphenation_enabled', True)
+        self.card_renderer = CardRenderer(locale=card_lang, hyphenation_enabled=hyphenation_enabled)
         self.card_file_monitor = None
 
         # Preview rendering with debounce
@@ -1327,6 +1328,18 @@ class ShoggothMainWindow(QMainWindow):
             name=tr("CMD_TOGGLE_SHOW_REGIONS"),
             category=cat,
             action=toggle('show_regions', self.schedule_preview_update),
+        ))
+
+        def sync_hyphenation():
+            self.card_renderer.set_hyphenation_enabled(
+                self.config.getboolean('Shoggoth', 'hyphenation_enabled', True)
+            )
+            self.schedule_preview_update()
+
+        commands.append(Command(
+            name=tr("CMD_TOGGLE_HYPHENATION"),
+            category=cat,
+            action=toggle('hyphenation_enabled', sync_hyphenation),
         ))
         commands.append(Command(
             name=tr("CMD_TOGGLE_EXPORT_BLEED"),
@@ -1804,7 +1817,8 @@ class ShoggothMainWindow(QMainWindow):
         self.config.set('Shoggoth', 'card_language', lang_code)
         self.config.save()
 
-        self.card_renderer = CardRenderer(locale=lang_code)
+        hyphenation_enabled = self.config.getboolean('Shoggoth', 'hyphenation_enabled', True)
+        self.card_renderer = CardRenderer(locale=lang_code, hyphenation_enabled=hyphenation_enabled)
         self.render_version += 1
         self._start_background_render()
 

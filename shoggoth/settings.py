@@ -88,11 +88,16 @@ class SettingsManager:
     
     def _set_defaults(self):
         """Set default values for settings"""
+        # No keys at all means this is a fresh install: new features default to
+        # enabled. If settings already exist, a newly-introduced key defaults to
+        # disabled so upgrading users aren't surprised by a behavior change.
+        is_fresh_install = len(self.settings.allKeys()) == 0
         defaults = {
             'prince_cmd': 'prince',
             'prince_dir': '',
             'show_bleed': True,
             'show_regions': False,
+            'hyphenation_enabled': is_fresh_install,
             # Appearance
             'color_scheme': 'system',
             'ui_style': 'Fusion',
@@ -292,6 +297,17 @@ class SettingsDialog(QDialog):
         preview_group.setLayout(preview_layout)
         layout.addWidget(preview_group)
 
+        # Text rendering group
+        text_group = QGroupBox(tr("GROUP_TEXT_SETTINGS"))
+        text_layout = QFormLayout()
+
+        self.hyphenation_checkbox = QCheckBox(tr("OPT_ENABLE_HYPHENATION"))
+        self.hyphenation_checkbox.setToolTip(tr("HELP_HYPHENATION"))
+        text_layout.addRow(tr("LABEL_HYPHENATION"), self.hyphenation_checkbox)
+
+        text_group.setLayout(text_layout)
+        layout.addWidget(text_group)
+
         layout.addStretch()
         widget.setLayout(layout)
         return widget
@@ -441,6 +457,9 @@ class SettingsDialog(QDialog):
         self.show_regions_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_regions', False)
         )
+        self.hyphenation_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'hyphenation_enabled', True)
+        )
 
         # Appearance settings
         saved_style = self.settings.get('Shoggoth', 'ui_style', 'Fusion')
@@ -486,6 +505,16 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'prince_dir', self.prince_dir_input.text())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
         self.settings.set('Shoggoth', 'show_regions', self.show_regions_checkbox.isChecked())
+
+        hyphenation_enabled = self.hyphenation_checkbox.isChecked()
+        self.settings.set('Shoggoth', 'hyphenation_enabled', hyphenation_enabled)
+
+        # Push the new value to the live renderer - it doesn't read settings itself.
+        main_window = self.parent()
+        if main_window and hasattr(main_window, 'card_renderer'):
+            main_window.card_renderer.set_hyphenation_enabled(hyphenation_enabled)
+        if main_window and hasattr(main_window, 'schedule_preview_update'):
+            main_window.schedule_preview_update()
 
         # Appearance
         ui_style = self.style_combo.currentData()

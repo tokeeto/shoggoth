@@ -84,7 +84,7 @@ class CardRenderer:
     CARD_HEIGHT = 1050
     CARD_BLEED = 72
 
-    def __init__(self, locale='en'):
+    def __init__(self, locale='en', hyphenation_enabled=True):
         # Base paths
         self.assets_path = asset_dir
         self.templates_path = template_dir
@@ -107,7 +107,13 @@ class CardRenderer:
                 print('error while loading translation for renderer:', e)
 
         # Initialize rich text renderer
-        self.rich_text = RichTextRenderer(self)
+        self.hyphenation_enabled = hyphenation_enabled
+        self.rich_text = RichTextRenderer(self, hyphenation_enabled=hyphenation_enabled)
+
+    def set_hyphenation_enabled(self, enabled: bool):
+        """Update hyphenation on the fly (e.g. when the user toggles the setting)."""
+        self.hyphenation_enabled = enabled
+        self.rich_text.hyphenation_enabled = enabled
 
     def get_illustration_cached(self, path) -> _ImgDims:
         """Return illustration dimensions without decoding pixels.

@@ -125,7 +125,7 @@ class _WidthCache:
 
 
 class RichTextRenderer:
-    def __init__(self, card_renderer):
+    def __init__(self, card_renderer, hyphenation_enabled=True):
         self.card_renderer = card_renderer
         self.icon_cache = {}
         self.font_cache = {}
@@ -134,6 +134,7 @@ class RichTextRenderer:
 
         self.alignment = 'left'
         self.min_font_size = 10
+        self.hyphenation_enabled = hyphenation_enabled
 
         # ── Width cache (shared across all renders) ──────────────────────────
         self._wcache = _WidthCache()
@@ -529,7 +530,7 @@ class RichTextRenderer:
         word has no dictionary, no letters to hyphenate, or no split point
         narrow enough to fit.
         """
-        if max_width <= 0:
+        if max_width <= 0 or not self.hyphenation_enabled:
             return None
         hyphenator = self._get_hyphenator()
         if hyphenator is None:
