@@ -20,17 +20,25 @@ _MBPRINT_SIZE    = {'width': 1500, 'height': 2100, 'bleed': 72}
 _MBPRINT_FORMAT  = 'png'
 _MBPRINT_QUALITY = 100
 
+# Fixed constants used for Azao (not user-configurable)
+_AZAO_SIZE    = {'width': 1500, 'height': 2100, 'bleed': 72}
+_AZAO_FORMAT  = 'png'
+_AZAO_QUALITY = 100
+
 
 class PDFExportDialog(QDialog):
     """Modal dialog that collects PDF export options and runs the export."""
 
-    def __init__(self, project, renderer, cards, title, mbprint=False, default_filename=None, parent=None):
+    def __init__(self, project, renderer, cards, title, mbprint=False, azao=False, default_filename=None, parent=None):
         super().__init__(parent)
         self.project = project
         self.renderer = renderer
         self.cards = cards
         self.mbprint = mbprint
+        self.azao = azao
         self._default_filename = default_filename or f"{project.name}.pdf"
+        self._back_manually_edited = False
+        self._updating_back = False
 
         self.setWindowTitle(title)
         self.setMinimumWidth(520)
@@ -100,11 +108,12 @@ class PDFExportDialog(QDialog):
         root.addWidget(images_group)
 
         # ── Format ─────────────────────────────────────────────────────
-        if self.mbprint:
+        if self.mbprint or self.azao:
+            fmt, size = (_AZAO_FORMAT, _AZAO_SIZE) if self.azao else (_MBPRINT_FORMAT, _MBPRINT_SIZE)
             info = QLabel(tr("PDF_FORMAT_INFO").format(
-                fmt=_MBPRINT_FORMAT.upper(),
-                w=_MBPRINT_SIZE['width'],
-                h=_MBPRINT_SIZE['height'],
+                fmt=fmt.upper(),
+                w=size['width'],
+                h=size['height'],
             ))
             info.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
             root.addWidget(info)
@@ -139,14 +148,38 @@ class PDFExportDialog(QDialog):
         output_group = QGroupBox(tr("PDF_OUTPUT_LABEL"))
         output_layout = QVBoxLayout(output_group)
 
-        output_row = QHBoxLayout()
-        self._pdf_path_input = QLineEdit()
-        self._pdf_path_input.setText(str(self._default_pdf_path()))
-        output_row.addWidget(self._pdf_path_input)
-        browse_output_btn = QPushButton(tr("BTN_BROWSE"))
-        browse_output_btn.clicked.connect(self._browse_pdf_output)
-        output_row.addWidget(browse_output_btn)
-        output_layout.addLayout(output_row)
+        if self.azao:
+            output_layout.addWidget(QLabel(tr("PDF_OUTPUT_FRONT_LABEL")))
+            front_row = QHBoxLayout()
+            self._front_path_input = QLineEdit()
+            self._front_path_input.setText(str(self._default_pdf_path()))
+            front_row.addWidget(self._front_path_input)
+            browse_front_btn = QPushButton(tr("BTN_BROWSE"))
+            browse_front_btn.clicked.connect(self._browse_front_output)
+            front_row.addWidget(browse_front_btn)
+            output_layout.addLayout(front_row)
+
+            output_layout.addWidget(QLabel(tr("PDF_OUTPUT_BACK_LABEL")))
+            back_row = QHBoxLayout()
+            self._back_path_input = QLineEdit()
+            self._back_path_input.setText(self._derive_back_path(self._front_path_input.text()))
+            back_row.addWidget(self._back_path_input)
+            browse_back_btn = QPushButton(tr("BTN_BROWSE"))
+            browse_back_btn.clicked.connect(self._browse_back_output)
+            back_row.addWidget(browse_back_btn)
+            output_layout.addLayout(back_row)
+
+            self._front_path_input.textChanged.connect(self._on_front_path_changed)
+            self._back_path_input.textChanged.connect(self._on_back_path_changed)
+        else:
+            output_row = QHBoxLayout()
+            self._pdf_path_input = QLineEdit()
+            self._pdf_path_input.setText(str(self._default_pdf_path()))
+            output_row.addWidget(self._pdf_path_input)
+            browse_output_btn = QPushButton(tr("BTN_BROWSE"))
+            browse_output_btn.clicked.connect(self._browse_pdf_output)
+            output_row.addWidget(browse_output_btn)
+            output_layout.addLayout(output_row)
 
         root.addWidget(output_group)
 
@@ -173,6 +206,18 @@ class PDFExportDialog(QDialog):
     def _on_format_changed(self, fmt):
         self._quality_spin.setEnabled(fmt in ('jpeg', 'webp'))
 
+    def _on_front_path_changed(self, text):
+        if self._back_manually_edited:
+            return
+        self._updating_back = True
+        self._back_path_input.setText(self._derive_back_path(text))
+        self._updating_back = False
+
+    def _on_back_path_changed(self, text):
+        if self._updating_back:
+            return
+        self._back_manually_edited = True
+
     def _browse_image_folder(self):
         folder = QFileDialog.getExistingDirectory(
             self, tr("PDF_DLG_SELECT_FOLDER"),
@@ -190,6 +235,24 @@ class PDFExportDialog(QDialog):
         if path:
             self._pdf_path_input.setText(path)
 
+    def _browse_front_output(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("PDF_DLG_SELECT_OUTPUT"),
+            self._front_path_input.text(),
+            "PDF Files (*.pdf)"
+        )
+        if path:
+            self._front_path_input.setText(path)
+
+    def _browse_back_output(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("PDF_DLG_SELECT_OUTPUT"),
+            self._back_path_input.text(),
+            "PDF Files (*.pdf)"
+        )
+        if path:
+            self._back_path_input.setText(path)
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -200,6 +263,9 @@ class PDFExportDialog(QDialog):
     def _default_pdf_path(self):
         return Path(self.project.file_path).parent / self._default_filename
 
+    def _derive_back_path(self, front_path):
+        return front_path.replace('front.pdf', 'back.pdf')
+
     def _image_folder(self):
         if self._rb_project_folder.isChecked():
             return self._default_image_folder()
@@ -207,22 +273,28 @@ class PDFExportDialog(QDialog):
         return Path(custom) if custom else self._default_image_folder()
 
     def _selected_size(self):
+        if self.azao:
+            return _AZAO_SIZE
         if self.mbprint:
             return _MBPRINT_SIZE
         return EXPORT_SIZES[self._size_combo.currentIndex()][1]
 
     def _selected_format(self):
+        if self.azao:
+            return _AZAO_FORMAT
         if self.mbprint:
             return _MBPRINT_FORMAT
         return self._format_combo.currentText()
 
     def _selected_quality(self):
+        if self.azao:
+            return _AZAO_QUALITY
         if self.mbprint:
             return _MBPRINT_QUALITY
         return self._quality_spin.value()
 
     def _selected_include_backs(self):
-        if self.mbprint:
+        if self.azao or self.mbprint:
             return False
         return self._cb_backs.isChecked()
 
@@ -231,10 +303,17 @@ class PDFExportDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _run_export(self):
-        pdf_path = self._pdf_path_input.text().strip()
-        if not pdf_path:
-            QMessageBox.warning(self, tr("DLG_ERROR"), tr("PDF_ERR_NO_OUTPUT_PATH"))
-            return
+        if self.azao:
+            front_path = self._front_path_input.text().strip()
+            back_path = self._back_path_input.text().strip()
+            if not front_path or not back_path:
+                QMessageBox.warning(self, tr("DLG_ERROR"), tr("PDF_ERR_NO_OUTPUT_PATH"))
+                return
+        else:
+            pdf_path = self._pdf_path_input.text().strip()
+            if not pdf_path:
+                QMessageBox.warning(self, tr("DLG_ERROR"), tr("PDF_ERR_NO_OUTPUT_PATH"))
+                return
 
         image_folder = self._image_folder()
 
@@ -244,7 +323,9 @@ class PDFExportDialog(QDialog):
 
         try:
             from shoggoth import pdf_exporter
-            if self.mbprint:
+            if self.azao:
+                pdf_exporter.azao_pdf(self.cards, front_path, back_path, image_folder)
+            elif self.mbprint:
                 pdf_exporter.create_mbprint_pdf(self.cards, pdf_path, image_folder)
             else:
                 pdf_exporter.export(
@@ -258,7 +339,8 @@ class PDFExportDialog(QDialog):
             QMessageBox.critical(self, tr("DLG_ERROR"), tr("MSG_PDF_EXPORT_FAILED").format(error=str(e)))
             return
 
-        QMessageBox.information(self, self.windowTitle(), tr("MSG_PDF_EXPORTED").format(path=pdf_path))
+        result_path = f"{front_path}, {back_path}" if self.azao else pdf_path
+        QMessageBox.information(self, self.windowTitle(), tr("MSG_PDF_EXPORTED").format(path=result_path))
         self.accept()
 
     def _export_images(self, image_folder):

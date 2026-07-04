@@ -1612,10 +1612,28 @@ class ShoggothMainWindow(QMainWindow):
         player_mbprint_action.triggered.connect(self.export_player_to_mbprint)
         export_menu.addAction(player_mbprint_action)
 
+        export_menu.addSeparator()
+
+        # Export card to Azao PDF
+        card_azao_action = QAction(tr("MENU_CARD_TO_AZAO"), self)
+        card_azao_action.triggered.connect(self.export_card_to_azao)
+        export_menu.addAction(card_azao_action)
+
+        # Export campaign to Azao PDF
+        campaign_azao_action = QAction(tr("MENU_CAMPAIGN_TO_AZAO"), self)
+        campaign_azao_action.triggered.connect(self.export_campaign_to_azao)
+        export_menu.addAction(campaign_azao_action)
+
+        # Export player cards to Azao PDF
+        player_azao_action = QAction(tr("MENU_PLAYER_TO_AZAO"), self)
+        player_azao_action.triggered.connect(self.export_player_to_azao)
+        export_menu.addAction(player_azao_action)
+
         # Keep references so we can enable/disable based on Prince availability
         self._pdf_actions = [
             card_pdf_action, campaign_pdf_action, player_pdf_action,
             card_mbprint_action, campaign_mbprint_action, player_mbprint_action,
+            card_azao_action, campaign_azao_action, player_azao_action,
         ]
 
         export_menu.addSeparator()
@@ -3169,11 +3187,11 @@ class ShoggothMainWindow(QMainWindow):
         if dialog.exec() == QDialog.Accepted:
             self._refresh_pdf_actions()
 
-    def _open_pdf_export_dialog(self, cards, title, mbprint, default_filename):
+    def _open_pdf_export_dialog(self, cards, title, mbprint, default_filename, azao=False):
         from shoggoth.ui.pdf_export_dialog import PDFExportDialog
         dialog = PDFExportDialog(
             self.active_project, self.card_renderer,
-            cards, title, mbprint=mbprint,
+            cards, title, mbprint=mbprint, azao=azao,
             default_filename=default_filename,
             parent=self
         )
@@ -3243,6 +3261,39 @@ class ShoggothMainWindow(QMainWindow):
         self._open_pdf_export_dialog(
             list(self.active_project.player_cards), tr("PDF_DLG_TITLE_PLAYER_MBPRINT"), mbprint=True,
             default_filename=f"{self.active_project.name} player cards_mbprint.pdf"
+        )
+
+    def export_card_to_azao(self):
+        """Export current card to Azao PDF via modal dialog."""
+        if not self.current_card:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
+            return
+        self._open_pdf_export_dialog(
+            [self.current_card], tr("PDF_DLG_TITLE_CARD_AZAO"), mbprint=False, azao=True,
+            default_filename="front.pdf"
+        )
+
+    def export_campaign_to_azao(self):
+        """Export campaign cards to Azao PDF via modal dialog."""
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+            return
+        cards = []
+        for es in self.active_project.encounter_sets:
+            cards.extend(es.cards)
+        self._open_pdf_export_dialog(
+            cards, tr("PDF_DLG_TITLE_CAMPAIGN_AZAO"), mbprint=False, azao=True,
+            default_filename="front.pdf"
+        )
+
+    def export_player_to_azao(self):
+        """Export player cards to Azao PDF via modal dialog."""
+        if not self.active_project:
+            QMessageBox.warning(self, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+            return
+        self._open_pdf_export_dialog(
+            list(self.active_project.player_cards), tr("PDF_DLG_TITLE_PLAYER_AZAO"), mbprint=False, azao=True,
+            default_filename="front.pdf"
         )
 
     def open_tts_export_dialog(self):
