@@ -18,6 +18,17 @@ logger = logging.getLogger('shoggoth')
 card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
 _ILLUS_LRU_MAXSIZE = 24
 
+DEFAULT_TEXT_FIELDS = [
+    'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
+    'attack', 'evade', 'health', 'stamina', 'sanity', 'victory',
+    'clues', 'doom', 'shroud', 'willpower', 'intellect',
+    'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty',
+    'text1', 'text2', 'text3', 'chaos_extra',
+]
+DEFAULT_IMAGE_FIELDS = [
+    'template', 'illustration'
+]
+
 
 class _ImgDims:
     """Minimal stand-in returned by get_illustration_cached — holds only dimensions."""

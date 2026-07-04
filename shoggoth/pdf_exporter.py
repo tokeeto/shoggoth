@@ -71,6 +71,46 @@ def _mbprint_html(cards, folder):
     yield "</body>"
 
 
+def _azao_html(cards, folder, side='front'):
+    """ Simple document template for mbprint output """
+    yield """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                img {
+                    -prince-image-resolution: 900dpi;
+                    break-before: page;
+                    width: 66.5mm;
+                    height: 91mm;
+                    display: block;
+                }
+                img.wide {
+                    page: wide;
+                    width: 91mm;
+                    height: 66.5mm;
+
+                }
+                @page {
+                    margin: 0;
+                    size: 66.5mm 91mm;
+                }
+                @page wide {
+                    size: 91mm 66.5mm;
+                }
+            </style>
+        </head>
+        <body>
+    """
+
+    offset = 0 if side == 'front' else 1
+    for card in cards:
+        css = 'wide' if card.front.get('orientation') == 'horizontal' else ''
+        for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False)[offset::2]:
+            yield f'<img class="{css}" src="{path}">\n'
+    yield "</body>"
+
 def _pdf_html(cards, folder, size, format='png', include_backs=False):
     """ Simple document template for pdf prints """
     yield """
@@ -146,5 +186,38 @@ def create_mbprint_pdf(cards, target_file, image_folder):
     )
 
     print(f"MBPrint pdf time: {time()-start_time}")
+
+
+def azao_pdf(cards, target_file_front, target_file_back, image_folder):
+    prince_cmd, prince_cwd = _resolve_prince()
+    if prince_cmd is None:
+        raise Exception("can't export without prince")
+
+    target_folder = Path(target_file_front).parent
+    temp_file = target_folder / '_temp.html'
+
+    start_time = time()
+    with open(temp_file, 'w') as html_file:
+        for txt in _azao_html(cards, image_folder, 'front'):
+            html_file.write(txt)
+    print(f"Azao front html time: {time()-start_time}")
+
+    subprocess.run(
+        [prince_cmd, temp_file, '-o', Path(target_file_front)],
+        cwd=prince_cwd,
+    )
+    print(f"Azao pdf front time: {time()-start_time}")
+
+    start_time = time()
+    with open(temp_file, 'w') as html_file:
+        for txt in _azao_html(cards, image_folder, 'back'):
+            html_file.write(txt)
+    print(f"Azao front html time: {time()-start_time}")
+
+    subprocess.run(
+        [prince_cmd, temp_file, '-o', Path(target_file_back)],
+        cwd=prince_cwd,
+    )
+    print(f"Azao pdf front time: {time()-start_time}")
 
 
