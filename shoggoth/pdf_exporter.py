@@ -86,18 +86,9 @@ def _azao_html(cards, folder, side='front'):
                     height: 91mm;
                     display: block;
                 }
-                img.wide {
-                    page: wide;
-                    width: 91mm;
-                    height: 66.5mm;
-
-                }
                 @page {
                     margin: 0;
                     size: 66.5mm 91mm;
-                }
-                @page wide {
-                    size: 91mm 66.5mm;
                 }
             </style>
         </head>
@@ -106,9 +97,8 @@ def _azao_html(cards, folder, side='front'):
 
     offset = 0 if side == 'front' else 1
     for card in cards:
-        css = 'wide' if card.front.get('orientation') == 'horizontal' else ''
         for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False)[offset::2]:
-            yield f'<img class="{css}" src="{path}">\n'
+            yield f'<img src="{path}">\n'
     yield "</body>"
 
 def _pdf_html(cards, folder, size, format='png', include_backs=False):

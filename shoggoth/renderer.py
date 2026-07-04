@@ -288,8 +288,8 @@ class CardRenderer:
                 return f'{project_code}_{enc_code}_{variant.encounter_number}_{{face}}.{{format}}'
             return f'{project_code}_{variant.project_number}_{{face}}.{{format}}'
         # default
-        # abcd-012345-abcde-02442_cardname_back.png
-        return f'{variant.id}_{variant.name}_{{face}}.{{format}}'
+        # abcd-012345-abcde-02442_cardname_back_0.png
+        return f'{variant.id}_{variant.name}_{{face}}_{{index}}.{{format}}'
 
     def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0):
         try:
@@ -313,7 +313,7 @@ class CardRenderer:
                         outputs.append(str(file_path))
                     else:
                         face_letter = 'a' if name == 'front' else 'b'
-                        file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter)
+                        file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter, index=index)
                         image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
                         image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
                         outputs.append(str(file_path))
@@ -324,7 +324,7 @@ class CardRenderer:
             logger.error('failed to export card', card, exc_info=True)
 
     @staticmethod
-    def expected_export_paths(card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True):
+    def expected_export_paths(card, folder, size, include_backs=False, format='png', separate_versions=True, filename_format='id', number=0):
         """ Get the expected output paths from export_card_images without actually generating images """
         outputs = []
         faces = card.versions
@@ -332,13 +332,15 @@ class CardRenderer:
             faces = [card]
 
         for index, variant in enumerate(faces):
+            base = CardRenderer._filename_base(variant, filename_format)
             for face, name in ((variant.front, 'front'), (variant.back, 'back')):
                 # if this is a repeated card, only export it once
                 if face['type'] in ('player', 'encounter') and not include_backs:
                     file_path = Path(folder) / f'{face["type"]}.{format}'
                     outputs.append(str(file_path))
                 else:
-                    file_path = Path(folder) / f'{card.id}_{name}_{index}.{format}'
+                    face_letter = 'a' if name == 'front' else 'b'
+                    file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter, index=index)
                     outputs.append(str(file_path))
         return outputs
 
