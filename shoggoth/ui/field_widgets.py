@@ -3,7 +3,7 @@ Field widgets for Shoggoth using PySide6
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QCompleter,
-    QLabel, QPushButton, QCheckBox, QStackedWidget
+    QLabel, QPushButton, QCheckBox, QStackedWidget, QFrame
 )
 from PySide6.QtCore import Qt, Signal
 
@@ -17,7 +17,7 @@ KNOWN_TRAITS = sorted(ArkhamTextHighlighter(None).known_traits)
 
 # Known card classes for autocomplete
 KNOWN_CLASSES = [
-    "seeker", "guardian", "rogue", "mystic", "survivor",
+    "seeker", "guardian", "rogue", "mystic", "survivor", "specialist",
     "neutral", "story", "weakness", "story weakness", "basic weakness",
 ]
 
@@ -331,7 +331,7 @@ class ClassSelectorWidget(QWidget):
 
     Modes:
       None         → classes = None
-      Player       → 5 toggle buttons; none selected = ['neutral'], else selected list
+      Player       → 5 class toggle buttons plus Specialist; none selected = ['neutral'], else selected list
       Weakness     → Basic checkbox; ['weakness'] or ['basic weakness']
       Story        → ['story'], no extra controls
       Custom       → free-text field (comma-separated)
@@ -340,6 +340,7 @@ class ClassSelectorWidget(QWidget):
     classesChanged = Signal()
 
     PLAYER_CLASSES = ['guardian', 'seeker', 'rogue', 'mystic', 'survivor']
+    SPECIALIST_CLASS = 'specialist'
 
     MODE_NONE = 0
     MODE_PLAYER = 1
@@ -382,7 +383,7 @@ class ClassSelectorWidget(QWidget):
         # Page 0: None — empty
         self.stack.addWidget(QWidget())
 
-        # Page 1: Player classes — 5 toggle buttons
+        # Page 1: Player classes — 5 toggle buttons, separator, then Specialist
         player_page = QWidget()
         player_layout = QHBoxLayout()
         player_layout.setContentsMargins(0, 0, 0, 0)
@@ -396,6 +397,19 @@ class ClassSelectorWidget(QWidget):
             btn.clicked.connect(self._on_player_changed)
             player_layout.addWidget(btn)
             self._class_buttons[cls] = btn
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        player_layout.addWidget(separator)
+
+        specialist_btn = QPushButton(tr("CLASS_SPECIALIST"))
+        specialist_btn.setCheckable(True)
+        specialist_btn.setFixedHeight(26)
+        specialist_btn.clicked.connect(self._on_player_changed)
+        player_layout.addWidget(specialist_btn)
+        self._class_buttons[self.SPECIALIST_CLASS] = specialist_btn
+
         player_page.setLayout(player_layout)
         self.stack.addWidget(player_page)
 
@@ -458,7 +472,8 @@ class ClassSelectorWidget(QWidget):
         if mode == self.MODE_NONE:
             return None
         elif mode == self.MODE_PLAYER:
-            selected = [c for c in self.PLAYER_CLASSES if self._class_buttons[c].isChecked()]
+            all_classes = self.PLAYER_CLASSES + [self.SPECIALIST_CLASS]
+            selected = [c for c in all_classes if self._class_buttons[c].isChecked()]
             return selected if selected else ['neutral']
         elif mode == self.MODE_WEAKNESS:
             return ['basic weakness'] if self.basic_checkbox.isChecked() else ['weakness']
@@ -476,7 +491,7 @@ class ClassSelectorWidget(QWidget):
         if not value:  # None or empty string or empty list
             self._set_mode(self.MODE_NONE)
         elif isinstance(value, list):
-            player_set = set(self.PLAYER_CLASSES)
+            player_set = set(self.PLAYER_CLASSES) | {self.SPECIALIST_CLASS}
             value_set = set(value)
             if value_set <= (player_set | {'neutral'}):
                 self._set_mode(self.MODE_PLAYER)

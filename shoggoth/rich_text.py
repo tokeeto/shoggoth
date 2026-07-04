@@ -5,6 +5,7 @@ import platform
 import pathlib
 import numpy as np
 import re
+import pyphen
 from shoggoth.files import font_dir
 from shoggoth.i18n import tr
 
@@ -136,6 +137,9 @@ class RichTextRenderer:
 
         # ── Width cache (shared across all renders) ──────────────────────────
         self._wcache = _WidthCache()
+
+        # ── Hyphenation dictionaries, keyed by card language ──────────────────
+        self._hyphen_dicts = {}
 
         # ── Formatting tags ──────────────────────────────────────────────────
         self.formatting_tags = {
@@ -501,6 +505,55 @@ class RichTextRenderer:
         text = text.replace('\x00DQ\x00', '"')
         text = text.replace('\x00SQ\x00', "'")
         return text
+
+    def _get_hyphenator(self):
+        """Return a cached pyphen.Pyphen for the card's language, or None if
+        no hyphenation dictionary is available for it (e.g. CJK languages)."""
+        locale = getattr(self.card_renderer, 'locale', None) or 'en'
+        if locale not in self._hyphen_dicts:
+            dic = None
+            try:
+                resolved = pyphen.language_fallback(locale)
+                if resolved:
+                    dic = pyphen.Pyphen(lang=resolved)
+            except Exception:
+                dic = None
+            self._hyphen_dicts[locale] = dic
+        return self._hyphen_dicts[locale]
+
+    def _hyphenate_split(self, word, font_obj, max_width):
+        """Try to split `word` with a hyphen so the head (including the
+        trailing '-') renders within max_width pixels using font_obj.
+
+        Returns (head, tail) for the longest fitting split, or None if the
+        word has no dictionary, no letters to hyphenate, or no split point
+        narrow enough to fit.
+        """
+        if max_width <= 0:
+            return None
+        hyphenator = self._get_hyphenator()
+        if hyphenator is None:
+            return None
+
+        # Only hyphenate the alphabetic core, leaving surrounding punctuation
+        # (quotes, commas, dashes, ...) attached to whichever half it belongs to.
+        start, end = 0, len(word)
+        while start < end and not word[start].isalpha():
+            start += 1
+        while end > start and not word[end - 1].isalpha():
+            end -= 1
+        core = word[start:end]
+        if not core.isalpha():
+            return None
+
+        prefix, suffix = word[:start], word[end:]
+        wcache = self._wcache
+        for head, tail in hyphenator.iterate(core):
+            # iterate() returns the raw split with no hyphen mark attached
+            candidate = prefix + head + '-'
+            if wcache.width(candidate, font_obj) <= max_width:
+                return candidate, tail + suffix
+        return None
 
     def _merge_last_two_words(self, toks):
         """Merge the last two plain-text words in a token list into a non-breaking unit."""
@@ -987,11 +1040,47 @@ class RichTextRenderer:
                             return commands, False, i / num_tokens
 
                 if t == 'text':
+                    value = token['value']
                     font_obj = current_fonts[current_font]
-                    w = wcache.width(token['value'], font_obj)
+                    while True:
+                        w = wcache.width(value, font_obj)
+                        avail = wrap_width(y)
+                        if current_line_width + w <= avail:
+                            break
+
+                        # Word doesn't fit on the current line: try to hyphenate
+                        # it so part of it can still fill the remaining space
+                        # (or, if the line is empty, the full line width).
+                        split = self._hyphenate_split(value, font_obj, avail - current_line_width)
+                        if split is None and current_line_width == 0:
+                            break  # can't split further and it's alone on the line: accept overflow
+
+                        if split is not None:
+                            head, tail = split
+                            pending_append({
+                                'cmd': 'text',
+                                'value': head,
+                                'font': font_obj,
+                                'width': wcache.width(head, font_obj),
+                                'strikethrough': current_strikethrough,
+                                'underline': current_underline,
+                            })
+                            has_renderable = True
+                            value = tail
+
+                        flush()
+                        indent_current = current_indent > 0
+                        pending.clear()
+                        has_renderable = False
+                        current_line_width = 0
+                        y += current_fonts['regular'].size
+                        if y > region.y + max_height:
+                            if not force:
+                                return commands, False, i / num_tokens
+
                     item = {
                         'cmd': 'text',
-                        'value': token['value'],
+                        'value': value,
                         'font': font_obj,
                         'width': w,
                         'strikethrough': current_strikethrough,
@@ -1011,7 +1100,7 @@ class RichTextRenderer:
                     w = wrap_width(y)
                     item = {'cmd': 'hr', 'width': w}
 
-                if current_line_width + w > wrap_width(y):
+                if t != 'text' and current_line_width + w > wrap_width(y):
                     flush()
                     indent_current = current_indent > 0
                     pending.clear()
