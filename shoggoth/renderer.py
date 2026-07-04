@@ -914,6 +914,9 @@ class CardRenderer:
         new_height = int(illustration.height * illustration_scale)
         illustration = self.get_illustration_resized_cached(illustration_path, (new_width, new_height))
 
+        if side.get('illustration_mirror', False):
+            illustration = ImageOps.mirror(illustration)
+
         rotation = side.get('illustration_rotation', 0)
         if rotation:
             illustration = illustration.rotate(float(rotation))

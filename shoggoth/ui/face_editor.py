@@ -4,7 +4,7 @@ FaceEditor base class for Shoggoth face editors
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QTextEdit, QComboBox,
-    QLabel, QCompleter
+    QLabel, QCompleter, QCheckBox
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -161,6 +161,8 @@ class FaceEditor(QWidget):
             widget.setPlainText(str(value) if value else '')
         elif isinstance(widget, QComboBox):
             widget.setCurrentText('' if value in (None, '') else str(value))
+        elif isinstance(widget, QCheckBox):
+            widget.setChecked(bool(value))
 
     def get_widget_value(self, widget):
         """Get widget value based on type"""
@@ -172,12 +174,16 @@ class FaceEditor(QWidget):
             return widget.toPlainText()
         elif isinstance(widget, QComboBox):
             return widget.currentData() or widget.currentText()
+        elif isinstance(widget, QCheckBox):
+            return widget.isChecked()
         return ''
 
     # Fields that require type conversion
     INTEGER_FIELDS = {}
     FLOAT_FIELDS = {'illustration_scale', 'illustration_pan_x', 'illustration_pan_y'}
     LIST_FIELDS = set()  # Fields stored as lists but displayed as comma-separated
+    # Fields stored as True when set, and removed (None) rather than False when unset
+    BOOL_FIELDS = {'illustration_mirror'}
 
     def on_field_changed(self, field_name):
         """Handle field change"""
@@ -189,6 +195,16 @@ class FaceEditor(QWidget):
             return
 
         value = self.get_widget_value(widget)
+
+        if field_name in self.BOOL_FIELDS:
+            self.face.set(field_name, True if value else None)
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, 'data_changed'):
+                    parent.data_changed.emit()
+                    break
+                parent = parent.parent()
+            return
 
         # Convert value to appropriate type
         if value is not None and value != '' and value != []:
@@ -338,6 +354,7 @@ class FaceEditor(QWidget):
         self.fields['illustration_pan_x'] = illustration.pan_x_input.input
         self.fields['illustration_scale'] = illustration.scale_input.input
         self.fields['illustrator'] = illustration.artist_input.input
+        self.fields['illustration_mirror'] = illustration.mirror_checkbox
 
         # Connect signals
         illustration.path_input.input.textChanged.connect(lambda: self.on_field_changed('illustration'))
@@ -345,6 +362,7 @@ class FaceEditor(QWidget):
         illustration.pan_x_input.input.textChanged.connect(lambda: self.on_field_changed('illustration_pan_x'))
         illustration.scale_input.input.textChanged.connect(lambda: self.on_field_changed('illustration_scale'))
         illustration.artist_input.input.textChanged.connect(lambda: self.on_field_changed('illustrator'))
+        illustration.mirror_checkbox.toggled.connect(lambda: self.on_field_changed('illustration_mirror'))
 
         self.main_layout.addWidget(illustration)
         return illustration

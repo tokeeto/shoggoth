@@ -2,7 +2,7 @@
 Card-specific widgets (icons, illustration) for Shoggoth using PySide6
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
@@ -195,6 +195,8 @@ class IllustrationWidget(QWidget):
         browse_btn = QPushButton(tr("BTN_BROWSE"))
         browse_btn.clicked.connect(self.browse_image)
         path_layout.addWidget(browse_btn)
+        self.mirror_checkbox = QCheckBox(tr("FIELD_MIRROR"))
+        path_layout.addWidget(self.mirror_checkbox)
         layout.addLayout(path_layout)
 
         # Pan and scale with edit button

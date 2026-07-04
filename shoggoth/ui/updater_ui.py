@@ -12,6 +12,7 @@ import requests
 import tempfile
 import subprocess
 import platform
+import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -595,10 +596,22 @@ class UpdateProgressDialog(QDialog):
             if sys.platform == 'win32' and getattr(sys, 'frozen', False):
                 # Windows can't replace a running exe, but it can be renamed.
                 # Rename the running exe, copy the new one into its place, then relaunch.
+                new_exe_source = self.download_path
+                if new_exe_source.suffix.lower() == '.zip':
+                    # Release assets ship as a zip of the onefile exe; unwrap it first
+                    # so we don't copy a zip archive into place with an .exe extension.
+                    with zipfile.ZipFile(new_exe_source) as zf:
+                        exe_members = [n for n in zf.namelist() if n.lower().endswith('.exe')]
+                        if not exe_members:
+                            raise RuntimeError(f"No .exe found inside {new_exe_source.name}")
+                        extract_dir = Path(tempfile.mkdtemp(prefix='shoggoth_update_'))
+                        zf.extract(exe_members[0], extract_dir)
+                        new_exe_source = extract_dir / exe_members[0]
+
                 current_exe = Path(sys.executable)
                 old_exe = current_exe.with_stem(current_exe.stem + '_old')
                 current_exe.rename(old_exe)
-                shutil.copy2(self.download_path, current_exe)
+                shutil.copy2(new_exe_source, current_exe)
                 subprocess.Popen([str(current_exe)])
                 QApplication.quit()
             elif sys.platform == 'win32':
