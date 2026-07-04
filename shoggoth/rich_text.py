@@ -745,6 +745,7 @@ class RichTextRenderer:
         # Blockquote state
         quote = False
         quote_last = False
+        quote_first = False
 
         # Underline state
         current_underline = False
@@ -802,10 +803,10 @@ class RichTextRenderer:
             return region.width - block_indent
 
         def flush():
-            nonlocal quote_last, has_renderable, dbl_underline_pending
+            nonlocal quote, quote_first, quote_last, has_renderable, dbl_underline_pending
 
             if not has_renderable:
-                quote_last = False
+                quote_first = False
                 dbl_underline_pending = False
                 return
 
@@ -813,15 +814,16 @@ class RichTextRenderer:
 
             line_y = y
 
-            if quote or quote_last:
-                bar_bottom = line_y + (font_size * 0.8 if quote_last else line_height)
+            if quote or quote_first or quote_last:
+                bar_top = line_y - (font_size*0.8 if quote_first else line_height)
+                quote_first = False
                 cmd_append({'cmd': 'line',
-                            'x1': x_orig, 'y1': line_y, 'x2': x_orig, 'y2': bar_bottom,
+                            'x1': x_orig, 'y1': bar_top, 'x2': x_orig, 'y2': line_y,
                             'fill': fill, 'width': 2})
                 cmd_append({'cmd': 'line',
-                            'x1': x_orig + 10, 'y1': line_y, 'x2': x_orig + 10, 'y2': bar_bottom,
+                            'x1': x_orig + 10, 'y1': bar_top, 'x2': x_orig + 10, 'y2': line_y,
                             'fill': fill, 'width': 2})
-                indent = 20
+                indent = 50
 
             eff_x, eff_w = eff_bounds(line_y)
             eff_x += indent
@@ -958,6 +960,7 @@ class RichTextRenderer:
                     font_stack.append(current_font)
                     current_font = 'italic'
                     quote = True
+                    quote_first = True
                 else:
                     current_font = font_stack.pop() if font_stack else base_font
                     quote = False
