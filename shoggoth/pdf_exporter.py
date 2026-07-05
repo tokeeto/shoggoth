@@ -1,5 +1,6 @@
 import base64
 import platform
+import re
 import shoggoth
 from shoggoth.renderer import CardRenderer
 from shoggoth.settings import EXPORT_SIZES
@@ -8,6 +9,35 @@ from threading import Thread
 from time import time
 from pathlib import Path
 from shoggoth.files import prince_dir as _local_prince_dir
+
+# Printed card size for the one-card-per-page exports (mbprint, azao)
+_CARD_W_MM = 66.5
+_CARD_H_MM = 91
+_CSS_PX_PER_MM = 96 / 25.4
+
+
+def _font_css(folder):
+    """Inline the @font-face rules the card exporter left in the image folder
+    (only present when cards were exported with a vector text layer)."""
+    css_path = Path(folder) / 'fonts.css'
+    if css_path.exists():
+        return f'<style>\n{css_path.read_text(encoding="utf-8")}\n</style>'
+    return ''
+
+
+def _card_page(path):
+    """One card page: the raster image plus, if the renderer wrote an HTML
+    text sidecar next to it, the vector text overlay scaled from card pixels
+    down to the printed size."""
+    sidecar = Path(path).with_suffix('.html')
+    if sidecar.exists():
+        overlay = sidecar.read_text(encoding='utf-8')
+        m = re.search(r'data-width="(\d+)"', overlay)
+        if m:
+            k = _CARD_W_MM * _CSS_PX_PER_MM / int(m[1])
+            return (f'<div class="card"><img src="{path}">'
+                    f'<div class="text-scale" style="transform:scale({k:.6f})">{overlay}</div></div>\n')
+    return f'<div class="card"><img src="{path}"></div>\n'
 
 
 def _local_prince_bin():
@@ -31,73 +61,63 @@ def check_prince_installed():
     return _local_prince_bin().exists()
 
 
-def _mbprint_html(cards, folder):
-    """ Simple document template for mbprint output """
-    yield """
+# Shared page setup for the one-card-per-page exports. Each card is a
+# positioned .card box so a vector text overlay can sit on top of the image.
+_CARD_PAGE_HEAD = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
             <style>
-                img {
-                    -prince-image-resolution: 900dpi;
+                .card {{
+                    position: relative;
+                    width: {_CARD_W_MM}mm;
+                    height: {_CARD_H_MM}mm;
                     break-before: page;
-                    width: 66.5mm;
-                    height: 91mm;
+                    overflow: hidden;
+                }}
+                .card > img {{
+                    -prince-image-resolution: 900dpi;
+                    width: {_CARD_W_MM}mm;
+                    height: {_CARD_H_MM}mm;
                     display: block;
-                }
-                img.wide {
-                    page: wide;
-                    width: 91mm;
-                    height: 66.5mm;
-
-                }
-                @page {
+                }}
+                .card > .text-scale {{
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    transform-origin: 0 0;
+                }}
+                @page {{
                     margin: 0;
-                    size: 66.5mm 91mm;
-                }
-                @page wide {
-                    size: 91mm 66.5mm;
-                }
+                    size: {_CARD_W_MM}mm {_CARD_H_MM}mm;
+                }}
             </style>
-        </head>
-        <body>
     """
+
+
+def _mbprint_html(cards, folder):
+    """ Simple document template for mbprint output """
+    yield _CARD_PAGE_HEAD
+    yield _font_css(folder)
+    yield "</head>\n<body>\n"
 
     for card in cards:
         for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False):
-            yield f'<img src="{path}">\n'
+            yield _card_page(path)
     yield "</body>"
 
 
 def _azao_html(cards, folder, side='front'):
-    """ Simple document template for mbprint output """
-    yield """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                img {
-                    -prince-image-resolution: 900dpi;
-                    break-before: page;
-                    width: 66.5mm;
-                    height: 91mm;
-                    display: block;
-                }
-                @page {
-                    margin: 0;
-                    size: 66.5mm 91mm;
-                }
-            </style>
-        </head>
-        <body>
-    """
+    """ Simple document template for azao output """
+    yield _CARD_PAGE_HEAD
+    yield _font_css(folder)
+    yield "</head>\n<body>\n"
 
     offset = 0 if side == 'front' else 1
     for card in cards:
         for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False)[offset::2]:
-            yield f'<img src="{path}">\n'
+            yield _card_page(path)
     yield "</body>"
 
 def _pdf_html(cards, folder, size, format='png', include_backs=False):

@@ -1,25 +1,36 @@
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
+from contextlib import contextmanager
+import html as html_lib
 import io
 import os
 import platform
 import pathlib
-import numpy as np
+import threading
 import re
 import pyphen
 from shoggoth.files import font_dir
 from shoggoth.i18n import tr
 
 # Only keep regexes for the rare parametric tags (size, margin, indent, font, image)
-_size_re = re.compile(r'<size (\d+?)>', flags=re.IGNORECASE)
-_margin_re = re.compile(r'<margin (\d+?)(\s\d+?)*>', flags=re.IGNORECASE)
-_indent_re = re.compile(r'<indent (\d+?)>', flags=re.IGNORECASE)
+_size_re = re.compile(r'<size (\d+)>', flags=re.IGNORECASE)
+# <margin> accepts multiple space-separated numbers but only the first is used
+_margin_re = re.compile(r'<margin (\d+)(\s\d+)*>', flags=re.IGNORECASE)
+_indent_re = re.compile(r'<indent (\d+)>', flags=re.IGNORECASE)
 _font_re = re.compile(r'<font "(.+?)">', flags=re.IGNORECASE)
 _image_re = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
 _tag_kv = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 
+# Typographic tuning (fractions are of the current font size)
+LINE_HEIGHT_FACTOR = 1.30
+STRIKETHROUGH_Y_FACTOR = 0.45   # bar offset below the text anchor
+UNDERLINE_Y_FACTOR = 0.88
+DBL_UNDERLINE_Y_FACTOR = 0.12
+QUOTE_INDENT = 50               # text indent inside <blockquote>
+QUOTE_BAR_SPACING = 10          # gap between the two blockquote bars
+
 
 def _parse_tag_attributes(tag_string):
-    return dict(re.findall(_tag_kv, tag_string))
+    return dict(_tag_kv.findall(tag_string))
 
 
 class _TrieNode:
@@ -65,12 +76,18 @@ def _trie_match(root, text, pos):
     return best_val, best_len
 
 
-def recolor_icon(icon, color):
-    data = np.array(icon)
-    red, green, blue, alpha = data.T
-    black_areas = (red == 0) & (blue == 0) & (green == 0)
-    data[..., :-1][black_areas.T] = ImageColor.getcolor(color, "RGB")
-    return Image.fromarray(data)
+def colorize_icon(icon, color):
+    """Tint a grayscale (primarily black) icon with a single color.
+
+    Black pixels take the color, white stays white, anti-aliased grays blend
+    between the two, and the alpha channel is preserved. `color` is anything
+    Pillow understands: a color word, '#rgb'/'#rrggbb' hex, or 'rgb(r,g,b)'.
+    """
+    rgb = ImageColor.getcolor(color, 'RGB')
+    icon = icon.convert('RGBA')
+    colored = ImageOps.colorize(icon.convert('L'), black=rgb, white=(255, 255, 255))
+    colored.putalpha(icon.getchannel('A'))
+    return colored
 
 
 def invert_icon(icon):
@@ -124,6 +141,71 @@ class _WidthCache:
         self._cache.clear()
 
 
+class HtmlTextCapture:
+    """Collects rich text as absolutely positioned HTML instead of raster output.
+
+    While a capture is active on a RichTextRenderer, render_text() lays text
+    out exactly as usual (same wrapping, same font shrinking), but text runs,
+    icon-font glyphs, and rules are recorded as HTML elements in the card's
+    pixel coordinate space; only inline images are still drawn onto the card.
+    A PDF pipeline can overlay the resulting fragment on the exported card
+    image so text stays vector and prints at any resolution.
+    """
+
+    _css_lock = threading.Lock()
+
+    def __init__(self):
+        self.parts = []
+        self.fonts = {}    # css font-family -> font file path
+
+    def fragment(self, width, height, rotation=None):
+        """Build the overlay fragment for one card side.
+
+        width/height are the final exported image dimensions in pixels.
+        rotation ('cw' or 'ccw') must match a 90-degree rotation that was
+        applied to the card image after text layout, so the text is laid out
+        in pre-rotation coordinates and rotated as a whole via CSS.
+        """
+        spans = '\n'.join(self.parts)
+        if rotation in ('cw', 'ccw'):
+            # Pre-rotation canvas was height x width; map it onto the final
+            # image the same way PIL's rotate(expand=True) did.
+            if rotation == 'cw':
+                transform = f'translate({width}px,0) rotate(90deg)'
+            else:
+                transform = f'translate(0,{height}px) rotate(-90deg)'
+            spans = (f'<div style="position:absolute;left:0;top:0;'
+                     f'width:{height}px;height:{width}px;'
+                     f'transform:{transform};transform-origin:0 0;">\n{spans}\n</div>')
+        return (f'<div class="shoggoth-text-layer" data-width="{width}" data-height="{height}" '
+                f'style="position:absolute;left:0;top:0;width:{width}px;height:{height}px;'
+                f'overflow:hidden;">\n{spans}\n</div>\n')
+
+    def font_css(self):
+        """@font-face rules for every font family used by this capture."""
+        return ''.join(self._font_face_rule(family, path)
+                       for family, path in sorted(self.fonts.items()))
+
+    @staticmethod
+    def _font_face_rule(family, path):
+        src = pathlib.Path(path).absolute().as_uri()
+        return f'@font-face {{ font-family: "{family}"; src: url("{src}"); }}\n'
+
+    def merge_font_css_into(self, folder):
+        """Append this capture's @font-face rules to folder/fonts.css,
+        skipping families already declared there. Thread-safe, so parallel
+        card exports into the same folder can share the file."""
+        css_path = pathlib.Path(folder) / 'fonts.css'
+        with self._css_lock:
+            existing = css_path.read_text(encoding='utf-8') if css_path.exists() else ''
+            new_rules = [self._font_face_rule(family, path)
+                         for family, path in sorted(self.fonts.items())
+                         if f'font-family: "{family}"' not in existing]
+            if new_rules:
+                with open(css_path, 'a', encoding='utf-8') as f:
+                    f.writelines(new_rules)
+
+
 class RichTextRenderer:
     def __init__(self, card_renderer, hyphenation_enabled=True):
         self.card_renderer = card_renderer
@@ -131,9 +213,12 @@ class RichTextRenderer:
         self.font_cache = {}
         self.user_font_cache = {}
         self._user_font_keys = {}
+        # Per-font metadata (path, metrics) for the HTML text layer,
+        # keyed by the font object itself
+        self._font_meta = {}
+        # HTML capture is thread-local: parallel card exports each get their own
+        self._html_tls = threading.local()
 
-        self.alignment = 'left'
-        self.min_font_size = 10
         self.hyphenation_enabled = hyphenation_enabled
 
         # ── Width cache (shared across all renders) ──────────────────────────
@@ -143,36 +228,41 @@ class RichTextRenderer:
         self._hyphen_dicts = {}
 
         # ── Formatting tags ──────────────────────────────────────────────────
+        # Each value is the token dict emitted verbatim by parse_text (shared,
+        # treated as immutable).  get_help_text derives its descriptions from
+        # these same entries, so a new tag only needs to be added here.
         self.formatting_tags = {
-            '<b>': {'start': True, 'font': 'bold'},
-            '</b>': {'start': False, 'font': 'bold'},
-            '<i>': {'start': True, 'font': 'italic'},
-            '</i>': {'start': False, 'font': 'italic'},
-            '<bi>': {'start': True, 'font': 'bolditalic'},
-            '</bi>': {'start': False, 'font': 'bolditalic'},
-            '<t>': {'start': True, 'font': 'bolditalic'},
-            '[[': {'start': True, 'font': 'bolditalic'},
-            '</t>': {'start': False, 'font': 'bolditalic'},
-            ']]': {'start': False, 'font': 'bolditalic'},
-            '<icon>': {'start': True, 'font': 'icon'},
-            '</icon>': {'start': False, 'font': 'icon'},
-            '<center>': {'start': True, 'align': 'center'},
-            '</center>': {'start': False, 'align': 'center'},
-            '<left>': {'start': True, 'align': 'left'},
-            '</left>': {'start': False, 'align': 'left'},
-            '<right>': {'start': True, 'align': 'right'},
-            '</right>': {'start': False, 'align': 'right'},
-            '<story>': {'start': True, 'indent': 4},
-            '</story>': {'start': False, 'indent': 4},
-            '<blockquote>': {'start': True, 'format': 'quote', 'block': True},
-            '</blockquote>': {'start': False, 'format': 'quote', 'block': True},
-            '<u>': {'start': True, 'underline': True},
-            '</u>': {'start': False, 'underline': True},
-            '<dbl>': {'start': True, 'dbl_underline': True},
-            '</dbl>': {'start': False, 'dbl_underline': True},
-            '<br>': {'break': True},
-            '<hr>': {'hr': True},
-            '</indent>': {'indent_pop': True},
+            '<b>': {'type': 'format', 'value': 'bold', 'start': True},
+            '</b>': {'type': 'format', 'value': 'bold', 'start': False},
+            '<i>': {'type': 'format', 'value': 'italic', 'start': True},
+            '</i>': {'type': 'format', 'value': 'italic', 'start': False},
+            '<bi>': {'type': 'format', 'value': 'bolditalic', 'start': True},
+            '</bi>': {'type': 'format', 'value': 'bolditalic', 'start': False},
+            '<t>': {'type': 'format', 'value': 'bolditalic', 'start': True},
+            '[[': {'type': 'format', 'value': 'bolditalic', 'start': True},
+            '</t>': {'type': 'format', 'value': 'bolditalic', 'start': False},
+            ']]': {'type': 'format', 'value': 'bolditalic', 'start': False},
+            '<icon>': {'type': 'format', 'value': 'icon', 'start': True},
+            '</icon>': {'type': 'format', 'value': 'icon', 'start': False},
+            '<center>': {'type': 'align', 'value': 'center', 'start': True},
+            '</center>': {'type': 'align', 'value': 'center', 'start': False},
+            '<left>': {'type': 'align', 'value': 'left', 'start': True},
+            '</left>': {'type': 'align', 'value': 'left', 'start': False},
+            '<right>': {'type': 'align', 'value': 'right', 'start': True},
+            '</right>': {'type': 'align', 'value': 'right', 'start': False},
+            # NOTE: 'indent' tokens have no handler in _layout, so <story>
+            # currently parses but has no layout effect.
+            '<story>': {'type': 'indent', 'value': 4, 'start': True},
+            '</story>': {'type': 'indent', 'value': 4, 'start': False},
+            '<blockquote>': {'type': 'story', 'value': 'quote', 'start': True},
+            '</blockquote>': {'type': 'story', 'value': 'quote', 'start': False},
+            '<u>': {'type': 'underline', 'start': True},
+            '</u>': {'type': 'underline', 'start': False},
+            '<dbl>': {'type': 'dbl_underline', 'start': True},
+            '</dbl>': {'type': 'dbl_underline', 'start': False},
+            '<br>': {'type': 'break'},
+            '<hr>': {'type': 'hr'},
+            '</indent>': {'type': 'indent_pop'},
         }
 
         self.replacement_tags = {
@@ -269,62 +359,32 @@ class RichTextRenderer:
         return self.card_renderer.translations.get(key, fallback)
 
     def _rebuild_tries(self):
-        """(Re)build the two tries from current tag dictionaries."""
-        # Formatting trie: each payload is a pre-built token dict
-        fmt_map = {}
-        for tag, info in self.formatting_tags.items():
-            if 'font' in info:
-                fmt_map[tag] = {'type': 'format',
-                'value': info['font'], 'start': info['start']}
-            elif 'align' in info:
-                fmt_map[tag] = {'type': 'align', 'value': info['align'], 'start': info['start']}
-            elif 'indent' in info:
-                fmt_map[tag] = {'type': 'indent', 'value': info['indent'], 'start': info['start']}
-            elif 'format' in info:
-                fmt_map[tag] = {'type': 'story', 'value': info['format'], 'start': info['start']}
-            elif 'break' in info:
-                fmt_map[tag] = {'type': 'break'}
-            elif 'hr' in info:
-                fmt_map[tag] = {'type': 'hr'}
-            elif 'indent_pop' in info:
-                fmt_map[tag] = {'type': 'indent_pop'}
-            elif 'underline' in info:
-                fmt_map[tag] = {'type': 'underline', 'start': info['start']}
-            elif 'dbl_underline' in info:
-                fmt_map[tag] = {'type': 'dbl_underline', 'start': info['start']}
-        self._fmt_trie = _build_trie(fmt_map)
-
-        # Icon trie: payload = character
-        icon_map = {tag: char for tag, char in self.font_icon_tags.items()}
-        self._icon_trie = _build_trie(icon_map)
-
-        # Also pre-sort replacement tags longest-first for safe str.replace order
+        """(Re)build the tag-matching tries from the current tag dictionaries."""
+        self._fmt_trie = _build_trie(self.formatting_tags)
+        self._icon_trie = _build_trie(self.font_icon_tags)
+        # Pre-sort replacement tags longest-first for safe str.replace order
         self._replacement_order = sorted(self.replacement_tags.items(), key=lambda kv: -len(kv[0]))
+
+    _HELP_BY_TOKEN_TYPE = {
+        'break': 'line break',
+        'hr': 'horizontal rule',
+        'indent_pop': 'end indent',
+        'underline': 'underline',
+        'dbl_underline': 'double underline heading',
+    }
 
     def get_help_text(self):
         text = tr("HELP_SPECIAL_TAGS_INTRO") + "\n\n"
         text += tr("HELP_FORMATTING_TAGS") + "\n"
-        for tag, options in self.formatting_tags.items():
-            if options.get('font'):
-                text += f'  {tag}  ({options["font"]})\n'
-            elif options.get('align'):
-                text += f'  {tag}  ({options["align"]})\n'
-            elif options.get('indent'):
-                text += f'  {tag}  (indent {options["indent"]})\n'
-            elif options.get('format'):
-                text += f'  {tag}  ({options["format"]})\n'
-            elif options.get('break'):
-                text += f'  {tag}  (line break)\n'
-            elif options.get('hr'):
-                text += f'  {tag}  (horizontal rule)\n'
-            elif options.get('indent_pop'):
-                text += f'  {tag}  (end indent)\n'
-            elif options.get('underline'):
-                text += f'  {tag}  (underline)\n'
-            elif options.get('dbl_underline'):
-                text += f'  {tag}  (double underline heading)\n'
+        for tag, token in self.formatting_tags.items():
+            token_type = token['type']
+            if token_type in ('format', 'align', 'story'):
+                desc = token['value']
+            elif token_type == 'indent':
+                desc = f'indent {token["value"]}'
             else:
-                text += f'  {tag}\n'
+                desc = self._HELP_BY_TOKEN_TYPE.get(token_type, token_type)
+            text += f'  {tag}  ({desc})\n'
         text += "\n" + tr("HELP_REPLACEMENT_TAGS") + "\n"
         for tag, result in self.replacement_tags.items():
             text += f"  {tag} = {result}\n"
@@ -332,8 +392,8 @@ class RichTextRenderer:
         for tag in self.font_icon_tags:
             text += f"  {tag}\n"
         text += "\n" + tr("HELP_AVAILABLE_FONTS") + "\n"
-        for tag, options in self.fonts.items():
-            text += f"  {tag}\n"
+        for name in self.fonts:
+            text += f"  {name}\n"
         return text
 
     def load_fonts(self, size):
@@ -345,21 +405,26 @@ class RichTextRenderer:
             # On Windows an open FT_Face holds a CreateFile handle that blocks
             # the asset updater from overwriting the font file mid-session.
             font_bytes = io.BytesIO(pathlib.Path(font_info['path']).read_bytes())
-            loaded_fonts[font_type] = ImageFont.truetype(font_bytes, size)
+            font = ImageFont.truetype(font_bytes, size)
+            ascent, descent = font.getmetrics()
+            self._font_meta[font] = {
+                # sanitized so user font names are safe inside CSS/HTML quotes
+                'family': 'shoggoth-' + re.sub(r'[^A-Za-z0-9_-]+', '-', font_type),
+                'path': str(font_info['path']),
+                'size': size,
+                'ascent': ascent,
+                'descent': descent,
+            }
+            loaded_fonts[font_type] = font
         self.font_cache[size] = loaded_fonts
         return loaded_fonts
 
     def clear_caches(self):
         """Drop all in-memory caches so updated assets are picked up on next render."""
         self.font_cache.clear()
+        self._font_meta.clear()
         self._wcache.clear()
         self.icon_cache.clear()
-        self.inverted_icon_cache.clear()
-
-    def load_font(self, font):
-        if font not in self.fonts:
-            self.fonts[font] = {'path': font, 'scale': 1, 'fallback': None}
-        self.load_fonts
 
     def _find_system_font(self, name):
         name_lower = name.lower()
@@ -406,6 +471,13 @@ class RichTextRenderer:
         return None
 
     def _resolve_font(self, name, project=None):
+        """Resolve a <font "..."> name to a key in self.fonts.
+
+        Returns (font_key, missing).  When the font cannot be found in the
+        project files or on the system, falls back to ('regular', True); the
+        caller renders the text struck-through as a visible "missing font"
+        marker.  Lookups (including failures) are cached in _user_font_keys.
+        """
         if name in self.fonts:
             return name, False
         if name in self._user_font_keys:
@@ -432,7 +504,7 @@ class RichTextRenderer:
         return 'regular', True
 
     def load_icon(self, icon_path, height):
-        if str(icon_path)[-4:] == '.svg':
+        if str(icon_path).endswith('.svg'):
             return self.card_renderer.get_resized_cached(icon_path, (height, height))
         if (icon_path, height) in self.icon_cache:
             return self.icon_cache[(icon_path, height)]
@@ -445,13 +517,22 @@ class RichTextRenderer:
         return icon
 
     def _get_icon(self, icon_path, font_size, color=None):
-        """Returns an image as a in-line icon """
+        """Returns an image as an in-line icon.
+
+        color can be "inverted" or any Pillow color (word, hex, rgb(...)),
+        which tints a grayscale icon so black becomes that color.
+        """
         key = (icon_path, font_size, color)
         if key in self.icon_cache:
             return self.icon_cache[key]
         icon_img = self.load_icon(icon_path, font_size)
         if color == "inverted":
             icon_img = invert_icon(icon_img)
+        elif color:
+            try:
+                icon_img = colorize_icon(icon_img, color)
+            except ValueError:
+                print(f"Unknown inline icon color: {color!r}")
         self.icon_cache[key] = icon_img
         return icon_img
 
@@ -612,20 +693,19 @@ class RichTextRenderer:
         # Local refs for speed in tight loop
         fmt_trie = self._fmt_trie
         icon_trie = self._icon_trie
-        tok_append = tokens.append
 
         while pos < length:
             ch = text[pos]
 
             # Newline
             if ch == '\n':
-                tok_append({'type': 'newline'})
+                tokens.append({'type': 'newline'})
                 pos += 1
                 continue
 
             # Space
             if ch == ' ':
-                tok_append({'type': 'text', 'value': ' '})
+                tokens.append({'type': 'text', 'value': ' '})
                 pos += 1
                 continue
 
@@ -634,7 +714,7 @@ class RichTextRenderer:
                 # 1) Formatting trie
                 payload, tlen = _trie_match(fmt_trie, text, pos)
                 if payload is not None:
-                    tok_append(payload)  # pre-built token dict (shared, immutable)
+                    tokens.append(payload)  # pre-built token dict (shared, immutable)
                     pos += tlen
                     # indent_pop eats trailing newline
                     if payload.get('type') == 'indent_pop' and pos < length and text[pos] == '\n':
@@ -644,7 +724,7 @@ class RichTextRenderer:
                 # 2) Icon trie
                 icon_char, tlen = _trie_match(icon_trie, text, pos)
                 if icon_char is not None:
-                    tok_append({'type': 'font_icon', 'value': icon_char})
+                    tokens.append({'type': 'font_icon', 'value': icon_char})
                     pos += tlen
                     continue
 
@@ -654,46 +734,47 @@ class RichTextRenderer:
 
                     m = _size_re.match(remaining)
                     if m:
-                        tok_append({'type': 'size', 'value': m[1]})
+                        tokens.append({'type': 'size', 'value': int(m[1])})
                         pos += len(m[0])
                         continue
 
                     m = _indent_re.match(remaining)
                     if m:
-                        tok_append({'type': 'indent_push', 'value': int(m[1])})
+                        tokens.append({'type': 'indent_push', 'value': int(m[1])})
                         pos += len(m[0])
+                        # <indent> eats trailing newline
                         if pos < length and text[pos] == '\n':
                             pos += 1
                         continue
 
                     m = _margin_re.match(remaining)
                     if m:
-                        tok_append({'type': 'margin', 'value': int(m[1])})
+                        tokens.append({'type': 'margin', 'value': int(m[1])})
                         pos += len(m[0])
                         continue
 
                     m = _font_re.match(remaining)
                     if m:
-                        font_key, strikethrough = self._resolve_font(m[1], project=project)
-                        tok_append({'type': 'font_push', 'font': font_key, 'strikethrough': strikethrough})
+                        font_key, missing = self._resolve_font(m[1], project=project)
+                        tokens.append({'type': 'font_push', 'font': font_key, 'strikethrough': missing})
                         pos += len(m[0])
                         continue
 
                     if remaining.startswith('</font>'):
-                        tok_append({'type': 'font_pop'})
-                        pos += 7
+                        tokens.append({'type': 'font_pop'})
+                        pos += len('</font>')
                         continue
 
                     if remaining.startswith('</size>'):
-                        tok_append({'type': 'size_pop'})
-                        pos += 7
+                        tokens.append({'type': 'size_pop'})
+                        pos += len('</size>')
                         continue
 
                     m = _image_re.match(remaining)
                     if m:
                         attrs = _parse_tag_attributes(m[0])
                         if 'src' in attrs:
-                            tok_append({'type': 'image_icon', 'value': attrs['src'], 'color': attrs.get('color')})
+                            tokens.append({'type': 'image_icon', 'value': attrs['src'], 'color': attrs.get('color')})
                         pos += len(m[0])
                         continue
 
@@ -706,7 +787,7 @@ class RichTextRenderer:
                 if c in ('<', '[', ']', ' ', '\n'):
                     break
                 pos += 1
-            tok_append({'type': 'text', 'value': text[start:pos]})
+            tokens.append({'type': 'text', 'value': text[start:pos]})
 
         tokens = self._prevent_runts(tokens)
         return tokens
@@ -715,49 +796,60 @@ class RichTextRenderer:
                 alignment='left', fill='#231f20', outline=0, outline_fill=None,
                 force=False, scale=1.0):
         fonts = self.load_fonts(font_size)
-        current_fonts = fonts
-        size_stack = []
-
-        line_height = int(font_size * 1.30)
+        line_height = int(font_size * LINE_HEIGHT_FACTOR)
 
         x_orig = region.x
         y = region.y + font_size
-        max_height = region.height
+        y_limit = region.y + region.height
 
         commands = []
-        cmd_append = commands.append
 
-        # Formatting state
-        current_font = base_font
-        font_stack = []
-        current_strikethrough = False
-        strikethrough_stack = []
-        current_alignment = alignment
-        alignment_stack = []
+        # Scoped formatting state.  Opening tags push the previous value onto
+        # the matching stack; closing tags restore it (falling back to the
+        # given default on unbalanced input).
+        state = {
+            'font': base_font,
+            'fonts': fonts,           # size-scoped font set, changed by <size>
+            'strikethrough': False,
+            'underline': False,
+            'align': alignment,
+            'block_indent': 0,
+        }
+        stacks = {key: [] for key in state}
 
-        # Indent / block state
-        block_indent = 0
-        prev_block_indent = 0
-        indent_stack = []
-        current_indent = 0
-        indent_current = False
+        def push_scope(key, value):
+            stacks[key].append(state[key])
+            state[key] = value
+
+        def pop_scope(key, default):
+            state[key] = stacks[key].pop() if stacks[key] else default
+
+        def set_scope(key, value, start, default):
+            if start:
+                push_scope(key, value)
+            else:
+                pop_scope(key, default)
 
         # Blockquote state
         quote = False
         quote_last = False
         quote_first = False
 
-        # Underline state
-        current_underline = False
-        underline_stack = []
         dbl_underline_pending = False
+
+        # Hanging indent after a leading bullet
+        current_indent = 0
+        indent_current = False
+
+        prev_block_indent = 0
 
         # Line buffer
         pending = []
-        pending_append = pending.append
         current_line_width = 0.0
         has_renderable = False        # replaces any() check in flush
 
+        # Overflow after a newline is only checked once the next renderable
+        # token arrives, so trailing blank lines never trigger it.
         overflow_check_pending = False
 
         # Width helper
@@ -780,7 +872,7 @@ class RichTextRenderer:
 
         def eff_bounds(yy):
             nonlocal prev_block_indent
-            li = block_indent
+            li = state['block_indent']
             if polygon:
                 p_left, p_right = poly_bounds(yy)
                 if li:
@@ -799,11 +891,12 @@ class RichTextRenderer:
         def wrap_width(yy):
             if polygon:
                 p_left, p_right = poly_bounds(yy)
-                return p_right - max(x_orig + block_indent, p_left)
-            return region.width - block_indent
+                return p_right - max(x_orig + state['block_indent'], p_left)
+            return region.width - state['block_indent']
 
         def flush():
-            nonlocal quote, quote_first, quote_last, has_renderable, dbl_underline_pending
+            """Emit draw commands for the line buffered in `pending`."""
+            nonlocal quote_first, quote_last, dbl_underline_pending
 
             if not has_renderable:
                 quote_first = False
@@ -815,15 +908,13 @@ class RichTextRenderer:
             line_y = y
 
             if quote or quote_first or quote_last:
-                bar_top = line_y - (font_size*0.8 if quote_first else line_height)
+                bar_top = line_y - (font_size * 0.8 if quote_first else line_height)
                 quote_first = False
-                cmd_append({'cmd': 'line',
-                            'x1': x_orig, 'y1': bar_top, 'x2': x_orig, 'y2': line_y,
-                            'fill': fill, 'width': 2})
-                cmd_append({'cmd': 'line',
-                            'x1': x_orig + 10, 'y1': bar_top, 'x2': x_orig + 10, 'y2': line_y,
-                            'fill': fill, 'width': 2})
-                indent = 50
+                for bar_x in (x_orig, x_orig + QUOTE_BAR_SPACING):
+                    commands.append({'cmd': 'line',
+                                     'x1': bar_x, 'y1': bar_top, 'x2': bar_x, 'y2': line_y,
+                                     'fill': fill, 'width': 2})
+                indent = QUOTE_INDENT
 
             eff_x, eff_w = eff_bounds(line_y)
             eff_x += indent
@@ -834,9 +925,9 @@ class RichTextRenderer:
                 items = items[1:]
 
             line_w = sum(item['width'] for item in items)
-            if current_alignment == 'center':
+            if state['align'] == 'center':
                 x_pos = eff_x + (eff_w - line_w) / 2
-            elif current_alignment == 'right':
+            elif state['align'] == 'right':
                 x_pos = eff_x + eff_w - line_w
             else:
                 x_pos = eff_x
@@ -861,7 +952,7 @@ class RichTextRenderer:
                 # True advance (with kerning) may differ from our per-char sum.
                 # Return the correction so callers can fix x_pos at font boundaries.
                 true_advance = merge_font.getlength(val)
-                cmd_append({
+                commands.append({
                     'cmd': 'text',
                     'x': merge_x, 'y': line_y,
                     'value': val,
@@ -870,16 +961,16 @@ class RichTextRenderer:
                     'fill': fill, 'outline': outline, 'outline_fill': outline_fill,
                 })
                 if merge_strike:
-                    sy = int(line_y + font_size * 0.45)
-                    cmd_append({
+                    sy = int(line_y + font_size * STRIKETHROUGH_Y_FACTOR)
+                    commands.append({
                         'cmd': 'line',
                         'x1': int(merge_x), 'y1': sy,
                         'x2': int(merge_x + merge_w), 'y2': sy,
                         'fill': fill, 'width': max(1, font_size // 16),
                     })
                 if merge_underline:
-                    uy = int(line_y + font_size * 0.88)
-                    cmd_append({
+                    uy = int(line_y + font_size * UNDERLINE_Y_FACTOR)
+                    commands.append({
                         'cmd': 'line',
                         'x1': int(merge_x), 'y1': uy,
                         'x2': int(merge_x + merge_w), 'y2': uy,
@@ -912,14 +1003,14 @@ class RichTextRenderer:
                     x_pos += _emit_merged()
                     if item['icon'] is not None:
                         icon_y = int(line_y - (item['icon'].height))
-                        cmd_append({'cmd': 'image',
-                                    'x': int(x_pos), 'y': icon_y,
-                                    'icon': item['icon']})
+                        commands.append({'cmd': 'image',
+                                         'x': int(x_pos), 'y': icon_y,
+                                         'icon': item['icon']})
                     x_pos += item['width']
                 elif c == 'hr':
                     x_pos += _emit_merged()
                     hr_y = int(line_y + font_size * 0.5)
-                    cmd_append({
+                    commands.append({
                         'cmd': 'line',
                         'x1': int(eff_x), 'y1': hr_y,
                         'x2': int(eff_x + eff_w), 'y2': hr_y,
@@ -932,16 +1023,24 @@ class RichTextRenderer:
             if dbl_underline_pending:
                 dbl_underline_pending = False
                 u_thick = max(1, font_size // 18)
-                u_y1 = int(line_y + font_size * 0.12)
+                u_y1 = int(line_y + font_size * DBL_UNDERLINE_Y_FACTOR)
                 u_y2 = u_y1 + u_thick + max(2, font_size // 10)
                 u_x1 = int(line_x_start)
                 u_x2 = int(line_x_start + line_w)
-                cmd_append({'cmd': 'line', 'x1': u_x1, 'y1': u_y1,
-                            'x2': u_x2, 'y2': u_y1, 'fill': fill, 'width': u_thick})
-                cmd_append({'cmd': 'line', 'x1': u_x1, 'y1': u_y2,
-                            'x2': u_x2, 'y2': u_y2, 'fill': fill, 'width': u_thick})
+                for u_y in (u_y1, u_y2):
+                    commands.append({'cmd': 'line', 'x1': u_x1, 'y1': u_y,
+                                     'x2': u_x2, 'y2': u_y, 'fill': fill, 'width': u_thick})
 
             quote_last = False
+
+        def start_new_line(advance):
+            """Flush the buffered line, reset per-line state, and advance y."""
+            nonlocal has_renderable, current_line_width, y
+            flush()
+            pending.clear()
+            has_renderable = False
+            current_line_width = 0
+            y += advance
 
         # Main token loop
         num_tokens = len(tokens)
@@ -949,103 +1048,76 @@ class RichTextRenderer:
             t = token['type']
 
             if t == 'format':
-                if token['start']:
-                    font_stack.append(current_font)
-                    current_font = token['value']
-                else:
-                    current_font = font_stack.pop() if font_stack else base_font
+                set_scope('font', token['value'], token['start'], base_font)
 
             elif t == 'story':
                 if token['start']:
-                    font_stack.append(current_font)
-                    current_font = 'italic'
+                    push_scope('font', 'italic')
                     quote = True
                     quote_first = True
                 else:
-                    current_font = font_stack.pop() if font_stack else base_font
+                    pop_scope('font', base_font)
                     quote = False
                     quote_last = True
 
             elif t == 'font_push':
-                font_stack.append(current_font)
-                strikethrough_stack.append(current_strikethrough)
-                current_font = token['font']
-                current_strikethrough = token['strikethrough']
+                push_scope('font', token['font'])
+                push_scope('strikethrough', token['strikethrough'])
 
             elif t == 'font_pop':
-                current_font = font_stack.pop() if font_stack else base_font
-                current_strikethrough = strikethrough_stack.pop() if strikethrough_stack else False
+                pop_scope('font', base_font)
+                pop_scope('strikethrough', False)
 
             elif t == 'underline':
-                if token['start']:
-                    underline_stack.append(current_underline)
-                    current_underline = True
-                else:
-                    current_underline = underline_stack.pop() if underline_stack else False
+                set_scope('underline', True, token['start'], False)
 
             elif t == 'dbl_underline':
                 if not token['start']:
                     dbl_underline_pending = True
 
             elif t == 'align':
-                if token['start']:
-                    alignment_stack.append(current_alignment)
-                    current_alignment = token['value']
-                else:
-                    current_alignment = alignment_stack.pop() if alignment_stack else alignment
+                set_scope('align', token['value'], token['start'], alignment)
 
             elif t == 'margin':
                 y += token['value']
 
             elif t == 'indent_push':
-                indent_stack.append(block_indent)
-                block_indent = token['value']
+                push_scope('block_indent', token['value'])
 
             elif t == 'indent_pop':
-                block_indent = indent_stack.pop() if indent_stack else 0
+                pop_scope('block_indent', 0)
 
             elif t == 'size':
-                size_stack.append(current_fonts)
-                scaled_size = int(round(int(token['value']) * scale))
-                current_fonts = self.load_fonts(scaled_size)
-                line_height = scaled_size * 1.30
+                scaled_size = int(round(token['value'] * scale))
+                push_scope('fonts', self.load_fonts(scaled_size))
+                line_height = int(scaled_size * LINE_HEIGHT_FACTOR)
 
             elif t == 'size_pop':
-                current_fonts = size_stack.pop() if size_stack else fonts
-                line_height = int(current_fonts['regular'].size) * 1.30
+                pop_scope('fonts', fonts)
+                line_height = int(state['fonts']['regular'].size * LINE_HEIGHT_FACTOR)
 
-            elif t == 'newline':
-                flush()
+            elif t in ('newline', 'break'):
+                # A newline advances a full line height; <br> (and newlines
+                # inside an indented block) advance by the bare font size.
+                if t == 'newline' and state['block_indent'] == 0:
+                    advance = line_height
+                else:
+                    advance = state['fonts']['regular'].size
+                start_new_line(advance)
                 current_indent = 0
                 indent_current = False
                 quote_last = False
-                pending.clear()
-                has_renderable = False
-                current_line_width = 0
-                y += current_fonts['regular'].size if block_indent > 0 else line_height
-                overflow_check_pending = True
-
-            elif t == 'break':
-                flush()
-                current_indent = 0
-                indent_current = False
-                quote_last = False
-                pending.clear()
-                has_renderable = False
-                current_line_width = 0
-                y += current_fonts['regular'].size
                 overflow_check_pending = True
 
             elif t in ('text', 'font_icon', 'image_icon', 'hr'):
                 if overflow_check_pending:
                     overflow_check_pending = False
-                    if y > region.y + max_height:
-                        if not force:
-                            return commands, False, i / num_tokens
+                    if y > y_limit and not force:
+                        return commands, False, i / num_tokens
 
                 if t == 'text':
                     value = token['value']
-                    font_obj = current_fonts[current_font]
+                    font_obj = state['fonts'][state['font']]
                     while True:
                         w = wcache.width(value, font_obj)
                         avail = wrap_width(y)
@@ -1061,43 +1133,40 @@ class RichTextRenderer:
 
                         if split is not None:
                             head, tail = split
-                            pending_append({
+                            pending.append({
                                 'cmd': 'text',
                                 'value': head,
                                 'font': font_obj,
                                 'width': wcache.width(head, font_obj),
-                                'strikethrough': current_strikethrough,
-                                'underline': current_underline,
+                                'strikethrough': state['strikethrough'],
+                                'underline': state['underline'],
                             })
                             has_renderable = True
                             value = tail
 
-                        flush()
+                        start_new_line(state['fonts']['regular'].size)
                         indent_current = current_indent > 0
-                        pending.clear()
-                        has_renderable = False
-                        current_line_width = 0
-                        y += current_fonts['regular'].size
-                        if y > region.y + max_height:
-                            if not force:
-                                return commands, False, i / num_tokens
+                        if y > y_limit and not force:
+                            return commands, False, i / num_tokens
 
                     item = {
                         'cmd': 'text',
                         'value': value,
                         'font': font_obj,
                         'width': w,
-                        'strikethrough': current_strikethrough,
-                        'underline': current_underline,
+                        'strikethrough': state['strikethrough'],
+                        'underline': state['underline'],
                     }
                 elif t == 'font_icon':
-                    font_obj = current_fonts['icon']
+                    font_obj = state['fonts']['icon']
                     w = wcache.width(token['value'], font_obj)
                     item = {'cmd': 'glyph', 'value': token['value'], 'font': font_obj, 'width': w}
+                    # A bullet at line start sets a hanging indent for the
+                    # wrapped continuation lines of this list entry
                     if token['value'] == 'b' and not pending:
                         current_indent = wcache.width('b ', font_obj)
                 elif t == 'image_icon':
-                    icon_img = self._get_icon(token['value'], current_fonts['regular'].size, color=token.get('color'))
+                    icon_img = self._get_icon(token['value'], state['fonts']['regular'].size, color=token.get('color'))
                     w = icon_img.width if icon_img else 0
                     item = {'cmd': 'image', 'icon': icon_img, 'width': w}
                 else:  # hr
@@ -1105,28 +1174,91 @@ class RichTextRenderer:
                     item = {'cmd': 'hr', 'width': w}
 
                 if t != 'text' and current_line_width + w > wrap_width(y):
-                    flush()
+                    start_new_line(state['fonts']['regular'].size)
                     indent_current = current_indent > 0
-                    pending.clear()
-                    has_renderable = False
-                    current_line_width = 0
-                    y += current_fonts['regular'].size
-                    if y > region.y + max_height:
-                        if not force:
-                            return commands, False, i / num_tokens
+                    if y > y_limit and not force:
+                        return commands, False, i / num_tokens
 
-                pending_append(item)
+                pending.append(item)
                 has_renderable = True
                 current_line_width += w
 
         # Final line
         if pending:
             flush()
-            if y > region.y + max_height:
-                if not force:
-                    return commands, False, 1.0
+            if y > y_limit and not force:
+                return commands, False, 1.0
 
         return commands, True, 1.0
+
+    # ── HTML text layer ──────────────────────────────────────────────────
+    # See HtmlTextCapture. Capture state is per-thread so that parallel card
+    # exports sharing this renderer don't mix their text layers.
+
+    def start_html_capture(self):
+        """From now on (on this thread), capture text as HTML instead of rasterizing it."""
+        self._html_tls.capture = HtmlTextCapture()
+
+    def finish_html_capture(self):
+        """Stop capturing and return the HtmlTextCapture (or None if not capturing)."""
+        capture = getattr(self._html_tls, 'capture', None)
+        self._html_tls.capture = None
+        return capture
+
+    @contextmanager
+    def html_capture_paused(self):
+        """Rasterize text normally within this block (e.g. for rotated fields)."""
+        capture = getattr(self._html_tls, 'capture', None)
+        self._html_tls.capture = None
+        try:
+            yield
+        finally:
+            self._html_tls.capture = capture
+
+    def _emit_html(self, capture, commands):
+        """Convert layout commands to absolutely positioned HTML elements.
+
+        Text is anchored by baseline in the commands; CSS positions boxes by
+        their top edge, so the top is baseline minus the font's ascent, with
+        line-height pinned to ascent+descent to cancel CSS half-leading.
+        """
+        parts = capture.parts
+        for cmd in commands:
+            c = cmd['cmd']
+            if c in ('text', 'glyph'):
+                meta = self._font_meta.get(cmd['font'])
+                if meta is None:
+                    continue
+                family = meta['family']
+                capture.fonts[family] = meta['path']
+                style = (
+                    f'position:absolute;white-space:pre;'
+                    f'left:{cmd["x"]:.2f}px;top:{cmd["y"] - meta["ascent"]:.2f}px;'
+                    f"font-family:'{family}';font-size:{meta['size']}px;"
+                    f'line-height:{meta["ascent"] + meta["descent"]}px;'
+                    f'color:{cmd["fill"] or "#231f20"};'
+                )
+                if cmd.get('outline'):
+                    # Approximate the raster stroke with 8-direction shadows
+                    w = cmd['outline']
+                    outline_fill = cmd.get('outline_fill') or '#000000'
+                    shadows = ','.join(f'{dx}px {dy}px 0 {outline_fill}'
+                                       for dx in (-w, 0, w) for dy in (-w, 0, w)
+                                       if dx or dy)
+                    style += f'text-shadow:{shadows};'
+                parts.append(f'<span style="{style}">{html_lib.escape(cmd["value"])}</span>')
+            elif c == 'line':
+                # Lines are always axis-aligned; PIL centers the stroke on the segment
+                x1, y1, x2, y2, w = cmd['x1'], cmd['y1'], cmd['x2'], cmd['y2'], cmd['width']
+                if y1 == y2:
+                    left, top, box_w, box_h = min(x1, x2), y1 - w / 2, abs(x2 - x1), w
+                else:
+                    left, top, box_w, box_h = x1 - w / 2, min(y1, y2), w, abs(y2 - y1)
+                parts.append(
+                    f'<div style="position:absolute;left:{left:.2f}px;top:{top:.2f}px;'
+                    f'width:{box_w:.2f}px;height:{box_h:.2f}px;'
+                    f'background:{cmd["fill"] or "#231f20"};"></div>')
+            # 'image' commands stay in the raster layer
 
     def _render(self, image, commands):
         draw = ImageDraw.Draw(image)
@@ -1153,7 +1285,7 @@ class RichTextRenderer:
 
     def render_text(self, image, text, region, polygon=None, alignment='left',
                     font_size=32, min_font_size=None, font=None, outline=0,
-                    outline_fill=None, fill='#231f20', halign='top', scale=1.0,
+                    outline_fill=None, fill='#231f20', scale=1.0,
                     project=None, valignment='top'):
         if not text:
             return
@@ -1178,7 +1310,7 @@ class RichTextRenderer:
                 if valignment == 'center' and commands:
                     ys = [cmd['y'] for cmd in commands if 'y' in cmd]
                     if ys:
-                        text_bottom = max(ys) + int(current_size * 1.30)
+                        text_bottom = max(ys) + int(current_size * LINE_HEIGHT_FACTOR)
                         text_height = text_bottom - region.y
                         offset = (region.height - text_height) // 2
                         if offset > 0:
@@ -1186,7 +1318,14 @@ class RichTextRenderer:
                                 for key in ('y', 'y1', 'y2'):
                                     if key in cmd:
                                         cmd[key] += offset
-                self._render(image, commands)
+                capture = getattr(self._html_tls, 'capture', None)
+                if capture is None:
+                    self._render(image, commands)
+                else:
+                    # Vector text mode: inline images (recolored icons etc.)
+                    # stay raster; text, glyphs, and rules become HTML.
+                    self._render(image, [c for c in commands if c['cmd'] == 'image'])
+                    self._emit_html(capture, commands)
                 break
 
             # Accelerate font-size reduction based on how early the overflow occurred

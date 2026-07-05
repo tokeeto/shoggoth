@@ -291,7 +291,7 @@ class CardRenderer:
         # abcd-012345-abcde-02442_cardname_back_0.png
         return f'{variant.id}_{safe(variant.name)}_{{face}}_{{index}}.{{format}}'
 
-    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0):
+    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0, text_as_html=False):
         try:
             lossless = quality == 100
             outputs = []
@@ -308,20 +308,46 @@ class CardRenderer:
                     if face['type'] in ('player', 'encounter') and not include_backs:
                         file_path = Path(folder) / f'{face["type"]}.{format}'
                         if not file_path.exists():
-                            image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
-                            image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+                            self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html)
                         outputs.append(str(file_path))
                     else:
                         face_letter = 'a' if name == 'front' else 'b'
                         file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter, index=index)
-                        image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
-                        image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+                        self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html)
                         outputs.append(str(file_path))
             return outputs
         except Exception as e:
             print('failed to export card', card)
             print(e)
             logger.error('failed to export card', card, exc_info=True)
+
+    def _export_side(self, variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html):
+        """Render one face and save it, optionally writing an HTML text sidecar.
+
+        With text_as_html, rich text is captured as a vector HTML overlay
+        (written to <image name>.html next to the image, with @font-face rules
+        merged into fonts.css in the same folder) and left out of the raster
+        image. The PDF exporter overlays sidecars it finds next to the images.
+        """
+        file_path = Path(file_path)
+        sidecar = file_path.with_suffix('.html')
+        if text_as_html:
+            self.rich_text.start_html_capture()
+        try:
+            image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
+        finally:
+            capture = self.rich_text.finish_html_capture() if text_as_html else None
+        image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+        if capture is not None:
+            rotation = None
+            if rotate and face.get('orientation', 'vertical') == 'horizontal':
+                # must mirror the rotation applied at the end of render_card_side
+                rotation = 'ccw' if face == variant.back else 'cw'
+            sidecar.write_text(capture.fragment(image.width, image.height, rotation), encoding='utf-8')
+            capture.merge_font_css_into(file_path.parent)
+        elif sidecar.exists():
+            # drop stale text layers so image-only exports stay consistent
+            sidecar.unlink()
 
     @staticmethod
     def expected_export_paths(card, folder, size, include_backs=False, format='png', separate_versions=True, filename_format='id', number=0):
@@ -604,25 +630,28 @@ class CardRenderer:
                     polygon = [(point[0]*s, point[1]*s) for point in polygon]
 
                 if font.get('rotation'):
-                    temp_image = Image.new('RGBA', region.size, (0, 0, 0, 0))
-                    self.rich_text.render_text(
-                        temp_image,
-                        value,
-                        Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
-                        font=font.get('font', 'regular'),
-                        font_size=scale(font.get('size', 20), s),
-                        min_font_size=scale(font.get('min_size', None), s),
-                        fill=font.get('color', '#231f20'),
-                        outline=scale(font.get('outline', None), s),
-                        outline_fill=font.get('outline_color'),
-                        alignment=font.get('alignment', 'left'),
-                        valignment=font.get('valignment', valign),
-                        polygon=polygon,
-                        scale=s,
-                        project=side.card.project,
-                    )
-                    temp_image = temp_image.rotate(font.get('rotation'), expand=True)
-                    card_image.paste(temp_image, (region.x, region.y), temp_image)
+                    # Arbitrary rotation can't be expressed in the HTML text
+                    # layer, so rotated fields always stay raster.
+                    with self.rich_text.html_capture_paused():
+                        temp_image = Image.new('RGBA', region.size, (0, 0, 0, 0))
+                        self.rich_text.render_text(
+                            temp_image,
+                            value,
+                            Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
+                            font=font.get('font', 'regular'),
+                            font_size=scale(font.get('size', 20), s),
+                            min_font_size=scale(font.get('min_size', None), s),
+                            fill=font.get('color', '#231f20'),
+                            outline=scale(font.get('outline', None), s),
+                            outline_fill=font.get('outline_color'),
+                            alignment=font.get('alignment', 'left'),
+                            valignment=font.get('valignment', valign),
+                            polygon=polygon,
+                            scale=s,
+                            project=side.card.project,
+                        )
+                        temp_image = temp_image.rotate(font.get('rotation'), expand=True)
+                        card_image.paste(temp_image, (region.x, region.y), temp_image)
                 else:
                     self.rich_text.render_text(
                         card_image,

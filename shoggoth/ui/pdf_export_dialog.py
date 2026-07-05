@@ -39,6 +39,7 @@ class PDFExportDialog(QDialog):
         self._default_filename = default_filename or f"{project.name}.pdf"
         self._back_manually_edited = False
         self._updating_back = False
+        self._cb_vector_text = None
 
         self.setWindowTitle(title)
         self.setMinimumWidth(520)
@@ -117,6 +118,11 @@ class PDFExportDialog(QDialog):
             ))
             info.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
             root.addWidget(info)
+
+            self._cb_vector_text = QCheckBox(tr("PDF_VECTOR_TEXT_CHECK"))
+            self._cb_vector_text.setToolTip(tr("PDF_VECTOR_TEXT_TOOLTIP"))
+            self._cb_vector_text.setChecked(False)
+            root.addWidget(self._cb_vector_text)
         else:
             format_group = QGroupBox(tr("GROUP_EXPORT_FORMAT"))
             format_form = QFormLayout(format_group)
@@ -363,6 +369,7 @@ class PDFExportDialog(QDialog):
         fmt     = self._selected_format()
         quality = self._selected_quality()
         backs   = self._selected_include_backs()
+        vector_text = bool(self._cb_vector_text and self._cb_vector_text.isChecked())
 
         for i, card in enumerate(self.cards):
             if progress.wasCanceled():
@@ -382,6 +389,7 @@ class PDFExportDialog(QDialog):
                     'quality':       quality,
                     'include_backs': backs,
                     'rotate':        True,
+                    'text_as_html':  vector_text,
                 }
             )
             threads.append(t)

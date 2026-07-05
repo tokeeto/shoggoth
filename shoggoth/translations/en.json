@@ -753,6 +753,8 @@
   "PDF_FOLDER_PROJECT": "Project export folder",
   "PDF_FOLDER_CUSTOM": "Custom folder:",
   "PDF_FORMAT_INFO": "Format: {fmt}  |  Size: {w}×{h}  |  With bleed",
+  "PDF_VECTOR_TEXT_CHECK": "Export text as vector PDF text (experimental)",
+  "PDF_VECTOR_TEXT_TOOLTIP": "Card text is embedded in the PDF as real text instead of pixels, for sharper prints. Inline images and rotated text stay rasterized.",
   "PDF_OUTPUT_LABEL": "PDF output file",
   "PDF_OUTPUT_FRONT_LABEL": "Front PDF output file",
   "PDF_OUTPUT_BACK_LABEL": "Back PDF output file",
