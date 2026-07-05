@@ -289,7 +289,7 @@ class CardRenderer:
             return f'{project_code}_{variant.project_number}_{{face}}.{{format}}'
         # default
         # abcd-012345-abcde-02442_cardname_back_0.png
-        return f'{variant.id}_{variant.name}_{{face}}_{{index}}.{{format}}'
+        return f'{variant.id}_{safe(variant.name)}_{{face}}_{{index}}.{{format}}'
 
     def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0):
         try:

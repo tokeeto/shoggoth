@@ -65,9 +65,8 @@ def _mbprint_html(cards, folder):
     """
 
     for card in cards:
-        css = 'wide' if card.front.get('orientation') == 'horizontal' else ''
         for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False):
-            yield f'<img class="{css}" src="{path}">\n'
+            yield f'<img src="{path}">\n'
     yield "</body>"
 
 
