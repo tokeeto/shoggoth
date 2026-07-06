@@ -184,7 +184,7 @@ def create_mbprint_pdf(cards, target_file, image_folder):
     temp_file = target_folder / '_temp.html'
 
     start_time = time()
-    with open(temp_file, 'w') as html_file:
+    with open(temp_file, 'w', encoding='utf-8') as html_file:
         for txt in _mbprint_html(cards, image_folder):
             html_file.write(txt)
     print(f"MBPrint html time: {time()-start_time}")
@@ -206,7 +206,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder):
     temp_file = target_folder / '_temp.html'
 
     start_time = time()
-    with open(temp_file, 'w') as html_file:
+    with open(temp_file, 'w', encoding='utf-8') as html_file:
         for txt in _azao_html(cards, image_folder, 'front'):
             html_file.write(txt)
     print(f"Azao front html time: {time()-start_time}")
@@ -218,7 +218,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder):
     print(f"Azao pdf front time: {time()-start_time}")
 
     start_time = time()
-    with open(temp_file, 'w') as html_file:
+    with open(temp_file, 'w', encoding='utf-8') as html_file:
         for txt in _azao_html(cards, image_folder, 'back'):
             html_file.write(txt)
     print(f"Azao front html time: {time()-start_time}")
