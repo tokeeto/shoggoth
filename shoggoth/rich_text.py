@@ -910,11 +910,11 @@ class RichTextRenderer:
             if quote or quote_first or quote_last:
                 bar_top = line_y - (font_size * 0.8 if quote_first else line_height)
                 quote_first = False
-                for bar_x in (x_orig, x_orig + QUOTE_BAR_SPACING):
+                for bar_x in (x_orig, x_orig + int(scale*QUOTE_BAR_SPACING)):
                     commands.append({'cmd': 'line',
                                      'x1': bar_x, 'y1': bar_top, 'x2': bar_x, 'y2': line_y,
-                                     'fill': fill, 'width': 2})
-                indent = QUOTE_INDENT
+                                     'fill': fill, 'width': int(scale*2)})
+                    indent = int(QUOTE_INDENT * scale)
 
             eff_x, eff_w = eff_bounds(line_y)
             eff_x += indent

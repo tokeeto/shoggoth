@@ -3,7 +3,7 @@ from uuid import uuid4
 from pathlib import Path
 from typing import Any, Dict
 
-import shoggoth
+
 from shoggoth.files import defaults_dir
 
 
@@ -422,7 +422,7 @@ class TEMPLATES:
         card['front']['classes'] = ['weakness']
         card['back']['type'] = 'player'
         return card
-    
+
     @classmethod
     def TREACHERY_WEAKNESS(cls):
         card = cls.TREACHERY()
