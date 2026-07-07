@@ -679,6 +679,28 @@ class RichTextRenderer:
         result.extend(self._merge_last_two_words(para))
         return result
 
+    def _merge_hr_breaks(self, tokens):
+        """Collapse "<newline><hr><newline>" into a single 'hr_break' token.
+
+        On official cards a horizontal rule still only takes up a single
+        paragraph's worth of vertical space; left as three separate tokens,
+        the two newlines would each add a full paragraph advance on top of
+        the rule itself. Any other placement of <hr> (no newline on one or
+        both sides) is left untouched and renders inline as before.
+        """
+        result = []
+        i, n = 0, len(tokens)
+        while i < n:
+            if (tokens[i]['type'] == 'newline' and i + 2 < n
+                    and tokens[i + 1]['type'] == 'hr'
+                    and tokens[i + 2]['type'] == 'newline'):
+                result.append({'type': 'hr_break'})
+                i += 3
+            else:
+                result.append(tokens[i])
+                i += 1
+        return result
+
     def parse_text(self, text, project=None):
         tokens = []
         text = self._expand_bullet_shorthand(text)
@@ -790,6 +812,7 @@ class RichTextRenderer:
             tokens.append({'type': 'text', 'value': text[start:pos]})
 
         tokens = self._prevent_runts(tokens)
+        tokens = self._merge_hr_breaks(tokens)
         return tokens
 
     def _layout(self, tokens, region, polygon, font_size, base_font='regular',
@@ -1107,6 +1130,36 @@ class RichTextRenderer:
                 else:
                     advance = state['fonts']['regular'].size
                 start_new_line(advance)
+                current_indent = 0
+                indent_current = False
+                quote_last = False
+                overflow_check_pending = True
+
+            elif t == 'hr_break':
+                # Emitted by _merge_hr_breaks for "\n<hr>\n": the rule itself
+                # occupies one full line height (split above/below it),
+                # rather than the two line heights the surrounding newlines
+                # would otherwise add up to, so a divider keeps the spacing
+                # of a single paragraph break like it does on official cards.
+                if overflow_check_pending:
+                    overflow_check_pending = False
+                    if y > y_limit and not force:
+                        return commands, False, i / num_tokens
+
+                start_new_line(0)  # flush the line before the break, no advance yet
+
+                half = line_height / 2
+                y += half
+                eff_x, eff_w = eff_bounds(y)
+                hr_y = int(y)
+                commands.append({
+                    'cmd': 'line',
+                    'x1': int(eff_x), 'y1': hr_y,
+                    'x2': int(eff_x + eff_w), 'y2': hr_y,
+                    'fill': fill, 'width': max(1, font_size // 18),
+                })
+                y += line_height - half
+
                 current_indent = 0
                 indent_current = False
                 quote_last = False
