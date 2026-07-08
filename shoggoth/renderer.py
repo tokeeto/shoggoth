@@ -29,6 +29,31 @@ DEFAULT_IMAGE_FIELDS = [
     'template', 'illustration'
 ]
 
+# Base names of '<name>_region' keys owned by specialized renderers.
+# Any other '<name>_region' marks <name> as a user-defined text field.
+NON_TEXT_REGION_RE = re.compile(
+    r'^(illustration|level|encounter_icon|collection_portrait_clip'
+    r'|icons|icons_box|connection(_\d+)?|chaos|class_symbol_\d+'
+    r'|damage\d+|horror\d+|slot_\d+|image\d+)$'
+)
+
+
+def discovered_text_fields(side):
+    """ User-defined text fields: every '<name>_region' key on the face
+        (card data, active variants, or defaults) whose base name isn't
+        claimed by a specialized renderer or by another field's magic
+        '_overlay' suffix.
+    """
+    for key in side.visible_keys():
+        if not key.endswith('_region'):
+            continue
+        field = key[:-len('_region')]
+        if field in DEFAULT_TEXT_FIELDS or field.endswith('_overlay'):
+            continue
+        if NON_TEXT_REGION_RE.match(field):
+            continue
+        yield field
+
 
 class _ImgDims:
     """Minimal stand-in returned by get_illustration_cached — holds only dimensions."""
@@ -566,14 +591,10 @@ class CardRenderer:
             card_image.paste(image, region.pos, image)
 
     def render_text(self, card_image, side, s: float = 1.0):
-        for field in [
-            'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
-            'attack', 'evade', 'health', 'stamina', 'sanity', 'victory',
-            'clues', 'doom', 'shroud', 'willpower', 'intellect',
-            'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty',
-            'text1', 'text2', 'text3', 'chaos_extra',
-        ]:
+        for field in (*DEFAULT_TEXT_FIELDS, *discovered_text_fields(side)):
             value = side.get(field)
+            if value and not isinstance(value, str):
+                value = str(value)
             region = Region(side.get(f'{field}_region', None), s)
 
             if region.is_attached or not region:
