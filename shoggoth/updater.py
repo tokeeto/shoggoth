@@ -21,7 +21,7 @@ ASSETS_REPO = "tokeeto/shoggoth_assets"
 ASSETS_API = f"https://api.github.com/repos/{ASSETS_REPO}"
 ASSETS_RAW_BASE = f"https://raw.githubusercontent.com/{ASSETS_REPO}"
 ASSETS_STATE_FILE = ".asset_state"
-ASSET_BRANCH = "v2"  # keep in sync with [tool.shoggoth] asset-version in pyproject.toml
+ASSET_BRANCH = "v3" # keep in sync with [tool.shoggoth] asset-version in pyproject.toml
 GITHUB_HEADERS = {"Accept": "application/vnd.github.v3+json", "User-Agent": "Shoggoth-AssetManager"}
 
 logger = logging.getLogger(__name__)
