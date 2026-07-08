@@ -191,6 +191,8 @@ _REPLACEMENT_TAGS: dict[str, str] = {
     '<dquoteend>': '\u201d',
     '---': '\u2014',
     '--': '\u2013',
+    '[[': '<span class="trait">',
+    ']]': '</span>',
 }
 
 # Pre-sorted longest-first so shorter aliases don't shadow longer ones.
