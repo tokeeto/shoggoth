@@ -1157,7 +1157,7 @@ class RichTextRenderer:
                     'x2': int(eff_x + eff_w), 'y2': hr_y,
                     'fill': fill, 'width': max(1, font_size // 18),
                 })
-                y += line_height - half
+                y += line_height
 
                 current_indent = 0
                 indent_current = False
