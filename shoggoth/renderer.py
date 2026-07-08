@@ -489,7 +489,10 @@ class CardRenderer:
         except Exception as e:
             logger.error('Failed to render Template', e, exc_info=True)
         if side['type'] in ('investigator'):
-            self.render_illustration(card_image, side, s)
+            try:
+                self.render_illustration(card_image, side, s)
+            except Exception as e:
+                logger.error('Failed to render Illustration second layer', e, exc_info=True)
 
         if not template_bleed:
             # make fake mirror bleed
