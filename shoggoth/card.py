@@ -3,8 +3,32 @@ from uuid import uuid4
 from pathlib import Path
 from typing import Any, Dict
 
-
+import shoggoth
 from shoggoth.files import defaults_dir
+
+
+def matches(when, tags):
+    """ Evaluates a variant block condition against a set of tags.
+
+        `when` is a clause string or a list of clause strings (any clause
+        may match). A clause is one or more '&'-separated tags that must
+        all be present; a tag prefixed with '!' must be absent.
+        A missing/empty condition always matches.
+    """
+    if not when:
+        return True
+    clauses = [when] if isinstance(when, str) else when
+    for clause in clauses:
+        for term in clause.split('&'):
+            term = term.strip()
+            if term.startswith('!'):
+                if term[1:].strip() in tags:
+                    break
+            elif term not in tags:
+                break
+        else:
+            return True
+    return False
 
 
 class Face:
@@ -29,7 +53,13 @@ class Face:
                 fallback = json.load(f)
                 if fallback.get('parent'):
                     parent = self.__build_fallback(fallback['parent'])
+                    # variant blocks accumulate along the parent chain
+                    # (child blocks last, so they win), while plain keys
+                    # merge with the child overriding the parent
+                    variants = (parent.get('variants') or []) + (fallback.get('variants') or [])
                     fallback = parent | fallback
+                    if variants:
+                        fallback['variants'] = variants
         except Exception as e:
             print('exception when loading fallback:', e)
             return {}
@@ -44,10 +74,41 @@ class Face:
             self._fallback = self.__build_fallback(self.data['type'])
         return self._fallback
 
+    def tags(self):
+        """ The set of tags variant blocks can match against:
+            the card's class (or multi patterns when it has several classes),
+            plus pseudo-tags derived from card state ('encounter' when the
+            card belongs to an encounter set).
+        """
+        tags = set()
+        classes = self.data.get('classes') or []
+        if len(classes) == 1:
+            tags.add(classes[0])
+        elif len(classes) > 1:
+            tags.add('multi')
+            tags.add(f'multi{len(classes)}')
+            for n in range(1, len(classes) + 1):
+                tags.add(f'multi{n}+')
+        # raw data check instead of card.encounter, which scans the project
+        # per call — too slow for something evaluated on every field lookup
+        if self.card.data.get('encounter_set'):
+            tags.add('encounter')
+        return tags
+
     def __getitem__(self, key):
         if key in self.data:
             return self.data[key]
 
+        # variant blocks: later blocks override earlier ones
+        variants = self.fallback.get('variants')
+        if variants:
+            tags = self.tags()
+            for variant in reversed(variants):
+                values = variant.get('set', {})
+                if key in values and matches(variant.get('when'), tags):
+                    return values[key]
+
+        # legacy flat '<key>_<class>' lookup for old-format defaults files
         cls = self.get_class()
         if cls == 'multi':
             for pattern in self.get_multi_patterns():
@@ -56,6 +117,17 @@ class Face:
         if f'{key}_{cls}' in self.fallback:
             return self.fallback[f'{key}_{cls}']
         return self.fallback[key]
+
+    def visible_keys(self):
+        """ All keys resolvable on this face: card data, active variant
+            blocks, and the base fallback.
+        """
+        keys = (set(self.data) | set(self.fallback)) - {'variants', 'parent'}
+        tags = self.tags()
+        for variant in self.fallback.get('variants') or []:
+            if matches(variant.get('when'), tags):
+                keys |= set(variant.get('set', {}))
+        return keys
 
     def get(self, key, default=''):
         try:
@@ -85,8 +157,9 @@ class Face:
         if value is None and key != 'type':
             del self.data[key]
 
-        shoggoth.app.schedule_preview_update()
-        shoggoth.app.update_card_in_tree(self.card.id)
+        if shoggoth.app:
+            shoggoth.app.schedule_preview_update()
+            shoggoth.app.update_card_in_tree(self.card.id)
 
     def get_class(self):
         cls = self.data.get('classes')
@@ -250,7 +323,8 @@ class Card:
         if key in self.data and value is None:
             del self.data[key]
 
-        shoggoth.app.update_card_in_tree(self.id)
+        if shoggoth.app:
+            shoggoth.app.update_card_in_tree(self.id)
 
     def get(self, key, default=None):
         if key == 'copyright' and 'copyright' not in self.data:

@@ -681,16 +681,7 @@ class CardRenderer:
             h = hashlib.md5(s.encode()).digest()
             return f"#{h[0]:02x}{h[1]:02x}{h[2]:02x}"
 
-        for key in side.data:
-            if '_region' in key:
-                region = Region(side.get(key), scale)
-                draw.rectangle((region.x, region.y, region.x + region.width, region.y+region.height), None, string_to_color(key), 2)
-                draw.text((region.x, region.y-22), key, font_size=20, fill=string_to_color(key))
-            if '_polygon' in key:
-                polygon = side.get(key)
-                draw.line([(n[0]*scale, n[1]*scale) for n in polygon], string_to_color(key), 5)
-                draw.text((polygon[0][0], polygon[0][1]-22), key, font_size=20, fill=string_to_color(key))
-        for key in side._fallback:
+        for key in side.visible_keys():
             if '_region' in key:
                 region = Region(side.get(key), scale)
                 draw.rectangle((region.x, region.y, region.x + region.width, region.y+region.height), None, string_to_color(key), 2)
