@@ -1,0 +1,14 @@
+[
+    {
+        "caption": "Shoggoth: Preview Card at Cursor",
+        "command": "shoggoth_preview_card"
+    },
+    {
+        "caption": "Preferences: Shoggoth Settings",
+        "command": "edit_settings",
+        "args": {
+            "base_file": "${packages}/Shoggoth/Shoggoth.sublime-settings",
+            "default": "{\n\t$0\n}\n"
+        }
+    }
+]

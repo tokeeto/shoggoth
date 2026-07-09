@@ -1,0 +1,39 @@
+{
+    // How to launch Shoggoth. Either a list of arguments or a single shell-style
+    // string. The plugin appends: -r <project> -id <card_id> -o <tmpdir> -f png -s <render_size>
+    //
+    // Examples:
+    //   dev checkout:      ["uv", "run", "shoggoth"]   (with "working_dir" set to the repo)
+    //   installed (uvx):   "uvx shoggoth"
+    //   installed (pipx):  "pipx run shoggoth"
+    "command": ["uv", "run", "shoggoth"],
+
+    // Directory to run the command in. Required for the dev checkout form
+    // ("uv run shoggoth" must run inside the repo). Defaults to the folder
+    // containing the project file being edited. Supports "~".
+    "working_dir": null,
+
+    // Extra arguments inserted before the flags the plugin adds.
+    "extra_args": [],
+
+    // Environment variables for the subprocess. Once you have the asset pack
+    // downloaded, setting SHOGGOTH_UNMANAGED_ASSETS skips the per-render
+    // GitHub asset-freshness check and makes previews noticeably faster:
+    //   "env": { "SHOGGOTH_UNMANAGED_ASSETS": "1" }
+    "env": {},
+
+    // Render resolution: 0 = full, 1 = half, 2 = quarter.
+    "render_size": 1,
+
+    // Render with bleed margins.
+    "bleed": false,
+
+    // Display width (px) of each card image in the preview tab.
+    "image_width": 420,
+
+    // Save the project file before rendering (Shoggoth reads it from disk).
+    "save_on_render": true,
+
+    // Seconds before a render subprocess is killed.
+    "timeout": 120
+}
