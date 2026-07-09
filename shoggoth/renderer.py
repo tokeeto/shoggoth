@@ -916,11 +916,11 @@ class CardRenderer:
                     continue
                 icon_path = self.overlays_path/f"{token}.png"
                 raw_icon = self.get_cached(icon_path)
-                raw_icon = self.get_resized_cached(icon_path, (int(raw_icon.width*s), int(raw_icon.height*s)))
                 for i in range(value):
-                    region = Region(side[f'{token}{i+1}_region'], s)
+                    region = Region(side.get(f'{token}{i+1}_region'), s)
                     if not region:
                         continue
+                    raw_icon = self.get_resized_cached(icon_path, region.size)
                     card_image.paste(raw_icon, (region.x, region.y), raw_icon)
         except Exception as e:
             print('error in enemy:', e)

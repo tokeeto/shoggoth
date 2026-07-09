@@ -4,7 +4,12 @@
 
 ## What is Shoggoth?
 
-Shoggoth is a desktop application for creating custom cards and related content for **Arkham Horror: The Card Game** by Fantasy Flight Games.
+Shoggoth is a desktop application for creating custom cards and related content for **Arkham Horror: The Card Game**.
+
+Shoggoth is many things to many people. First and foremost, it's a card editor that let's you create cards fast and easily, in an organized manner.
+It's also a very versatile editor with many options for you to easily make your own card types, costumizations to existing card types and combining card fronts and backs in new an crazy ways.
+If you're a programmer, Shoggoth is a json-to-image application, with a bunch of flags that let you render cards fast and easily in a programmatic way.
+
 
 Shoggoth is not affiliated with, nor endorsed by Fantasy Flight Games.
 
