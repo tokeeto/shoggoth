@@ -259,6 +259,11 @@ class CardRenderer:
         self.resized_cache = {}
         self.card_wo_illus_cache = {}
 
+    def clear_illustration_caches(self):
+        """Drop cached illustration pixels so edited image files are re-read from disk."""
+        self._illus_dims_cache.clear()
+        self._illus_resized_lru.clear()
+
     def invalidate_cache(self, path=None):
         """Invalidate cached images.
 

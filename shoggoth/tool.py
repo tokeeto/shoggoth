@@ -34,6 +34,7 @@ def run():
 
     parser = argparse.ArgumentParser(description='Shoggoth Card Creator')
     parser.add_argument('-r', '--render', metavar='FILE', help='Render a specific file directly')
+    parser.add_argument('-d', '--display', metavar='FILE', help='Display mode: watch FILE and show the last-edited card in the terminal (kitty graphics protocol, or chafa fallback)')
     parser.add_argument('-id', '--card_id', metavar='STRING', help='Only render the card with the given ID.')
     parser.add_argument('-o', '--out', metavar='FOLDER', help='Overwrite the default output folder for --render option.')
     parser.add_argument('-b', '--bleed', metavar='BOOL', help='--render mode option. If set, render will output with bleed.')
@@ -55,6 +56,14 @@ def run():
     # The UI path handles its own asset download with a proper progress dialog.
     if args.render or args.test:
         updater.ensure_assets_current()
+
+    # display mode: watch a project file and show the last-edited card in the terminal.
+    # Only hits the network for assets when none are present, to keep startup fast.
+    if args.display:
+        if not updater.assets_available():
+            updater.ensure_assets_current()
+        from shoggoth.display_mode import run_display_mode
+        sys.exit(run_display_mode(args.display, card_id=args.card_id))
 
     # flag for using shoggoth as a cli tool
     if args.render:
