@@ -747,7 +747,8 @@ class CardRenderer:
                 fill=font.get('color', '#231f20'),
                 outline=font.get('outline'),
                 outline_fill=font.get('outline_color'),
-                alignment=font.get('alignment', 'left')
+                alignment=font.get('alignment', 'left'),
+                project=side.card.project,
             )
 
             overlay_path = self.overlays_path/f"chaos_{icon}.png"
@@ -1103,6 +1104,7 @@ class CardRenderer:
                 outline_fill=font.get('outline_color'),
                 alignment=font.get('alignment', 'left'),
                 scale=s,
+                project=side.card.project,
             )
             surfaces.append((token_surface, text_surface))
 
@@ -1165,6 +1167,7 @@ class CardRenderer:
             outline=font.get('outline'),
             outline_fill=font.get('outline_color'),
             alignment=font.get('alignment', 'left'),
+            project=side.card.project,
         )
 
     def get_implicit_illustration_scale(self, side):

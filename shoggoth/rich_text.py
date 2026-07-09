@@ -796,7 +796,12 @@ class RichTextRenderer:
                     if m:
                         attrs = _parse_tag_attributes(m[0])
                         if 'src' in attrs:
-                            tokens.append({'type': 'image_icon', 'value': attrs['src'], 'color': attrs.get('color')})
+                            src = attrs['src']
+                            if project:
+                                resolved = project.find_file(src)
+                                if resolved:
+                                    src = str(resolved)
+                            tokens.append({'type': 'image_icon', 'value': src, 'color': attrs.get('color')})
                         pos += len(m[0])
                         continue
 
