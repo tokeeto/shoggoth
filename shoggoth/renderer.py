@@ -444,7 +444,7 @@ class CardRenderer:
         else:
             value = value.replace('<est>', '')
         if side.card.encounter and side.card.encounter.icon:
-            path = side.card.project.find_file(side.card.project.icon)
+            path = side.card.project.find_file(side.card.encounter.icon)
             value = value.replace('<esi>', f'<image src="{path}" color="inverted">')
         else:
             value = value.replace('<esi>', '')

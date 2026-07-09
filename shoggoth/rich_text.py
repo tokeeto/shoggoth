@@ -1032,7 +1032,7 @@ class RichTextRenderer:
                     if item['icon'] is not None:
                         # line_y is the baseline; center the icon on the em box,
                         # whose top sits ascent pixels above the baseline
-                        icon_y = int(line_y - item['icon'].height)
+                        icon_y = int(line_y - item['icon'].height*.85)
                         commands.append({'cmd': 'image',
                                          'x': int(x_pos), 'y': icon_y,
                                          'icon': item['icon']})
@@ -1227,7 +1227,7 @@ class RichTextRenderer:
                         current_indent = wcache.width('b ', font_obj)
                 elif t == 'image_icon':
                     regular = state['fonts']['regular']
-                    icon_img = self._get_icon(token['value'], int(regular.size*0.7), color=token.get('color'))
+                    icon_img = self._get_icon(token['value'], int(regular.size), color=token.get('color'))
                     w = icon_img.width if icon_img else 0
                     item = {'cmd': 'image', 'icon': icon_img, 'width': w,
                             'ascent': self._font_meta[regular]['ascent'],
