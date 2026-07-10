@@ -509,10 +509,10 @@ class RichTextRenderer:
         if (icon_path, height) in self.icon_cache:
             return self.icon_cache[(icon_path, height)]
 
-        icon = self.card_renderer.get_cached(icon_path).convert("RGBA")
-        aspect_ratio = icon.width / icon.height
-        new_width = int(height * aspect_ratio)
-        icon = icon.resize((new_width, height))
+        dims = self.card_renderer.get_image_dims(icon_path)
+        aspect_ratio = dims.width / dims.height
+        new_width = max(1, int(height * aspect_ratio))
+        icon = self.card_renderer.get_resized_cached(icon_path, (new_width, height)).convert("RGBA")
         self.icon_cache[(icon_path, height)] = icon
         return icon
 

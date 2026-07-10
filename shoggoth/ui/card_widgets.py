@@ -1,18 +1,24 @@
 """
 Card-specific widgets (icons, illustration) for Shoggoth using PySide6
 """
+import logging
 from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
     QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal, QTimer, QPointF, QRectF
-from PySide6.QtGui import QPixmap, QPainter, QPainterPath, QColor, QPen, QTransform
+from PySide6.QtCore import Qt, Signal, QTimer, QPointF, QRectF, QSize
+from PySide6.QtGui import (
+    QImage, QPixmap, QPainter, QPainterPath, QColor, QPen, QTransform
+)
 
+from shoggoth.renderer import _pdf_page_dims, _render_pdf_page
 from shoggoth.ui.field_widgets import LabeledLineEdit
 from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
+
+logger = logging.getLogger('shoggoth')
 
 
 class IconsWidget(QWidget):
@@ -264,15 +270,18 @@ class IllustrationPositionView(QWidget):
             self._art_mirrored = None
             self._art_size = None
             if path:
-                pixmap = QPixmap(str(path))
-                if not pixmap.isNull():
-                    self._art_size = pixmap.size()
-                    if max(pixmap.width(), pixmap.height()) > self.MAX_DISPLAY_DIM:
-                        pixmap = pixmap.scaled(
-                            self.MAX_DISPLAY_DIM, self.MAX_DISPLAY_DIM,
-                            Qt.KeepAspectRatio, Qt.SmoothTransformation
-                        )
-                    self._art = pixmap
+                if str(path).lower().endswith('.pdf'):
+                    self._load_pdf_art(path)
+                else:
+                    pixmap = QPixmap(str(path))
+                    if not pixmap.isNull():
+                        self._art_size = pixmap.size()
+                        if max(pixmap.width(), pixmap.height()) > self.MAX_DISPLAY_DIM:
+                            pixmap = pixmap.scaled(
+                                self.MAX_DISPLAY_DIM, self.MAX_DISPLAY_DIM,
+                                Qt.KeepAspectRatio, Qt.SmoothTransformation
+                            )
+                        self._art = pixmap
 
         region = region or {}
         self._region = QRectF(
@@ -297,6 +306,31 @@ class IllustrationPositionView(QWidget):
         self.setCursor(Qt.OpenHandCursor if self._art else Qt.ArrowCursor)
         self._refit()
         self.update()
+
+    def _load_pdf_art(self, path):
+        """Load a PDF illustration with the renderer's reference dimensions.
+
+        Qt's PDF image plugin rasterizes at 72 DPI, but the renderer defines a
+        PDF's natural size at _PDF_DPI — using QPixmap here would make the
+        widget's scale/pan disagree with the actual render.
+        """
+        try:
+            dims = _pdf_page_dims(path)
+            factor = min(1.0, self.MAX_DISPLAY_DIM / max(dims.width, dims.height))
+            display_size = (
+                max(1, round(dims.width * factor)),
+                max(1, round(dims.height * factor)),
+            )
+            art = _render_pdf_page(path, display_size)
+        except Exception:
+            logger.exception("Failed to load PDF illustration %s", path)
+            return
+        image = QImage(
+            art.tobytes(), art.width, art.height,
+            art.width * 4, QImage.Format_RGBA8888
+        )
+        self._art = QPixmap.fromImage(image)
+        self._art_size = QSize(dims.width, dims.height)
 
     # ------------------------------------------------------------------
     # Geometry helpers

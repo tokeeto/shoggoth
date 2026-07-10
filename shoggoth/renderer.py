@@ -1,5 +1,6 @@
 from PIL import Image, ImageOps, ImageDraw
 import os
+import threading
 from collections import OrderedDict
 from io import BytesIO
 from shoggoth.rich_text import RichTextRenderer
@@ -17,7 +18,10 @@ logging.getLogger('pillow').setLevel(logging.ERROR)
 logger = logging.getLogger('shoggoth')
 
 card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
-_ILLUS_LRU_MAXSIZE = 24
+# Decoded-pixel budget for the resize LRU: templates/overlays/icons and
+# illustrations are decoded straight to their target size and kept here;
+# least-recently-used entries are evicted once the budget is exceeded.
+_RESIZED_CACHE_BUDGET = 256 * 2**20
 # "Natural" pixel size of a PDF page (page points are 1/72"). Only fixes what
 # illustration_scale=1.0 means for PDFs; actual rasterization is done at the
 # requested output size, so PDFs stay vector-sharp at any scale.
@@ -86,7 +90,7 @@ def discovered_text_fields(side):
 
 
 class _ImgDims:
-    """Minimal stand-in returned by get_illustration_cached — holds only dimensions."""
+    """Minimal stand-in returned by get_image_dims — holds only dimensions."""
     __slots__ = ('width', 'height')
 
     def __init__(self, w, h):
@@ -157,11 +161,10 @@ class CardRenderer:
         self.overlays_path = overlay_dir
         self.icons_path = icon_dir
         self.defaults_path = defaults_dir
-        self.cache = {}
-        self.resized_cache = {}
-        self.card_wo_illus_cache = {}
-        self._illus_dims_cache = {}      # path → _ImgDims; cheap, never evicted
-        self._illus_resized_lru = OrderedDict()  # (path, size) → PIL Image; bounded LRU
+        self._dims_cache = {}              # str(path) → _ImgDims; header reads, never evicted
+        self._resized_lru = OrderedDict()  # (str(path), size) → PIL Image; byte-budgeted LRU
+        self._resized_lru_bytes = 0
+        self._resized_lock = threading.Lock()
         self.translations = {}
         self.locale = locale
         self.translations = {}
@@ -181,91 +184,65 @@ class CardRenderer:
         self.hyphenation_enabled = enabled
         self.rich_text.hyphenation_enabled = enabled
 
-    def get_illustration_cached(self, path) -> _ImgDims:
-        """Return illustration dimensions without decoding pixels.
+    def get_image_dims(self, path) -> _ImgDims:
+        """Return image dimensions without decoding pixels.
 
         Only .width and .height are meaningful on the returned object.
         pyvips reads just the image header, so this is cheap even for large JPEGs.
         """
-        if path not in self._illus_dims_cache:
-            if str(path).lower().endswith('.pdf'):
-                self._illus_dims_cache[path] = _pdf_page_dims(path)
+        key = str(path)
+        if key not in self._dims_cache:
+            if key.lower().endswith('.pdf'):
+                self._dims_cache[key] = _pdf_page_dims(path)
             else:
                 vips_image = pyvips.Image.new_from_file(str(path))
-                self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
-        return self._illus_dims_cache[path]
+                self._dims_cache[key] = _ImgDims(vips_image.width, vips_image.height)
+        return self._dims_cache[key]
 
-    def get_illustration_resized_cached(self, path, size) -> Image.Image:
-        """Return a resized illustration, using vips thumbnail for fast shrink-on-load.
+    def _decode_at_size(self, path, size) -> Image.Image:
+        """Decode an image file straight to `size` pixels.
 
-        Results are kept in a bounded LRU (_ILLUS_LRU_MAXSIZE entries) so that
-        repeated renders of the same illustration (e.g. multiple copies of a card)
-        hit the cache while old entries are evicted to keep RAM bounded.
-        Full-resolution illustrations are never stored in self.cache.
+        Full resolution is never materialized: vips thumbnail() uses
+        shrink-on-load (JPEGs decode at 1/2, 1/4 or 1/8 native resolution
+        before the final resize), SVGs/PDFs rasterize at the target size.
         """
         if size[0] * size[1] > 24_000_000:
             raise Exception('image too big, dangerous')
-        key = (path, size)
-        if key in self._illus_resized_lru:
-            self._illus_resized_lru.move_to_end(key)
-            return self._illus_resized_lru[key]
-
         if str(path).lower().endswith('.pdf'):
-            image = _render_pdf_page(path, size)
-        elif str(path).endswith('.svg'):
-            vips_image = pyvips.Image.new_from_file(str(path))
-            svg_scale = size[0] / vips_image.width
-            if svg_scale > (size[1] / vips_image.height):
-                svg_scale = size[1] / vips_image.height
+            return _render_pdf_page(path, size)
+        if str(path).endswith('.svg'):
+            dims = self.get_image_dims(path)
+            svg_scale = min(size[0] / dims.width, size[1] / dims.height)
             vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
-            image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
-        else:
-            # thumbnail() uses JPEG shrink-on-load: decodes at 1/2, 1/4 or 1/8
-            # native resolution, so large photos are decoded at a fraction of
-            # their full size before the final resize step.
-            vips_image = pyvips.Image.thumbnail(str(path), size[0], height=size[1], size='force')
-            mode = 'RGBA' if vips_image.bands == 4 else 'RGB'
-            image = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
-
-        self._illus_resized_lru[key] = image
-        if len(self._illus_resized_lru) > _ILLUS_LRU_MAXSIZE:
-            self._illus_resized_lru.popitem(last=False)
-        return image
-
-    def get_cached(self, path) -> Image.Image:
-        if path not in self.cache:
-            if str(path).lower().endswith('.pdf'):
-                dims = _pdf_page_dims(path)
-                self.cache[path] = _render_pdf_page(path, (dims.width, dims.height))
-            else:
-                vips_image = pyvips.Image.new_from_file(str(path))
-                bands = vips_image.bands
-                mode = 'RGBA' if bands == 4 else 'RGB'
-                self.cache[path] = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
-        return self.cache[path]
+            return Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
+        vips_image = pyvips.Image.thumbnail(str(path), size[0], height=size[1], size='force')
+        mode = 'RGBA' if vips_image.bands == 4 else 'RGB'
+        return Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
 
     def get_resized_cached(self, path, size) -> Image.Image:
-        if (path, size) not in self.resized_cache:
-            if str(path).lower().endswith('.pdf'):
-                self.resized_cache[(path, size)] = _render_pdf_page(path, size)
-            elif str(path).endswith('.svg'):
-                vips_image = pyvips.Image.new_from_file(str(path))
-                svg_scale = size[0]/vips_image.width
-                if svg_scale > (size[1]/vips_image.height):
-                    svg_scale = size[1]/vips_image.height
-                vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
-                image = Image.frombytes(
-                    'RGBA',
-                    (vips_image.width, vips_image.height),
-                    vips_image.write_to_memory()
-                )
-                self.resized_cache[(path, size)] = image
-            else:
-                img = self.get_cached(path)
-                if img.size == size:
-                    return img
-                self.resized_cache[(path, size)] = img.resize(size)
-        return self.resized_cache[(path, size)]
+        """Return an image (template/overlay/icon/illustration) at `size`.
+
+        Backed by a byte-budgeted LRU: repeated renders of the same card hit
+        the cache, while least-recently-used entries are evicted once the
+        decoded pixels exceed _RESIZED_CACHE_BUDGET, so memory stays bounded
+        no matter how many assets a session touches.
+        """
+        key = (str(path), tuple(size))
+        with self._resized_lock:
+            if key in self._resized_lru:
+                self._resized_lru.move_to_end(key)
+                return self._resized_lru[key]
+
+        image = self._decode_at_size(path, size)
+
+        with self._resized_lock:
+            if key not in self._resized_lru:
+                self._resized_lru[key] = image
+                self._resized_lru_bytes += image.width * image.height * 4
+                while self._resized_lru_bytes > _RESIZED_CACHE_BUDGET and len(self._resized_lru) > 1:
+                    _, evicted = self._resized_lru.popitem(last=False)
+                    self._resized_lru_bytes -= evicted.width * evicted.height * 4
+        return image
 
     def clear_asset_caches(self):
         """Drop all caches that hold data derived from on-disk assets.
@@ -274,14 +251,11 @@ class CardRenderer:
         updated fonts, icons, and templates without restarting.
         """
         self.rich_text.clear_caches()
-        self.cache = {}
-        self.resized_cache = {}
-        self.card_wo_illus_cache = {}
+        self.invalidate_cache()
 
     def clear_illustration_caches(self):
-        """Drop cached illustration pixels so edited image files are re-read from disk."""
-        self._illus_dims_cache.clear()
-        self._illus_resized_lru.clear()
+        """Drop cached image pixels so edited image files are re-read from disk."""
+        self.invalidate_cache()
 
     def invalidate_cache(self, path=None):
         """Invalidate cached images.
@@ -291,16 +265,17 @@ class CardRenderer:
                   If None, clear the entire cache.
         """
         if path:
-            if path not in self.cache:
-                return
-            del self.cache[path]
-
-            keys_to_remove = [k for k in self.resized_cache if k[0] == path]
-            for k in keys_to_remove:
-                del self.resized_cache[k]
+            key = str(path)
+            self._dims_cache.pop(key, None)
+            with self._resized_lock:
+                for k in [k for k in self._resized_lru if k[0] == key]:
+                    evicted = self._resized_lru.pop(k)
+                    self._resized_lru_bytes -= evicted.width * evicted.height * 4
         else:
-            self.cache = {}
-            self.resized_cache = {}
+            self._dims_cache = {}
+            with self._resized_lock:
+                self._resized_lru = OrderedDict()
+                self._resized_lru_bytes = 0
 
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
@@ -481,16 +456,6 @@ class CardRenderer:
             value = value.replace(f'%:{orig}', trans)
 
         return value
-
-    def render_card_side_without_illustration(self, card, side, include_bleed=True):
-        from shoggoth.card import Card
-        if card in self.card_wo_illus_cache[card]:
-            return self.card_wo_illus_cache[card]
-
-        c = Card(card.data, project=card.project, encounter=card.encounter)
-        c.set('illustration', None)
-        self.card_wo_illus_cache[card] = self.render_card_side(c, side, include_bleed)
-        return self.card_wo_illus_cache[card]
 
     def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72, rotation=False, show_regions=False):
         """Render one side of a card"""
@@ -771,7 +736,7 @@ class CardRenderer:
             )
 
             overlay_path = self.overlays_path/f"chaos_{icon}.png"
-            native = self.get_cached(overlay_path)
+            native = self.get_image_dims(overlay_path)
             overlay_icon = self.get_resized_cached(overlay_path, (native.width * 2, native.height * 2))
             card_image.paste(overlay_icon, (region.x, region.y+(index*entry_height)), overlay_icon)
 
@@ -901,9 +866,9 @@ class CardRenderer:
         icon_path = Path(icon_path).absolute()
 
         try:
-            icon = self.get_cached(icon_path)
-            icon_scale = min(region.width/icon.width, region.height/icon.height)
-            icon = self.get_resized_cached(icon_path, (int(icon.width*icon_scale), int(icon.height*icon_scale)))
+            dims = self.get_image_dims(icon_path)
+            icon_scale = min(region.width/dims.width, region.height/dims.height)
+            icon = self.get_resized_cached(icon_path, (int(dims.width*icon_scale), int(dims.height*icon_scale)))
             card_image.paste(icon, region.pos, icon if icon.has_transparency_data else None)
         except Exception as e:
             logger.error('icon failure:', e, icon_path, side.card.name, exc_info=True)
@@ -935,7 +900,6 @@ class CardRenderer:
                 if not value:
                     continue
                 icon_path = self.overlays_path/f"{token}.png"
-                raw_icon = self.get_cached(icon_path)
                 for i in range(value):
                     region = Region(side.get(f'{token}{i+1}_region'), s)
                     if not region:
@@ -988,7 +952,7 @@ class CardRenderer:
         if not illustration_path:
             return
 
-        illustration = self.get_illustration_cached(illustration_path)
+        illustration = self.get_image_dims(illustration_path)
         region = Region(side.get('illustration_region'), s)
         # Calculate scaling
         illustration_scale = float(side.get('illustration_scale', 0)) * s
@@ -1000,7 +964,7 @@ class CardRenderer:
         # Resize illustration
         new_width = int(illustration.width * illustration_scale)
         new_height = int(illustration.height * illustration_scale)
-        illustration = self.get_illustration_resized_cached(illustration_path, (new_width, new_height))
+        illustration = self.get_resized_cached(illustration_path, (new_width, new_height))
 
         if side.get('illustration_mirror', False):
             illustration = ImageOps.mirror(illustration)
@@ -1205,7 +1169,7 @@ class CardRenderer:
         if not illustration_path:
             return None
 
-        illustration = self.get_illustration_cached(illustration_path)
+        illustration = self.get_image_dims(illustration_path)
         region = Region(side.get('illustration_region'), 1)
 
         # Calculate scaling
