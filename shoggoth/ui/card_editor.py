@@ -172,14 +172,6 @@ class CardEditor(QWidget):
 
         # JSON editor
         self.json_editor = ArkhamTextEdit()
-
-        # Enable JSON syntax highlighting
-        try:
-            from pygments.lexers import JsonLexer
-            self.json_editor.set_lexer(JsonLexer())
-        except:
-            pass
-
         self.json_editor.textChanged.connect(self.on_json_changed)
         json_layout.addWidget(self.json_editor)
 

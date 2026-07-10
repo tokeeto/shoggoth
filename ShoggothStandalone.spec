@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 import platform
+import re
 import tomllib
 
 # Files to include
@@ -30,10 +31,75 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'numpy',              # only reachable via optional PIL/pyvips array APIs we don't call
+        'PySide6.QtNetwork',  # networking goes through requests/sockets, not Qt
+    ],
     noarchive=False,
     optimize=0,
 )
+
+# ---- size trimming ----
+# The app imports only QtCore/QtGui/QtWidgets. QtQml/QtQuick/QtPdf and friends
+# are dragged in as binary deps of optional plugins (virtualkeyboard -> Quick/Qml,
+# imageformats qpdf -> QtPdf, platformthemes qgtk3 -> the whole GTK stack
+# including a second 32MB copy of ICU data). Names differ per platform
+# (libQt6Qml.so / Qt6Qml.dll / QtQml.framework), hence the regex.
+_drop_binary = re.compile(
+    r'Qt6?(Qml|Quick|VirtualKeyboard|Pdf)'
+    r'|qtvirtualkeyboardplugin'
+    r'|imageformats[/\\](lib)?qpdf'
+    r'|platformthemes[/\\](lib)?qgtk3'
+)
+dropped = [b for b in a.binaries if _drop_binary.search(b[0])]
+a.binaries = [b for b in a.binaries if b not in dropped]
+
+# On Linux, PyInstaller bundled system libs that only the dropped plugins
+# needed (libgtk-3 -> libglycin -> libxml2 -> libicudata.so.78, ...). Remove
+# every root-level lib that is in the dropped plugins' dependency closure but
+# not in any kept binary's closure.
+if platform.system() == 'Linux' and dropped:
+    import subprocess
+
+    def _needed(path):
+        try:
+            out = subprocess.check_output(['objdump', '-p', path], text=True,
+                                          stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError):
+            return set()
+        return {line.split()[1] for line in out.splitlines()
+                if line.strip().startswith('NEEDED')}
+
+    _root_libs = {os.path.basename(b[0]): b for b in a.binaries if '/' not in b[0]}
+
+    def _dep_closure(seed_paths):
+        result, frontier = set(), list(seed_paths)
+        while frontier:
+            for name in _needed(frontier.pop()):
+                if name in _root_libs and name not in result:
+                    result.add(name)
+                    frontier.append(_root_libs[name][1])
+        return result
+
+    _used = _dep_closure([b[1] for b in a.binaries if '/' in b[0]])
+    _unused = _dep_closure([b[1] for b in dropped]) - _used
+    a.binaries = [b for b in a.binaries
+                  if '/' in b[0] or os.path.basename(b[0]) not in _unused]
+
+# Qt translations: keep only the languages the app itself ships.
+_keep_langs = ('en', 'de', 'es', 'fr', 'zh')
+
+def _keep_translation(dest):
+    dest = dest.replace('\\', '/')
+    if '/translations/' not in dest or not dest.startswith('PySide6'):
+        return True
+    stem = os.path.basename(dest).rsplit('.', 1)[0]
+    if stem.startswith('qt_help_'):
+        return False
+    lang = stem.split('_', 1)[1] if '_' in stem else ''
+    return any(lang == k or lang.startswith(k + '_') for k in _keep_langs)
+
+a.datas = [d for d in a.datas if _keep_translation(d[0])]
 
 # Fix dylib conflict: Pillow bundles libharfbuzz without CoreText support,
 # but pyvips (via libpangocairo) needs _hb_coretext_font_create.

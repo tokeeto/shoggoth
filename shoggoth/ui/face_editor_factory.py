@@ -40,17 +40,9 @@ class JsonEditor(FaceEditor):
         info.setStyleSheet("color: #666; padding: 5px;")
         self.main_layout.addWidget(info)
 
-        # Create the JSON editor with syntax highlighting
+        # Create the JSON editor
         self.json_editor = ArkhamTextEdit()
         self.json_editor.setPlaceholderText("{\n  \"type\": \"asset\",\n  \"name\": \"Card Name\"\n}")
-
-        # Enable JSON syntax highlighting
-        try:
-            from pygments.lexers import JsonLexer
-            self.json_editor.set_lexer(JsonLexer())
-        except:
-            pass  # Syntax highlighting optional
-
         self.json_editor.textChanged.connect(self.on_json_changed)
         self.main_layout.addWidget(self.json_editor)
 
