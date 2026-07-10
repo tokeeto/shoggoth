@@ -1,11 +1,14 @@
 """
 Card-specific widgets (icons, illustration) for Shoggoth using PySide6
 """
+from pathlib import Path
+
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
+    QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, Signal, QTimer, QPointF, QRectF
+from PySide6.QtGui import QPixmap, QPainter, QPainterPath, QColor, QPen, QTransform
 
 from shoggoth.ui.field_widgets import LabeledLineEdit
 from shoggoth.files import overlay_dir
@@ -174,18 +177,326 @@ class IconsWidget(QWidget):
         self._updating = False
 
 
+class IllustrationPositionView(QWidget):
+    """Crop-style viewport for positioning a face's illustration.
+
+    Shows the whole artwork with the illustration region overlaid as a fixed
+    frame; everything outside the region is dimmed, mimicking how the template
+    window crops the art. Drag to pan, scroll to zoom (anchored at the cursor),
+    double-click to reset to automatic fit.
+
+    All values are in card coordinates (the 1500x2100-plus-bleed space that
+    `illustration_region` and the pan/scale fields are defined in). Committed
+    values are absolute, seeded from the same effective pan/scale the renderer
+    uses, so the first interaction never makes the illustration jump.
+    """
+
+    pan_committed = Signal(float, float)  # absolute pan_x, pan_y
+    scale_committed = Signal(float)       # absolute illustration scale
+    reset_requested = Signal()
+
+    COMMIT_INTERVAL_MS = 120  # throttle for live commits during a gesture
+    MAX_DISPLAY_DIM = 1600    # artwork is pre-scaled to this for cheap repaints
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(220)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setToolTip(tr("TOOLTIP_POSITION_VIEW"))
+
+        # Artwork
+        self._art = None            # display QPixmap (possibly downscaled)
+        self._art_mirrored = None   # lazily-built mirrored variant
+        self._art_path = None
+        self._art_size = None       # original pixel dimensions (QSize)
+
+        # Face state (card coordinates)
+        self._region = QRectF()
+        self._card_rect = QRectF(72, 72, 1500, 2100)
+        self._pan = QPointF()
+        self._scale = 1.0
+        self._mirror = False
+        self._rotation = 0.0
+
+        # View transform: widget = card * _view_scale + _view_offset
+        self._view_scale = 1.0
+        self._view_offset = QPointF()
+
+        # Gesture state
+        self._dragging = False
+        self._drag_pos = QPointF()
+        self._pan_dirty = False
+        self._scale_dirty = False
+
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.setInterval(self.COMMIT_INTERVAL_MS)
+        self._commit_timer.timeout.connect(self._commit)
+
+        # Refit the view a moment after the last wheel tick, so zooming out
+        # far never leaves the artwork clipped by the viewport
+        self._refit_timer = QTimer(self)
+        self._refit_timer.setSingleShot(True)
+        self._refit_timer.setInterval(400)
+        self._refit_timer.timeout.connect(self._refit_idle)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def has_image(self):
+        return self._art is not None
+
+    def set_state(self, path, region, pan_x, pan_y, scale, mirror, rotation,
+                  orientation='vertical'):
+        """Update the viewport from face data.
+
+        `path` is a resolved image path or None. `pan_x`/`pan_y`/`scale` are
+        the explicit values or None where unset; the effective values are
+        derived here exactly as the renderer does.
+        """
+        if self._dragging:
+            return
+
+        if str(path) != str(self._art_path):
+            self._art_path = path
+            self._art = None
+            self._art_mirrored = None
+            self._art_size = None
+            if path:
+                pixmap = QPixmap(str(path))
+                if not pixmap.isNull():
+                    self._art_size = pixmap.size()
+                    if max(pixmap.width(), pixmap.height()) > self.MAX_DISPLAY_DIM:
+                        pixmap = pixmap.scaled(
+                            self.MAX_DISPLAY_DIM, self.MAX_DISPLAY_DIM,
+                            Qt.KeepAspectRatio, Qt.SmoothTransformation
+                        )
+                    self._art = pixmap
+
+        region = region or {}
+        self._region = QRectF(
+            region.get('x', 0), region.get('y', 0),
+            region.get('width', 0), region.get('height', 0)
+        )
+        if orientation == 'horizontal':
+            self._card_rect = QRectF(72, 72, 2100, 1500)
+        else:
+            self._card_rect = QRectF(72, 72, 1500, 2100)
+
+        self._mirror = bool(mirror)
+        self._rotation = float(rotation or 0)
+
+        auto = self._auto_scale()
+        self._scale = scale if scale else (auto or 1.0)
+        self._pan = QPointF(
+            self._region.x() if pan_x is None else pan_x,
+            self._region.y() if pan_y is None else pan_y,
+        )
+
+        self.setCursor(Qt.OpenHandCursor if self._art else Qt.ArrowCursor)
+        self._refit()
+        self.update()
+
+    # ------------------------------------------------------------------
+    # Geometry helpers
+    # ------------------------------------------------------------------
+
+    def _auto_scale(self):
+        """Cover-fit scale, matching the renderer's implicit scale."""
+        if not self._art_size or self._region.isEmpty():
+            return None
+        if self._art_size.width() <= 0 or self._art_size.height() <= 0:
+            return None
+        return max(
+            self._region.height() / self._art_size.height(),
+            self._region.width() / self._art_size.width(),
+        )
+
+    def _art_rect(self):
+        """The artwork's bounding rect in card coordinates."""
+        if not self._art_size:
+            return QRectF()
+        return QRectF(
+            self._pan.x(), self._pan.y(),
+            self._art_size.width() * self._scale,
+            self._art_size.height() * self._scale,
+        )
+
+    def _to_widget(self, rect):
+        return QRectF(
+            rect.x() * self._view_scale + self._view_offset.x(),
+            rect.y() * self._view_scale + self._view_offset.y(),
+            rect.width() * self._view_scale,
+            rect.height() * self._view_scale,
+        )
+
+    def _to_card(self, pos):
+        if self._view_scale <= 0:
+            return QPointF()
+        return (pos - self._view_offset) / self._view_scale
+
+    def _refit(self):
+        """Fit the artwork and the region into the viewport with a margin."""
+        content = self._art_rect().united(self._region)
+        if content.isEmpty():
+            content = self._card_rect
+        margin = 0.06 * max(content.width(), content.height())
+        content = content.adjusted(-margin, -margin, margin, margin)
+
+        if content.width() <= 0 or content.height() <= 0:
+            return
+        self._view_scale = min(
+            self.width() / content.width(),
+            self.height() / content.height(),
+        )
+        self._view_offset = QPointF(
+            self.width() / 2 - content.center().x() * self._view_scale,
+            self.height() / 2 - content.center().y() * self._view_scale,
+        )
+
+    def _refit_idle(self):
+        if not self._dragging:
+            self._refit()
+            self.update()
+
+    # ------------------------------------------------------------------
+    # Committing
+    # ------------------------------------------------------------------
+
+    def _schedule_commit(self):
+        if not self._commit_timer.isActive():
+            self._commit_timer.start()
+
+    def _commit(self):
+        self._commit_timer.stop()
+        if self._pan_dirty:
+            self._pan_dirty = False
+            self.pan_committed.emit(self._pan.x(), self._pan.y())
+        if self._scale_dirty:
+            self._scale_dirty = False
+            self.scale_committed.emit(self._scale)
+
+    # ------------------------------------------------------------------
+    # Qt event overrides
+    # ------------------------------------------------------------------
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._refit()
+
+    def mousePressEvent(self, event):
+        if self._art and event.button() in (Qt.LeftButton, Qt.MiddleButton):
+            self._dragging = True
+            self._drag_pos = event.position()
+            self.setCursor(Qt.ClosedHandCursor)
+
+    def mouseMoveEvent(self, event):
+        if not self._dragging or self._view_scale <= 0:
+            return
+        delta = event.position() - self._drag_pos
+        self._drag_pos = event.position()
+        self._pan += delta / self._view_scale
+        self._pan_dirty = True
+        self._schedule_commit()
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        if self._dragging and event.button() in (Qt.LeftButton, Qt.MiddleButton):
+            self._dragging = False
+            self._commit()
+            self.setCursor(Qt.OpenHandCursor)
+            self._refit()
+            self.update()
+
+    def mouseDoubleClickEvent(self, event):
+        if self._art and event.button() == Qt.LeftButton:
+            self._commit_timer.stop()
+            self._pan_dirty = self._scale_dirty = False
+            self.reset_requested.emit()
+
+    def wheelEvent(self, event):
+        if not self._art:
+            event.ignore()
+            return
+        event.accept()
+
+        steps = event.angleDelta().y() / 120.0
+        if not steps:
+            return
+
+        auto = self._auto_scale() or self._scale or 1.0
+        new_scale = self._scale * (1.08 ** steps)
+        new_scale = max(auto * 0.05, min(auto * 10.0, new_scale))
+        if new_scale == self._scale or self._scale <= 0:
+            return
+
+        # Keep the artwork point under the cursor fixed while zooming
+        cursor_card = self._to_card(event.position())
+        ratio = new_scale / self._scale
+        self._pan = cursor_card - (cursor_card - self._pan) * ratio
+        self._scale = new_scale
+
+        self._pan_dirty = self._scale_dirty = True
+        self._schedule_commit()
+        self._refit_timer.start()
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(42, 42, 42))
+        if not self._art:
+            return
+        painter.setRenderHints(
+            QPainter.Antialiasing | QPainter.SmoothPixmapTransform
+        )
+
+        # Card boundary, for context
+        painter.setPen(QPen(QColor(110, 110, 110), 1, Qt.DashLine))
+        painter.drawRect(self._to_widget(self._card_rect))
+
+        # Artwork (rotation matches PIL: counterclockwise about the art's
+        # center, cropped to the unrotated canvas)
+        target = self._to_widget(self._art_rect())
+        pixmap = self._mirrored_art() if self._mirror else self._art
+        if self._rotation:
+            painter.save()
+            painter.setClipRect(target)
+            center = target.center()
+            painter.translate(center)
+            painter.rotate(-self._rotation)
+            painter.translate(-center)
+            painter.drawPixmap(target, pixmap, QRectF(pixmap.rect()))
+            painter.restore()
+        else:
+            painter.drawPixmap(target, pixmap, QRectF(pixmap.rect()))
+
+        # Dim everything outside the region, then frame it
+        if not self._region.isEmpty():
+            region_rect = self._to_widget(self._region)
+            outside = QPainterPath()
+            outside.addRect(QRectF(self.rect()))
+            inner = QPainterPath()
+            inner.addRect(region_rect)
+            painter.fillPath(outside - inner, QColor(0, 0, 0, 140))
+            painter.setPen(QPen(QColor(74, 158, 255), 1.5))
+            painter.drawRect(region_rect)
+
+    def _mirrored_art(self):
+        if self._art_mirrored is None and self._art is not None:
+            self._art_mirrored = self._art.transformed(QTransform().scale(-1, 1))
+        return self._art_mirrored
+
+
 class IllustrationWidget(QWidget):
     """Widget for illustration settings"""
 
-    # Signal emitted when illustration mode is toggled (enabled, face_side)
-    illustration_mode_changed = Signal(bool, str)
-
-    def __init__(self, face_side='front', project=None):
+    def __init__(self, project=None, face=None):
         super().__init__()
-        self.face_side = face_side
         self.project = project
-        self.illustration_mode = False
+        self.face = face
         self.scale_resolver = None
+        self._committing = False
         layout = QVBoxLayout()
 
         # Image path
@@ -199,7 +510,7 @@ class IllustrationWidget(QWidget):
         path_layout.addWidget(self.mirror_checkbox)
         layout.addLayout(path_layout)
 
-        # Pan and scale with edit button
+        # Pan and scale
         pan_scale_layout = QHBoxLayout()
         self.pan_y_input = LabeledLineEdit(tr("FIELD_PAN_Y"))
         self.pan_x_input = LabeledLineEdit(tr("FIELD_PAN_X"))
@@ -215,23 +526,34 @@ class IllustrationWidget(QWidget):
         self.scale_warning.hide()
         pan_scale_layout.addWidget(self.scale_warning)
 
-        # Edit position button
-        self.edit_position_btn = QPushButton(tr("BTN_EDIT_POSITION"))
-        self.edit_position_btn.setCheckable(True)
-        self.edit_position_btn.setToolTip(tr("TOOLTIP_DRAG_PREVIEW"))
-        self.edit_position_btn.clicked.connect(self.toggle_illustration_mode)
-        pan_scale_layout.addWidget(self.edit_position_btn)
-
         layout.addLayout(pan_scale_layout)
+
+        # Positioning viewport
+        self.position_view = IllustrationPositionView()
+        self.position_view.pan_committed.connect(self._on_view_pan)
+        self.position_view.scale_committed.connect(self._on_view_scale)
+        self.position_view.reset_requested.connect(self._on_view_reset)
+        layout.addWidget(self.position_view)
 
         self.scale_input.input.textChanged.connect(self.update_scale_warning)
         self.path_input.input.textChanged.connect(self.update_scale_warning)
+
+        # Any field edit re-syncs the viewport (values are read from the
+        # fields, not the face, so ordering against FaceEditor's own
+        # textChanged handlers doesn't matter)
+        self.path_input.input.textChanged.connect(self.sync_viewport)
+        self.pan_x_input.input.textChanged.connect(self.sync_viewport)
+        self.pan_y_input.input.textChanged.connect(self.sync_viewport)
+        self.scale_input.input.textChanged.connect(self.sync_viewport)
+        self.mirror_checkbox.toggled.connect(self.sync_viewport)
 
         # Artist
         self.artist_input = LabeledLineEdit(tr("FIELD_ARTIST"))
         layout.addWidget(self.artist_input)
 
         self.setLayout(layout)
+
+        self.sync_viewport()
 
     def update_scale_warning(self):
         """Show/hide a colored warning indicator based on the effective illustration scale."""
@@ -259,40 +581,77 @@ class IllustrationWidget(QWidget):
             self.scale_warning.setToolTip(tr("TOOLTIP_SCALE_WARNING", scale=f"{scale:.2f}"))
             self.scale_warning.show()
 
-    def toggle_illustration_mode(self, checked):
-        """Toggle illustration positioning mode"""
-        self.illustration_mode = checked
-        if checked:
-            self.edit_position_btn.setText(tr("BTN_DONE"))
-            self.edit_position_btn.setStyleSheet("background-color: #4a9eff; color: white;")
-        else:
-            self.edit_position_btn.setText(tr("BTN_EDIT_POSITION"))
-            self.edit_position_btn.setStyleSheet("")
-        self.illustration_mode_changed.emit(checked, self.face_side)
-
-    def set_illustration_mode(self, enabled):
-        """Set illustration mode programmatically"""
-        self.edit_position_btn.setChecked(enabled)
-        self.toggle_illustration_mode(enabled)
-
-    def update_pan(self, delta_x, delta_y):
-        """Update pan values from external input (e.g., preview drag)"""
+    def _field_float(self, field):
+        """Parse a field as float, returning None when empty or invalid."""
+        text = field.text().strip()
+        if not text:
+            return None
         try:
-            current_x = int(self.pan_x_input.text() or 0)
-            current_y = int(self.pan_y_input.text() or 0)
-            self.pan_x_input.setText(str(current_x + delta_x))
-            self.pan_y_input.setText(str(current_y + delta_y))
+            return float(text)
         except ValueError:
-            pass
+            return None
 
-    def update_scale(self, delta):
-        """Update scale value from external input (e.g., preview scroll)"""
+    def _resolve_image_path(self):
+        """Resolve the illustration path the same way the renderer does."""
+        raw = self.path_input.text().strip()
+        if not raw and self.face is not None:
+            raw = self.face.get('illustration') or ''
+        if not raw:
+            return None
+        path = Path(raw)
+        if not path.is_absolute():
+            if self.project is None:
+                return None
+            return self.project.find_file(path)
+        return path if path.exists() else None
+
+    def sync_viewport(self):
+        """Push the current field/face state into the positioning viewport."""
+        if self._committing:
+            return
+        if self.face is None:
+            self.position_view.setVisible(False)
+            return
+
+        self.position_view.set_state(
+            path=self._resolve_image_path(),
+            region=self.face.get('illustration_region'),
+            pan_x=self._field_float(self.pan_x_input),
+            pan_y=self._field_float(self.pan_y_input),
+            scale=self._field_float(self.scale_input) or None,
+            mirror=self.mirror_checkbox.isChecked(),
+            rotation=self.face.get('illustration_rotation', 0),
+            orientation=self.face.get('orientation', 'vertical'),
+        )
+        self.position_view.setVisible(self.position_view.has_image())
+
+    def _on_view_pan(self, pan_x, pan_y):
+        """Write an absolute pan from the viewport into the fields."""
+        self._committing = True
         try:
-            current_scale = float(self.scale_input.text() or 1.0)
-            new_scale = max(0.1, current_scale + delta)
-            self.scale_input.setText(f"{new_scale:.3f}")
-        except ValueError:
-            pass
+            self.pan_x_input.setText(str(int(round(pan_x))))
+            self.pan_y_input.setText(str(int(round(pan_y))))
+        finally:
+            self._committing = False
+
+    def _on_view_scale(self, scale):
+        """Write an absolute scale from the viewport into the field."""
+        self._committing = True
+        try:
+            self.scale_input.setText(f"{scale:.3f}")
+        finally:
+            self._committing = False
+
+    def _on_view_reset(self):
+        """Clear explicit pan/scale so the automatic fit applies again."""
+        self._committing = True
+        try:
+            self.pan_x_input.setText('')
+            self.pan_y_input.setText('')
+            self.scale_input.setText('')
+        finally:
+            self._committing = False
+        self.sync_viewport()
 
     def browse_image(self):
         """Browse for image file"""

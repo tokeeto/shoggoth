@@ -261,8 +261,6 @@
   "FIELD_PAN_X": "Déplacement X",
   "FIELD_PAN_Y": "Déplacement Y",
   "FIELD_SCALE": "Échelle",
-  "BTN_EDIT_POSITION": "Modifier la position",
-  "BTN_DONE": "Terminer",
   "PLACEHOLDER_COMMA_SEPARATED": "Séparés par des virgules",
   "OPT_NONE": "Aucun",
   "OPT_CUSTOM": "Personnalisé",
@@ -270,7 +268,6 @@
   "BTN_RAW_JSON_EDITOR": "Éditeur JSON Brut",
   "FIELD_IMAGE_PATH": "Chemin de l'image",
   "FIELD_AMOUNT_IN_SET": "Quantité dans le set",
-  "TOOLTIP_DRAG_PREVIEW": "Faites glisser l'aperçu pour positionner l'image, utilisez la molette pour la redimensionner",
   "TOOLTIP_SCALE_WARNING": "Si vous laissez l'échelle vide, Shoggoth redimensionnera l'image pour l'adapter.\nCependant, si vous augmentez l'échelle, la qualité d'impression sera moins bonne.\nToute valeur supérieure à 1,0 doit être évitée si possible.\nÉchelle actuelle : {scale}.",
   "FIELD_ABBREVIATION": "Abréviation",
   "FIELD_ENCOUNTER_SET": "Set de rencontre",
@@ -762,4 +759,3 @@
   "MSG_FIRST_RUN_ERROR": "Échec du téléchargement : {error}",
   "BTN_CONTINUE_SHOGGOTH": "Ouvrir Shoggoth"
 }
-

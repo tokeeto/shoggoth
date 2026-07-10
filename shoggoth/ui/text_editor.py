@@ -93,12 +93,12 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
             'for', 'prey', 'rev', 'spawn', 'obj', 'objective', 'center', 'left',
             'right', 'story', 'blockquote', 'quote', 'dquote', 'quoteend', 'dquoteend',
             'n', 'name', 'copy', 'exi', 'exn', 'esn', 'est', 'esi', 'copyright',
-            'image', 'margin'
+            'image', 'margin',
+            '/center', '/left', '/right', '/story', '/blockquote'
         }
 
         self.format_tags = {
-            'b', '/b', 'i', '/i', 'bi', '/bi', 't', '/t', 'icon', '/icon',
-            '/center', '/left', '/right', '/story', '/blockquote'
+            'b', '/b', 'i', '/i', 'bi', '/bi', 't', '/t', 'icon', '/icon'
         }
 
         self.known_traits = {

@@ -100,60 +100,14 @@ class PreviewController(QObject):
         except Exception as e:
             window.status_bar.showMessage(tr("ERR_RENDER_CARD_DETAIL").format(error=e))
 
-    # ── Illustration mode ─────────────────────────────────────────────────
+    # ── Illustration widgets ──────────────────────────────────────────────
 
-    def connect_illustration_mode(self, editor):
-        """Connect illustration mode signals between editor and preview"""
+    def connect_illustration_widgets(self, editor):
+        """Wire renderer-derived helpers into the editor's illustration widgets"""
         window = self.window
-
-        # Disconnect any previous connections first
-        self.disconnect_illustration_mode()
-
-        # Connect preview pan/scale signals to editor
-        window.card_preview.illustration_pan_changed.connect(self._on_illustration_pan)
-        window.card_preview.illustration_scale_changed.connect(self._on_illustration_scale)
-
-        # Connect editor illustration mode signals to preview
         for face_editor in [editor.front_editor, editor.back_editor]:
             if face_editor and hasattr(face_editor, 'illustration_widget'):
                 widget = face_editor.illustration_widget
-                widget.illustration_mode_changed.connect(self._on_illustration_mode_changed)
                 face = face_editor.face
                 widget.scale_resolver = lambda f=face: window.card_renderer.get_implicit_illustration_scale(f)
                 widget.update_scale_warning()
-
-    def disconnect_illustration_mode(self):
-        """Disconnect illustration mode signals"""
-        try:
-            self.window.card_preview.illustration_pan_changed.disconnect(self._on_illustration_pan)
-            self.window.card_preview.illustration_scale_changed.disconnect(self._on_illustration_scale)
-        except RuntimeError:
-            pass  # Signals weren't connected
-
-        # Reset illustration mode on preview
-        self.window.card_preview.set_illustration_mode(False)
-
-    def _on_illustration_mode_changed(self, enabled, side):
-        """Handle illustration mode toggle from editor"""
-        self.window.card_preview.set_illustration_mode(enabled, side)
-
-    def _face_illustration_widget(self, side):
-        editor = self.window.current_editor
-        if not editor:
-            return None
-        face_editor = editor.front_editor if side == 'front' else editor.back_editor
-        if face_editor and hasattr(face_editor, 'illustration_widget'):
-            return face_editor.illustration_widget
-        return None
-
-    def _on_illustration_pan(self, side, delta_x, delta_y):
-        """Handle pan changes from preview"""
-        widget = self._face_illustration_widget(side)
-        if widget:
-            widget.update_pan(delta_x, delta_y)
-
-    def _on_illustration_scale(self, side, delta):
-        """Handle scale changes from preview"""
-        widget = self._face_illustration_widget(side)
-        if widget:
-            widget.update_scale(delta)

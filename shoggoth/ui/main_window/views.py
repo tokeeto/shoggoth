@@ -82,8 +82,8 @@ def show_card(window, card):
     # Connect data change signal to debounced preview update
     editor.data_changed.connect(window.schedule_preview_update)
 
-    # Connect illustration mode signals
-    window.preview.connect_illustration_mode(editor)
+    # Wire renderer helpers into the illustration widgets
+    window.preview.connect_illustration_widgets(editor)
 
     # Show preview dock
     window.preview_dock.show()
