@@ -140,7 +140,7 @@
   "FILTER_HTML_FILES": "HTML 文件 (*.html)",
   "DLG_SAVE_PROJECT_AS": "另存项目为",
   "DLG_SELECT_ICON": "选择图标",
-  "FILTER_IMAGES": "图片 (*.png *.jpg *.jpeg *.webp *.svg)",
+  "FILTER_IMAGES": "图片 (*.pdf *.png *.jpg *.jpeg *.webp *.svg)",
   "DLG_SELECT_IMAGE": "选择图片",
   "// ===== DIALOGS - NEW CARD =====": "",
   "DLG_NEW_CARD": "新建卡牌",

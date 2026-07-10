@@ -6,6 +6,7 @@ from shoggoth.rich_text import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
 from pathlib import Path
 import pyvips
+import pypdfium2 as pdfium
 import re
 import json
 import functools
@@ -17,6 +18,35 @@ logger = logging.getLogger('shoggoth')
 
 card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
 _ILLUS_LRU_MAXSIZE = 24
+# "Natural" pixel size of a PDF page (page points are 1/72"). Only fixes what
+# illustration_scale=1.0 means for PDFs; actual rasterization is done at the
+# requested output size, so PDFs stay vector-sharp at any scale.
+_PDF_DPI = 300
+
+
+def _render_pdf_page(path, size):
+    """Rasterize the first page of a PDF to an RGBA PIL image of exactly `size`."""
+    pdf = pdfium.PdfDocument(str(path))
+    try:
+        page = pdf[0]
+        w_pts, h_pts = page.get_size()
+        scale = max(size[0] / w_pts, size[1] / h_pts)
+        image = page.render(scale=scale, fill_color=(255, 255, 255, 0)).to_pil().convert('RGBA')
+    finally:
+        pdf.close()
+    if image.size != tuple(size):
+        image = image.resize(size)
+    return image
+
+
+def _pdf_page_dims(path):
+    """Pixel dimensions of the first PDF page at the reference _PDF_DPI."""
+    pdf = pdfium.PdfDocument(str(path))
+    try:
+        w_pts, h_pts = pdf[0].get_size()
+    finally:
+        pdf.close()
+    return _ImgDims(round(w_pts / 72 * _PDF_DPI), round(h_pts / 72 * _PDF_DPI))
 
 DEFAULT_TEXT_FIELDS = [
     'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
@@ -158,11 +188,11 @@ class CardRenderer:
         pyvips reads just the image header, so this is cheap even for large JPEGs.
         """
         if path not in self._illus_dims_cache:
-            if str(path).endswith('.pdf'):
-                vips_image = pyvips.Image.pdfload(str(path), dpi=72)
+            if str(path).lower().endswith('.pdf'):
+                self._illus_dims_cache[path] = _pdf_page_dims(path)
             else:
                 vips_image = pyvips.Image.new_from_file(str(path))
-            self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
+                self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
         return self._illus_dims_cache[path]
 
     def get_illustration_resized_cached(self, path, size) -> Image.Image:
@@ -180,14 +210,8 @@ class CardRenderer:
             self._illus_resized_lru.move_to_end(key)
             return self._illus_resized_lru[key]
 
-        if str(path).endswith('.pdf'):
-                vips_image = pyvips.Image.pdfload(str(path), dpi=600, page=1)
-                image = Image.frombytes(
-                    'RGBA',
-                    (vips_image.width, vips_image.height),
-                    vips_image.write_to_memory()
-                )
-                self.resized_cache[(path, size)] = image
+        if str(path).lower().endswith('.pdf'):
+            image = _render_pdf_page(path, size)
         elif str(path).endswith('.svg'):
             vips_image = pyvips.Image.new_from_file(str(path))
             svg_scale = size[0] / vips_image.width
@@ -210,25 +234,20 @@ class CardRenderer:
 
     def get_cached(self, path) -> Image.Image:
         if path not in self.cache:
-            if str(path).endswith('.pdf'):
-                vips_image = pyvips.Image.pdfload(str(path), dpi=600, page=1)
+            if str(path).lower().endswith('.pdf'):
+                dims = _pdf_page_dims(path)
+                self.cache[path] = _render_pdf_page(path, (dims.width, dims.height))
             else:
                 vips_image = pyvips.Image.new_from_file(str(path))
-            bands = vips_image.bands
-            mode = 'RGBA' if bands == 4 else 'RGB'
-            self.cache[path] = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
+                bands = vips_image.bands
+                mode = 'RGBA' if bands == 4 else 'RGB'
+                self.cache[path] = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
         return self.cache[path]
 
     def get_resized_cached(self, path, size) -> Image.Image:
         if (path, size) not in self.resized_cache:
-            if str(path).endswith('.pdf'):
-                vips_image = pyvips.Image.pdfload(str(path), dpi=600, page=1)
-                image = Image.frombytes(
-                    'RGBA',
-                    (vips_image.width, vips_image.height),
-                    vips_image.write_to_memory()
-                )
-                self.resized_cache[(path, size)] = image
+            if str(path).lower().endswith('.pdf'):
+                self.resized_cache[(path, size)] = _render_pdf_page(path, size)
             elif str(path).endswith('.svg'):
                 vips_image = pyvips.Image.new_from_file(str(path))
                 svg_scale = size[0]/vips_image.width

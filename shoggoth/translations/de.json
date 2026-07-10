@@ -138,7 +138,7 @@
   "FILTER_HTML_FILES": "HTML-Dateien (*.html)",
   "DLG_SAVE_PROJECT_AS": "Speichere Projekt als",
   "DLG_SELECT_ICON": "Wähle Icon",
-  "FILTER_IMAGES": "Bilder (*.png *.jpg *.jpeg *.webp *.svg)",
+  "FILTER_IMAGES": "Bilder (*.pdf *.png *.jpg *.jpeg *.webp *.svg)",
   "DLG_SELECT_IMAGE": "Wähle ein Bild",
   "// ===== DIALOGS - NEW CARD =====": "",
   "DLG_NEW_CARD": "Neue Karte",
