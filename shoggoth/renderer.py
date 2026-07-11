@@ -48,6 +48,14 @@ def _pdf_page_dims(path):
         pdf.close()
     return _ImgDims(round(w_pts / 72 * _PDF_DPI), round(h_pts / 72 * _PDF_DPI))
 
+# Named card sizes ("card_size" in the type defaults): content pixels at full
+# render resolution, sharing one px/mm density (1500px = 61.5mm).
+# standard = 61.5x88mm, mini = 41x63mm (investigator minis, concealed cards).
+CARD_SIZES = {
+    'standard': {'width': 1500, 'height': 2100},
+    'mini': {'width': 1000, 'height': 1537},
+}
+
 DEFAULT_TEXT_FIELDS = [
     'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
     'attack', 'evade', 'health', 'stamina', 'sanity', 'victory',
@@ -496,6 +504,15 @@ class CardRenderer:
         """Render one side of a card"""
         s = width / 1500
 
+        # Faces may declare a named card size ("card_size" in the type
+        # defaults): mini investigators and concealed cards are 41x63mm
+        # instead of 61.5x88mm. All sizes use the same px/mm density
+        # (1500px = 61.5mm), so s is unchanged and the requested width only
+        # sets the render resolution.
+        size_px = CARD_SIZES.get(side.get('card_size', 'standard'), CARD_SIZES['standard'])
+        width = int(size_px['width'] * s)
+        height = int(size_px['height'] * s)
+
         height, width = height + bleed * 2, width + bleed * 2
         if side.get('orientation', 'vertical') == 'horizontal':
             width, height = height, width
@@ -512,7 +529,7 @@ class CardRenderer:
             self.render_template(card_image, side, bleed, template_bleed)
         except Exception as e:
             logger.error('Failed to render Template', e, exc_info=True)
-        if side['type'] in ('investigator'):
+        if side['type'] == 'investigator' or side.get('illustration_above_template', False):
             try:
                 self.render_illustration(card_image, side, s)
             except Exception as e:
@@ -1004,6 +1021,10 @@ class CardRenderer:
 
         if side.get('illustration_mirror', False):
             illustration = ImageOps.mirror(illustration)
+
+        if side.get('illustration_greyscale', False):
+            # keep the alpha channel (mini investigator backs)
+            illustration = illustration.convert('LA').convert('RGBA')
 
         rotation = side.get('illustration_rotation', 0)
         if rotation:

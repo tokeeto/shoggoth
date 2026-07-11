@@ -1,6 +1,5 @@
 useLibrary("threads");
 importClass(java.io.File);
-importClass(java.io.FileWriter);
 importClass(java.nio.file.Files);
 importClass(java.nio.file.Paths);
 importClass(arkham.project.ProjectUtilities);
@@ -61,7 +60,7 @@ const front_types = {
     "Ultimatum.js": "ultimatum",
     "WeaknessEnemy.js": "enemy",
     "WeaknessTreachery.js": "treachery",
-    "MiniInvestigator.js": "mini",
+    "MiniInvestigator.js": "mini_investigator",
 };
 
 const back_types = {
@@ -111,7 +110,26 @@ const back_types = {
     "Ultimatum.js": "ultimatum_back",
     "WeaknessEnemy.js": "player",
     "WeaknessTreachery.js": "player",
-    "MiniInvestigator.js": "mini_back",
+    "MiniInvestigator.js": "mini_investigator_back",
+};
+
+// SE plugin templates and shoggoth's region coordinates share the same pixel
+// space (1644x2244 cards, 244x375 minis, ...) for every exported type except
+// these, whose shoggoth defaults use a different coordinate space. For them we
+// skip illustration pan/scale and let shoggoth's default region-fit apply.
+const GEOMETRY_SKIP = {
+    "Key.js": true,
+    "EnemyLocation.js": true,
+    "Scenario.js": true,
+    "TreacheryLocation.js": true,
+};
+
+// SE mini templates are 244x375 with no bleed; shoggoth's "mini" card size
+// uses the standard px/mm density (content 1000x1537) behind a 72px bleed,
+// so mini geometry is scaled up and shifted into the bleed-included space.
+const GEOMETRY_TRANSFORM = {
+    "Concealed.js": { scale: 1000 / 244, offset: 72 },
+    "MiniInvestigator.js": { scale: 1000 / 244, offset: 72 },
 };
 
 // script name → shoggoth guide "format" (paper size)
@@ -383,8 +401,23 @@ function translate_text(value) {
     value = String(value);
     value = value.replace(/^\n/, "");  // remove empty first lines
     value = translate_tags(value);
-    value = value.replace(/\n\n/g, "\n");
-    return value;
+    let match = value.match(/\n+$/);
+    let trailing = match ? match[0] : "";
+    let body = trailing ? value.slice(0, value.length - trailing.length) : value;
+    body = body.replace(/\n\n/g, "\n");
+    // exactly one trailing empty line is SE's spacing in front of the flavor
+    // text (shoggoth adds its own gap) — drop it; two or more are deliberate
+    return trailing.length === 1 ? body : body + trailing;
+}
+
+// SE renders an investigator-back label as '<hdr>' + label + '</hdr>: ' — the
+// label itself may toggle out of the header style with embedded </hdr>…<hdr>
+// (e.g. 'Deckbuilding Requirements</hdr> (do not count toward deck size)<hdr>').
+// Shoggoth entries use plain bold: '<b>Deck Size</b>:'.
+function investigator_back_label(label) {
+    label = translate_tags(label);
+    label = "<b>" + label.replace(/<\/hdr>/g, "</b>").replace(/<hdr>/g, "<b>") + "</b>:";
+    return label.replace(/<b><\/b>/g, "");
 }
 
 // SE guide markup → shoggoth guide markdown (guide.py:markdown_to_html syntax)
@@ -434,6 +467,63 @@ function get_portraits(card) {
         }
     }
     return output;
+}
+
+// SE draws a portrait at (image size × scale), centred on the middle of its
+// clip region plus the pan offset. Shoggoth wants an absolute scale plus the
+// top-left corner in template coordinates, so convert:
+//   top-left = clip centre + pan − scaled size / 2
+// Returns { scale, pan_x, pan_y, rotation? } or null when the geometry can't
+// be determined (no image, missing clip region, ...).
+function portrait_geometry(card, portrait) {
+    try {
+        let img = portrait.getImage();
+        if (img == null) return null;
+        let scale = portrait.getScale();
+        if (!scale || scale <= 0) return null;
+
+        // The clip region lives in the card settings under the portrait's
+        // base key — the same lookup DefaultPortrait.paint() uses. Fall back
+        // to stripped variants of the key in case it kept its
+        // "-portrait-template" suffix.
+        let base = String(portrait.getBaseKey());
+        let candidates = [
+            base,
+            base.replace(/-portrait-template$/, ""),
+            base.replace(/-template$/, ""),
+        ];
+        let clip = null;
+        for (let i = 0; i < candidates.length && clip == null; i++) {
+            try {
+                clip = card.getSettings().getRegion(candidates[i] + "-portrait-clip");
+            } catch (e) {}
+        }
+        if (clip == null) return null;
+
+        let width = img.getWidth() * scale;
+        let height = img.getHeight() * scale;
+        let geometry = {
+            scale: Math.round(scale * 10000) / 10000,
+            pan_x: Math.round(clip.getCenterX() + portrait.getPanX() - width / 2),
+            pan_y: Math.round(clip.getCenterY() + portrait.getPanY() - height / 2),
+        };
+        try {
+            // SE and shoggoth both treat positive angles as counter-clockwise
+            let rotation = portrait.getRotation();
+            if (rotation) geometry.rotation = Math.round(rotation * 100) / 100;
+        } catch (e) {}
+        return geometry;
+    } catch (e) {
+        return null;
+    }
+}
+
+function apply_portrait_geometry(face, geometry) {
+    if (!geometry) return;
+    face["illustration_scale"] = geometry.scale;
+    face["illustration_pan_x"] = geometry.pan_x;
+    face["illustration_pan_y"] = geometry.pan_y;
+    if (geometry.rotation) face["illustration_rotation"] = geometry.rotation;
 }
 
 function extract_images(card, collection, image_folder) {
@@ -602,6 +692,60 @@ function determine_encounter_set(card, settings, script_name) {
     return null;
 }
 
+// User-defined sets keep their icon path in the user preferences; cards saved
+// before the plugin copied that icon into the Encounter portrait slot have an
+// empty portrait, so pull the file straight from the preference.
+function extract_user_encounter_icon(set_key, collection, image_folder) {
+    try {
+        let user = resources.Settings.getUser();
+        let count = user.getInt("AHLCG-UserEncounterCount", 0);
+        for (let i = 1; i <= count; i++) {
+            let name = user.get("AHLCG-UserEncounterName" + i, "");
+            if (name == "" || user_setting_value(name) != set_key) continue;
+            let icon_path = String(user.get("AHLCG-UserEncounterIcon" + i, ""));
+            if (icon_path == "") return null;
+            let cache_key = "file://" + icon_path;
+            if (cache_key in collection.images) return collection.images[cache_key];
+            let source_file = new File(icon_path);
+            if (!source_file.exists()) return null;
+            let image = ImageIO.read(source_file);
+            if (image == null) return null;
+            let out_file = new File(image_folder, "set_" + set_key + ".png");
+            ImageIO.write(image, "png", out_file);
+            collection.images[cache_key] = "./images/" + out_file.getName();
+            return collection.images[cache_key];
+        }
+    } catch (e) {}
+    return null;
+}
+
+// The collection (pack) icon works like the encounter set: the 'Collection'
+// setting names a standard pack (plugin resource icon) or a user-defined
+// collection, and 'CustomCollection' means the image in the Collection
+// portrait slot. Shoggoth has one icon per project, so each card reports its
+// collection identity here and process() only sets the project icon when
+// every card agrees.
+function determine_collection_icon(card, settings, script_name) {
+    let bindings = PORTRAITS[script_name] || [];
+    let portrait_index = -1;
+    for (let i = 0; i < bindings.length; i++) {
+        if (bindings[i].indexOf("Collection") === 0) portrait_index = i;
+    }
+    if (portrait_index < 0) return null;
+
+    let coll = has_value(settings.get("Collection"));
+    if (coll && String(coll) != "CustomCollection") {
+        return { key: "set:" + String(coll), resource_key: String(coll), portrait_source: null };
+    }
+    try {
+        let source = card.getPortrait(portrait_index).getSource();
+        if (source != null && String(source) != "") {
+            return { key: "img:" + String(source), resource_key: null, portrait_source: String(source) };
+        }
+    } catch (e) {}
+    return null;
+}
+
 function register_encounter_set(out, card, settings, script_name, collection, image_folder) {
     let encounter = determine_encounter_set(card, settings, script_name);
     if (!encounter) return;
@@ -614,6 +758,9 @@ function register_encounter_set(out, card, settings, script_name, collection, im
         if (!icon && encounter.portrait_source) {
             // portrait images were already extracted by extract_images
             icon = collection.images[encounter.portrait_source] || encounter.portrait_source;
+        }
+        if (!icon && encounter.resource_key) {
+            icon = extract_user_encounter_icon(encounter.resource_key, collection, image_folder);
         }
         collection.encounter_sets[encounter.key] = {
             name: encounter.name,
@@ -700,8 +847,12 @@ function convert_card(path, collection, image_folder) {
     // cost / level / slot
     if (has_value(settings.get("ResourceCost")))
         out["front"]["cost"] = String(settings.get("ResourceCost")).replace("-", "<dash>");
-    if (has_value(settings.get("Level")))
-        out["front"]["level"] = String(settings.get("Level"));
+    // "None" is a real level (card without a level, distinct from level 0 —
+    // shoggoth defaults level to 0 when the key is missing), so unlike other
+    // fields it must survive the None-scrubbing.
+    let level = settings.get("Level");
+    if (level != null && String(level) !== "")
+        out["front"]["level"] = String(level);
     if (has_value(settings.get("Slot"))) {
         let slots = [String(settings.get("Slot"))];
         if (has_value(settings.get("Slot2"))) {
@@ -771,6 +922,43 @@ function convert_card(path, collection, image_folder) {
         out["front"]["classes"].push(String(settings.get("Subtype")).toLowerCase().replace("basicweakness", "basic weakness"));
     }
 
+    // investigator skills (only Investigator*.js define these settings)
+    if (has_value(settings.get("Willpower")))
+        out["front"]["willpower"] = String(settings.get("Willpower"));
+    if (has_value(settings.get("Intellect")))
+        out["front"]["intellect"] = String(settings.get("Intellect"));
+    if (has_value(settings.get("Combat")))
+        out["front"]["combat"] = String(settings.get("Combat"));
+    if (has_value(settings.get("Agility")))
+        out["front"]["agility"] = String(settings.get("Agility"));
+
+    // investigator back: deckbuilding entries (Text1..8NameBack / Text1..8Back)
+    if (out["back"]["type"] === "investigator_back") {
+        let inv_entries = [];
+        for (let i = 1; i <= 8; i++) {
+            let label = has_value(settings.get("Text" + i + "NameBack"));
+            let value = has_value(settings.get("Text" + i + "Back"));
+            if (!label && !value) continue;
+            inv_entries.push([
+                label ? investigator_back_label(String(label)) : "",
+                value ? translate_text(String(value)) : "",
+            ]);
+        }
+        if (inv_entries.length > 0) {
+            out["back"]["entries"] = inv_entries;
+            // shoggoth's renderer reads the joined "label value" lines from
+            // "text"; "entries" only feeds the editor fields (see
+            // investigator_editors.py:on_entries_changed)
+            let text_parts = [];
+            for (let entry of inv_entries) {
+                if (entry[0] && entry[1]) text_parts.push(entry[0] + " " + entry[1]);
+            }
+            if (text_parts.length > 0) {
+                out["back"]["text"] = text_parts.join("\n");
+            }
+        }
+    }
+
     // skill icons (Skill1-Skill6, values: Willpower/Intellect/Combat/Agility/Wild/None)
     let skill_icon_map = {
         "Willpower": "W",
@@ -790,7 +978,7 @@ function convert_card(path, collection, image_folder) {
         out["front"]["icons"] = icons;
     }
 
-    // illustrations from portraits
+    // illustrations from portraits, keeping SE's placement and scale
     let illustrations = get_portraits(card);
     if (illustrations) {
         for (let name in illustrations) {
@@ -798,12 +986,22 @@ function convert_card(path, collection, image_folder) {
             if (portrait.getSource() == null) continue;
             let image_path = collection.images[String(portrait.getSource())];
             if (!image_path) continue;
+            let geometry = GEOMETRY_SKIP[script_name]
+                ? null
+                : portrait_geometry(card, portrait);
+            let transform = GEOMETRY_TRANSFORM[script_name];
+            if (geometry && transform) {
+                geometry.scale = Math.round(geometry.scale * transform.scale * 10000) / 10000;
+                geometry.pan_x = Math.round(geometry.pan_x * transform.scale) + transform.offset;
+                geometry.pan_y = Math.round(geometry.pan_y * transform.scale) + transform.offset;
+            }
             if (
                 name === "Portrait-Front" ||
                 name === "Portrait-Both" ||
                 name === "TransparentPortrait-Both"
             ) {
                 out["front"]["illustration"] = image_path;
+                apply_portrait_geometry(out["front"], geometry);
             }
             if (
                 name === "Portrait-Back" ||
@@ -812,6 +1010,7 @@ function convert_card(path, collection, image_folder) {
                 name === "TransparentPortrait-Both"
             ) {
                 out["back"]["illustration"] = image_path;
+                apply_portrait_geometry(out["back"], geometry);
             }
         }
     }
@@ -1078,6 +1277,18 @@ function convert_card(path, collection, image_folder) {
     // encounter set
     register_encounter_set(out, card, settings, script_name, collection, image_folder);
 
+    // collector number (<exn> on the card's collection line)
+    if (has_value(settings.get("CollectionNumber"))) {
+        let project_number = parseInt(String(settings.get("CollectionNumber")));
+        if (!isNaN(project_number)) out["project_number"] = project_number;
+    }
+
+    // report the card's collection identity for the project icon vote
+    let collection_icon = determine_collection_icon(card, settings, script_name);
+    if (collection_icon) {
+        collection._collection_icons[collection_icon.key] = collection_icon;
+    }
+
     // translate text fields to shoggoth syntax
     let sides = [out["front"], out["back"]];
     for (let side of sides) {
@@ -1086,7 +1297,9 @@ function convert_card(path, collection, image_folder) {
             side["flavor_text"] = translate_text(side["flavor_text"]);
         if (side["entries"]) {
             for (let entry of side["entries"]) {
-                entry.text = translate_text(entry.text);
+                // chaos entries are {token, text}; investigator-back entries
+                // are [label, value] arrays and already translated
+                if (entry.text) entry.text = translate_text(entry.text);
             }
         }
     }
@@ -1252,6 +1465,7 @@ function process(progress) {
         encounter_sets: {},
         cards: [],
         images: {},
+        _collection_icons: {},
     };
 
     let guide_pages = [];
@@ -1265,6 +1479,22 @@ function process(progress) {
     }
 
     println("Done processing cards. Post processing begins...");
+
+    // project icon: set it only when every card names the same collection —
+    // a mixed-collection SE project has no single shoggoth project icon
+    let collection_icon_keys = Object.keys(collection._collection_icons);
+    if (collection_icon_keys.length === 1) {
+        let ci = collection._collection_icons[collection_icon_keys[0]];
+        let icon = null;
+        if (ci.resource_key) {
+            icon = extract_resource_icon(ci.resource_key, collection, IMAGE_FOLDER);
+        }
+        if (!icon && ci.portrait_source) {
+            icon = collection.images[ci.portrait_source] || null;
+        }
+        if (icon) collection.icon = icon;
+    }
+    delete collection._collection_icons;
 
     // convert encounter_sets from dict to array, resolve icon paths
     let encounter_set_list = [];
@@ -1286,7 +1516,12 @@ function process(progress) {
     }
 
     OUTPUT_FILE.createNewFile();
-    let writer = new FileWriter(OUTPUT_FILE);
+    // FileWriter would use the platform charset (windows-1252 on Windows) and
+    // mangle special characters — shoggoth reads project.json as UTF-8.
+    let writer = new java.io.OutputStreamWriter(
+        new java.io.FileOutputStream(OUTPUT_FILE),
+        "UTF-8",
+    );
     writer.write(JSON.stringify(collection, null, 4));
     writer.close();
     println("Done writing to " + String(OUTPUT_FILE));

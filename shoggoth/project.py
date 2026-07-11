@@ -338,7 +338,7 @@ class Project:
     def load(file_path):
         """Load card data from JSON file"""
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         except Exception as e:
             print(e)

@@ -110,6 +110,9 @@ class TranslationWriter(Writer):
 
 def atomic_write(filepath, data, mode="w", **kwargs):
     path = Path(filepath)
+    if "b" not in mode:
+        # never let Windows fall back to its locale charset for project files
+        kwargs.setdefault("encoding", "utf-8")
     tmp_fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
         with os.fdopen(tmp_fd, mode, **kwargs) as f:

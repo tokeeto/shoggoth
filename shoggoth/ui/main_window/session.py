@@ -19,7 +19,7 @@ class SessionManager:
 
         settings_file = root_dir / 'shoggoth.json'
         if settings_file.exists():
-            with open(settings_file, 'r') as f:
+            with open(settings_file, 'r', encoding='utf-8') as f:
                 self.settings = json.load(f)
         else:
             self.settings = {'session': {}, 'last_paths': {}}
@@ -32,7 +32,7 @@ class SessionManager:
 
     def save(self):
         """Flush self.settings to disk. Does not snapshot live window state."""
-        with open(root_dir / 'shoggoth.json', 'w') as f:
+        with open(root_dir / 'shoggoth.json', 'w', encoding='utf-8') as f:
             json.dump(self.settings, f)
 
     def schedule_layout_save(self):

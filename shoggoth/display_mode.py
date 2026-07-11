@@ -137,7 +137,7 @@ class DisplayApp(FileSystemEventHandler):
         """(Re)load the project from disk. Returns False if the file is unreadable
         (e.g. a half-written save), keeping the previous state."""
         try:
-            with open(self.project_path, 'r') as f:
+            with open(self.project_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             project = Project(self.project_path, data)
         except Exception as e:
