@@ -5,6 +5,7 @@ Imports core logic from updater.py; this module should only be imported
 in UI/Qt contexts (not from tool.py CLI paths).
 """
 import sys
+import json
 import shutil
 import logging
 import threading
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QTextBrowser, QProgressBar,
     QPlainTextEdit, QMessageBox, QApplication
 )
+from shoggoth.files import root_dir
 from shoggoth.i18n import tr
 from shoggoth.updater import (
     InstallationType, VersionInfo,
@@ -594,25 +596,12 @@ class UpdateProgressDialog(QDialog):
             return
         try:
             if sys.platform == 'win32' and getattr(sys, 'frozen', False):
-                # Windows can't replace a running exe, but it can be renamed.
-                # Rename the running exe, copy the new one into its place, then relaunch.
-                new_exe_source = self.download_path
-                if new_exe_source.suffix.lower() == '.zip':
-                    # Release assets ship as a zip of the onefile exe; unwrap it first
-                    # so we don't copy a zip archive into place with an .exe extension.
-                    with zipfile.ZipFile(new_exe_source) as zf:
-                        exe_members = [n for n in zf.namelist() if n.lower().endswith('.exe')]
-                        if not exe_members:
-                            raise RuntimeError(f"No .exe found inside {new_exe_source.name}")
-                        extract_dir = Path(tempfile.mkdtemp(prefix='shoggoth_update_'))
-                        zf.extract(exe_members[0], extract_dir)
-                        new_exe_source = extract_dir / exe_members[0]
-
-                current_exe = Path(sys.executable)
-                old_exe = current_exe.with_stem(current_exe.stem + '_old')
-                current_exe.rename(old_exe)
-                shutil.copy2(new_exe_source, current_exe)
-                subprocess.Popen([str(current_exe)])
+                # A running exe can't overwrite its own files, so the swap happens
+                # out-of-process: stage the new build, hand off to the companion
+                # ShoggothLauncher.exe (ships alongside Shoggoth.exe, see
+                # shoggoth/launcher.py), then quit so it can finish the job once we've
+                # released our file locks.
+                self._stage_windows_update()
                 QApplication.quit()
             elif sys.platform == 'win32':
                 import os
@@ -629,6 +618,45 @@ class UpdateProgressDialog(QDialog):
                 tr("DLG_ERROR"),
                 f"{tr('ERR_UPDATE_OCCURRED')}:\n{e}\n\n{tr('MSG_DOWNLOAD_MANUALLY_FROM')}\n{self.download_path}"
             )
+
+    def _stage_windows_update(self):
+        """Extract the downloaded release zip and write the handoff marker that
+        ShoggothLauncher.exe reads to perform the actual install (see
+        shoggoth/launcher.py for the full contract)."""
+        current_exe = Path(sys.executable)
+        install_dir = current_exe.parent
+        exe_name = current_exe.name
+
+        staging_root = root_dir / "pending_update" / self.version_info.version
+        if staging_root.exists():
+            shutil.rmtree(staging_root, ignore_errors=True)
+        staging_root.mkdir(parents=True, exist_ok=True)
+
+        with zipfile.ZipFile(self.download_path) as zf:
+            zf.extractall(staging_root)
+
+        # The release zip is a folder tree (onedir build); find wherever the exe
+        # ended up rather than assuming a fixed nesting depth.
+        staging_dir = next((p.parent for p in staging_root.rglob(exe_name)), None)
+        if staging_dir is None:
+            raise RuntimeError(f"No {exe_name} found inside {self.download_path.name}")
+
+        launcher = install_dir / "ShoggothLauncher.exe"
+        if not launcher.exists():
+            raise RuntimeError(
+                f"{launcher.name} not found next to {exe_name}. "
+                "Reinstall Shoggoth from the latest release to enable in-app updates."
+            )
+
+        marker = {
+            "staging_dir": str(staging_dir),
+            "install_dir": str(install_dir),
+            "exe_name": exe_name,
+            "version": self.version_info.version,
+        }
+        (root_dir / "pending_update.json").write_text(json.dumps(marker))
+
+        subprocess.Popen([str(launcher)], cwd=str(install_dir))
 
     def _on_cancel(self):
         if self.process and self.process.state() != QProcess.NotRunning:

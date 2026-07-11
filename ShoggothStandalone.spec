@@ -2,6 +2,7 @@
 import os
 import platform
 import re
+import shutil
 import tomllib
 
 # Files to include
@@ -192,8 +193,88 @@ if platform.system() == 'Darwin':
         codesign_identity=codesign_id,
         entitlements_file=entitlements,
     )
+elif platform.system() == 'Windows':
+    # Windows: onedir build, not onefile. Onefile self-extracts the whole
+    # payload to %TEMP% on every launch, which is both slow and exactly the
+    # pattern AV/SmartScreen heuristics flag as dropper-like. onedir also
+    # lets the self-update launcher (below) swap the install folder in place
+    # without ever needing to touch a locked, currently-running exe.
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],
+        exclude_binaries=True,
+        name='Shoggoth',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+    )
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='Shoggoth',
+    )
+
+    # Self-update launcher: a tiny, dependency-free companion exe that ships
+    # inside the same onedir folder as Shoggoth.exe. The main app spawns it
+    # (and only it, never the other way around) when an update has been
+    # staged, then exits; the launcher performs the actual file swap once
+    # Shoggoth.exe has released its file lock. See shoggoth/launcher.py for
+    # the handoff contract (root_dir/pending_update.json).
+    launcher_a = Analysis(
+        ['shoggoth/launcher.py'],
+        pathex=[],
+        binaries=[],
+        datas=[],
+        hiddenimports=['tkinter', 'tkinter.messagebox'],
+        hookspath=[],
+        hooksconfig={},
+        runtime_hooks=[],
+        excludes=['numpy', 'PySide6', 'pyvips', 'PIL'],
+        noarchive=False,
+        optimize=0,
+    )
+    launcher_pyz = PYZ(launcher_a.pure)
+    launcher_exe = EXE(
+        launcher_pyz,
+        launcher_a.scripts,
+        launcher_a.binaries,
+        launcher_a.datas,
+        [],
+        name='ShoggothLauncher',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+    )
+    # EXE() writes its output synchronously (same reason BUNDLE() above can
+    # read COLLECT()'s finished output), so by this point both
+    # dist/Shoggoth/ and dist/ShoggothLauncher.exe already exist on disk.
+    # Copy the launcher into the main app's onedir folder so every install
+    # already ships the executable it needs for its *next* self-update.
+    _launcher_src = os.path.join('dist', 'ShoggothLauncher.exe')
+    _launcher_dst = os.path.join('dist', 'Shoggoth', 'ShoggothLauncher.exe')
+    if os.path.exists(_launcher_src):
+        shutil.copy2(_launcher_src, _launcher_dst)
 else:
-    # Windows/Linux: onefile standalone executable
+    # Linux: onefile standalone executable
     exe = EXE(
         pyz,
         a.scripts,
