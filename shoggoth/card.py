@@ -363,6 +363,7 @@ class TEMPLATES:
     def get(cls, name):
         return {
             'investigator': cls.INVESTIGATOR(),
+            'mini_investigator': cls.MINI_INVESTIGATOR(),
             'asset': cls.ASSET(),
             'event': cls.EVENT(),
             'skill': cls.SKILL(),
@@ -412,6 +413,14 @@ class TEMPLATES:
             ["<b>Deckbuilding Requirements</b> (do not count toward deck size):", ""],
             ["<b>Deckbuilding Restrictions:</b>", ""],
         ]
+        return card
+
+    @classmethod
+    def MINI_INVESTIGATOR(cls):
+        card = cls.BASE()
+        card['amount'] = 1
+        card['front']['type'] = 'mini_investigator'
+        card['back']['type'] = 'mini_investigator_back'
         return card
 
     @classmethod

@@ -480,12 +480,16 @@ class Project:
         weakness['front']['class'] = 'weakness'
         weakness['back']['type'] = 'player'
         weakness['investigator'] = name
+        mini = TEMPLATES.MINI_INVESTIGATOR()
+        mini['name'] = f'mini {name}'
+        mini['investigator'] = name
 
         investigator['back']['entries'][3] = f"<:{signature['id']} name>, <:{weakness['id']} name>, 1 random basic weakness."
 
         self.add_card(investigator)
         self.add_card(signature)
         self.add_card(weakness)
+        self.add_card(mini)
         shoggoth.app.refresh_tree()
         shoggoth.app.goto_card(investigator['id'])
 

@@ -14,7 +14,7 @@ from shoggoth.ui.encounter_editors import EnemyEditor, TreacheryEditor, Location
 from shoggoth.ui.campaign_editors import (
     ActEditor, ActBackEditor, AgendaEditor, AgendaBackEditor, ChaosEditor, StoryEditor
 )
-from shoggoth.ui.investigator_editors import InvestigatorEditor, InvestigatorBackEditor
+from shoggoth.ui.investigator_editors import InvestigatorEditor, InvestigatorBackEditor, MiniInvestigatorEditor
 from shoggoth.i18n import tr
 
 
@@ -143,6 +143,8 @@ EDITOR_MAPPING = {
     'skill': SkillEditor,
     'investigator': InvestigatorEditor,
     'investigator_back': InvestigatorBackEditor,
+    'mini_investigator': MiniInvestigatorEditor,
+    'mini_investigator_back': MiniInvestigatorEditor,
     'location': LocationEditor,
     'location_back': LocationBackEditor,
     'treachery': TreacheryEditor,

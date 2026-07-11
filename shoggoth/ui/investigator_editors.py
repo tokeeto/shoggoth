@@ -240,3 +240,11 @@ class InvestigatorBackEditor(FaceEditor):
                 parent.data_changed.emit()
                 break
             parent = parent.parent()
+
+
+class MiniInvestigatorEditor(FaceEditor):
+    """Editor for mini investigator cards (front and back) - illustration only"""
+
+    def setup_ui(self):
+        self.add_illustration_widget()
+        self.main_layout.addStretch()
