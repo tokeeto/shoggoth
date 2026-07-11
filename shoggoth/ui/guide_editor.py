@@ -19,6 +19,12 @@ from shoggoth.i18n import tr
 from shoggoth.guide import SECTION_TYPES, GuideSection
 
 
+GUIDE_FORMAT_LABELS = {
+    'a4': 'A4',
+    'letter': 'US Letter',
+    '75x95': '7.5 × 9.5 in',
+}
+
 SECTION_LABEL_KEYS = {
     'intro': 'GUIDE_SECTION_INTRO',
     'prelude': 'GUIDE_SECTION_PRELUDE',
@@ -288,6 +294,14 @@ class GuideOverviewPanel(QWidget):
         fp_row.addWidget(fp_btn)
         layout.addLayout(fp_row)
 
+        # Paper format
+        layout.addWidget(QLabel(tr("LABEL_GUIDE_FORMAT")))
+        self._format_combo = QComboBox()
+        for key, label in GUIDE_FORMAT_LABELS.items():
+            self._format_combo.addItem(label, key)
+        self._format_combo.currentIndexChanged.connect(self._on_format_changed)
+        layout.addWidget(self._format_combo)
+
         # Section list
         layout.addWidget(QLabel(tr("LABEL_SECTIONS")))
         self._list = QListWidget()
@@ -350,6 +364,10 @@ class GuideOverviewPanel(QWidget):
         self._fp_edit.blockSignals(True)
         self._fp_edit.setText(self.guide.front_page)
         self._fp_edit.blockSignals(False)
+        self._format_combo.blockSignals(True)
+        index = self._format_combo.findData(self.guide.format)
+        self._format_combo.setCurrentIndex(max(index, 0))
+        self._format_combo.blockSignals(False)
 
         selected_id = None
         item = self._list.currentItem()
@@ -384,6 +402,10 @@ class GuideOverviewPanel(QWidget):
 
     def _on_fp_changed(self, text):
         self.guide.front_page = text
+        self.guide.project.save_all()
+
+    def _on_format_changed(self, index):
+        self.guide.format = self._format_combo.itemData(index)
         self.guide.project.save_all()
 
     def _browse_front_page(self):

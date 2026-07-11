@@ -13,6 +13,13 @@ import markdown as md_lib
 
 SECTION_TYPES = ['cover', 'intro', 'prelude', 'interlude', 'scenario', 'blank']
 
+# guide 'format' field → CSS @page size (the template itself is A4)
+GUIDE_FORMATS = {
+    'a4': 'A4',
+    'letter': 'US-Letter',
+    '75x95': '7.5in 9.5in',
+}
+
 _SECTION_CSS = {
     'cover': 'chapter cover',
     'intro': 'chapter intro',
@@ -524,6 +531,15 @@ class Guide:
         self.data['front_page'] = value
 
     @property
+    def format(self) -> str:
+        value = self.data.get('format', 'a4')
+        return value if value in GUIDE_FORMATS else 'a4'
+
+    @format.setter
+    def format(self, value: str):
+        self.data['format'] = value
+
+    @property
     def sections(self) -> list:
         return [GuideSection.from_dict(s) for s in self.data.get('sections', [])]
 
@@ -538,8 +554,27 @@ class Guide:
     def html_format(self, html: str) -> str:
         if self.front_page:
             html = html.replace("file://{{frontpage}}", Path(self.front_page).resolve().as_uri())
-        html = html.replace("file://{{a4_empty}}", (files.guide_dir / 'guide_a4_empty.webp').as_uri())
-        html = html.replace("file://{{a4_title}}", (files.guide_dir / 'guide_a4_title.webp').as_uri())
+
+        # the template is written for A4; other paper sizes override @page
+        # and use their own background art when the asset pack provides it
+        if self.format != 'a4':
+            size = GUIDE_FORMATS[self.format]
+            html = html.replace(
+                '</head>',
+                f'<style>@page {{ size: {size}; }}</style>\n</head>',
+                1,
+            )
+        empty_art = files.guide_dir / 'guide_a4_empty.webp'
+        title_art = files.guide_dir / 'guide_a4_title.webp'
+        if self.format == 'letter':
+            letter_empty = files.guide_dir / 'guide_letter_empty.png'
+            letter_title = files.guide_dir / 'guide_letter_title.png'
+            if letter_empty.exists():
+                empty_art = letter_empty
+            if letter_title.exists():
+                title_art = letter_title
+        html = html.replace("file://{{a4_empty}}", empty_art.as_uri())
+        html = html.replace("file://{{a4_title}}", title_art.as_uri())
         html = html.replace("file://{{arno_pro}}", (files.font_dir / 'Arno Pro/arnopro_regular.otf').as_uri())
         html = html.replace("file://{{arno_pro_bold}}", (files.font_dir / 'Arno Pro/arnopro_bold.otf').as_uri())
         html = html.replace("file://{{arno_pro_bolditalic}}", (files.font_dir / 'Arno Pro/arnopro_bolditalic.otf').as_uri())
