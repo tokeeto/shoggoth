@@ -458,8 +458,10 @@ class CardRenderer:
         if side.card.project.icon:
             path = side.card.project.find_file(side.card.project.icon)
             value = value.replace('<exi>', f'<image src="{path}" color="inverted">')
+            value = value.replace('<project.icon', f'<image src="{path}"')
         else:
             value = value.replace('<exi>', '')
+            value = value.replace('<project.icon', '<image src=""')
         value = value.replace('<exn>', str(side.card.project_number))
         if side.card.encounter_number:
             value = value.replace('<esn>', str(side.card.encounter_number))
@@ -473,8 +475,10 @@ class CardRenderer:
         if side.card.encounter and side.card.encounter.icon:
             path = side.card.project.find_file(side.card.encounter.icon)
             value = value.replace('<esi>', f'<image src="{path}" color="inverted">')
+            value = value.replace('<encounter.icon', f'<image src="{path}"')
         else:
             value = value.replace('<esi>', '')
+            value = value.replace('<encounter.icon', '<image src=""')
 
         value = value.replace('<copyright>', side.card.get('copyright') or '')
         value = value.replace('<valign>', '')
