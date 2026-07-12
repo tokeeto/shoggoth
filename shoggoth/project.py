@@ -471,13 +471,11 @@ class Project:
         investigator['name'] = name
         investigator['investigator'] = name
         signature = TEMPLATES.ASSET()
-        signature['name'] = 'signature'
+        signature['name'] = 'Signature'
         signature['front']['text'] = f'<:{investigator["id"]} name> deck only.'
         signature['investigator'] = name
-        weakness = TEMPLATES.BASE()
-        weakness['name'] = 'weakness'
-        weakness['front']['type'] = 'treachery'
-        weakness['front']['class'] = 'weakness'
+        weakness = TEMPLATES.TREACHERY_WEAKNESS()
+        weakness['name'] = 'Weakness'
         weakness['back']['type'] = 'player'
         weakness['investigator'] = name
         mini = TEMPLATES.MINI_INVESTIGATOR()
@@ -499,7 +497,7 @@ class Project:
             placeholder cards.
         """
         cards = []
-        for x in range(1,4):
+        for x in range(1, 4):
             act = TEMPLATES.ACT()
             act['front']['index'] = f'{x}a'
             act['back']['index'] = f'{x}b'
