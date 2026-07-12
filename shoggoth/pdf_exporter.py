@@ -195,7 +195,7 @@ def export(cards, target_file, image_folder, size=None, format='png', include_ba
     if size is None:
         size = EXPORT_SIZES[0][1]
 
-    cards = cards.sort(key=lambda x: x.project_number)
+    cards.sort(key=lambda x: x.project_number)
 
     target_folder = Path(target_file).parent
     temp_file = target_folder / '_temp.html'
@@ -218,7 +218,7 @@ def create_mbprint_pdf(cards, target_file, image_folder):
     if prince_cmd is None:
         raise Exception("can't export without prince")
 
-    cards = cards.sort(key=lambda x: x.project_number)
+    cards.sort(key=lambda x: x.project_number)
 
     target_folder = Path(target_file).parent
     temp_file = target_folder / '_temp.html'
@@ -241,7 +241,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder):
     prince_cmd, prince_cwd = _resolve_prince()
     if prince_cmd is None:
         raise Exception("can't export without prince")
-    cards = cards.sort(key=lambda x: x.project_number)
+    cards.sort(key=lambda x: x.project_number)
 
     target_folder = Path(target_file_front).parent
     temp_file = target_folder / '_temp.html'
