@@ -284,6 +284,7 @@
   "SECTION_DECK_BUILDING": "Opciones de Construcción de Mazo",
   "SECTION_CHAOS_BAG": "Entradas de Bolsa de Caos",
   "SECTION_CUSTOMIZATION": "Opciones de Personalización",
+  "SECTION_EXTRA_TEXT_FIELDS": "Campos de texto adicionales",
   "FIELD_XP_COST": "Coste de XP",
   "FIELD_OPTION_EFFECT": "Efecto de opción",
   "PLACEHOLDER_TOKENS": "Fichas (ej. -1, -2)",

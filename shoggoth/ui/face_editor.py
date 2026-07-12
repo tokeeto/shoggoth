@@ -4,7 +4,7 @@ FaceEditor base class for Shoggoth face editors
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QTextEdit, QComboBox,
-    QLabel, QCompleter, QCheckBox
+    QLabel, QCompleter, QCheckBox, QToolButton
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -320,26 +320,64 @@ class FaceEditor(QWidget):
         self.main_layout.addWidget(widget)
         return widget
 
-    def add_copyright_collection_row(self):
-        """Add copyright and collection fields side by side at the bottom"""
-        row_widget = QWidget()
-        row_layout = QHBoxLayout()
-        row_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Copyright field
+    def add_footer_row(self):
+        """Add the copyright field and the extra-text-fields section at the bottom"""
         copyright_input = LabeledLineEdit(tr("FIELD_COPYRIGHT"))
         copyright_input.input.textChanged.connect(lambda: self.on_field_changed('copyright'))
         self.fields['copyright'] = copyright_input.input
-        row_layout.addWidget(copyright_input)
+        self.field_containers['copyright'] = copyright_input
+        self.main_layout.addWidget(copyright_input)
 
-        # Collection field
-        collection_input = LabeledLineEdit(tr("FIELD_COLLECTION"))
-        collection_input.input.textChanged.connect(lambda: self.on_field_changed('collection'))
-        self.fields['collection'] = collection_input.input
-        row_layout.addWidget(collection_input)
+        self.add_extra_fields_section()
 
-        row_widget.setLayout(row_layout)
-        self.main_layout.addWidget(row_widget)
+    def extra_text_fields(self):
+        """ Text fields that render on this face (a '<field>_region' resolves)
+            but have no dedicated widget in this editor: user-defined fields
+            plus any stock text field this editor doesn't expose.
+        """
+        from shoggoth.renderer import DEFAULT_TEXT_FIELDS, discovered_text_fields
+        candidates = list(DEFAULT_TEXT_FIELDS) + sorted(discovered_text_fields(self.face))
+        return [
+            field for field in candidates
+            if field not in self.fields and self.face.get(f'{field}_region')
+        ]
+
+    def add_extra_fields_section(self):
+        """Add a collapsed fold listing extra_text_fields(), one line edit each"""
+        extra_fields = self.extra_text_fields()
+        if not extra_fields:
+            return
+
+        section = QWidget()
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+
+        toggle = QToolButton()
+        toggle.setText(tr("SECTION_EXTRA_TEXT_FIELDS"))
+        toggle.setCheckable(True)
+        toggle.setArrowType(Qt.RightArrow)
+        toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        toggle.setAutoRaise(True)
+        section_layout.addWidget(toggle)
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        for field in extra_fields:
+            widget = LabeledLineEdit(field)
+            widget.input.textChanged.connect(lambda _, f=field: self.on_field_changed(f))
+            self.fields[field] = widget.input
+            self.field_containers[field] = widget
+            content_layout.addWidget(widget)
+        content.setVisible(False)
+        section_layout.addWidget(content)
+
+        def on_toggled(checked):
+            content.setVisible(checked)
+            toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+        toggle.toggled.connect(on_toggled)
+
+        self.main_layout.addWidget(section)
 
     def add_illustration_widget(self):
         """Add illustration widget"""

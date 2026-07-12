@@ -284,6 +284,7 @@
   "SECTION_DECK_BUILDING": "Deckbau-Optionen",
   "SECTION_CHAOS_BAG": "Chaosmarker-Einträge",
   "SECTION_CUSTOMIZATION": "Verbesserungsoptionen",
+  "SECTION_EXTRA_TEXT_FIELDS": "Weitere Textfelder",
   "FIELD_XP_COST": "XP-Kosten",
   "FIELD_OPTION_EFFECT": "Effekt der Option",
   "PLACEHOLDER_TOKENS": "Tokens (z.B. -1, -2)",

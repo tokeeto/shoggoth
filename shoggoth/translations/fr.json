@@ -289,6 +289,7 @@
   "SECTION_DECK_BUILDING": "Options de construction de deck",
   "SECTION_CHAOS_BAG": "Pions chaos",
   "SECTION_CUSTOMIZATION": "Options de personnalisation",
+  "SECTION_EXTRA_TEXT_FIELDS": "Champs de texte supplémentaires",
   "FIELD_XP_COST": "Coût XP",
   "FIELD_OPTION_EFFECT": "Effet d'option",
   "PLACEHOLDER_TOKENS": "Pions (e.g. -1, -2)",

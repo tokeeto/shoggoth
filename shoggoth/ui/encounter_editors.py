@@ -69,8 +69,8 @@ class EnemyEditor(FaceEditor):
         self.add_victory_field()
         self.add_illustration_widget()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -89,8 +89,8 @@ class TreacheryEditor(FaceEditor):
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -169,8 +169,8 @@ class LocationEditor(FaceEditor):
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 

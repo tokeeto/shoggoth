@@ -22,8 +22,8 @@ class ActEditor(FaceEditor):
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -38,8 +38,8 @@ class ActBackEditor(FaceEditor):
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -56,8 +56,8 @@ class AgendaEditor(FaceEditor):
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
         self.add_illustration_widget()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -72,8 +72,8 @@ class AgendaBackEditor(FaceEditor):
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -152,8 +152,8 @@ class ChaosEditor(FaceEditor):
         token_area_group.setLayout(token_area_layout)
         self.main_layout.addWidget(token_area_group)
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -265,7 +265,7 @@ class StoryEditor(FaceEditor):
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
         self.add_victory_field()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()

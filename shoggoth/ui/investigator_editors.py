@@ -90,8 +90,8 @@ class InvestigatorEditor(FaceEditor):
         mask_row.setLayout(mask_layout)
         self.main_layout.addWidget(mask_row)
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -178,8 +178,8 @@ class InvestigatorBackEditor(FaceEditor):
         # Illustration
         self.add_illustration_widget()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 

@@ -286,6 +286,7 @@
   "SECTION_DECK_BUILDING": "构组选项",
   "SECTION_CHAOS_BAG": "混沌袋条目",
   "SECTION_CUSTOMIZATION": "定制选项",
+  "SECTION_EXTRA_TEXT_FIELDS": "附加文本字段",
   "FIELD_XP_COST": "经验值费用",
   "FIELD_OPTION_EFFECT": "选项效果",
   "PLACEHOLDER_TOKENS": "标记（如 -1，-2）",

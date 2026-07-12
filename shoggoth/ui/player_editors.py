@@ -91,8 +91,8 @@ class AssetEditor(FaceEditor):
         # Illustration
         self.add_illustration_widget()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -168,8 +168,8 @@ class EventEditor(FaceEditor):
         self.add_victory_field()
         self.add_illustration_widget()
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
@@ -247,8 +247,8 @@ class CustomizableEditor(FaceEditor):
         entries_group.setLayout(entries_layout)
         self.main_layout.addWidget(entries_group)
 
-        # Copyright and collection
-        self.add_copyright_collection_row()
+        # Copyright and extra text fields
+        self.add_footer_row()
 
         self.main_layout.addStretch()
 
