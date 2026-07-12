@@ -333,7 +333,6 @@ class ClassSelectorWidget(QWidget):
       None         → classes = None
       Player       → 5 class toggle buttons plus Specialist; none selected = ['neutral'], else selected list
       Weakness     → Basic checkbox; ['weakness'] or ['basic weakness']
-      Story        → ['story'], no extra controls
       Custom       → free-text field (comma-separated)
     """
 
@@ -345,8 +344,7 @@ class ClassSelectorWidget(QWidget):
     MODE_NONE = 0
     MODE_PLAYER = 1
     MODE_WEAKNESS = 2
-    MODE_STORY = 3
-    MODE_CUSTOM = 4
+    MODE_CUSTOM = 3
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -367,7 +365,6 @@ class ClassSelectorWidget(QWidget):
             tr("CLASS_MODE_NONE"),
             tr("CLASS_MODE_PLAYER"),
             tr("CLASS_MODE_WEAKNESS"),
-            tr("CLASS_MODE_STORY"),
             tr("CLASS_MODE_CUSTOM"),
         ])
 
@@ -424,10 +421,7 @@ class ClassSelectorWidget(QWidget):
         weakness_page.setLayout(weakness_layout)
         self.stack.addWidget(weakness_page)
 
-        # Page 3: Story — no extra controls
-        self.stack.addWidget(QWidget())
-
-        # Page 4: Custom — free-text input
+        # Page 3: Custom — free-text input
         custom_page = QWidget()
         custom_layout = QVBoxLayout()
         custom_layout.setContentsMargins(0, 0, 0, 0)
@@ -477,8 +471,6 @@ class ClassSelectorWidget(QWidget):
             return selected if selected else ['neutral']
         elif mode == self.MODE_WEAKNESS:
             return ['basic weakness'] if self.basic_checkbox.isChecked() else ['weakness']
-        elif mode == self.MODE_STORY:
-            return ['story']
         else:  # Custom
             text = self.custom_input.text().strip()
             if not text:
@@ -503,8 +495,6 @@ class ClassSelectorWidget(QWidget):
             elif value == ['basic weakness']:
                 self._set_mode(self.MODE_WEAKNESS)
                 self.basic_checkbox.setChecked(True)
-            elif value == ['story']:
-                self._set_mode(self.MODE_STORY)
             else:
                 self._set_mode(self.MODE_CUSTOM)
                 self.custom_input.setText(', '.join(str(v) for v in value))

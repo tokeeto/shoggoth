@@ -5,7 +5,7 @@ from itertools import combinations
 
 import shoggoth
 from shoggoth.card import TEMPLATES, Card
-from shoggoth.encounter_set import EncounterSet
+from shoggoth.encounter_set import EncounterSet, parse_number_span
 from shoggoth.guide import Guide
 from shoggoth.i18n import tr
 from shoggoth.project_writer import Writer, TranslationWriter
@@ -278,13 +278,35 @@ class Project:
         return None
 
     def assign_card_numbers(self):
+        encounter_sets = list(self.encounter_sets)
+        player_cards = list(self.player_cards)
+
+        manual_numbers = set()
+        for encounter_set in encounter_sets:
+            for card in encounter_set.cards:
+                if card.get('enumerated') == 'manual':
+                    manual_numbers |= parse_number_span(card.project_number)
+        for card in player_cards:
+            if card.get('enumerated') == 'manual':
+                manual_numbers |= parse_number_span(card.project_number)
+
         current_number = 1
-        for encounter_set in self.encounter_sets:
+        for encounter_set in encounter_sets:
             encounter_set.assign_card_numbers()
             for card in encounter_set.cards:
+                enumerated = card.get('enumerated')
+                if enumerated in ('ignored', 'manual'):
+                    continue
+                while current_number in manual_numbers:
+                    current_number += 1
                 card.project_number = current_number
                 current_number += 1
-        for card in self.player_cards:
+        for card in player_cards:
+            enumerated = card.get('enumerated')
+            if enumerated in ('ignored', 'manual'):
+                continue
+            while current_number in manual_numbers:
+                current_number += 1
             card.project_number = current_number
             current_number += 1
 

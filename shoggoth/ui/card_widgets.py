@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
-    QSizePolicy
+    QSizePolicy, QToolButton
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QPointF, QRectF, QSize
 from PySide6.QtGui import (
@@ -533,18 +533,36 @@ class IllustrationWidget(QWidget):
         self._committing = False
         layout = QVBoxLayout()
 
-        # Image path
+        # Image path (always visible; the fold toggle keeps the pan/zoom
+        # viewport - whose scroll-to-zoom fights page scrolling - out of the
+        # way until the user actually wants it)
         path_layout = QHBoxLayout()
         self.path_input = LabeledLineEdit(tr("FIELD_IMAGE_PATH"))
         path_layout.addWidget(self.path_input)
         browse_btn = QPushButton(tr("BTN_BROWSE"))
         browse_btn.clicked.connect(self.browse_image)
         path_layout.addWidget(browse_btn)
-        self.mirror_checkbox = QCheckBox(tr("FIELD_MIRROR"))
-        path_layout.addWidget(self.mirror_checkbox)
+        self.fold_button = QToolButton()
+        self.fold_button.setCheckable(True)
+        self.fold_button.setArrowType(Qt.RightArrow)
+        self.fold_button.toggled.connect(self._on_fold_toggled)
+        path_layout.addWidget(self.fold_button)
         layout.addLayout(path_layout)
 
-        # Pan and scale
+        # Foldable: mirror, positioning viewport, pan/scale fields
+        self.fold_widget = QWidget()
+        fold_layout = QVBoxLayout(self.fold_widget)
+        fold_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.mirror_checkbox = QCheckBox(tr("FIELD_MIRROR"))
+        fold_layout.addWidget(self.mirror_checkbox)
+
+        self.position_view = IllustrationPositionView()
+        self.position_view.pan_committed.connect(self._on_view_pan)
+        self.position_view.scale_committed.connect(self._on_view_scale)
+        self.position_view.reset_requested.connect(self._on_view_reset)
+        fold_layout.addWidget(self.position_view)
+
         pan_scale_layout = QHBoxLayout()
         self.pan_y_input = LabeledLineEdit(tr("FIELD_PAN_Y"))
         self.pan_x_input = LabeledLineEdit(tr("FIELD_PAN_X"))
@@ -560,14 +578,10 @@ class IllustrationWidget(QWidget):
         self.scale_warning.hide()
         pan_scale_layout.addWidget(self.scale_warning)
 
-        layout.addLayout(pan_scale_layout)
+        fold_layout.addLayout(pan_scale_layout)
 
-        # Positioning viewport
-        self.position_view = IllustrationPositionView()
-        self.position_view.pan_committed.connect(self._on_view_pan)
-        self.position_view.scale_committed.connect(self._on_view_scale)
-        self.position_view.reset_requested.connect(self._on_view_reset)
-        layout.addWidget(self.position_view)
+        layout.addWidget(self.fold_widget)
+        self.fold_widget.setVisible(False)
 
         self.scale_input.input.textChanged.connect(self.update_scale_warning)
         self.path_input.input.textChanged.connect(self.update_scale_warning)
@@ -658,6 +672,11 @@ class IllustrationWidget(QWidget):
             orientation=self.face.get('orientation', 'vertical'),
         )
         self.position_view.setVisible(self.position_view.has_image())
+
+    def _on_fold_toggled(self, checked):
+        """Expand/collapse the mirror/viewport/pan/scale section."""
+        self.fold_widget.setVisible(checked)
+        self.fold_button.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
 
     def _on_view_pan(self, pan_x, pan_y):
         """Write an absolute pan from the viewport into the fields."""

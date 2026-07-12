@@ -5,11 +5,12 @@ import json
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QTextEdit, QPushButton, QLabel, QComboBox,
-    QScrollArea, QGroupBox, QSpinBox
+    QScrollArea, QGroupBox, QSpinBox, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 
 from shoggoth.ui.field_widgets import LabeledLineEdit, FieldWidget
+from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.ui.text_editor import ArkhamTextEdit
 from shoggoth.ui.face_editor_factory import get_editor_for_face
 from shoggoth.i18n import tr
@@ -72,6 +73,16 @@ class CardEditor(QWidget):
         numbers_layout.addWidget(self.collection_input)
         numbers_layout.addWidget(self.encounter_input)
         content_layout.addLayout(numbers_layout)
+
+        # Automatic enumeration override
+        enumerated_row = QHBoxLayout()
+        enumerated_row.addWidget(QLabel(tr("FIELD_ENUMERATED")))
+        self.enumerated_combo = NoScrollComboBox()
+        self.enumerated_combo.addItem(tr("ENUM_MODE_DEFAULT"), '')
+        self.enumerated_combo.addItem(tr("ENUM_MODE_IGNORED"), 'ignored')
+        self.enumerated_combo.addItem(tr("ENUM_MODE_MANUAL"), 'manual')
+        enumerated_row.addWidget(self.enumerated_combo, 1)
+        content_layout.addLayout(enumerated_row)
 
         self.investigator_input = LabeledLineEdit(tr("FIELD_INVESTIGATOR_LINK"))
         content_layout.addWidget(self.investigator_input)
@@ -339,6 +350,7 @@ class CardEditor(QWidget):
 
     def setup_card_fields(self):
         """Setup bindings for card-level fields"""
+        self._loading_enumerated = False
         self.fields = [
             FieldWidget(self.name_input.input, 'name'),
             FieldWidget(self.copyright_input.input, 'copyright'),
@@ -355,15 +367,55 @@ class CardEditor(QWidget):
             if isinstance(widget, QLineEdit):
                 widget.textChanged.connect(lambda v, f=field: self.on_field_changed(f, v))
 
+        self.enumerated_combo.currentIndexChanged.connect(self.on_enumerated_changed)
+
     def load_card(self):
         """Load card data into fields"""
         for field in self.fields:
             field.update_from_card(self.card)
 
+        self._loading_enumerated = True
+        mode = self.card.get('enumerated') or ''
+        index = self.enumerated_combo.findData(mode)
+        self.enumerated_combo.setCurrentIndex(index if index >= 0 else 0)
+        self._loading_enumerated = False
+
     def on_field_changed(self, field, value):
         """Handle field value changes"""
         if field.update_card(self.card, value):
+            if field.card_key in ('project_number', 'encounter_number'):
+                self._set_enumerated_silently('manual')
             self.data_changed.emit()
+
+    def _set_enumerated_silently(self, mode):
+        """Update the numbering-mode dropdown/data without re-triggering its change handler."""
+        self._loading_enumerated = True
+        index = self.enumerated_combo.findData(mode)
+        if index >= 0 and self.enumerated_combo.currentIndex() != index:
+            self.enumerated_combo.setCurrentIndex(index)
+        self._loading_enumerated = False
+        if (self.card.get('enumerated') or '') != mode:
+            self.card.set('enumerated', mode or None)
+
+    def on_enumerated_changed(self, index):
+        """Handle a change to the numbering-mode dropdown."""
+        if self._loading_enumerated:
+            return
+
+        new_mode = self.enumerated_combo.currentData()
+        old_mode = self.card.get('enumerated') or ''
+
+        if old_mode == 'manual' and new_mode == '':
+            reply = QMessageBox.warning(
+                self, tr("DLG_WARNING"), tr("MSG_ENUM_MANUAL_TO_DEFAULT"),
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                self._set_enumerated_silently('manual')
+                return
+
+        self.card.set('enumerated', new_mode or None)
+        self.data_changed.emit()
 
     def enter_translation_mode(self):
         """Switch both face editors into translation mode."""
