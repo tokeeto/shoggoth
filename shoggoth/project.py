@@ -1,4 +1,5 @@
 import json
+import re
 from uuid import uuid4
 from pathlib import Path
 from itertools import combinations
@@ -128,6 +129,60 @@ def sort_cards(cards):
             result.extend(bonded_groups[card.get('id')])
             
     cards[:] = result
+
+
+# Beta-era, one-shot data fixup: old projects stored the collection footer as
+# a single free-text field (an optional "<n>/<n>" set-total, whitespace, then
+# icon markup and card number joined by triple-space padding). Newer defaults
+# render those as three independent fields, so on load we offer to split any
+# leftover legacy "collection" strings into them.
+_LEGACY_COLLECTION_TOTAL_RE = re.compile(r'^(\d+/\d+)\s+')
+
+
+def parse_legacy_collection(value):
+    """ Split a legacy 'collection' string into collection_total (optional),
+        collection_icon and collection_number.
+    """
+    result = {}
+    remainder = value
+    total_match = _LEGACY_COLLECTION_TOTAL_RE.match(remainder)
+    if total_match:
+        result['collection_total'] = total_match.group(1)
+        remainder = remainder[total_match.end():]
+    icon, _, number = remainder.strip().partition('   ')
+    result['collection_icon'] = icon.strip()
+    result['collection_number'] = number.strip()
+    return result
+
+
+def _dicts_with_legacy_collection(node):
+    """ Recursively yield every dict within *node* that has a legacy string 'collection' field. """
+    if isinstance(node, dict):
+        if isinstance(node.get('collection'), str):
+            yield node
+        for value in node.values():
+            yield from _dicts_with_legacy_collection(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _dicts_with_legacy_collection(item)
+
+
+def has_legacy_collection_fields(data):
+    """ Whether a project's raw JSON *data* still has any legacy 'collection' fields. """
+    return any(True for _ in _dicts_with_legacy_collection(data))
+
+
+def migrate_legacy_collection_fields(data):
+    """ Split every legacy 'collection' field in a project's raw JSON *data*
+        into collection_total/collection_icon/collection_number, in place.
+        Returns the number of fields migrated.
+    """
+    targets = list(_dicts_with_legacy_collection(data))
+    for node in targets:
+        value = node.pop('collection')
+        node.update(parse_legacy_collection(value))
+    return len(targets)
+
 
 class Project:
     """ Class to handle project files

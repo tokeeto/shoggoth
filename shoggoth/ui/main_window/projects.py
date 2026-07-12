@@ -8,7 +8,10 @@ from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from shoggoth.i18n import tr
-from shoggoth.project import Project, Translation
+from shoggoth.project import (
+    Project, Translation,
+    has_legacy_collection_fields, migrate_legacy_collection_fields,
+)
 
 
 def open_project_dialog(window):
@@ -40,6 +43,18 @@ def open_project(window, file_path):
 
         # Load new project
         project = Project.load(file_path)
+
+        if has_legacy_collection_fields(project.data):
+            reply = QMessageBox.question(
+                window, tr("DLG_MIGRATE_COLLECTION_TITLE"),
+                tr("CONFIRM_MIGRATE_COLLECTION"),
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                count = migrate_legacy_collection_fields(project.data)
+                project.save()
+                window.status_bar.showMessage(tr("STATUS_MIGRATED_COLLECTION").format(count=count))
+
         window.open_projects.append(project)
         window.active_project = project
         window.file_browser.add_project(project)
