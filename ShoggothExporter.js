@@ -113,20 +113,21 @@ const back_types = {
     "MiniInvestigator.js": "mini_investigator_back",
 };
 
-// SE plugin templates and shoggoth's region coordinates share the same pixel
-// space (1644x2244 cards, 244x375 minis, ...) for every exported type except
-// these, whose shoggoth defaults use a different coordinate space. For them we
-// skip illustration pan/scale and let shoggoth's default region-fit apply.
+// Shoggoth defaults for these types use a coordinate space that matches
+// neither the SE template nor the standard shoggoth card space, so we skip
+// illustration pan/scale and let shoggoth's default region-fit apply.
 const GEOMETRY_SKIP = {
     "Key.js": true,
     "EnemyLocation.js": true,
     "Scenario.js": true,
-    "TreacheryLocation.js": true,
+    "Ultimatum.js": true,
 };
 
-// SE mini templates are 244x375 with no bleed; shoggoth's "mini" card size
-// uses the standard px/mm density (content 1000x1537) behind a 72px bleed,
-// so mini geometry is scaled up and shifted into the bleed-included space.
+// The released plugin's card templates are 375x525 (525x375 landscape)
+// content with no bleed, while shoggoth's region space is 1500x2100 content
+// behind a 72px bleed — all geometry scales x4 and shifts +72. Mini templates
+// are 244x375 mapping onto shoggoth's mini content of 1000x1537.
+const GEOMETRY_DEFAULT_TRANSFORM = { scale: 1500 / 375, offset: 72 };
 const GEOMETRY_TRANSFORM = {
     "Concealed.js": { scale: 1000 / 244, offset: 72 },
     "MiniInvestigator.js": { scale: 1000 / 244, offset: 72 },
@@ -472,10 +473,10 @@ function get_portraits(card) {
 // SE draws a portrait at (image size × scale), centred on the middle of its
 // clip region plus the pan offset. Shoggoth wants an absolute scale plus the
 // top-left corner in template coordinates, so convert:
-//   top-left = clip centre + pan − scaled size / 2
+//   top-left = (clip centre + pan − scaled size / 2) × transform + bleed
 // Returns { scale, pan_x, pan_y, rotation? } or null when the geometry can't
 // be determined (no image, missing clip region, ...).
-function portrait_geometry(card, portrait) {
+function portrait_geometry(card, portrait, transform) {
     try {
         let img = portrait.getImage();
         if (img == null) return null;
@@ -502,10 +503,11 @@ function portrait_geometry(card, portrait) {
 
         let width = img.getWidth() * scale;
         let height = img.getHeight() * scale;
+        let k = transform.scale;
         let geometry = {
-            scale: Math.round(scale * 10000) / 10000,
-            pan_x: Math.round(clip.getCenterX() + portrait.getPanX() - width / 2),
-            pan_y: Math.round(clip.getCenterY() + portrait.getPanY() - height / 2),
+            scale: Math.round(scale * k * 10000) / 10000,
+            pan_x: Math.round((clip.getCenterX() + portrait.getPanX() - width / 2) * k) + transform.offset,
+            pan_y: Math.round((clip.getCenterY() + portrait.getPanY() - height / 2) * k) + transform.offset,
         };
         try {
             // SE and shoggoth both treat positive angles as counter-clockwise
@@ -986,15 +988,10 @@ function convert_card(path, collection, image_folder) {
             if (portrait.getSource() == null) continue;
             let image_path = collection.images[String(portrait.getSource())];
             if (!image_path) continue;
+            let transform = GEOMETRY_TRANSFORM[script_name] || GEOMETRY_DEFAULT_TRANSFORM;
             let geometry = GEOMETRY_SKIP[script_name]
                 ? null
-                : portrait_geometry(card, portrait);
-            let transform = GEOMETRY_TRANSFORM[script_name];
-            if (geometry && transform) {
-                geometry.scale = Math.round(geometry.scale * transform.scale * 10000) / 10000;
-                geometry.pan_x = Math.round(geometry.pan_x * transform.scale) + transform.offset;
-                geometry.pan_y = Math.round(geometry.pan_y * transform.scale) + transform.offset;
-            }
+                : portrait_geometry(card, portrait, transform);
             if (
                 name === "Portrait-Front" ||
                 name === "Portrait-Both" ||
