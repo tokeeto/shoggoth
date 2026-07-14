@@ -52,7 +52,9 @@ class EncounterSet:
         for c in self.project.data['cards']:
             if c.get('encounter_set') == self.id:
                 result.append(Card(c, encounter=self, project=self.project))
-        result.sort(key=lambda c: c.name)
+
+        from shoggoth.project import sort_cards
+        sort_cards(result)
         return result
 
     @staticmethod

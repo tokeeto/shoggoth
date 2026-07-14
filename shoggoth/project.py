@@ -78,8 +78,7 @@ def sort_cards(cards):
         not card.get('meta', {}).get('sorting', card.get('sorting', True)), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
         #TODO ^ This can be cleaned up once meta tags are implemented
         str(type_order.get(card.front['type'], 15)),
-        str(card.front.get('agenda_index', 15)),
-        str(card.front.get('act_index', 15)),
+        str(card.front.get('index', 15)),
         class_sort_key(card), # helper to sort the cards within the multi-colored segment if there are any, otherwise defaults to what was here before
         str(card.front.get('level', 15)),
         str(player_type_order.get(card.front['type'], 15)), 
@@ -127,7 +126,7 @@ def sort_cards(cards):
         result.append(card)
         if card.get('id') in bonded_groups:
             result.extend(bonded_groups[card.get('id')])
-            
+
     cards[:] = result
 
 
@@ -559,7 +558,7 @@ class Project:
         mini['name'] = f'mini {name}'
         mini['investigator'] = name
 
-        investigator['back']['entries'][3] = f"<:{signature['id']} name>, <:{weakness['id']} name>, 1 random basic weakness."
+        investigator['back']['entries'][3][1] = f"<:{signature['id']} name>, <:{weakness['id']} name>, 1 random basic weakness."
 
         self.add_card(investigator)
         self.add_card(signature)
