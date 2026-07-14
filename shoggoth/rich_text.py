@@ -916,11 +916,19 @@ class RichTextRenderer:
                 eff_w = region.width - li
             return eff_x, eff_w
 
+        def line_indent():
+            # Mirrors the indent flush() applies when drawing: a blockquote's
+            # fixed indent overrides any hanging bullet indent for the line.
+            if quote or quote_first or quote_last:
+                return int(QUOTE_INDENT * scale)
+            return current_indent if indent_current else 0
+
         def wrap_width(yy):
+            indent = line_indent()
             if polygon:
                 p_left, p_right = poly_bounds(yy)
-                return p_right - max(x_orig + state['block_indent'], p_left)
-            return region.width - state['block_indent']
+                return p_right - max(x_orig + state['block_indent'], p_left) - indent
+            return region.width - state['block_indent'] - indent
 
         def flush():
             """Emit draw commands for the line buffered in `pending`."""
