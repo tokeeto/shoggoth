@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
+from shoggoth.card import natural_sort_key
 from shoggoth.i18n import tr
 from shoggoth.ui.browser.drag_drop import CompactLeafDelegate, DraggableTreeWidget
 from shoggoth.ui.browser.tree_spec import build_tree_spec, card_display_name
@@ -312,7 +313,7 @@ class FileBrowser(QWidget):
             if sort_order == 'name':
                 cards.sort(key=lambda c: c.name.lower())
             else:
-                cards.sort(key=lambda c: (int(c.data.get('project_number') or 0), c.name.lower()))
+                cards.sort(key=lambda c: (natural_sort_key(c.data.get('project_number') or 0), c.name.lower()))
 
             for card in cards:
                 pnum = card.data.get('project_number', '')

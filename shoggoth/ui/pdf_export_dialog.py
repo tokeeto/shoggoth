@@ -15,13 +15,13 @@ from PySide6.QtCore import Qt
 from shoggoth.i18n import tr
 from shoggoth.settings import EXPORT_SIZES
 
-# Fixed constants used for MBPrint (not user-configurable)
-_MBPRINT_SIZE    = {'width': 1500, 'height': 2100, 'bleed': 72}
+# Fixed constants used for MBPrint (not user-configurable; export size is,
+# see the size combo built in _build_ui)
 _MBPRINT_FORMAT  = 'png'
 _MBPRINT_QUALITY = 100
 
-# Fixed constants used for Azao (not user-configurable)
-_AZAO_SIZE    = {'width': 1500, 'height': 2100, 'bleed': 72}
+# Fixed constants used for Azao (not user-configurable; export size is,
+# see the size combo built in _build_ui)
 _AZAO_FORMAT  = 'png'
 _AZAO_QUALITY = 100
 
@@ -109,30 +109,29 @@ class PDFExportDialog(QDialog):
         root.addWidget(images_group)
 
         # ── Format ─────────────────────────────────────────────────────
+        format_group = QGroupBox(tr("GROUP_EXPORT_FORMAT"))
+        format_form = QFormLayout(format_group)
+        format_form.setRowWrapPolicy(QFormLayout.DontWrapRows)
+
+        self._size_combo = QComboBox()
+        self._size_combo.addItems([label for label, _ in EXPORT_SIZES])
+        self._size_combo.setCurrentIndex(0)
+        format_form.addRow(tr("LABEL_EXPORT_SIZE"), self._size_combo)
+
         if self.mbprint or self.azao:
-            fmt, size = (_AZAO_FORMAT, _AZAO_SIZE) if self.azao else (_MBPRINT_FORMAT, _MBPRINT_SIZE)
-            info = QLabel(tr("PDF_FORMAT_INFO").format(
-                fmt=fmt.upper(),
-                w=size['width'],
-                h=size['height'],
-            ))
-            info.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
-            root.addWidget(info)
+            self._size_combo.currentIndexChanged.connect(self._update_format_info)
+            root.addWidget(format_group)
+
+            self._format_info_label = QLabel()
+            self._format_info_label.setStyleSheet("color: #888; font-style: italic; font-size: 9pt;")
+            root.addWidget(self._format_info_label)
+            self._update_format_info()
 
             self._cb_vector_text = QCheckBox(tr("PDF_VECTOR_TEXT_CHECK"))
             self._cb_vector_text.setToolTip(tr("PDF_VECTOR_TEXT_TOOLTIP"))
             self._cb_vector_text.setChecked(False)
             root.addWidget(self._cb_vector_text)
         else:
-            format_group = QGroupBox(tr("GROUP_EXPORT_FORMAT"))
-            format_form = QFormLayout(format_group)
-            format_form.setRowWrapPolicy(QFormLayout.DontWrapRows)
-
-            self._size_combo = QComboBox()
-            self._size_combo.addItems([label for label, _ in EXPORT_SIZES])
-            self._size_combo.setCurrentIndex(0)
-            format_form.addRow(tr("LABEL_EXPORT_SIZE"), self._size_combo)
-
             self._format_combo = QComboBox()
             self._format_combo.addItems(['png', 'jpeg', 'webp'])
             self._format_combo.currentTextChanged.connect(self._on_format_changed)
@@ -212,6 +211,15 @@ class PDFExportDialog(QDialog):
     def _on_format_changed(self, fmt):
         self._quality_spin.setEnabled(fmt in ('jpeg', 'webp'))
 
+    def _update_format_info(self):
+        fmt = _AZAO_FORMAT if self.azao else _MBPRINT_FORMAT
+        size = EXPORT_SIZES[self._size_combo.currentIndex()][1]
+        self._format_info_label.setText(tr("PDF_FORMAT_INFO").format(
+            fmt=fmt.upper(),
+            w=size['width'],
+            h=size['height'],
+        ))
+
     def _on_front_path_changed(self, text):
         if self._back_manually_edited:
             return
@@ -279,10 +287,6 @@ class PDFExportDialog(QDialog):
         return Path(custom) if custom else self._default_image_folder()
 
     def _selected_size(self):
-        if self.azao:
-            return _AZAO_SIZE
-        if self.mbprint:
-            return _MBPRINT_SIZE
         return EXPORT_SIZES[self._size_combo.currentIndex()][1]
 
     def _selected_format(self):
@@ -330,9 +334,9 @@ class PDFExportDialog(QDialog):
         try:
             from shoggoth import pdf_exporter
             if self.azao:
-                pdf_exporter.azao_pdf(self.cards, front_path, back_path, image_folder)
+                pdf_exporter.azao_pdf(self.cards, front_path, back_path, image_folder, size=self._selected_size())
             elif self.mbprint:
-                pdf_exporter.create_mbprint_pdf(self.cards, pdf_path, image_folder)
+                pdf_exporter.create_mbprint_pdf(self.cards, pdf_path, image_folder, size=self._selected_size())
             else:
                 pdf_exporter.export(
                     self.cards, pdf_path, image_folder,

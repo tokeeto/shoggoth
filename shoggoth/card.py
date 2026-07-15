@@ -1,10 +1,25 @@
 import json
+import re
 from uuid import uuid4
 from pathlib import Path
 from typing import Any, Dict
 
 import shoggoth
 from shoggoth.files import defaults_dir
+
+_NUMBER_CHUNK_RE = re.compile(r'\d+|\D+')
+
+
+def natural_sort_key(value):
+    """ Split a value like a project_number ('12', '128a') into chunks so
+        sorting compares numeric chunks numerically and text chunks as
+        strings, instead of comparing the whole thing as one string.
+
+        Each chunk is tagged (0, int) or (1, str) so chunks of different
+        kinds never get compared directly (which would raise TypeError).
+    """
+    return [(1, chunk) if not chunk.isdigit() else (0, int(chunk))
+            for chunk in _NUMBER_CHUNK_RE.findall(str(value))]
 
 
 def matches(when, tags):

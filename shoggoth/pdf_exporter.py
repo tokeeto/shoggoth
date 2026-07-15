@@ -2,6 +2,7 @@ import base64
 import platform
 import re
 import shoggoth
+from shoggoth.card import natural_sort_key
 from shoggoth.renderer import CardRenderer, CARD_SIZES
 from shoggoth.settings import EXPORT_SIZES
 import subprocess
@@ -126,7 +127,7 @@ _CARD_PAGE_HEAD = f"""
     """
 
 
-def _mbprint_html(cards, folder):
+def _mbprint_html(cards, folder, size):
     """ Simple document template for mbprint output """
     yield _CARD_PAGE_HEAD
     yield _size_css(cards)
@@ -135,12 +136,12 @@ def _mbprint_html(cards, folder):
 
     for card in cards:
         w_mm, h_mm = _card_mm(card)
-        for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False):
+        for path in CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False):
             yield _card_page(path, w_mm, h_mm)
     yield "</body>"
 
 
-def _azao_html(cards, folder, side='front'):
+def _azao_html(cards, folder, size, side='front'):
     """ Simple document template for azao output """
     yield _CARD_PAGE_HEAD
     yield _size_css(cards)
@@ -150,7 +151,7 @@ def _azao_html(cards, folder, side='front'):
     offset = 0 if side == 'front' else 1
     for card in cards:
         w_mm, h_mm = _card_mm(card)
-        for path in CardRenderer.expected_export_paths(card, folder, EXPORT_SIZES[0][1], format='png', include_backs=False)[offset::2]:
+        for path in CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)[offset::2]:
             yield _card_page(path, w_mm, h_mm)
     yield "</body>"
 
@@ -195,7 +196,7 @@ def export(cards, target_file, image_folder, size=None, format='png', include_ba
     if size is None:
         size = EXPORT_SIZES[0][1]
 
-    cards.sort(key=lambda x: x.project_number)
+    cards.sort(key=lambda x: natural_sort_key(x.project_number))
 
     target_folder = Path(target_file).parent
     temp_file = target_folder / '_temp.html'
@@ -213,19 +214,22 @@ def export(cards, target_file, image_folder, size=None, format='png', include_ba
     print(f"PDF time: {time()-start_time}")
 
 
-def create_mbprint_pdf(cards, target_file, image_folder):
+def create_mbprint_pdf(cards, target_file, image_folder, size=None):
     prince_cmd, prince_cwd = _resolve_prince()
     if prince_cmd is None:
         raise Exception("can't export without prince")
 
-    cards.sort(key=lambda x: x.project_number)
+    if size is None:
+        size = EXPORT_SIZES[0][1]
+
+    cards.sort(key=lambda x: natural_sort_key(x.project_number))
 
     target_folder = Path(target_file).parent
     temp_file = target_folder / '_temp.html'
 
     start_time = time()
     with open(temp_file, 'w', encoding='utf-8') as html_file:
-        for txt in _mbprint_html(cards, image_folder):
+        for txt in _mbprint_html(cards, image_folder, size):
             html_file.write(txt)
     print(f"MBPrint html time: {time()-start_time}")
 
@@ -237,18 +241,22 @@ def create_mbprint_pdf(cards, target_file, image_folder):
     print(f"MBPrint pdf time: {time()-start_time}")
 
 
-def azao_pdf(cards, target_file_front, target_file_back, image_folder):
+def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None):
     prince_cmd, prince_cwd = _resolve_prince()
     if prince_cmd is None:
         raise Exception("can't export without prince")
-    cards.sort(key=lambda x: x.project_number)
+
+    if size is None:
+        size = EXPORT_SIZES[0][1]
+
+    cards.sort(key=lambda x: natural_sort_key(x.project_number))
 
     target_folder = Path(target_file_front).parent
     temp_file = target_folder / '_temp.html'
 
     start_time = time()
     with open(temp_file, 'w', encoding='utf-8') as html_file:
-        for txt in _azao_html(cards, image_folder, 'front'):
+        for txt in _azao_html(cards, image_folder, size, 'front'):
             html_file.write(txt)
     print(f"Azao front html time: {time()-start_time}")
 
@@ -260,7 +268,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder):
 
     start_time = time()
     with open(temp_file, 'w', encoding='utf-8') as html_file:
-        for txt in _azao_html(cards, image_folder, 'back'):
+        for txt in _azao_html(cards, image_folder, size, 'back'):
             html_file.write(txt)
     print(f"Azao front html time: {time()-start_time}")
 

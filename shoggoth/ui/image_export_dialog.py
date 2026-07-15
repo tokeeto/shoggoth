@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from shoggoth.card import natural_sort_key
 from shoggoth.i18n import tr
 from shoggoth.settings import EXPORT_SIZES
 import multiprocessing
@@ -296,7 +297,7 @@ class ImageExportDialog(QDialog):
 
     def _run_export(self):
         cards = self._cards_for_scope()
-        cards.sort(key=lambda x: x.project_number)
+        cards.sort(key=lambda x: natural_sort_key(x.project_number))
         if not cards:
             QMessageBox.information(self, tr("IMG_EXPORT_DLG_TITLE"), tr("MSG_NO_CARDS_IN_SET"))
             return
