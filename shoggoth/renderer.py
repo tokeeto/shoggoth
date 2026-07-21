@@ -407,7 +407,7 @@ class CardRenderer:
             sidecar.unlink()
 
     @staticmethod
-    def expected_export_paths(card, folder, size, include_backs=False, format='png', separate_versions=True, filename_format='id', number=0):
+    def expected_export_paths(card, folder, size="", include_backs=False, format='png', separate_versions=True, filename_format='id', number=0):
         """ Get the expected output paths from export_card_images without actually generating images """
         outputs = []
         faces = card.versions

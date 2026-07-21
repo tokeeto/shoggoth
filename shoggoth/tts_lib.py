@@ -1,11 +1,10 @@
 import json
-from logging import currentframe
-import os
 import shoggoth
 from shoggoth import files
 from shoggoth.export_helpers import build_gm_notes_string
 from copy import deepcopy
 from pathlib import Path
+from shoggoth import renderer
 from shoggoth import tts_sync
 
 wrapper_template = {
@@ -184,14 +183,13 @@ campaign_box_template = {
 }
 
 
-def get_image_path(card, side, number, image_folder):
-    return image_folder / f'{card.id}_{card.name}_{side}.webp'
-
-
 def card_to_tts(card, id, number, image_folder):
     data = deepcopy(card_template)
     data['CustomDeck'][id] = deepcopy(inner_card_template)
     data['Tags'] = []
+
+    expected_front, expected_back = renderer.CardRenderer.expected_export_paths(card, image_folder, separate_versions=False, include_backs=True, format='webp')
+
     if card.front.get('type', '') == 'player':
         data['Tags'].append('PlayerCard')
         data['CustomDeck'][id]['FaceURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2342503777940352139/A2D42E7E5C43D045D72CE5CFC907E4F886C8C690/'
@@ -199,26 +197,34 @@ def card_to_tts(card, id, number, image_folder):
         data['Tags'].append('EncounterCard')
         data['CustomDeck'][id]['FaceURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
     else:
-        data['CustomDeck'][id]['FaceURL'] = f'file:///{get_image_path(card, 'front', number, image_folder)}'
+        data['CustomDeck'][id]['FaceURL'] = f'file:///{expected_front}'
 
     if card.back.get('type', '') == 'player':
         data['Tags'].append('PlayerCard')
         data['CustomDeck'][id]['BackURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2342503777940352139/A2D42E7E5C43D045D72CE5CFC907E4F886C8C690/'
     elif card.back.get('type', '') == 'encounter':
-        data['Tags'].append('EncounterCard')
+        data['Tags'].append('ScenarioCard')
         data['CustomDeck'][id]['BackURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
     else:
-        data['CustomDeck'][id]['BackURL'] = f'file:///{get_image_path(card, 'back', number, image_folder)}'
+        data['CustomDeck'][id]['FaceURL'] = f'file:///{expected_back}'
 
     # type tags
-    if 'location' in (card.front.get('type', ''), card.back.get('type', '')):
-        data['Tags'].append('Location')
-    if 'asset' in (card.front.get('type', ''), card.back.get('type', '')):
-        data['Tags'].append('Asset')
-    if 'Act' in (card.front.get('type', ''), card.back.get('type', '')):
-        data['Tags'].append('Act')
-    if 'Agenda' in (card.front.get('type', ''), card.back.get('type', '')):
-        data['Tags'].append('Agenda')
+    TYPE_TAG_MAP = {
+        'location': 'Location',
+        'asset': 'Asset',
+        'act': 'Act',
+        'agenda': 'Agenda',
+        'chaos': 'ScenarioReference',
+    }
+
+    card_types = {
+        card.front.get('type', '').lower(),
+        card.back.get('type', '').lower(),
+    }
+
+    for card_type, formatted_tag in TYPE_TAG_MAP.items():
+        if card_type in card_types:
+            data['Tags'].append(formatted_tag)
 
     data['Description'] = card.name
     data['Nickname'] = card.name
