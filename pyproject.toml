@@ -1,6 +1,6 @@
 [project]
 name = "shoggoth"
-version = "0.8.5"
+version = "0.8.6"
 authors = [{ name = "Toke Ivø", email = "toke.ivo@gmail.com" }]
 description = "A card creator for Arkham Horror: The Card Game"
 readme = "README.md"
@@ -23,7 +23,6 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "pyphen>=0.17.2",
     "pypdfium2>=5.11.0",
-    "qoi>=0.7.2",
 ]
 
 [project.urls]

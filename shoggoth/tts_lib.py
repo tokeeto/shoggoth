@@ -235,14 +235,12 @@ def export_all(project, image_folder, sync=True):
         encounter_wrapper["DeckIDs"] = []
         encounter_wrapper['Nickname'] = encounter.name
         for card in encounter.cards:
-            for index, variant in enumerate(card.versions):
-                encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, index, image_folder))
-                current_id += 1
-                encounter_wrapper["DeckIDs"].append(current_id)
-    for card in project.player_cards:
-        for variant in range(card.amount):
-            wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, variant, image_folder))
+            encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, 0, image_folder))
             current_id += 1
+            encounter_wrapper["DeckIDs"].append(current_id)
+    for card in project.player_cards:
+        wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
+        current_id += 1
 
     return_status = 0
     if files.tts_dir:
@@ -284,10 +282,9 @@ def export_campaign(project, image_folder, sync=True):
         encounter_wrapper["DeckIDs"] = []
         encounter_wrapper['Nickname'] = encounter.name
         for card in encounter.cards:
-            for index, variant in enumerate(card.versions):
-                encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, index, image_folder))
-                current_id += 1
-                encounter_wrapper["DeckIDs"].append(current_id)
+            encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, 0, image_folder))
+            current_id += 1
+            encounter_wrapper["DeckIDs"].append(current_id)
 
     return_status = 0
     if files.tts_dir:
@@ -308,9 +305,8 @@ def export_player_cards(cards, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
     current_id = 6000
     for card in cards:
-        for variant in range(card.amount):
-            wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, variant, image_folder))
-            current_id += 1
+        wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
+        current_id += 1
 
     return_status = 0
     if files.tts_dir:

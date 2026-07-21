@@ -17,7 +17,8 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, Signal, QProcess, Qt
+from PySide6.QtCore import QObject, Signal, QProcess, Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QPushButton, QTextBrowser, QProgressBar,
@@ -33,6 +34,8 @@ from shoggoth.updater import (
 )
 
 logger = logging.getLogger(__name__)
+
+GITHUB_RELEASES_URL = "https://github.com/tokeeto/shoggoth/releases/latest"
 
 
 class FirstRunDownloadDialog(QDialog):
@@ -349,6 +352,7 @@ class UpdateDialog(QDialog):
     UPDATE_NOW = 1
     NOT_NOW = 2
     SKIP_VERSION = 3
+    MANUAL_DOWNLOAD = 4
 
     def __init__(self, version_info: VersionInfo, current_version: str, parent=None):
         super().__init__(parent)
@@ -401,6 +405,10 @@ class UpdateDialog(QDialog):
         skip_btn.clicked.connect(self._on_skip_version)
         button_layout.addWidget(skip_btn)
 
+        manual_btn = QPushButton(tr("BTN_MANUAL_DOWNLOAD"))
+        manual_btn.clicked.connect(self._on_manual_download)
+        button_layout.addWidget(manual_btn)
+
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
@@ -414,6 +422,11 @@ class UpdateDialog(QDialog):
 
     def _on_skip_version(self):
         self.result_action = self.SKIP_VERSION
+        self.reject()
+
+    def _on_manual_download(self):
+        self.result_action = self.MANUAL_DOWNLOAD
+        QDesktopServices.openUrl(QUrl(GITHUB_RELEASES_URL))
         self.reject()
 
 
@@ -521,7 +534,7 @@ class UpdateProgressDialog(QDialog):
         if not self.version_info.download_url:
             self.status_label.setText(tr("MSG_NO_DOWNLOAD_PLATFORM"))
             self.output_log.appendPlainText(tr("MSG_NO_COMPATIBLE_DOWNLOAD"))
-            self.output_log.appendPlainText(tr("MSG_PLEASE_VISIT_URL").format(url="https://github.com/tokeeto/shoggoth/releases/latest"))
+            self.output_log.appendPlainText(tr("MSG_PLEASE_VISIT_URL").format(url=GITHUB_RELEASES_URL))
             self.cancel_btn.setVisible(False)
             self.close_btn.setVisible(True)
             return
@@ -587,7 +600,7 @@ class UpdateProgressDialog(QDialog):
         self.status_label.setText(tr("MSG_DOWNLOAD_FAILED"))
         self.output_log.appendPlainText(tr("MSG_ERROR_DETAIL").format(error=error))
         self.output_log.appendPlainText(tr("MSG_DOWNLOAD_MANUALLY"))
-        self.output_log.appendPlainText("https://github.com/tokeeto/shoggoth/releases/latest")
+        self.output_log.appendPlainText(GITHUB_RELEASES_URL)
         self.cancel_btn.setVisible(False)
         self.close_btn.setVisible(True)
 

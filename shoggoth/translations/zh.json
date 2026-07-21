@@ -545,6 +545,7 @@
   "BTN_UPDATE_NOW": "立即更新",
   "BTN_NOT_NOW": "暂不更新",
   "BTN_SKIP_VERSION": "跳过此版本",
+  "BTN_MANUAL_DOWNLOAD": "手动下载",
   "DLG_UPDATING": "正在更新 Shoggoth",
   "STATUS_STARTING_UPDATE": "正在开始更新...",
   "STATUS_INSTALLING_PIP": "正在通过 pip 安装更新...",

@@ -541,6 +541,7 @@
   "BTN_UPDATE_NOW": "Jetzt updaten",
   "BTN_NOT_NOW": "Nicht jetzt",
   "BTN_SKIP_VERSION": "Diese Version überspringen",
+  "BTN_MANUAL_DOWNLOAD": "Manuell herunterladen",
   "DLG_UPDATING": "Updatet Shoggoth",
   "STATUS_STARTING_UPDATE": "Startet Update...",
   "STATUS_INSTALLING_PIP": "Installiert Update via pip...",

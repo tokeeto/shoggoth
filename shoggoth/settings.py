@@ -329,7 +329,7 @@ class SettingsDialog(QDialog):
 
         # Format dropdown
         self.export_format_combo = QComboBox()
-        self.export_format_combo.addItems(['png', 'jpeg', 'webp', 'qoi'])
+        self.export_format_combo.addItems(['png', 'jpeg', 'webp'])
         self.export_format_combo.setToolTip(
             tr("HELP_FORMAT_OPTIONS")
         )

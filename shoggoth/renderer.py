@@ -8,9 +8,6 @@ from shoggoth.perf import perf
 from pathlib import Path
 import pyvips
 import pypdfium2 as pdfium
-import qoi
-import numpy
-import struct
 import re
 import json
 import functools
@@ -52,30 +49,6 @@ def _pdf_page_dims(path):
         pdf.close()
     return _ImgDims(round(w_pts / 72 * _PDF_DPI), round(h_pts / 72 * _PDF_DPI))
 
-
-def _load_qoi(path) -> Image.Image:
-    """Load a .qoi image via the `qoi` library — pyvips has no QOI loader,
-    and Pillow's own QOI plugin is a slow pure-Python decoder."""
-    arr = qoi.read(str(path))
-    mode = 'RGBA' if arr.shape[2] == 4 else 'RGB'
-    return Image.fromarray(arr, mode)
-
-
-def _qoi_dims(path):
-    """Pixel dimensions of a .qoi image, read straight from the 14-byte header
-    (magic + width + height, big-endian) so this stays as cheap as a header read."""
-    with open(path, 'rb') as f:
-        header = f.read(14)
-    width, height = struct.unpack('>II', header[4:12])
-    return _ImgDims(width, height)
-
-
-def _save_qoi(image, path):
-    """Save a PIL image as .qoi via the `qoi` library — Pillow has a QOI
-    reader but no encoder, so this can't go through Image.save()."""
-    if image.mode not in ('RGB', 'RGBA'):
-        image = image.convert('RGBA' if 'A' in image.mode else 'RGB')
-    qoi.write(str(path), numpy.array(image))
 
 # Named card sizes ("card_size" in the type defaults): content pixels at full
 # render resolution, sharing one px/mm density (1500px = 61.5mm).
@@ -229,8 +202,6 @@ class CardRenderer:
             with perf.span('Read illustration dims (header only)'):
                 if str(path).lower().endswith('.pdf'):
                     self._illus_dims_cache[path] = _pdf_page_dims(path)
-                elif str(path).lower().endswith('.qoi'):
-                    self._illus_dims_cache[path] = _qoi_dims(path)
                 else:
                     vips_image = pyvips.Image.new_from_file(str(path))
                     self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
@@ -254,10 +225,6 @@ class CardRenderer:
         if str(path).lower().endswith('.pdf'):
             with perf.span('Render PDF page to bitmap'):
                 image = _render_pdf_page(path, size)
-        elif str(path).lower().endswith('.qoi'):
-            with perf.span('Load QOI from disk'):
-                img = _load_qoi(path)
-            image = img if img.size == tuple(size) else img.resize(size)
         elif str(path).endswith('.svg'):
             with perf.span('Load+rasterize SVG (vips)'):
                 vips_image = pyvips.Image.new_from_file(str(path))
@@ -288,9 +255,6 @@ class CardRenderer:
                 with perf.span('Render PDF page to bitmap'):
                     dims = _pdf_page_dims(path)
                     self.cache[path] = _render_pdf_page(path, (dims.width, dims.height))
-            elif str(path).lower().endswith('.qoi'):
-                with perf.span('Load QOI from disk'):
-                    self.cache[path] = _load_qoi(path)
             else:
                 with perf.span('Load template/overlay from disk (vips)'):
                     vips_image = pyvips.Image.new_from_file(str(path))
@@ -453,12 +417,7 @@ class CardRenderer:
             image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
         finally:
             capture = self.rich_text.finish_html_capture() if text_as_html else None
-        if file_path.suffix.lower() == '.qoi':
-            # Pillow can read QOI but has no encoder; quality/lossless don't
-            # apply, QOI is always lossless.
-            _save_qoi(image, file_path)
-        else:
-            image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+        image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
         if capture is not None:
             rotation = None
             if rotate and face.get('orientation', 'vertical') == 'horizontal':

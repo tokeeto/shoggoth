@@ -548,6 +548,7 @@
   "BTN_UPDATE_NOW": "Mettre à jour maintenant",
   "BTN_NOT_NOW": "Pas maintenant",
   "BTN_SKIP_VERSION": "Sauter cette version",
+  "BTN_MANUAL_DOWNLOAD": "Téléchargement manuel",
   "DLG_UPDATING": "Mise à jour de Shoggoth",
   "STATUS_STARTING_UPDATE": "Début de la mise à jour...",
   "STATUS_INSTALLING_PIP": "Installation de la mise à jour via pip...",
