@@ -267,12 +267,14 @@ elif platform.system() == 'Windows':
     # EXE() writes its output synchronously (same reason BUNDLE() above can
     # read COLLECT()'s finished output), so by this point both
     # dist/Shoggoth/ and dist/ShoggothLauncher.exe already exist on disk.
-    # Copy the launcher into the main app's onedir folder so every install
-    # already ships the executable it needs for its *next* self-update.
+    # Move (not copy) the launcher into the main app's onedir folder so every
+    # install ships the executable it needs for its *next* self-update, and
+    # the loose top-level dist/ShoggothLauncher.exe doesn't also end up in
+    # the release zip alongside it.
     _launcher_src = os.path.join('dist', 'ShoggothLauncher.exe')
     _launcher_dst = os.path.join('dist', 'Shoggoth', 'ShoggothLauncher.exe')
     if os.path.exists(_launcher_src):
-        shutil.copy2(_launcher_src, _launcher_dst)
+        shutil.move(_launcher_src, _launcher_dst)
 else:
     # Linux: onefile standalone executable
     exe = EXE(

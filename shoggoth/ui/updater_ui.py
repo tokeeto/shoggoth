@@ -656,7 +656,11 @@ class UpdateProgressDialog(QDialog):
         }
         (root_dir / "pending_update.json").write_text(json.dumps(marker))
 
-        subprocess.Popen([str(launcher)], cwd=str(install_dir))
+        # cwd must NOT be install_dir: on Windows a directory that is a running
+        # process's current working directory is locked against rename/delete,
+        # and the launcher's whole job is to rename install_dir out from under
+        # itself. root_dir is where it already reads the marker and writes its log.
+        subprocess.Popen([str(launcher)], cwd=str(root_dir))
 
     def _on_cancel(self):
         if self.process and self.process.state() != QProcess.NotRunning:

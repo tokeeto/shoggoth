@@ -3,8 +3,11 @@ Windows self-update launcher stub.
 
 Built as its own tiny, dependency-free PyInstaller executable
 (ShoggothLauncher.exe) that ships alongside Shoggoth.exe inside the same
-onedir install folder. It is never the user-facing entry point - the main
-app spawns it, right before quitting, only when an update has been staged.
+onedir install folder. Usually invoked by the main app, right before
+quitting, when an update has been staged - but it's also a valid
+user-facing entry point: users see "ShoggothLauncher.exe" sitting next to
+"Shoggoth.exe" and expect double-clicking it to start the app, so with no
+pending update it just launches Shoggoth.exe directly.
 
 Handoff contract: the main app writes a JSON marker at
 `root_dir / "pending_update.json"` (see shoggoth/files.py for root_dir)
@@ -17,12 +20,12 @@ before launching this process:
         "version": "0.7.17"
     }
 
-This process then: waits for the main exe to release its file lock, swaps
-staging_dir into install_dir's place (atomic rename where possible, with
-rollback on failure), cleans up, and relaunches the app. Deliberately
-stdlib-only (plus tkinter, also stdlib) so it rarely needs to change - a
-running exe can't replace itself, so this file does not get updated by its
-own swap logic.
+When that marker is present, this process: waits for the main exe to
+release its file lock, swaps staging_dir into install_dir's place (atomic
+rename where possible, with rollback on failure), cleans up, and relaunches
+the app. Deliberately stdlib-only (plus tkinter, also stdlib) so it rarely
+needs to change - a running exe can't replace itself, so this file does not
+get updated by its own swap logic.
 """
 import sys
 import json
@@ -155,13 +158,23 @@ class _StatusWindow:
             pass
 
 
+def _launch_shoggoth(install_dir: Path, exe_name: str = "Shoggoth.exe") -> None:
+    try:
+        subprocess.Popen([str(install_dir / exe_name)], cwd=str(install_dir))
+    except Exception:
+        logger.exception("Failed to launch Shoggoth")
+
+
 def main():
     _setup_logging()
     logger.info("Launcher starting")
 
     marker = _read_marker()
     if marker is None:
-        logger.info("No pending_update.json marker found; nothing to do")
+        # No update staged - users expect double-clicking ShoggothLauncher.exe
+        # to start the app, same as Shoggoth.exe itself would.
+        logger.info("No pending_update.json marker found; launching Shoggoth directly")
+        _launch_shoggoth(Path(sys.executable).resolve().parent)
         return
 
     try:
@@ -187,7 +200,7 @@ def main():
         _swap(staging_dir, install_dir, status_cb=status.set_text)
 
         status.set_text("Restarting Shoggoth...")
-        subprocess.Popen([str(install_dir / exe_name)], cwd=str(install_dir))
+        _launch_shoggoth(install_dir, exe_name)
     except Exception as exc:
         logger.exception("Update install failed")
         status.close()
@@ -198,11 +211,8 @@ def main():
         )
         # Best effort: relaunch whatever is currently in install_dir, even if
         # the update itself failed, so the user isn't left with nothing.
-        try:
-            if (install_dir / exe_name).exists():
-                subprocess.Popen([str(install_dir / exe_name)], cwd=str(install_dir))
-        except Exception:
-            logger.exception("Failed to relaunch after failed update")
+        if (install_dir / exe_name).exists():
+            _launch_shoggoth(install_dir, exe_name)
         return
     finally:
         MARKER_PATH.unlink(missing_ok=True)
