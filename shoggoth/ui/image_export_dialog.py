@@ -129,7 +129,7 @@ class ImageExportDialog(QDialog):
         format_form.addRow(tr("LABEL_EXPORT_SIZE"), self._size_combo)
 
         self._format_combo = QComboBox()
-        self._format_combo.addItems(['png', 'jpeg', 'webp'])
+        self._format_combo.addItems(['png', 'jpeg', 'webp', 'qoi'])
         self._format_combo.currentTextChanged.connect(self._on_format_changed)
         format_form.addRow(tr("LABEL_FORMAT"), self._format_combo)
 

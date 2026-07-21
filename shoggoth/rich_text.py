@@ -1,4 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
+from collections import OrderedDict
 from contextlib import contextmanager
 import html as html_lib
 import io
@@ -10,6 +11,13 @@ import re
 import pyphen
 from shoggoth.files import font_dir
 from shoggoth.i18n import tr
+from shoggoth.perf import perf
+
+# Bounds _GlyphRunCache: live editing re-renders on every keystroke, so an
+# unbounded cache keyed on exact text would grow by roughly one entry per
+# edited variant of every field, forever, over a long session. Entries are
+# tiny (small grayscale masks), so this cap is generous, not a tight budget.
+_GLYPH_RUN_CACHE_MAXSIZE = 4000
 
 # Only keep regexes for the rare parametric tags (size, margin, indent, font, image)
 _size_re = re.compile(r'<size (\d+)>', flags=re.IGNORECASE)
@@ -96,6 +104,49 @@ def invert_icon(icon):
     icon = ImageOps.invert(icon)
     icon.putalpha(alpha)
     return icon
+
+
+class _GlyphRunCache:
+    """Cache rasterized (mask, offset) results for exact repeated text runs.
+
+    Unlike a per-character cache, this is keyed on the *whole* shaped run
+    (font, text, stroke width), so a cache hit reuses raqm/HarfBuzz's fully
+    kerned output verbatim -- it cannot drift out of sync with kerning or
+    ligatures the way summing per-character advances would. This matters
+    here: profiling showed Arno Pro's kerning shifts even a short run like
+    "The q" by ~4px versus naive per-character advance summation, so only
+    whole-run caching is safe to substitute for ImageDraw.text().
+
+    The only approximation is the sub-pixel hinting phase (the fractional
+    part of the draw position, which FreeType uses to nudge hinting): it's
+    rounded to the nearest quarter-pixel bucket so identical runs drawn at
+    very slightly different sub-pixel offsets still hit the cache. That can
+    only shift antialiasing by a fraction of a pixel, never glyph spacing.
+    """
+    __slots__ = ('_cache',)
+
+    def __init__(self):
+        self._cache = OrderedDict()
+
+    def get(self, font, text, mode, stroke_width, start):
+        qstart = (round(start[0] * 4) / 4, round(start[1] * 4) / 4)
+        key = (id(font), text, mode, stroke_width, qstart)
+        cached = self._cache.get(key)
+        if cached is not None:
+            self._cache.move_to_end(key)
+            return cached
+        mask, offset = font.getmask2(
+            text, mode, stroke_width=stroke_width, anchor='ls', start=qstart,
+        )
+        wrapped = Image.new(mask.mode, (0, 0))._new(mask)
+        result = (wrapped, offset)
+        self._cache[key] = result
+        if len(self._cache) > _GLYPH_RUN_CACHE_MAXSIZE:
+            self._cache.popitem(last=False)
+        return result
+
+    def clear(self):
+        self._cache.clear()
 
 
 class _WidthCache:
@@ -223,6 +274,9 @@ class RichTextRenderer:
 
         # ── Width cache (shared across all renders) ──────────────────────────
         self._wcache = _WidthCache()
+
+        # ── Rasterized glyph-run cache (shared across all renders) ───────────
+        self._glyph_run_cache = _GlyphRunCache()
 
         # ── Hyphenation dictionaries, keyed by card language ──────────────────
         self._hyphen_dicts = {}
@@ -399,24 +453,25 @@ class RichTextRenderer:
     def load_fonts(self, size):
         if size in self.font_cache:
             return self.font_cache[size]
-        loaded_fonts = {}
-        for font_type, font_info in self.fonts.items():
-            # Read into BytesIO so FreeType does not keep the file handle open.
-            # On Windows an open FT_Face holds a CreateFile handle that blocks
-            # the asset updater from overwriting the font file mid-session.
-            font_bytes = io.BytesIO(pathlib.Path(font_info['path']).read_bytes())
-            font = ImageFont.truetype(font_bytes, size)
-            ascent, descent = font.getmetrics()
-            self._font_meta[font] = {
-                # sanitized so user font names are safe inside CSS/HTML quotes
-                'family': 'shoggoth-' + re.sub(r'[^A-Za-z0-9_-]+', '-', font_type),
-                'path': str(font_info['path']),
-                'size': size,
-                'ascent': ascent,
-                'descent': descent,
-            }
-            loaded_fonts[font_type] = font
-        self.font_cache[size] = loaded_fonts
+        with perf.span('load_fonts (disk read + truetype init, all faces)'):
+            loaded_fonts = {}
+            for font_type, font_info in self.fonts.items():
+                # Read into BytesIO so FreeType does not keep the file handle open.
+                # On Windows an open FT_Face holds a CreateFile handle that blocks
+                # the asset updater from overwriting the font file mid-session.
+                font_bytes = io.BytesIO(pathlib.Path(font_info['path']).read_bytes())
+                font = ImageFont.truetype(font_bytes, size)
+                ascent, descent = font.getmetrics()
+                self._font_meta[font] = {
+                    # sanitized so user font names are safe inside CSS/HTML quotes
+                    'family': 'shoggoth-' + re.sub(r'[^A-Za-z0-9_-]+', '-', font_type),
+                    'path': str(font_info['path']),
+                    'size': size,
+                    'ascent': ascent,
+                    'descent': descent,
+                }
+                loaded_fonts[font_type] = font
+            self.font_cache[size] = loaded_fonts
         return loaded_fonts
 
     def clear_caches(self):
@@ -424,6 +479,7 @@ class RichTextRenderer:
         self.font_cache.clear()
         self._font_meta.clear()
         self._wcache.clear()
+        self._glyph_run_cache.clear()
         self.icon_cache.clear()
 
     def _find_system_font(self, name):
@@ -494,7 +550,8 @@ class RichTextRenderer:
             self.font_cache.clear()
             self._user_font_keys[name] = font_key
             return font_key, False
-        system_path = self._find_system_font(name)
+        with perf.span('Scan system fonts for custom <font> tag (fallback)'):
+            system_path = self._find_system_font(name)
         if system_path:
             self.fonts[font_key] = {'path': system_path, 'scale': 1, 'fallback': None}
             self.font_cache.clear()
@@ -1333,9 +1390,25 @@ class RichTextRenderer:
 
     def _render(self, image, commands):
         draw = ImageDraw.Draw(image)
+        fontmode = draw.fontmode
         for cmd in commands:
             c = cmd['cmd']
             if c == 'text' or c == 'glyph':
+                if not cmd['outline']:
+                    # No stroke: reuse a cached, already-shaped (kerned) glyph
+                    # run instead of re-running FreeType/raqm shaping. Stroked
+                    # runs fall through to draw.text unchanged (see
+                    # _GlyphRunCache docstring for why this can't be extended
+                    # to arbitrary per-character composition).
+                    x, y = cmd['x'], cmd['y']
+                    ix, iy = int(x), int(y)
+                    mask, offset = self._glyph_run_cache.get(
+                        cmd['font'], cmd['value'], fontmode, 0, (x - ix, y - iy),
+                    )
+                    px, py = ix + offset[0], iy + offset[1]
+                    if mask.size[0] and mask.size[1]:
+                        image.paste(cmd['fill'], (px, py, px + mask.size[0], py + mask.size[1]), mask)
+                    continue
                 draw.text(
                     (cmd['x'], cmd['y']),
                     cmd['value'],
@@ -1361,7 +1434,8 @@ class RichTextRenderer:
         if not text:
             return
 
-        tokens = self.parse_text(text, project=project)
+        with perf.span('parse_text (tokenize)'):
+            tokens = self.parse_text(text, project=project)
 
         if not font:
             font = 'regular'
@@ -1369,41 +1443,44 @@ class RichTextRenderer:
             min_font_size = font_size // 2
 
         current_size = font_size
-        while current_size >= min_font_size:
-            force = current_size == min_font_size
-            commands, fits, frac = self._layout(
-                tokens, region, polygon, current_size,
-                base_font=font, alignment=alignment,
-                fill=fill, outline=outline, outline_fill=outline_fill,
-                force=force, scale=scale,
-            )
-            if fits or force:
-                if valignment == 'center' and commands:
-                    ys = [cmd['y'] for cmd in commands if 'y' in cmd]
-                    if ys:
-                        text_bottom = max(ys) + int(current_size * LINE_HEIGHT_FACTOR)
-                        text_height = text_bottom - region.y
-                        offset = (region.height - text_height) // 2
-                        if offset > 0:
-                            for cmd in commands:
-                                for key in ('y', 'y1', 'y2'):
-                                    if key in cmd:
-                                        cmd[key] += offset
-                capture = getattr(self._html_tls, 'capture', None)
-                if capture is None:
-                    self._render(image, commands)
-                else:
-                    # Vector text mode: inline images (recolored icons etc.)
-                    # stay raster; text, glyphs, and rules become HTML.
-                    self._render(image, [c for c in commands if c['cmd'] == 'image'])
-                    self._emit_html(capture, commands)
-                break
+        with perf.span('layout shrink-fit loop (_layout, all size steps)'):
+            while current_size >= min_font_size:
+                force = current_size == min_font_size
+                commands, fits, frac = self._layout(
+                    tokens, region, polygon, current_size,
+                    base_font=font, alignment=alignment,
+                    fill=fill, outline=outline, outline_fill=outline_fill,
+                    force=force, scale=scale,
+                )
+                if fits or force:
+                    break
 
-            # Accelerate font-size reduction based on how early the overflow occurred
-            current_size -= 1
-            if 0 < frac < 0.8:
+                # Accelerate font-size reduction based on how early the overflow occurred
                 current_size -= 1
-            if 0 < frac < 0.5:
-                current_size -= 1
-            if 0 < frac < 0.3:
-                current_size -= 1
+                if 0 < frac < 0.8:
+                    current_size -= 1
+                if 0 < frac < 0.5:
+                    current_size -= 1
+                if 0 < frac < 0.3:
+                    current_size -= 1
+
+        if valignment == 'center' and commands:
+            ys = [cmd['y'] for cmd in commands if 'y' in cmd]
+            if ys:
+                text_bottom = max(ys) + int(current_size * LINE_HEIGHT_FACTOR)
+                text_height = text_bottom - region.y
+                offset = (region.height - text_height) // 2
+                if offset > 0:
+                    for cmd in commands:
+                        for key in ('y', 'y1', 'y2'):
+                            if key in cmd:
+                                cmd[key] += offset
+        with perf.span('rasterize (_render/_emit_html)'):
+            capture = getattr(self._html_tls, 'capture', None)
+            if capture is None:
+                self._render(image, commands)
+            else:
+                # Vector text mode: inline images (recolored icons etc.)
+                # stay raster; text, glyphs, and rules become HTML.
+                self._render(image, [c for c in commands if c['cmd'] == 'image'])
+                self._emit_html(capture, commands)

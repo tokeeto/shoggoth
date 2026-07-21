@@ -77,7 +77,7 @@ def sort_cards(cards):
     rest.sort(key=lambda card: (
         not card.get('meta', {}).get('sorting', card.get('sorting', True)), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
         #TODO ^ This can be cleaned up once meta tags are implemented
-        str(type_order.get(card.front['type'], 15)),
+        type_order.get(card.front['type'], 15),
         str(card.front.get('index', 15)),
         class_sort_key(card), # helper to sort the cards within the multi-colored segment if there are any, otherwise defaults to what was here before
         str(card.front.get('level', 15)),
@@ -283,7 +283,7 @@ class Project:
 
     @property
     def player_cards(self):
-        c = [Card(card, project=self) for card in self.data.get('cards', []) if 'encounter_set' not in card]
+        c = [Card(card, project=self) for card in self.data.get('cards', []) if not card.get('encounter_set')]
         sort_cards(c)
         return c
 

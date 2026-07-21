@@ -88,7 +88,7 @@ class TranslationWriter(Writer):
 
         for side in ('front', 'back'):
             orig_data['cards'][card.id][side] = {}
-            for field in ('name', 'text', 'flavor_text', 'subtitle', 'victory', 'traits', 'entries', 'difficulty'):
+            for field in ('name', 'text', 'flavor_text', 'subtitle', 'victory', 'traits', 'entries', 'difficulty', 'chaos_extra'):
                 if field in card.data[side]:
                     orig_data['cards'][card.id][side][field] = card.data[side][field]
 

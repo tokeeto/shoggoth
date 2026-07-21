@@ -4,9 +4,13 @@ from collections import OrderedDict
 from io import BytesIO
 from shoggoth.rich_text import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
+from shoggoth.perf import perf
 from pathlib import Path
 import pyvips
 import pypdfium2 as pdfium
+import qoi
+import numpy
+import struct
 import re
 import json
 import functools
@@ -47,6 +51,31 @@ def _pdf_page_dims(path):
     finally:
         pdf.close()
     return _ImgDims(round(w_pts / 72 * _PDF_DPI), round(h_pts / 72 * _PDF_DPI))
+
+
+def _load_qoi(path) -> Image.Image:
+    """Load a .qoi image via the `qoi` library — pyvips has no QOI loader,
+    and Pillow's own QOI plugin is a slow pure-Python decoder."""
+    arr = qoi.read(str(path))
+    mode = 'RGBA' if arr.shape[2] == 4 else 'RGB'
+    return Image.fromarray(arr, mode)
+
+
+def _qoi_dims(path):
+    """Pixel dimensions of a .qoi image, read straight from the 14-byte header
+    (magic + width + height, big-endian) so this stays as cheap as a header read."""
+    with open(path, 'rb') as f:
+        header = f.read(14)
+    width, height = struct.unpack('>II', header[4:12])
+    return _ImgDims(width, height)
+
+
+def _save_qoi(image, path):
+    """Save a PIL image as .qoi via the `qoi` library — Pillow has a QOI
+    reader but no encoder, so this can't go through Image.save()."""
+    if image.mode not in ('RGB', 'RGBA'):
+        image = image.convert('RGBA' if 'A' in image.mode else 'RGB')
+    qoi.write(str(path), numpy.array(image))
 
 # Named card sizes ("card_size" in the type defaults): content pixels at full
 # render resolution, sharing one px/mm density (1500px = 61.5mm).
@@ -175,8 +204,9 @@ class CardRenderer:
         self.translations = {}
         if self.locale:
             try:
-                with open(translation_dir / f'{self.locale}.json', 'r', encoding='utf-8') as file:
-                    self.translations = json.load(file)
+                with perf.span('Load translation file'):
+                    with open(translation_dir / f'{self.locale}.json', 'r', encoding='utf-8') as file:
+                        self.translations = json.load(file)
             except Exception as e:
                 print('error while loading translation for renderer:', e)
 
@@ -196,11 +226,14 @@ class CardRenderer:
         pyvips reads just the image header, so this is cheap even for large JPEGs.
         """
         if path not in self._illus_dims_cache:
-            if str(path).lower().endswith('.pdf'):
-                self._illus_dims_cache[path] = _pdf_page_dims(path)
-            else:
-                vips_image = pyvips.Image.new_from_file(str(path))
-                self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
+            with perf.span('Read illustration dims (header only)'):
+                if str(path).lower().endswith('.pdf'):
+                    self._illus_dims_cache[path] = _pdf_page_dims(path)
+                elif str(path).lower().endswith('.qoi'):
+                    self._illus_dims_cache[path] = _qoi_dims(path)
+                else:
+                    vips_image = pyvips.Image.new_from_file(str(path))
+                    self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
         return self._illus_dims_cache[path]
 
     def get_illustration_resized_cached(self, path, size) -> Image.Image:
@@ -219,21 +252,30 @@ class CardRenderer:
             return self._illus_resized_lru[key]
 
         if str(path).lower().endswith('.pdf'):
-            image = _render_pdf_page(path, size)
+            with perf.span('Render PDF page to bitmap'):
+                image = _render_pdf_page(path, size)
+        elif str(path).lower().endswith('.qoi'):
+            with perf.span('Load QOI from disk'):
+                img = _load_qoi(path)
+            image = img if img.size == tuple(size) else img.resize(size)
         elif str(path).endswith('.svg'):
-            vips_image = pyvips.Image.new_from_file(str(path))
-            svg_scale = size[0] / vips_image.width
-            if svg_scale > (size[1] / vips_image.height):
-                svg_scale = size[1] / vips_image.height
-            vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
-            image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
+            with perf.span('Load+rasterize SVG (vips)'):
+                vips_image = pyvips.Image.new_from_file(str(path))
+                svg_scale = size[0] / vips_image.width
+                if svg_scale > (size[1] / vips_image.height):
+                    svg_scale = size[1] / vips_image.height
+                vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
+            with perf.span('Convert vips buffer to PIL'):
+                image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
         else:
             # thumbnail() uses JPEG shrink-on-load: decodes at 1/2, 1/4 or 1/8
             # native resolution, so large photos are decoded at a fraction of
             # their full size before the final resize step.
-            vips_image = pyvips.Image.thumbnail(str(path), size[0], height=size[1], size='force')
-            mode = 'RGBA' if vips_image.bands == 4 else 'RGB'
-            image = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
+            with perf.span('Load+shrink illustration from disk (vips thumbnail)'):
+                vips_image = pyvips.Image.thumbnail(str(path), size[0], height=size[1], size='force')
+            with perf.span('Convert vips buffer to PIL'):
+                mode = 'RGBA' if vips_image.bands == 4 else 'RGB'
+                image = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
 
         self._illus_resized_lru[key] = image
         if len(self._illus_resized_lru) > _ILLUS_LRU_MAXSIZE:
@@ -243,36 +285,46 @@ class CardRenderer:
     def get_cached(self, path) -> Image.Image:
         if path not in self.cache:
             if str(path).lower().endswith('.pdf'):
-                dims = _pdf_page_dims(path)
-                self.cache[path] = _render_pdf_page(path, (dims.width, dims.height))
+                with perf.span('Render PDF page to bitmap'):
+                    dims = _pdf_page_dims(path)
+                    self.cache[path] = _render_pdf_page(path, (dims.width, dims.height))
+            elif str(path).lower().endswith('.qoi'):
+                with perf.span('Load QOI from disk'):
+                    self.cache[path] = _load_qoi(path)
             else:
-                vips_image = pyvips.Image.new_from_file(str(path))
-                bands = vips_image.bands
-                mode = 'RGBA' if bands == 4 else 'RGB'
-                self.cache[path] = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
+                with perf.span('Load template/overlay from disk (vips)'):
+                    vips_image = pyvips.Image.new_from_file(str(path))
+                with perf.span('Convert vips buffer to PIL'):
+                    bands = vips_image.bands
+                    mode = 'RGBA' if bands == 4 else 'RGB'
+                    self.cache[path] = Image.frombytes(mode, (vips_image.width, vips_image.height), vips_image.write_to_memory())
         return self.cache[path]
 
     def get_resized_cached(self, path, size) -> Image.Image:
         if (path, size) not in self.resized_cache:
             if str(path).lower().endswith('.pdf'):
-                self.resized_cache[(path, size)] = _render_pdf_page(path, size)
+                with perf.span('Render PDF page to bitmap'):
+                    self.resized_cache[(path, size)] = _render_pdf_page(path, size)
             elif str(path).endswith('.svg'):
-                vips_image = pyvips.Image.new_from_file(str(path))
-                svg_scale = size[0]/vips_image.width
-                if svg_scale > (size[1]/vips_image.height):
-                    svg_scale = size[1]/vips_image.height
-                vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
-                image = Image.frombytes(
-                    'RGBA',
-                    (vips_image.width, vips_image.height),
-                    vips_image.write_to_memory()
-                )
+                with perf.span('Load+rasterize SVG (vips)'):
+                    vips_image = pyvips.Image.new_from_file(str(path))
+                    svg_scale = size[0]/vips_image.width
+                    if svg_scale > (size[1]/vips_image.height):
+                        svg_scale = size[1]/vips_image.height
+                    vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
+                with perf.span('Convert vips buffer to PIL'):
+                    image = Image.frombytes(
+                        'RGBA',
+                        (vips_image.width, vips_image.height),
+                        vips_image.write_to_memory()
+                    )
                 self.resized_cache[(path, size)] = image
             else:
                 img = self.get_cached(path)
                 if img.size == size:
                     return img
-                self.resized_cache[(path, size)] = img.resize(size)
+                with perf.span('Resize cached template/overlay (PIL resize)'):
+                    self.resized_cache[(path, size)] = img.resize(size)
         return self.resized_cache[(path, size)]
 
     def clear_asset_caches(self):
@@ -317,11 +369,18 @@ class CardRenderer:
 
     def get_card_textures(self, card, size, bleed=True, format='jpeg', quality=80, show_regions=False):
         """Render both sides of a card"""
-        # import time
-        # t = time.time()
-        front = self.render_card_side(card, card.front, include_bleed=bleed, show_regions=show_regions, **size)
-        back = self.render_card_side(card, card.back, include_bleed=bleed, show_regions=show_regions, **size)
-        # print(f'get_card_textures in {time.time()-t}')
+        import time
+        t = time.time()
+        perf.reset()
+        with perf.span('render_card_side'):
+            front = self.render_card_side(card, card.front, include_bleed=bleed, show_regions=show_regions, **size)
+        print('render front in', time.time()-t)
+        with perf.span('render_card_side'):
+            back = self.render_card_side(card, card.back, include_bleed=bleed, show_regions=show_regions, **size)
+        print('render back in', time.time()-t)
+        if perf.enabled:
+            print(perf.report(title='--- get_card_textures breakdown ---'))
+        print('render card in', time.time()-t)
         return front, back
 
     @staticmethod
@@ -394,7 +453,12 @@ class CardRenderer:
             image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
         finally:
             capture = self.rich_text.finish_html_capture() if text_as_html else None
-        image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+        if file_path.suffix.lower() == '.qoi':
+            # Pillow can read QOI but has no encoder; quality/lossless don't
+            # apply, QOI is always lossless.
+            _save_qoi(image, file_path)
+        else:
+            image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
         if capture is not None:
             rotation = None
             if rotate and face.get('orientation', 'vertical') == 'horizontal':
@@ -525,37 +589,41 @@ class CardRenderer:
 
         template_bleed = side.get('template_bleed', False)
         try:
-            self.render_illustration(card_image, side, s)
+            with perf.span('render_illustration (base layer)'):
+                self.render_illustration(card_image, side, s)
         except Exception as e:
             logger.error('Failed to render Illustration', e, exc_info=True)
 
         try:
-            self.render_template(card_image, side, bleed, template_bleed)
+            with perf.span('render_template'):
+                self.render_template(card_image, side, bleed, template_bleed)
         except Exception as e:
             logger.error('Failed to render Template', e, exc_info=True)
         if side['type'] == 'investigator' or side.get('illustration_above_template', False):
             try:
-                self.render_illustration(card_image, side, s)
+                with perf.span('render_illustration (over-template layer)'):
+                    self.render_illustration(card_image, side, s)
             except Exception as e:
                 logger.error('Failed to render Illustration second layer', e, exc_info=True)
 
         if not template_bleed:
-            # make fake mirror bleed
-            source_img = card_image.crop((bleed, bleed, width - bleed, height - bleed))
-            flip_lr = ImageOps.mirror(source_img)
-            flip_ud = ImageOps.flip(source_img)
-            flip_corners = ImageOps.flip(flip_lr)
+            with perf.span('Generate mirrored fake bleed'):
+                # make fake mirror bleed
+                source_img = card_image.crop((bleed, bleed, width - bleed, height - bleed))
+                flip_lr = ImageOps.mirror(source_img)
+                flip_ud = ImageOps.flip(source_img)
+                flip_corners = ImageOps.flip(flip_lr)
 
-            # right, left, top, bottom
-            card_image.paste(flip_lr, (width - bleed, bleed))
-            card_image.paste(flip_lr, (bleed - flip_lr.width, bleed))
-            card_image.paste(flip_ud, (bleed, bleed - flip_ud.height))
-            card_image.paste(flip_ud, (bleed, height - bleed))
-            #corners, tl, tr, bl, br
-            card_image.paste(flip_corners, (bleed-flip_corners.width, bleed-flip_corners.height))
-            card_image.paste(flip_corners, (width-bleed, bleed-flip_corners.height))
-            card_image.paste(flip_corners, (bleed-flip_corners.width, height-bleed))
-            card_image.paste(flip_corners, (width-bleed, height-bleed))
+                # right, left, top, bottom
+                card_image.paste(flip_lr, (width - bleed, bleed))
+                card_image.paste(flip_lr, (bleed - flip_lr.width, bleed))
+                card_image.paste(flip_ud, (bleed, bleed - flip_ud.height))
+                card_image.paste(flip_ud, (bleed, height - bleed))
+                #corners, tl, tr, bl, br
+                card_image.paste(flip_corners, (bleed-flip_corners.width, bleed-flip_corners.height))
+                card_image.paste(flip_corners, (width-bleed, bleed-flip_corners.height))
+                card_image.paste(flip_corners, (bleed-flip_corners.width, height-bleed))
+                card_image.paste(flip_corners, (width-bleed, height-bleed))
 
         for func in [
             self.render_level,
@@ -574,7 +642,8 @@ class CardRenderer:
             self.render_images,
         ]:
             try:
-                func(card_image, side, s)
+                with perf.span(func.__name__, at=func):
+                    func(card_image, side, s)
             except Exception as e:
                 logging.debug(f'Failed in {func}:', e, exc_info=True)
                 print(f'Failed in {func}: {e}')
@@ -703,15 +772,36 @@ class CardRenderer:
                     # layer, so rotated fields always stay raster.
                     with self.rich_text.html_capture_paused():
                         temp_image = Image.new('RGBA', region.size, (0, 0, 0, 0))
+                        with perf.span('rich_text.render_text (rotated field)'):
+                            self.rich_text.render_text(
+                                temp_image,
+                                value,
+                                Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
+                                font=font.get('font', 'regular'),
+                                font_size=scale(font.get('size', 20), s),
+                                min_font_size=scale(font.get('min_size', None), s),
+                                fill=font.get('color', '#231f20'),
+                                outline=scale(font.get('outline', None), s),
+                                outline_fill=font.get('outline_color'),
+                                alignment=font.get('alignment', 'left'),
+                                valignment=font.get('valignment', valign),
+                                polygon=polygon,
+                                scale=s,
+                                project=side.card.project,
+                            )
+                        temp_image = temp_image.rotate(font.get('rotation'), expand=True)
+                        card_image.paste(temp_image, (region.x, region.y), temp_image)
+                else:
+                    with perf.span('rich_text.render_text'):
                         self.rich_text.render_text(
-                            temp_image,
+                            card_image,
                             value,
-                            Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
+                            region,
                             font=font.get('font', 'regular'),
                             font_size=scale(font.get('size', 20), s),
                             min_font_size=scale(font.get('min_size', None), s),
                             fill=font.get('color', '#231f20'),
-                            outline=scale(font.get('outline', None), s),
+                            outline=scale(font.get('outline'), s),
                             outline_fill=font.get('outline_color'),
                             alignment=font.get('alignment', 'left'),
                             valignment=font.get('valignment', valign),
@@ -719,25 +809,6 @@ class CardRenderer:
                             scale=s,
                             project=side.card.project,
                         )
-                        temp_image = temp_image.rotate(font.get('rotation'), expand=True)
-                        card_image.paste(temp_image, (region.x, region.y), temp_image)
-                else:
-                    self.rich_text.render_text(
-                        card_image,
-                        value,
-                        region,
-                        font=font.get('font', 'regular'),
-                        font_size=scale(font.get('size', 20), s),
-                        min_font_size=scale(font.get('min_size', None), s),
-                        fill=font.get('color', '#231f20'),
-                        outline=scale(font.get('outline'), s),
-                        outline_fill=font.get('outline_color'),
-                        alignment=font.get('alignment', 'left'),
-                        valignment=font.get('valignment', valign),
-                        polygon=polygon,
-                        scale=s,
-                        project=side.card.project,
-                    )
             except Exception as e:
                 print(f"Error rendering field: {field}\n {e}")
                 continue
@@ -753,10 +824,14 @@ class CardRenderer:
         for key in side.visible_keys():
             if '_region' in key:
                 region = Region(side.get(key), scale)
+                if not region:
+                    continue
                 draw.rectangle((region.x, region.y, region.x + region.width, region.y+region.height), None, string_to_color(key), 2)
                 draw.text((region.x, region.y-22), key, font_size=20, fill=string_to_color(key))
             if '_polygon' in key:
                 polygon = side.get(key)
+                if not polygon:
+                    continue
                 draw.line([(n[0]*scale, n[1]*scale) for n in polygon], string_to_color(key), 5)
                 draw.text((polygon[0][0], polygon[0][1]-22), key, font_size=20, fill=string_to_color(key))
         return card_image
@@ -973,7 +1048,7 @@ class CardRenderer:
             return
 
         if '<class>' in template_value:
-            side_class = side.get('classes', ['guardian'])
+            side_class = side.get('classes', ['neutral'])
             card_class = side_class[0] if len(side_class) == 1 else 'multi'
             template_value = template_value.replace('<class>', card_class)
         if '<class_length>' in template_value:

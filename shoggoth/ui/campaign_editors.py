@@ -136,8 +136,8 @@ class ChaosEditor(FaceEditor):
 
         fields_layout.addWidget(QLabel(tr("FIELD_TOKEN_AREA_HEIGHT")))
         self.token_area_height = QSpinBox()
-        self.token_area_height.setRange(10, 500)
-        self.token_area_height.setValue(100)
+        self.token_area_height.setRange(10, 1000)
+        self.token_area_height.setValue(300)
         self.token_area_height.valueChanged.connect(self.on_token_area_changed)
         fields_layout.addWidget(self.token_area_height)
 
@@ -233,12 +233,12 @@ class ChaosEditor(FaceEditor):
             self.face.set('chaos_extra_region', {
                 'x': 248,
                 'y': 1900 - height,
-                'width': 1140,
+                'width': 1150,
                 'height': height,
             })
 
             chaos_region = dict(self.face.get('chaos_region', {}))
-            chaos_region['height'] = 1220 - 30 - height
+            chaos_region['height'] = 1270 - 30 - height
             self.face.set('chaos_region', chaos_region)
 
             self.face.set('chaos_extra', title)

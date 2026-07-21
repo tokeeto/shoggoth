@@ -10,6 +10,7 @@ from PySide6.QtGui import QAction, QActionGroup
 from shoggoth.files import translation_dir
 from shoggoth.i18n import get_available_languages, get_available_languages_from_dir, tr
 from shoggoth.ui.main_window import exports, help_dialogs, projects
+from shoggoth.ui import snippet_loader
 
 
 def create_menus(window):
@@ -140,6 +141,8 @@ def _create_tools_menu(window, menubar):
                 window.update_manager.check_for_updates_manual)
     _add_action(window, tools_menu, tr("MENU_RESET_ASSETS"),
                 window.reset_assets_dialog)
+    _add_action(window, tools_menu, tr("MENU_SHOW_SNIPPET_FILE"),
+                lambda: snippet_loader.open_snippet_file())
 
 
 def _create_help_menu(window, menubar):

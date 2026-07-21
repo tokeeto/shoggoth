@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt, QTimer, QObject, Signal
 
 from shoggoth.ui.main_window import ShoggothMainWindow
+from shoggoth.ui.snippet_input import SnippetSequenceFilter
 from shoggoth.settings import SettingsManager, apply_appearance
 from shoggoth.i18n import load_language
 from shoggoth import updater
@@ -65,6 +66,11 @@ def main():
     # Create the main window first so the signal connection is established
     # before the background thread can emit.
     window = ShoggothMainWindow()
+
+    # Ctrl+Space snippet sequences (app-wide). Stored on window to keep the
+    # Python wrapper alive for as long as Qt dispatches events to it.
+    window._snippet_filter = SnippetSequenceFilter(app)
+    app.installEventFilter(window._snippet_filter)
 
     # Subsequent runs: run incremental asset update silently in the background.
     # The signal is connected before the thread starts to guarantee delivery
