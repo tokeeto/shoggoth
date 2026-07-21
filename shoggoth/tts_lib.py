@@ -182,49 +182,42 @@ campaign_box_template = {
   "XmlUI": ""
 }
 
+DEFAULT_IMAGES = {
+    'player': 'https://steamusercontent-a.akamaihd.net/ugc/2342503777940352139/A2D42E7E5C43D045D72CE5CFC907E4F886C8C690/',
+    'encounter': 'https://steamusercontent-a.akamaihd.net/ugc/2342503777940351785/F64D8EFB75A9E15446D24343DA0A6EEF5B3E43DB/',
+    'upgradesheet': 'https://steamusercontent-a.akamaihd.net/ugc/1814412497119682452/BD224FCE1980DBA38E5A687FABFD146AA1A30D0E/',
+}
+
+TYPE_TAG_MAP = {
+    'location': 'Location',
+    'asset': 'Asset',
+    'act': 'Act',
+    'agenda': 'Agenda',
+    'chaos': 'ScenarioReference',
+    'player': 'PlayerCard',
+    'encounter': 'ScenarioCard',
+}
+
 
 def card_to_tts(card, id, number, image_folder):
     data = deepcopy(card_template)
     data['CustomDeck'][id] = deepcopy(inner_card_template)
     data['Tags'] = []
 
+    front_type = card.front.get('type', '').lower()
+    back_type = card.back.get('type', '').lower()
+
     expected_front, expected_back = renderer.CardRenderer.expected_export_paths(card, image_folder, separate_versions=False, include_backs=True, format='webp')
 
-    if card.front.get('type', '') == 'player':
-        data['Tags'].append('PlayerCard')
-        data['CustomDeck'][id]['FaceURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2342503777940352139/A2D42E7E5C43D045D72CE5CFC907E4F886C8C690/'
-    elif card.front.get('type', '') == 'encounter':
-        data['Tags'].append('EncounterCard')
-        data['CustomDeck'][id]['FaceURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
-    else:
-        data['CustomDeck'][id]['FaceURL'] = f'file:///{expected_front}'
+    # set the front / back image
+    data['CustomDeck'][id]['FaceURL'] = DEFAULT_IMAGES.get(front_type, f'file:///{expected_front}')
+    data['CustomDeck'][id]['BackURL'] = DEFAULT_IMAGES.get(back_type, f'file:///{expected_back}')
 
-    if card.back.get('type', '') == 'player':
-        data['Tags'].append('PlayerCard')
-        data['CustomDeck'][id]['BackURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2342503777940352139/A2D42E7E5C43D045D72CE5CFC907E4F886C8C690/'
-    elif card.back.get('type', '') == 'encounter':
-        data['Tags'].append('ScenarioCard')
-        data['CustomDeck'][id]['BackURL'] = 'https://steamusercontent-a.akamaihd.net/ugc/2038486699957628515/8202EA3F06FDDD807A34BD6F62FE2E0A0723B8CD/'
-    else:
-        data['CustomDeck'][id]['FaceURL'] = f'file:///{expected_back}'
-
-    # type tags
-    TYPE_TAG_MAP = {
-        'location': 'Location',
-        'asset': 'Asset',
-        'act': 'Act',
-        'agenda': 'Agenda',
-        'chaos': 'ScenarioReference',
-    }
-
-    card_types = {
-        card.front.get('type', '').lower(),
-        card.back.get('type', '').lower(),
-    }
-
-    for card_type, formatted_tag in TYPE_TAG_MAP.items():
-        if card_type in card_types:
-            data['Tags'].append(formatted_tag)
+    # add tags based on type
+    for card_type in {front_type, back_type}:
+        tag = TYPE_TAG_MAP.get(card_type)
+        if tag:
+            data['Tags'].append(tag)
 
     data['Description'] = card.name
     data['Nickname'] = card.name
