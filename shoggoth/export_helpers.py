@@ -235,6 +235,7 @@ _SLOT_TO_SCED = {
     'body': 'Body',
     'accessory': 'Accessory',
     'tarot': 'Tarot',
+    'head': 'Head',
 }
 
 # Shoggoth icon key → SCED icon count field
@@ -245,7 +246,6 @@ _ICON_KEY_TO_SCED = {
     'A': 'agilityIcons',
     'Q': 'wildIcons',
 }
-
 
 _ICON_KEY_TO_SKILL = {
     'W': 'skill_willpower',
@@ -305,16 +305,16 @@ def _sced_location_data(face):
             data['victory'] = _try_int(victory)
         except (ValueError, TypeError):
             pass
-
-    if face.get('clues'):
-        data['uses'] = [{
-            "type": "Clue",
-            "token": "clue"
-        }]
-        if '<per>' in face.get('clues', ''):
-            data['uses'][0]['countPerInvestigator'] = _try_int(face.get('clues').split('<')[0])
-        else:
-            data['uses'][0]['count'] = _try_int(face.get('clues'))
+  
+    clues = face.get('clues')
+    if clues:
+        count, per = parse_per_value(clues)
+        if count is not None:
+            data['uses'] = [{
+                "type": "Clue",
+                "token": "clue",
+                "countPerInvestigator" if per else "count": count,
+            }]
     return data or None
 
 
@@ -328,6 +328,20 @@ def _try_int(value):
         return None
 
 
+def parse_per_value(value):
+    """
+    Removes <per> from a string, then returns the numeric value of the remainder
+    and whether <per> was actually present.
+    """
+    if not value:
+        return None, False
+
+    value = str(value)
+    per = '<per>' in value
+    value = value.replace('<per>', '')
+    return _try_int(value), per
+
+
 def build_gm_notes(card):
     """
     Build the SCED GMNotes metadata dict for a card.
@@ -338,73 +352,77 @@ def build_gm_notes(card):
     notes = {}
 
     notes['id'] = card.id
-    notes['type'] = _TYPE_TO_SCED.get(front_type, 'Asset')
+    notes['type'] = _TYPE_TO_SCED.get(front_type, front_type)
 
     # class / faction
+    classes = card.front.get('classes', [])
+    if isinstance(classes, str):
+        classes = {c.strip().lower() for c in classes.split(',') if c}
+    else:
+        classes = {str(c).strip().lower() for c in classes if c}
+
     if front_type in _ENCOUNTER_TYPES:
         notes['class'] = 'Mythos'
-    else:
-        classes = card.front.get('classes', [])
-        if isinstance(classes, str):
-            classes = [c.strip() for c in classes.split(',') if c.strip()]
-        if classes:
-            sced_classes = [_CLASS_TO_SCED.get(c.lower(), c.title()) for c in classes if c]
-            notes['class'] = '|'.join(sced_classes)
+    elif classes:
+        sced_classes = [_CLASS_TO_SCED.get(c, c.title()) for c in classes if c]
+        notes['class'] = '|'.join(sced_classes)
+
+    # weakness detection via class field
+    if 'weakness' in classes:
+        notes['weakness'] = True
+        if 'basic weakness' in classes:
+            notes['basicWeaknessCount'] = card.amount
 
     # traits (stored as "Trait. Trait." string)
     traits = card.front.get('traits', '')
     if traits:
         notes['traits'] = traits
 
-    if _try_int(card.front.get('cost')):
-        notes['cost'] = _try_int(card.front.get('cost'))
-    notes.update(_sced_icon_counts(card.front))
-
-    if card.front.get('text') and 'Permanent.' in card.front.get('text'):
+    # text-based properties
+    front_text = card.front.get('text', '')
+    if 'Permanent.' in front_text:
         notes['permanent'] = True
+    if 'Hidden.' in front_text:
+        notes['hidden'] = True
 
-    # weakness detection via class field
-    classes = card.front.get('classes', [])
-    if isinstance(classes, str):
-        classes = [c.strip().lower() for c in classes.split(',')]
-    if any(c.lower() == 'weakness' for c in classes if c):
-        notes['weakness'] = True
-    if front_type in ('asset', 'event', 'skill', 'customizable'):
-        level_raw = card.front.get('level', '')
-        if level_raw not in ('', None, 'None', 'Custom'):
-            level = _try_int(level_raw)
-            if level is not None:
-                notes['level'] = level
-
+    # slots
     slot = _sced_slot(card.front)
     if slot:
         notes['slot'] = slot
 
+    # skill icons
+    notes.update(_sced_icon_counts(card.front))
+
+    # investigator stats
     for stat, sced_key in [
         ('willpower', 'willpowerIcons'),
         ('intellect', 'intellectIcons'),
         ('combat', 'combatIcons'),
         ('agility', 'agilityIcons'),
     ]:
-        val = _try_int(card.front.get(stat, ''))
+        val = _try_int(card.front.get(stat))
         if val is not None:
             notes[sced_key] = val
 
-    health = _try_int(card.front.get('health'))
-    if health is not None:
-        notes['health'] = health
+    # fields that are passed through as int
+    for field in ('level', 'cost', 'health', 'sanity', 'victory'):
+        value = _try_int(card.front.get(field))
+        if value is not None:
+            notes[field] = value
 
-    sanity = _try_int(card.front.get('sanity'))
-    if sanity is not None:
-        notes['sanity'] = sanity
+    # doom threshold
+    if front_type == 'agenda':
+        doom, per = parse_per_value(card.front.get('doom'))
+        if doom is not None:
+            notes['doomThresholdPerInvestigator' if per else 'doomThreshold'] = doom
 
-    victory = _try_int(card.front.get('victory', ''))
-    if victory is not None:
-        notes['victory'] = victory
+    # clue threshold
+    if front_type == 'act':
+        clues, per = parse_per_value(card.front.get('clues'))
+        if clues is not None:
+            notes['clueThresholdPerInvestigator' if per else 'clueThreshold'] = clues
 
-    if card.front.get('text') and 'Hidden.' in card.front.get('text'):
-        notes['hidden'] = True
-
+    # location data
     loc_front = _sced_location_data(card.front)
     if loc_front:
         notes['locationFront'] = loc_front
@@ -418,4 +436,4 @@ def build_gm_notes(card):
 
 def build_gm_notes_string(card):
     """Return build_gm_notes(card) serialised as a compact JSON string."""
-    return json.dumps(build_gm_notes(card))
+    return json.dumps(build_gm_notes(card), indent=2)
