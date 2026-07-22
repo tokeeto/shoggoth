@@ -370,8 +370,9 @@ def build_gm_notes(card):
     # weakness detection via class field
     if 'weakness' in classes:
         notes['weakness'] = True
-        if 'basic weakness' in classes:
-            notes['basicWeaknessCount'] = card.amount
+    if 'basic weakness' in classes:
+        notes['weakness'] = True
+        notes['basicWeaknessCount'] = card.amount
 
     # traits (stored as "Trait. Trait." string)
     traits = card.front.get('traits', '')
