@@ -305,16 +305,16 @@ def _sced_location_data(face):
             data['victory'] = _try_int(victory)
         except (ValueError, TypeError):
             pass
-
-    if face.get('clues'):
-        data['uses'] = [{
-            "type": "Clue",
-            "token": "clue"
-        }]
-        if '<per>' in face.get('clues', ''):
-            data['uses'][0]['countPerInvestigator'] = _try_int(face.get('clues').split('<')[0])
-        else:
-            data['uses'][0]['count'] = _try_int(face.get('clues'))
+  
+    clues = face.get('clues')
+    if clues:
+        count, per = parse_per_value(clues)
+        if count is not None:
+            data['uses'] = [{
+                "type": "Clue",
+                "token": "clue",
+                "countPerInvestigator" if per else "count": count,
+            }]
     return data or None
 
 
@@ -328,13 +328,17 @@ def _try_int(value):
         return None
 
 
-def parse_threshold(value):
+def parse_per_value(value):
+    """
+    Removes <per> from a string, then returns the numeric value of the remainder
+    and whether <per> was actually present.
+    """
     if not value:
         return None, False
 
     value = str(value)
     per = '<per>' in value
-    value = value.replace('<per>', '').replace('<dash>', '')
+    value = value.replace('<per>', '')
     return _try_int(value), per
 
 
@@ -408,13 +412,13 @@ def build_gm_notes(card):
 
     # doom threshold
     if front_type == 'agenda':
-        doom, per = parse_threshold(card.front.get('doom'))
+        doom, per = parse_per_value(card.front.get('doom'))
         if doom is not None:
             notes['doomThresholdPerInvestigator' if per else 'doomThreshold'] = doom
 
     # clue threshold
     if front_type == 'act':
-        clues, per = parse_threshold(card.front.get('clues'))
+        clues, per = parse_per_value(card.front.get('clues'))
         if clues is not None:
             notes['clueThresholdPerInvestigator' if per else 'clueThreshold'] = clues
 
