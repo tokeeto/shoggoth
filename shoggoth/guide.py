@@ -206,6 +206,24 @@ _REPLACEMENT_TAGS: dict[str, str] = {
 _ICON_TAGS_SORTED = sorted(_ICON_TAGS.items(), key=lambda kv: len(kv[0]), reverse=True)
 
 
+def _image_uri(project, path_str: str) -> str:
+    """Resolve a guide-stored image path (absolute, or relative to the
+    project folder) to a file:// URI. The guide HTML is piped to Prince over
+    stdin with no base URL, so a bare filesystem path -- especially a
+    relative one, which would otherwise resolve against the app's cwd
+    instead of the project folder -- won't reliably load; a file:// URI
+    always will."""
+    if not path_str:
+        return ''
+    resolved = project.find_file(path_str)
+    if resolved is None:
+        try:
+            resolved = Path(path_str).resolve()
+        except OSError:
+            return path_str
+    return resolved.as_uri()
+
+
 def _apply_icons(text: str) -> str:
     """Replace icon tags with AHLCGSymbol spans before markdown processing."""
     for tag, char in _ICON_TAGS_SORTED:
@@ -234,8 +252,8 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
                 name = parts[0].strip()
                 for es in guide.project.encounter_sets:
                     if es.name.lower() == name.lower() and es.icon:
-                        icon_path = guide.project.find_file(es.icon) or es.icon
-                        return f'<img src="{icon_path.as_uri()}" class="encounter-icon" title="{html_module.escape(name)}">'
+                        icon_uri = _image_uri(guide.project, es.icon)
+                        return f'<img src="{icon_uri}" class="encounter-icon" title="{html_module.escape(name)}">'
                 return m.group(0)
 
             es_id, prop = parts[0].strip(), parts[1].strip()
@@ -243,8 +261,8 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
             if es is None:
                 return m.group(0)
             if prop == 'icon':
-                icon_path = guide.project.find_file(es.icon) or es.icon
-                return f'<img src="{icon_path.as_uri()}" class="encounter-icon" title="{html_module.escape(es.name)}">'
+                icon_uri = _image_uri(guide.project, es.icon)
+                return f'<img src="{icon_uri}" class="encounter-icon" title="{html_module.escape(es.name)}">'
 
             if prop == 'location_overview':
                 export_folder = guide.project.folder / f'Export of {guide.project.name}'
@@ -334,13 +352,13 @@ def _process_lines(lines: list, guide) -> str:
             elif block_type in ('image-top', 'image-bottom', 'image-block', 'image-column', 'image-free'):
                 css = block_type.split('-')[1]
                 src = '\n'.join(inner_lines).strip()
-                src = str(guide.project.find_file(src) or src)
+                src = _image_uri(guide.project, src)
                 block_html = f'<image class="{css}" src="{html_module.escape(src)}">'
 
             elif block_type in ('image-fade-top', 'image-fade-bottom', 'image-fade-block', 'image-fade-column'):
                 css = block_type.split('-')[2]
                 src = '\n'.join(inner_lines).strip()
-                src = str(guide.project.find_file(src) or src)
+                src = _image_uri(guide.project, src)
 
                 params = m.group(2).split(' ')
                 height_param = '100mm'
@@ -411,8 +429,8 @@ def _apply_project_refs(text: str, guide=None) -> str:
         prop = m.group(1).strip()
         try:
             if prop == 'icon':
-                icon_path = guide.project.find_file(guide.project.icon) or guide.project.icon
-                return f'<img src="{icon_path.as_uri()}" class="project-icon">'
+                icon_uri = _image_uri(guide.project, guide.project.icon)
+                return f'<img src="{icon_uri}" class="project-icon">'
             value = getattr(guide.project, prop, None)
             if value is None:
                 value = guide.project.data.get(prop, '')
@@ -553,7 +571,7 @@ class Guide:
 
     def html_format(self, html: str) -> str:
         if self.front_page:
-            html = html.replace("file://{{frontpage}}", Path(self.front_page).resolve().as_uri())
+            html = html.replace("file://{{frontpage}}", _image_uri(self.project, self.front_page))
 
         # the template is written for A4; other paper sizes override @page
         # and use their own background art when the asset pack provides it

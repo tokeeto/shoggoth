@@ -199,6 +199,7 @@ def export(cards, target_file, image_folder, size=None, format='png', include_ba
     cards.sort(key=lambda x: natural_sort_key(x.project_number))
 
     target_folder = Path(target_file).parent
+    target_folder.mkdir(parents=True, exist_ok=True)
     temp_file = target_folder / '_temp.html'
 
     start_time = time()
@@ -225,6 +226,7 @@ def create_mbprint_pdf(cards, target_file, image_folder, size=None):
     cards.sort(key=lambda x: natural_sort_key(x.project_number))
 
     target_folder = Path(target_file).parent
+    target_folder.mkdir(parents=True, exist_ok=True)
     temp_file = target_folder / '_temp.html'
 
     start_time = time()
@@ -252,6 +254,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None
     cards.sort(key=lambda x: natural_sort_key(x.project_number))
 
     target_folder = Path(target_file_front).parent
+    target_folder.mkdir(parents=True, exist_ok=True)
     temp_file = target_folder / '_temp.html'
 
     start_time = time()

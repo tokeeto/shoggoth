@@ -43,8 +43,16 @@ def _default_folder(project):
     return project.folder / f'Export of {project.name}'
 
 
+def _resolve_path(project, value):
+    """Resolve a user-supplied path against the project folder, so relative
+    paths (e.g. './exports') stay meaningful when a profile is shared between
+    machines instead of depending on the app's current working directory."""
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else project.folder / path
+
+
 def _folder_from(project, setting):
-    return Path(setting) if setting else _default_folder(project)
+    return _resolve_path(project, setting) if setting else _default_folder(project)
 
 
 def _export_numbered_cards(parent, renderer, cards, folder, kwargs):
@@ -83,6 +91,7 @@ def _run_images(parent, project, renderer, cards, d):
     from shoggoth.card import natural_sort_key
     cards = sorted(cards, key=lambda c: natural_sort_key(c.project_number))
     folder = _folder_from(project, d['folder'])
+    folder.mkdir(parents=True, exist_ok=True)
     size = _resolve_size(d['size_label'])
     kwargs = dict(
         size=size, bleed=d['bleed'], format=d['format'], quality=d['quality'],
@@ -96,6 +105,8 @@ def _run_pdf(parent, project, renderer, cards, d):
     from shoggoth import pdf_exporter
     folder = _folder_from(project, d['folder'])
     size = _resolve_size(d['size_label'])
+    output_path = str(_resolve_path(project, d['output_path']))
+    back_output_path = str(_resolve_path(project, d['back_output_path'])) if d.get('back_output_path') else None
 
     if d['export_images']:
         if d['flavor'] == 'pdf':
@@ -111,14 +122,14 @@ def _run_pdf(parent, project, renderer, cards, d):
         )
 
     if d['flavor'] == 'azao':
-        pdf_exporter.azao_pdf(cards, d['output_path'], d['back_output_path'], folder, size=size)
-        return f"{d['output_path']}, {d['back_output_path']}"
+        pdf_exporter.azao_pdf(cards, output_path, back_output_path, folder, size=size)
+        return f"{output_path}, {back_output_path}"
     if d['flavor'] == 'mbprint':
-        pdf_exporter.create_mbprint_pdf(cards, d['output_path'], folder, size=size)
+        pdf_exporter.create_mbprint_pdf(cards, output_path, folder, size=size)
     else:
-        pdf_exporter.export(cards, d['output_path'], folder, size=size,
+        pdf_exporter.export(cards, output_path, folder, size=size,
                              format=d['format'], include_backs=d['include_backs'])
-    return d['output_path']
+    return output_path
 
 
 def _run_tts(parent, project, renderer, cards, scope_type, d):
