@@ -12,7 +12,7 @@ from shoggoth.export_helpers import (
 
 
 AB_IMAGE_FORMAT = 'jpg'
-AB_IMAGE_SIZE = {'width': 750, 'height': 1050, 'bleed': 36}
+AB_IMAGE_SIZE = {'width': 750, 'height': 1039, 'bleed': 36}  # MTG trim (default)
 AB_IMAGE_QUALITY = 90
 
 

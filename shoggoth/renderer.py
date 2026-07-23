@@ -50,13 +50,47 @@ def _pdf_page_dims(path):
     return _ImgDims(round(w_pts / 72 * _PDF_DPI), round(h_pts / 72 * _PDF_DPI))
 
 
-# Named card sizes ("card_size" in the type defaults): content pixels at full
-# render resolution, sharing one px/mm density (1500px = 61.5mm).
-# standard = 61.5x88mm, mini = 41x63mm (investigator minis, concealed cards).
+# Named card sizes ("card_size" in the type defaults): the template/region
+# design canvas at full render resolution, sharing one px/mm density (this is
+# a deliberately oversized reference canvas, not the true trim size -- see
+# TRIM_SIZES below).
 CARD_SIZES = {
     'standard': {'width': 1500, 'height': 2100},
     'mini': {'width': 1000, 'height': 1537},
 }
+
+# True physical trim sizes (px, no bleed) for 'standard' cards, at the same
+# px/mm density as CARD_SIZES (1500px = 63.5mm): FFG's official cards trim to
+# 61.5x88mm, the MTG trim (63.5x88mm) is the convention used by most
+# third-party print vendors. Both are narrower/shorter than
+# CARD_SIZES['standard'] (a legacy mismatch), so rather than rescale the
+# template/region layout itself, render_card_side applies these as a centered
+# crop of the rendered canvas -- the same technique already used for the
+# bleed cutout.
+#
+# Tabletop Simulator is a separate case, NOT covered by either entry here:
+# TTS requires the untrimmed CARD_SIZES canvas at an exact multiple of
+# 750x1050 (e.g. 1500x2100), with no bleed -- pass trim=None (see below) to
+# get that raw, uncropped size instead of picking a TRIM_SIZES entry.
+TRIM_SIZES = {
+    'ffg': {'width': 1453, 'height': 2079},
+    'mtg': {'width': 1500, 'height': 2079},
+}
+
+
+def trim_dimensions(size):
+    """The true (no-bleed) output pixel size a size dict will actually
+    produce. size['width'] is the render-resolution driver render_card_side
+    expects, not necessarily the final width -- the 'ffg' trim (see
+    TRIM_SIZES) crops narrower than that. Use this instead of reading
+    size['width']/size['height'] directly for user-facing display."""
+    trim = size.get('trim', 'mtg')
+    s = size['width'] / 1500
+    if not trim:
+        size_px = CARD_SIZES['standard']
+    else:
+        size_px = TRIM_SIZES[trim]
+    return int(size_px['width'] * s), int(size_px['height'] * s)
 
 DEFAULT_TEXT_FIELDS = [
     'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
@@ -328,7 +362,7 @@ class CardRenderer:
 
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
-        image = self.render_card_side(card, card.front, include_bleed=False, width=375, height=525, bleed=18)
+        image = self.render_card_side(card, card.front, include_bleed=False, width=375, height=519, bleed=18)
         return image
 
     def get_card_textures(self, card, size, bleed=True, format='jpeg', quality=80, show_regions=False):
@@ -417,7 +451,7 @@ class CardRenderer:
             image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
         finally:
             capture = self.rich_text.finish_html_capture() if text_as_html else None
-        image.save(file_path, quality=quality, lossless=lossless, compress_level=1)
+        image.save(file_path, quality=quality, lossless=lossless, compress_level=1, method=6)
         if capture is not None:
             rotation = None
             if rotate and face.get('orientation', 'vertical') == 'horizontal':
@@ -527,8 +561,14 @@ class CardRenderer:
         self.card_wo_illus_cache[card] = self.render_card_side(c, side, include_bleed)
         return self.card_wo_illus_cache[card]
 
-    def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72, rotation=False, show_regions=False):
-        """Render one side of a card"""
+    def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72, rotation=False, show_regions=False, trim='mtg'):
+        """Render one side of a card.
+
+        `trim` selects which physical trim size (see TRIM_SIZES) the final
+        image is centered-cropped down to -- 'mtg' (default, matches
+        CARD_SIZES width so it never needs a width crop) or 'ffg' (narrower).
+        Pass None to skip the crop and export the raw CARD_SIZES canvas.
+        """
         s = width / 1500
 
         # Faces may declare a named card size ("card_size" in the type
@@ -613,6 +653,23 @@ class CardRenderer:
                 card_image = self.render_regions(card_image, side, scale=s)
             except Exception as e:
                 print('render region failed', e)
+
+        # trim to the true physical card size: center-crop the (possibly
+        # oversized) CARD_SIZES canvas down to the requested TRIM_SIZES entry
+        if trim and side.get('card_size', 'standard') == 'standard':
+            target = TRIM_SIZES[trim]
+            target_width = int(target['width'] * s) + bleed * 2
+            target_height = int(target['height'] * s) + bleed * 2
+            if side.get('orientation', 'vertical') == 'horizontal':
+                target_width, target_height = target_height, target_width
+            cur_width, cur_height = card_image.size
+            target_width = min(target_width, cur_width)
+            target_height = min(target_height, cur_height)
+            if target_width < cur_width or target_height < cur_height:
+                left = (cur_width - target_width) // 2
+                top = (cur_height - target_height) // 2
+                card_image = card_image.crop((left, top, left + target_width, top + target_height))
+                width, height = card_image.size
 
         # cut out bleed
         if not include_bleed:

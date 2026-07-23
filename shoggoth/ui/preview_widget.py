@@ -4,7 +4,7 @@ Improved card preview widget with zoom, pan, and tabs
 from shoggoth.i18n import tr
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QLabel, QScrollArea,
-    QSizePolicy, QHBoxLayout, QPushButton
+    QSizePolicy, QHBoxLayout, QPushButton, QButtonGroup
 )
 from PySide6.QtCore import Qt, QPoint, Signal
 from PySide6.QtGui import QWheelEvent, QMouseEvent, QPainter, QGuiApplication
@@ -245,11 +245,37 @@ class CardPreviewTab(QWidget):
 class ImprovedCardPreview(QWidget):
     """Improved card preview with tabs for front/back and zoom capabilities"""
 
+    trim_changed = Signal(str)  # 'ffg' or 'mtg'
+
     def __init__(self):
         super().__init__()
 
         layout = QVBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
+
+        # ── Trim toggle (which physical card trim to preview) ────────────
+        trim_row = QHBoxLayout()
+        trim_row.addWidget(QLabel(tr("LABEL_PREVIEW_TRIM")))
+
+        self._ffg_btn = QPushButton(tr("PREVIEW_TRIM_FFG"))
+        self._ffg_btn.setCheckable(True)
+        self._ffg_btn.setChecked(True)
+        self._ffg_btn.setToolTip(tr("TOOLTIP_PREVIEW_TRIM_FFG"))
+
+        self._mtg_btn = QPushButton(tr("PREVIEW_TRIM_MTG"))
+        self._mtg_btn.setCheckable(True)
+        self._mtg_btn.setToolTip(tr("TOOLTIP_PREVIEW_TRIM_MTG"))
+
+        self._trim_group = QButtonGroup(self)
+        self._trim_group.setExclusive(True)
+        self._trim_group.addButton(self._ffg_btn)
+        self._trim_group.addButton(self._mtg_btn)
+        self._ffg_btn.toggled.connect(self._on_trim_toggled)
+
+        trim_row.addWidget(self._ffg_btn)
+        trim_row.addWidget(self._mtg_btn)
+        trim_row.addStretch()
+        layout.addLayout(trim_row)
 
         self.tabs = QTabWidget()
 
@@ -261,6 +287,17 @@ class ImprovedCardPreview(QWidget):
 
         layout.addWidget(self.tabs)
         self.setLayout(layout)
+
+    def _on_trim_toggled(self, ffg_checked):
+        self.trim_changed.emit('ffg' if ffg_checked else 'mtg')
+
+    def set_trim(self, trim):
+        """Set the trim toggle state without emitting trim_changed (for initial sync)."""
+        btn = self._ffg_btn if trim == 'ffg' else self._mtg_btn
+        if not btn.isChecked():
+            btn.blockSignals(True)
+            btn.setChecked(True)
+            btn.blockSignals(False)
 
     def set_card_images(self, front_buffer, back_buffer):
         if front_buffer:

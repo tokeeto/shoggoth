@@ -31,7 +31,7 @@ from watchdog.observers import Observer
 from shoggoth.project import Project
 from shoggoth.renderer import CardRenderer
 
-RENDER_SIZE = {'width': 750, 'height': 1050, 'bleed': 36}
+RENDER_SIZE = {'width': 750, 'height': 1039, 'bleed': 36}
 FACE_GAP = 24  # pixels between front and back in the composed image
 DEBOUNCE_SECONDS = 0.3
 

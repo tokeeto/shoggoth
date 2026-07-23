@@ -84,7 +84,7 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
             'com', 'intellect', 'int', 'willpower', 'action', 'free', 'fast',
             'reaction', 'resource', 'damage', 'horror', 'clues', 'doom',
             'guardian', 'seeker', 'rogue', 'mystic', 'survivor', 'unique',
-            'per', 'per_investigator', 'codex', 'star', 'dash', 'question',
+            'per', 'per_large', 'investigator', 'per_investigator', 'codex', 'star', 'dash', 'question',
             'resolution', 'bullet', 'day', 'night', 'fleur', 'entry', 'sign_1',
             'sign_2', 'sign_3', 'sign_4', 'sign_5'
         }
@@ -257,7 +257,7 @@ class ArkhamTextEdit(QTextEdit):
 
             # Icon tags - resources
             '<resource>', '<damage>', '<horror>', '<clues>', '<doom>',
-            '<per>', '[per_investigator]',
+            '<per>', '<per_large>', '<investigator>', '[per_investigator]',
 
             # Icon tags - classes
             '<guardian>', '<seeker>', '<rogue>', '<mystic>', '<survivor>',

@@ -789,6 +789,7 @@ class SectionEditorPanel(QWidget):
             (tr("INSERT_SNIPPET_IMAGE_BOTTOM"), ":::image-bottom\n/path/to/image.png\n:::\n\n"),
             (tr("INSERT_SNIPPET_IMAGE_COLUMN"), ":::image-column\n/path/to/image.png\n:::\n\n"),
             (tr("INSERT_SNIPPET_IMAGE_BOX"), ":::image-block\n/path/to/image.png\n:::\n\n"),
+            (tr("INSERT_SNIPPET_IMAGE_FREE"), ":::image-free\n/path/to/image.png\n:::\n\n"),
             (tr("INSERT_SNIPPET_IMAGE_FADE_TOP"),  ":::image-fade-top 100% 80mm topright\n/path/to/image.png\n:::\n\n"),
             (tr("INSERT_SNIPPET_IMAGE_FADE_BOTTOM"), ":::image-fade-bottom 100% 80mm center\n/path/to/image.png\n:::\n\n"),
             (tr("INSERT_SNIPPET_IMAGE_FADE_COLUMN"), ":::image-fade-column 100% 100% bottomleft\n/path/to/image.png\n:::\n\n"),

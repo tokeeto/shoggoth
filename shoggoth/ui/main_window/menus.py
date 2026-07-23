@@ -101,37 +101,39 @@ def _create_export_menu(window, menubar):
 
     _add_action(window, export_menu, tr("MENU_QUICK_EXPORT_CURRENT"),
                 lambda: exports.export_current(window), shortcut="Ctrl+E")
-    _add_action(window, export_menu, tr("MENU_EXPORT_IMAGES"),
-                lambda: exports.open_image_export_dialog(window), shortcut="Ctrl+Shift+E")
-
-    # The 3×3 grid of PDF exports: one group per flavor, one entry per scope.
-    # Kept as a list so Prince availability can enable/disable them together.
-    window._pdf_actions = []
-    for flavor in ('pdf', 'mbprint', 'azao'):
-        export_menu.addSeparator()
-        for scope in exports.PDF_SCOPES:
-            action = _add_action(
-                window, export_menu, tr(f"MENU_{scope.upper()}_TO_{flavor.upper()}"),
-                lambda checked=False, s=scope, f=flavor: exports.export_pdf(window, s, f),
-            )
-            window._pdf_actions.append(action)
 
     export_menu.addSeparator()
 
-    # Install Prince (shown when not installed)
-    window._install_prince_action = _add_action(
-        window, export_menu, tr("MENU_INSTALL_PRINCE"),
-        lambda: exports.open_prince_installer(window),
-    )
+    _add_action(window, export_menu, tr("MENU_EXPORT_PROJECT"),
+                lambda: exports.open_project_export_dialog(window), shortcut="Ctrl+Shift+E")
+    _add_action(window, export_menu, tr("MENU_ONE_TIME_EXPORT"),
+                lambda: exports.open_one_time_export_dialog(window))
+
+    setups_menu = export_menu.addMenu(tr("MENU_EXPORT_SETUPS"))
+    setups_menu.aboutToShow.connect(lambda: _populate_setups_menu(window, setups_menu))
 
     export_menu.addSeparator()
 
-    _add_action(window, export_menu, tr("MENU_EXPORT_TTS"),
-                lambda: exports.open_tts_export_dialog(window))
-    _add_action(window, export_menu, tr("MENU_EXPORT_ARKHAM_BUILD"),
-                lambda: exports.open_arkham_build_dialog(window))
+    _add_action(window, export_menu, tr("MENU_INSTALL_PRINCE"),
+                lambda: exports.open_prince_installer(window))
 
-    exports.refresh_pdf_actions(window)
+
+def _populate_setups_menu(window, menu):
+    """Rebuilt every time the Setups submenu is opened, so it always reflects
+    the active project's current saved export profiles with no separate
+    refresh plumbing needed."""
+    menu.clear()
+    project = window.active_project
+    profiles = project.export_profiles if project else []
+    if not profiles:
+        action = menu.addAction(tr("MENU_NO_EXPORT_SETUPS"))
+        action.setEnabled(False)
+        return
+    for profile in profiles:
+        menu.addAction(
+            profile.name,
+            lambda checked=False, pid=profile.id: exports.run_export_profile(window, pid),
+        )
 
 
 def _create_tools_menu(window, menubar):

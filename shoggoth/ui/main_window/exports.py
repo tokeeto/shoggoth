@@ -1,6 +1,7 @@
 """
-Export actions: card images (threaded batch export) and the PDF, TTS,
-and arkham.build export dialogs.
+Export actions: the quick, dialog-free image exports (Ctrl+E, encounter-set
+right-click, "export all") plus the entry points into the unified
+ProjectExportDialog (Images/PDF/TTS/arkham.build/Guides).
 """
 import multiprocessing
 import threading
@@ -137,122 +138,64 @@ def export_current(window, bleed=None, format=None, quality=None, separate_versi
         QMessageBox.critical(window, tr("DLG_EXPORT_ERROR"), tr("ERR_EXPORT_CARD").format(error=e))
 
 
-def open_image_export_dialog(window):
-    """Open the Export to Images modal dialog."""
+def open_project_export_dialog(window):
+    """Open the unified Project Export dialog; edits are saved to the project."""
     if not window.active_project:
         QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
         return
-    from shoggoth.ui.image_export_dialog import ImageExportDialog
-    dialog = ImageExportDialog(window.active_project, window.card_renderer, window)
+    from shoggoth.ui.project_export_dialog import ProjectExportDialog
+    dialog = ProjectExportDialog(window.active_project, window.card_renderer, window, persist=True)
+    dialog.exec()
+
+
+def open_one_time_export_dialog(window):
+    """Open the unified Project Export dialog without saving edits back to the project."""
+    if not window.active_project:
+        QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
+        return
+    from shoggoth.ui.project_export_dialog import ProjectExportDialog
+    dialog = ProjectExportDialog(window.active_project, window.card_renderer, window, persist=False)
     dialog.exec()
 
 
 def open_encounter_set_export_dialog(window, encounter_set=None):
-    """Open the Export to Images modal dialog pre-scoped to an encounter set."""
+    """Open a one-time, images-only Project Export dialog scoped to a single
+    encounter set (the tree's right-click "Export Set" quick action)."""
     if not window.active_project:
         QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
         return
-    from shoggoth.ui.image_export_dialog import ImageExportDialog
-    dialog = ImageExportDialog(window.active_project, window.card_renderer, window,
-                               encounter_set=encounter_set)
+    from shoggoth.ui.project_export_dialog import ProjectExportDialog
+    dialog = ProjectExportDialog(window.active_project, window.card_renderer, window, persist=False)
+    dialog._images_section.set_enabled_checked(True)
+    dialog._pdf_section.set_enabled_checked(False)
+    dialog._tts_section.set_enabled_checked(False)
+    dialog._ab_section.set_enabled_checked(False)
+    dialog._guides_section.set_enabled_checked(False)
+    if encounter_set is not None:
+        dialog._scope_selector.set_scope({'type': 'encounter_sets', 'encounter_set_ids': [encounter_set.id]})
+        dialog._images_section.set_expanded(True)
     dialog.exec()
 
 
-# ── PDF export ────────────────────────────────────────────────────────────
-# The nine PDF menu entries form a grid: scope × flavor.
-
-PDF_SCOPES = ('card', 'campaign', 'player')
-PDF_FLAVORS = {
-    'pdf':     {'mbprint': False, 'azao': False},
-    'mbprint': {'mbprint': True,  'azao': False},
-    'azao':    {'mbprint': False, 'azao': True},
-}
-
-
-def _pdf_cards(window, scope):
-    if scope == 'card':
-        return [window.current_card]
-    if scope == 'campaign':
-        cards = []
-        for es in window.active_project.encounter_sets:
-            cards.extend(es.cards)
-        return cards
-    return list(window.active_project.player_cards)
-
-
-def _pdf_title(scope, flavor):
-    key = f"PDF_DLG_TITLE_{scope.upper()}"
-    if flavor != 'pdf':
-        key += f"_{flavor.upper()}"
-    return tr(key)
-
-
-def _pdf_default_filename(window, scope, flavor):
-    if flavor == 'azao':
-        return "front.pdf"
-    suffix = '_mbprint' if flavor == 'mbprint' else ''
-    if scope == 'card':
-        return f"{window.current_card.name}{suffix}.pdf"
-    scope_name = 'campaign' if scope == 'campaign' else 'player cards'
-    return f"{window.active_project.name} {scope_name}{suffix}.pdf"
-
-
-def export_pdf(window, scope, flavor):
-    """Open the PDF export dialog for a scope ('card', 'campaign', 'player')
-    and flavor ('pdf', 'mbprint', 'azao')."""
-    if scope == 'card':
-        if not window.current_card:
-            QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
-            return
-    elif not window.active_project:
-        QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+def run_export_profile(window, profile_id):
+    """Run one saved export profile immediately, with no dialog and no
+    changes to save (Export -> Setups quick-run menu)."""
+    project = window.active_project
+    if not project:
+        QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
+        return
+    profile = next((p for p in project.export_profiles if p.id == profile_id), None)
+    if profile is None:
         return
 
-    from shoggoth.ui.pdf_export_dialog import PDFExportDialog
-    dialog = PDFExportDialog(
-        window.active_project, window.card_renderer,
-        _pdf_cards(window, scope), _pdf_title(scope, flavor),
-        default_filename=_pdf_default_filename(window, scope, flavor),
-        parent=window,
-        **PDF_FLAVORS[flavor],
-    )
-    dialog.exec()
-
-
-def refresh_pdf_actions(window):
-    """Enable/disable PDF export actions based on whether Prince is installed."""
-    from shoggoth.pdf_exporter import check_prince_installed
-    installed = check_prince_installed()
-    for action in window._pdf_actions:
-        action.setEnabled(installed)
-    window._install_prince_action.setVisible(not installed)
+    from shoggoth.ui.export_runner import run_profile, summarize
+    results, errors = run_profile(window, project, window.card_renderer, profile.data)
+    QMessageBox.information(window, profile.name, summarize(results, errors))
 
 
 def open_prince_installer(window):
-    """Open the Prince installer dialog; re-enable PDF actions on success."""
+    """Open the Prince installer dialog."""
     from shoggoth.ui.prince_installer import PrinceInstallerDialog
     from PySide6.QtWidgets import QDialog
     dialog = PrinceInstallerDialog(parent=window)
-    if dialog.exec() == QDialog.Accepted:
-        refresh_pdf_actions(window)
-
-
-# ── Other export targets ──────────────────────────────────────────────────
-
-def open_tts_export_dialog(window):
-    """Open the TTS export modal dialog."""
-    if not window.active_project:
-        QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
-        return
-    from shoggoth.ui.tts_export_dialog import TTSExportDialog
-    dialog = TTSExportDialog(window.active_project, window.card_renderer, parent=window)
-    dialog.exec()
-
-
-def open_arkham_build_dialog(window):
-    if not window.active_project:
-        QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
-        return
-    from shoggoth.ui.arkham_build_dialog import ArkhamBuildExportDialog
-    dialog = ArkhamBuildExportDialog(window.active_project, window.card_renderer, parent=window)
     dialog.exec()

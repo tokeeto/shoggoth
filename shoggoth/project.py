@@ -7,6 +7,7 @@ from itertools import combinations
 import shoggoth
 from shoggoth.card import TEMPLATES, Card
 from shoggoth.encounter_set import EncounterSet, parse_number_span
+from shoggoth.export_profile import ExportProfile
 from shoggoth.guide import Guide
 from shoggoth.i18n import tr
 from shoggoth.project_writer import Writer, TranslationWriter
@@ -270,6 +271,16 @@ class Project:
         for entry in self.data.get('guides', []):
             result.append(Guide(entry, self))
         return result
+
+    @property
+    def export_profiles(self):
+        """ExportProfile wrappers for this project's saved export setups.
+
+        Note: these wrap the *live* dicts in self.data, so callers that want
+        to edit-without-persisting (see ProjectExportDialog) must deep-copy
+        `.data` themselves rather than mutate through these wrappers.
+        """
+        return [ExportProfile(entry, self) for entry in self.data.get('export_profiles', [])]
 
     @property
     def name(self):

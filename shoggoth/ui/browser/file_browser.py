@@ -4,7 +4,7 @@ and guides, in either a grouped tree view or a flat sortable list.
 """
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QStackedWidget, QTreeWidget,
+    QComboBox, QHBoxLayout, QLabel, QLineEdit, QStackedWidget, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -47,6 +47,21 @@ class FileBrowser(QWidget):
         self.sort_row.hide()
         layout.addWidget(self.sort_row)
 
+        # Filter controls (card list view only, hidden by default)
+        self.filter_row = QWidget()
+        filter_layout = QHBoxLayout(self.filter_row)
+        filter_layout.setContentsMargins(4, 0, 4, 4)
+        filter_layout.addWidget(QLabel(tr("TREE_FILTER_TYPE")))
+        self.type_filter_combo = QComboBox()
+        self.type_filter_combo.addItem(tr("TREE_FILTER_ALL_TYPES"), None)
+        filter_layout.addWidget(self.type_filter_combo)
+        self.name_filter_edit = QLineEdit()
+        self.name_filter_edit.setPlaceholderText(tr("TREE_FILTER_NAME_PLACEHOLDER"))
+        self.name_filter_edit.setClearButtonEnabled(True)
+        filter_layout.addWidget(self.name_filter_edit, 1)
+        self.filter_row.hide()
+        layout.addWidget(self.filter_row)
+
         # Tree widget with drag and drop support
         self.tree = DraggableTreeWidget(self)
         self.tree.setHeaderHidden(True)
@@ -74,6 +89,8 @@ class FileBrowser(QWidget):
         self._programmatic_select = False  # suppresses currentItemChanged during setCurrentItem
 
         self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
+        self.type_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        self.name_filter_edit.textChanged.connect(self._on_filter_changed)
 
         # Context menu handler
         from shoggoth.ui.tree_context_menu import TreeContextMenu
@@ -289,17 +306,49 @@ class FileBrowser(QWidget):
         if mode == 'list':
             self.stacked.setCurrentIndex(1)
             self.sort_row.show()
+            self.filter_row.show()
             self._build_card_list()
         else:
             self.stacked.setCurrentIndex(0)
             self.sort_row.hide()
+            self.filter_row.hide()
             self._full_rebuild()
+
+    def _on_filter_changed(self, *_args):
+        """Handle name/type filter changes; rebuild list if in list mode."""
+        if self._view_mode == 'list':
+            self._build_card_list()
+
+    def _populate_type_filter(self, all_cards):
+        """Refresh the type filter dropdown with the front-face types
+        present across open projects, preserving the current selection."""
+        current = self.type_filter_combo.currentData()
+        types = sorted({
+            card.front.data.get('type')
+            for card in all_cards
+            if card.front.data.get('type')
+        })
+
+        self.type_filter_combo.blockSignals(True)
+        self.type_filter_combo.clear()
+        self.type_filter_combo.addItem(tr("TREE_FILTER_ALL_TYPES"), None)
+        for card_type in types:
+            self.type_filter_combo.addItem(card_type.replace('_', ' ').title(), card_type)
+        idx = self.type_filter_combo.findData(current)
+        self.type_filter_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self.type_filter_combo.blockSignals(False)
 
     def _build_card_list(self):
         """Populate the flat card list view, one section per project."""
         self.list_tree.clear()
         sort_order = self.sort_combo.currentData()
-        for project in self._projects:
+        name_filter = self.name_filter_edit.text().strip().lower()
+
+        cards_by_project = [(project, list(project.cards)) for project in self._projects]
+        self._populate_type_filter([card for _, cards in cards_by_project for card in cards])
+        type_filter = self.type_filter_combo.currentData()
+
+        for project, cards in cards_by_project:
             proj_item = QTreeWidgetItem([project.name])
             proj_item.setData(0, Qt.UserRole, {
                 'type': 'project', 'data': project,
@@ -309,13 +358,17 @@ class FileBrowser(QWidget):
             font.setBold(project == self._active_project)
             proj_item.setFont(0, font)
 
-            cards = list(project.cards)
             if sort_order == 'name':
                 cards.sort(key=lambda c: c.name.lower())
             else:
                 cards.sort(key=lambda c: (natural_sort_key(c.data.get('project_number') or 0), c.name.lower()))
 
             for card in cards:
+                if type_filter and card.front.data.get('type') != type_filter:
+                    continue
+                if name_filter and name_filter not in card.name.lower():
+                    continue
+
                 pnum = card.data.get('project_number', '')
                 if pnum and sort_order == 'project_number':
                     display = f"{pnum}: {card.name}"
@@ -332,6 +385,8 @@ class FileBrowser(QWidget):
 
             self.list_tree.addTopLevelItem(proj_item)
             proj_item.setExpanded(True)
+            if proj_item.childCount() == 0 and (name_filter or type_filter):
+                proj_item.setHidden(True)
 
     def _on_list_item_clicked(self, item, column):
         """Handle click in card list view."""

@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
 from shoggoth.i18n import tr
 
-PREVIEW_SIZE = {'width': 1500, 'height': 2100, 'bleed': 72}
+PREVIEW_SIZE = {'width': 1500, 'height': 2079, 'bleed': 71}
 
 
 class PreviewController(QObject):
@@ -19,12 +19,25 @@ class PreviewController(QObject):
         super().__init__(window)
         self.window = window
         self.render_version = 0  # Tracks render requests, stale results are discarded
+        self.trim = window.config.get('Shoggoth', 'preview_trim', 'ffg')
 
         self.render_timer = QTimer(self)
         self.render_timer.setSingleShot(True)
         self.render_timer.timeout.connect(self._start_background_render)
 
         self.render_result.connect(self._handle_render_result)
+
+    def set_trim(self, trim):
+        """Switch the preview between the FFG and MTG physical trim and rerender."""
+        if trim == self.trim:
+            return
+        self.trim = trim
+        self.window.config.set('Shoggoth', 'preview_trim', trim)
+        self.window.config.save()
+        self.rerender_now()
+
+    def _preview_size(self):
+        return dict(PREVIEW_SIZE, trim=self.trim)
 
     def schedule_update(self):
         """Schedule a debounced background render of the current card"""
@@ -58,10 +71,12 @@ class PreviewController(QObject):
         bleed, show_regions = self._render_options()
         renderer = window.card_renderer
 
+        size = self._preview_size()
+
         def render_task():
             try:
                 front_image, back_image = renderer.get_card_textures(
-                    card, PREVIEW_SIZE, bleed=bleed, show_regions=show_regions
+                    card, size, bleed=bleed, show_regions=show_regions
                 )
                 # Emit result signal (will be handled on main thread)
                 self.render_result.emit(version, front_image, back_image)
@@ -94,7 +109,7 @@ class PreviewController(QObject):
         try:
             bleed, show_regions = self._render_options()
             front_image, back_image = window.card_renderer.get_card_textures(
-                window.current_card, PREVIEW_SIZE, bleed=bleed, show_regions=show_regions
+                window.current_card, self._preview_size(), bleed=bleed, show_regions=show_regions
             )
             window.card_preview.set_card_images(front_image, back_image)
         except Exception as e:

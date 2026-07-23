@@ -145,6 +145,8 @@ class ShoggothMainWindow(QMainWindow):
             QDockWidget.DockWidgetClosable
         )
         self.card_preview = ImprovedCardPreview()
+        self.card_preview.set_trim(self.preview.trim)
+        self.card_preview.trim_changed.connect(self.preview.set_trim)
         self.preview_dock.setWidget(self.card_preview)
 
         # Add dock widget to right side (hidden initially)

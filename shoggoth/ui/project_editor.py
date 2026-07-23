@@ -316,7 +316,7 @@ class ProjectEditor(QWidget):
             if self._stop_thumbnails:
                 break
             try:
-                front_image, _ = self.card_renderer.get_card_textures(card, {'width': 375, 'height': 525, 'bleed': 18}, bleed=False)
+                front_image, _ = self.card_renderer.get_card_textures(card, {'width': 375, 'height': 519, 'bleed': 18}, bleed=False)
 
                 pixmap = QPixmap.fromImage(ImageQt(front_image))
 

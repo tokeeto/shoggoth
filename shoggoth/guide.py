@@ -331,7 +331,7 @@ def _process_lines(lines: list, guide) -> str:
             if block_type == 'toc':
                 block_html = _generate_toc_html(guide)
 
-            elif block_type in ('image-top', 'image-bottom', 'image-block', 'image-column'):
+            elif block_type in ('image-top', 'image-bottom', 'image-block', 'image-column', 'image-free'):
                 css = block_type.split('-')[1]
                 src = '\n'.join(inner_lines).strip()
                 src = str(guide.project.find_file(src) or src)

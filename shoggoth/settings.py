@@ -40,11 +40,22 @@ def apply_appearance(color_scheme: str, ui_style: str):
     else:
         hints.unsetColorScheme()
 
-# Available export sizes: (display label, size dict)
+# Available export sizes: (display label, size dict). 'width' is the render
+# resolution driver render_card_side expects (it derives the true trimmed
+# pixel size internally, see TRIM_SIZES/trim_dimensions in renderer.py); the
+# labels below show that true size. FFG trim (61.5x88mm) is narrower than the
+# MTG trim (63.5x88mm, the convention most third-party print vendors use) --
+# see TRIM_SIZES in renderer.py. Neither is a valid Tabletop Simulator card
+# image size (TTS wants the untrimmed canvas at an exact multiple of
+# 750x1050 -- see tts_lib.TTS_IMAGE_SIZE, which the dedicated TTS export
+# section uses instead of this list).
 EXPORT_SIZES = [
-    ('1500×2100 px', {'width': 1500, 'height': 2100, 'bleed': 72}),
-    ('750×1050 px (Default)', {'width': 750, 'height': 1050, 'bleed': 36}),
-    ('375×525 px', {'width': 375, 'height': 525, 'bleed': 18}),
+    ('FFG 1453×2079 px', {'width': 1500, 'height': 2079, 'bleed': 71, 'trim': 'ffg'}),
+    ('FFG 726×1039 px (Default)', {'width': 750, 'height': 1039, 'bleed': 36, 'trim': 'ffg'}),
+    ('FFG 363×519 px', {'width': 375, 'height': 519, 'bleed': 18, 'trim': 'ffg'}),
+    ('MTG 1500×2079 px', {'width': 1500, 'height': 2079, 'bleed': 71, 'trim': 'mtg'}),
+    ('MTG 750×1039 px', {'width': 750, 'height': 1039, 'bleed': 36, 'trim': 'mtg'}),
+    ('MTG 375×519 px', {'width': 375, 'height': 519, 'bleed': 18, 'trim': 'mtg'}),
 ]
 
 
