@@ -10,8 +10,29 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QImage, QPixmap
 
+from shoggoth.card import natural_sort_key
 from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
+
+# Flat Story tree order: acts first (by index), then agendas, then other story types.
+_STORY_TYPE_ORDER = {
+    'act': 0,
+    'agenda': 1,
+    'chaos': 2,
+    'scenario': 3,
+    'story': 4,
+}
+
+
+def _story_sort_key(spec):
+    card = spec['data']
+    card_type = card.front.get('type', '')
+    index = card.front.get('index') or ''
+    return (
+        _STORY_TYPE_ORDER.get(card_type, 99),
+        natural_sort_key(index),
+        spec['text'].lower(),
+    )
 
 
 def make_inverted_icon(icon_path, project_file_path, size=16):
@@ -161,7 +182,7 @@ def build_tree_spec(project):
             else:
                 story_spec['children'].append(card_spec)
 
-        story_spec['children'].sort(key=lambda s: s['text'].lower())
+        story_spec['children'].sort(key=_story_sort_key)
         location_spec['children'].sort(key=lambda s: s['text'].lower())
         encounter_cat_spec['children'].sort(key=lambda s: s['text'].lower())
 
