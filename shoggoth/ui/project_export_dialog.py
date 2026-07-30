@@ -211,17 +211,36 @@ class ProjectExportDialog(QDialog):
         self._img_rotate = QCheckBox(tr("IMG_EXPORT_ROTATE_OPT"))
         options_form.addRow(tr("IMG_EXPORT_ROTATE_LABEL"), self._img_rotate)
         self._img_bleed = QCheckBox(tr("OPT_INCLUDE_BLEED"))
+        self._img_bleed.setToolTip(tr("HELP_INCLUDE_BLEED"))
+        self._img_bleed.toggled.connect(self._on_img_bleed_toggled)
         options_form.addRow(tr("LABEL_INCLUDE_BLEED"), self._img_bleed)
+
+        self._img_bleed_px = QSpinBox()
+        self._img_bleed_px.setRange(0, 200)
+        self._img_bleed_px.setSuffix(" px")
+        self._img_bleed_px.setToolTip(tr("HELP_BLEED_AMOUNT"))
+        options_form.addRow(tr("LABEL_BLEED_AMOUNT"), self._img_bleed_px)
+        self._img_size_combo.currentIndexChanged.connect(self._on_img_size_changed)
+
         self._img_separate = QCheckBox(tr("OPT_SEPARATE_VERSIONS"))
         options_form.addRow(tr("LABEL_SEPARATE_VERSIONS"), self._img_separate)
         self._img_backs = QCheckBox(tr("OPT_INCLUDE_BACKS"))
         options_form.addRow(tr("LABEL_INCLUDE_BACKS"), self._img_backs)
         layout.addWidget(options_group)
 
+    def _on_img_size_changed(self):
+        size = _resolve_size(self._img_size_combo.currentText())
+        self._img_bleed_px.setValue(size['bleed'])
+
+    def _on_img_bleed_toggled(self, checked):
+        self._img_bleed_px.setEnabled(checked)
+
     def _apply_images(self, d):
         self._images_section.set_enabled_checked(d['enabled'])
         self._img_folder.set_folder(d.get('folder'))
+        self._img_size_combo.blockSignals(True)
         self._img_size_combo.setCurrentIndex(_size_combo_index(self._img_size_combo, d.get('size_label')))
+        self._img_size_combo.blockSignals(False)
         self._img_format_combo.setCurrentText(d.get('format', 'png'))
         self._img_quality_spin.setValue(d.get('quality', 95))
         for i, (key, _) in enumerate(FILENAME_FORMATS):
@@ -229,7 +248,13 @@ class ProjectExportDialog(QDialog):
                 self._img_filename_combo.setCurrentIndex(i)
                 break
         self._img_rotate.setChecked(d.get('rotate', False))
-        self._img_bleed.setChecked(d.get('bleed', True))
+        include_bleed = d.get('bleed', True)
+        self._img_bleed.setChecked(include_bleed)
+        bleed_px = d.get('bleed_px')
+        if bleed_px is None:
+            bleed_px = _resolve_size(self._img_size_combo.currentText())['bleed']
+        self._img_bleed_px.setValue(bleed_px)
+        self._img_bleed_px.setEnabled(include_bleed)
         self._img_separate.setChecked(d.get('separate_versions', False))
         self._img_backs.setChecked(d.get('include_backs', False))
 
@@ -243,6 +268,7 @@ class ProjectExportDialog(QDialog):
             'filename_format': FILENAME_FORMATS[self._img_filename_combo.currentIndex()][0],
             'rotate': self._img_rotate.isChecked(),
             'bleed': self._img_bleed.isChecked(),
+            'bleed_px': self._img_bleed_px.value(),
             'separate_versions': self._img_separate.isChecked(),
             'include_backs': self._img_backs.isChecked(),
         }

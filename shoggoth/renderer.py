@@ -184,6 +184,63 @@ class Region:
         return f'<Region pos({self.x},{self.y}) size({self.width},{self.height})>'
 
 
+def adjust_output_bleed(image, layout_bleed, output_bleed):
+    """Resize the uniform bleed margin without moving card content/labels.
+
+    Rendering always uses `layout_bleed` (the size-preset value regions are
+    authored against). This only crops or pads the already-rendered image so
+    the exported file has `output_bleed` pixels on every side.
+    """
+    if output_bleed is None or layout_bleed is None:
+        return image
+    output_bleed = max(0, int(output_bleed))
+    layout_bleed = max(0, int(layout_bleed))
+    if output_bleed == layout_bleed:
+        return image
+
+    if output_bleed < layout_bleed:
+        delta = layout_bleed - output_bleed
+        return image.crop((delta, delta, image.width - delta, image.height - delta))
+
+    delta = output_bleed - layout_bleed
+    w, h = image.size
+    out = Image.new(image.mode, (w + 2 * delta, h + 2 * delta))
+    out.paste(image, (delta, delta))
+
+    def _mirror_strip(box, flip):
+        strip = image.crop(box)
+        if flip == 'lr':
+            return ImageOps.mirror(strip)
+        return ImageOps.flip(strip)
+
+    # Prefer mirroring existing bleed; fall back to whatever edge is available.
+    edge = max(1, min(delta, layout_bleed or delta, w, h))
+
+    left = _mirror_strip((0, 0, edge, h), 'lr')
+    right = _mirror_strip((w - edge, 0, w, h), 'lr')
+    top = _mirror_strip((0, 0, w, edge), 'ud')
+    bottom = _mirror_strip((0, h - edge, w, h), 'ud')
+
+    for offset in range(0, delta, edge):
+        out.paste(left, (delta - edge - offset, delta))
+        out.paste(right, (delta + w + offset, delta))
+        out.paste(top, (delta, delta - edge - offset))
+        out.paste(bottom, (delta, delta + h + offset))
+
+    tl = ImageOps.flip(ImageOps.mirror(image.crop((0, 0, edge, edge))))
+    tr = ImageOps.flip(ImageOps.mirror(image.crop((w - edge, 0, w, edge))))
+    bl = ImageOps.flip(ImageOps.mirror(image.crop((0, h - edge, edge, h))))
+    br = ImageOps.flip(ImageOps.mirror(image.crop((w - edge, h - edge, w, h))))
+    for x in range(0, delta, edge):
+        for y in range(0, delta, edge):
+            out.paste(tl, (delta - edge - x, delta - edge - y))
+            out.paste(tr, (delta + w + x, delta - edge - y))
+            out.paste(bl, (delta - edge - x, delta + h + y))
+            out.paste(br, (delta + w + x, delta + h + y))
+
+    return out
+
+
 class CardRenderer:
     """Renders card images based on card data"""
 
@@ -405,7 +462,7 @@ class CardRenderer:
         # abcd-012345-abcde-02442_cardname_back_0.png
         return f'{variant.id}_{safe(variant.name)}_{{face}}_{{index}}.{{format}}'
 
-    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0, text_as_html=False):
+    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0, text_as_html=False, output_bleed=None):
         try:
             lossless = quality == 100
             outputs = []
@@ -422,12 +479,12 @@ class CardRenderer:
                     if face['type'] in ('player', 'encounter') and not include_backs:
                         file_path = Path(folder) / f'{face["type"]}.{format}'
                         if not file_path.exists():
-                            self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html)
+                            self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, output_bleed)
                         outputs.append(str(file_path))
                     else:
                         face_letter = 'a' if name == 'front' else 'b'
                         file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter, index=index)
-                        self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html)
+                        self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, output_bleed)
                         outputs.append(str(file_path))
             return outputs
         except Exception as e:
@@ -435,7 +492,7 @@ class CardRenderer:
             print(e)
             logger.error('failed to export card', card, exc_info=True)
 
-    def _export_side(self, variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html):
+    def _export_side(self, variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, output_bleed=None):
         """Render one face and save it, optionally writing an HTML text sidecar.
 
         With text_as_html, rich text is captured as a vector HTML overlay
@@ -449,6 +506,8 @@ class CardRenderer:
             self.rich_text.start_html_capture()
         try:
             image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
+            if bleed and output_bleed is not None:
+                image = adjust_output_bleed(image, size.get('bleed', self.CARD_BLEED), output_bleed)
         finally:
             capture = self.rich_text.finish_html_capture() if text_as_html else None
         image.save(file_path, quality=quality, lossless=lossless, compress_level=1, method=6)

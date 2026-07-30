@@ -25,6 +25,7 @@ DEFAULT_SECTIONS = {
         'filename_format': 'id',
         'rotate': False,
         'bleed': True,
+        'bleed_px': None,  # None = size preset bleed; else output margin only (layout unchanged)
         'separate_versions': False,
         'include_backs': False,
     },

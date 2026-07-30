@@ -92,11 +92,14 @@ def _run_images(parent, project, renderer, cards, d):
     cards = sorted(cards, key=lambda c: natural_sort_key(c.project_number))
     folder = _folder_from(project, d['folder'])
     folder.mkdir(parents=True, exist_ok=True)
-    size = _resolve_size(d['size_label'])
+    # Keep the size preset's layout bleed (regions/templates assume it).
+    # bleed_px only changes the exported margin via output_bleed post-process.
+    size = dict(_resolve_size(d['size_label']))
     kwargs = dict(
         size=size, bleed=d['bleed'], format=d['format'], quality=d['quality'],
         include_backs=d['include_backs'], separate_versions=d['separate_versions'],
         rotate=d['rotate'], filename_format=d['filename_format'],
+        output_bleed=d.get('bleed_px'),
     )
     _export_numbered_cards(parent, renderer, cards, folder, kwargs)
 
