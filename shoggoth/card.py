@@ -299,16 +299,24 @@ class Card:
 
     @property
     def versions(self):
-        if not isinstance(self.encounter_number, str) or '-' not in self.encounter_number:
-            return [self]
+        """Return one Card per printable copy when exporting separately.
 
-        versions = []
-        r = self.encounter_number.split('-')
-        for n in range(int(r[0]), int(r[1]) + 1):
-            cp = Card(self.data.copy(), self.project, self.encounter)
-            cp.encounter_number = n
-            versions.append(cp)
-        return versions
+        Encounter multi-copies use an encounter_number range (e.g. "3-5").
+        Player cards (and others without a range) expand by declared amount.
+        """
+        if isinstance(self.encounter_number, str) and '-' in self.encounter_number:
+            versions = []
+            r = self.encounter_number.split('-')
+            for n in range(int(r[0]), int(r[1]) + 1):
+                cp = Card(self.data.copy(), self.project, self.encounter)
+                cp.encounter_number = n
+                versions.append(cp)
+            return versions
+
+        amount = self.amount
+        if amount > 1:
+            return [self] * amount
+        return [self]
 
     @property
     def code(self):

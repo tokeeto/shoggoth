@@ -50,7 +50,7 @@ Controls how exported files are named. Options include card name, card index, or
 | **Include backs** | Exports the back face of cards alongside the front. Without this, only a single copy of the player back and encounter back will be exported. |
 | **Include bleed** | Adds a bleed border for print services that require it (recommended for printing) |
 | **Rotate** | Ensures all cards are vertical. This is useful for printing layout. If you export for digital purposes, this should be disabled. |
-| **Separate versions** | Exports each version of a multi-version card as a separate file. For instance, if your encounter set has 3 copies of Evil Monster (encounter number 3, 4 and 5), this will export one card with "3/7" one with "4/7", and one with "5/7". Without this option, onely one copy - "3-5/7" - will be exported. |
+| **Separate versions** | Exports each copy of a multi-copy card as a separate file. For encounter cards with an amount of 3 (numbers 3–5), this exports "3/7", "4/7", and "5/7"; without it, only "3-5/7" is exported. For player cards, the declared amount is used the same way (e.g. amount 2 exports two identical image files). |
 
 ---
 
