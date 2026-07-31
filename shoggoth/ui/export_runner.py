@@ -13,13 +13,13 @@ fully finishes before the next starts.
 """
 import json
 import multiprocessing
-import re
 import threading
 from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QProgressDialog
 
+from shoggoth.files import default_export_folder, safe_filename
 from shoggoth.i18n import tr
 from shoggoth.settings import EXPORT_SIZES
 from shoggoth.ui.export_widgets import resolve_scope_cards, run_image_export
@@ -35,12 +35,8 @@ def _resolve_size(label):
     return EXPORT_SIZES[1][1]
 
 
-def _safe_filename(name):
-    return re.sub(r'[^\w\-. ]', '_', name).strip() or 'export'
-
-
 def _default_folder(project):
-    return project.folder / f'Export of {project.name}'
+    return default_export_folder(project)
 
 
 def _resolve_path(project, value):
@@ -102,11 +98,13 @@ def _run_images(parent, project, renderer, cards, d):
 
 
 def _run_pdf(parent, project, renderer, cards, d):
+    import shoggoth
     from shoggoth import pdf_exporter
     folder = _folder_from(project, d['folder'])
     size = _resolve_size(d['size_label'])
     output_path = str(_resolve_path(project, d['output_path']))
     back_output_path = str(_resolve_path(project, d['back_output_path'])) if d.get('back_output_path') else None
+    cmyk_profile = shoggoth.app.config.get('Shoggoth', 'cmyk_profile') or None
 
     if d['export_images']:
         if d['flavor'] == 'pdf':
@@ -122,13 +120,13 @@ def _run_pdf(parent, project, renderer, cards, d):
         )
 
     if d['flavor'] == 'azao':
-        pdf_exporter.azao_pdf(cards, output_path, back_output_path, folder, size=size)
+        pdf_exporter.azao_pdf(cards, output_path, back_output_path, folder, size=size, cmyk_profile=cmyk_profile)
         return f"{output_path}, {back_output_path}"
     if d['flavor'] == 'mbprint':
-        pdf_exporter.create_mbprint_pdf(cards, output_path, folder, size=size)
+        pdf_exporter.create_mbprint_pdf(cards, output_path, folder, size=size, cmyk_profile=cmyk_profile)
     else:
         pdf_exporter.export(cards, output_path, folder, size=size,
-                             format=d['format'], include_backs=d['include_backs'])
+                             format=d['format'], include_backs=d['include_backs'], cmyk_profile=cmyk_profile)
     return output_path
 
 
@@ -173,7 +171,7 @@ def _run_arkham_build(project, d):
 def _run_guides(project, d):
     count = 0
     for guide in project.guides:
-        base = _safe_filename(guide.name)
+        base = safe_filename(guide.name)
         if d['export_pdf']:
             guide.render_to_file(output_path=project.folder / f'{base}.pdf')
         if d['export_html']:

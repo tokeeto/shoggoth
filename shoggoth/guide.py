@@ -224,6 +224,50 @@ def _image_uri(project, path_str: str) -> str:
     return resolved.as_uri()
 
 
+# :::image-free header params -> inline CSS. Restricted to a fixed set of
+# positioning properties so the block stays a simple freeform-placement tool
+# rather than an arbitrary style-injection point.
+_FREE_STYLE_PROPS = {
+    'top': 'top',
+    'bottom': 'bottom',
+    'left': 'left',
+    'right': 'right',
+    'width': 'width',
+    'z-index': 'z-index',
+    'zindex': 'z-index',
+}
+
+
+def _parse_free_style(param_str: str | None) -> str:
+    """Parse 'top=10mm left=5mm width=50mm z-index=2' header params from an
+    :::image-free block into an inline CSS style string."""
+    if not param_str:
+        return ''
+    declarations = []
+    for key, value in re.findall(r'([\w-]+)=(\S+)', param_str):
+        prop = _FREE_STYLE_PROPS.get(key.lower())
+        if prop:
+            declarations.append(f'{prop}: {value};')
+    return ' '.join(declarations)
+
+
+_RELATIVE_PATH_RE = re.compile(r'\{(\.\.?/[^{}\n]+)\}')
+
+
+def _apply_relative_paths(text: str, guide=None) -> str:
+    """Replace {./relative/path} / {../relative/path} with a file:// URI
+    resolved against the project folder, so hand-written HTML such as
+    <img src="{./images/image1.png}"> keeps working when the project folder
+    is shared with someone else (whose project lives at a different path)."""
+    if guide is None or '{.' not in text:
+        return text
+
+    def _replace(m):
+        return _image_uri(guide.project, m.group(1))
+
+    return _RELATIVE_PATH_RE.sub(_replace, text)
+
+
 def _apply_icons(text: str) -> str:
     """Replace icon tags with AHLCGSymbol spans before markdown processing."""
     for tag, char in _ICON_TAGS_SORTED:
@@ -265,7 +309,7 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
                 return f'<img src="{icon_uri}" class="encounter-icon" title="{html_module.escape(es.name)}">'
 
             if prop == 'location_overview':
-                export_folder = guide.project.folder / f'Export of {guide.project.name}'
+                export_folder = files.default_export_folder(guide.project)
                 img_path = (export_folder / f'{es_id}_location_overview.png').resolve()
                 return f'<img src="{img_path.as_uri()}" class="location-overview">'
 
@@ -353,7 +397,12 @@ def _process_lines(lines: list, guide) -> str:
                 css = block_type.split('-')[1]
                 src = '\n'.join(inner_lines).strip()
                 src = _image_uri(guide.project, src)
-                block_html = f'<image class="{css}" src="{html_module.escape(src)}">'
+                style_attr = ''
+                if block_type == 'image-free':
+                    style = _parse_free_style(m.group(2))
+                    if style:
+                        style_attr = f' style="{html_module.escape(style)}"'
+                block_html = f'<image class="{css}" src="{html_module.escape(src)}"{style_attr}>'
 
             elif block_type in ('image-fade-top', 'image-fade-bottom', 'image-fade-block', 'image-fade-column'):
                 css = block_type.split('-')[2]
@@ -478,6 +527,7 @@ def markdown_to_html(md_text: str, guide=None) -> str:
     text = _apply_traits(text)
     text = _apply_project_refs(text, guide)
     text = _apply_card_refs(text, guide)
+    text = _apply_relative_paths(text, guide)
     text = _apply_replacements(text, guide)
     return _process_lines(text.splitlines(), guide)
 

@@ -2,6 +2,7 @@ from pathlib import Path
 from platformdirs import PlatformDirs
 import os
 import platform
+import re
 import shoggoth
 
 dirs = PlatformDirs("Shoggoth", "Shoggoth")
@@ -53,3 +54,14 @@ def set_last_path(id:str, path:Path|str):
     """ Sets the last path used in finding a given resource. """
     shoggoth.app.settings.setdefault('last_paths', {})[id] = str(path)
     shoggoth.app.save_settings()
+
+
+def safe_filename(name: str) -> str:
+    """ Strips characters that are invalid/unsafe in file and folder names. """
+    return re.sub(r'[^\w\-. ]', '_', name).strip() or 'export'
+
+
+def default_export_folder(project) -> Path:
+    """ The default export folder for a project: named after it, but with the
+        name sanitized so path-invalid characters (e.g. '/') don't break it. """
+    return project.folder / f'Export of {safe_filename(project.name)}'

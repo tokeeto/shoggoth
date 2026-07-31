@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from shoggoth.export_profile import default_sections, default_scope
+from shoggoth.files import default_export_folder, safe_filename
 from shoggoth.i18n import tr
 from shoggoth.settings import EXPORT_SIZES
 from shoggoth.ui.export_widgets import FolderPicker, ProfileScopeSelector, CollapsibleSection
@@ -365,7 +366,7 @@ class ProjectExportDialog(QDialog):
         if flavor == 'azao':
             return 'front.pdf'
         suffix = '_mbprint' if flavor == 'mbprint' else ''
-        return f"{self.project.name}{suffix}.pdf"
+        return f"{safe_filename(self.project.name)}{suffix}.pdf"
 
     def _apply_pdf(self, d):
         self._pdf_section.set_enabled_checked(d['enabled'])
@@ -497,7 +498,7 @@ class ProjectExportDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _default_folder(self):
-        return self.project.folder / f'Export of {self.project.name}'
+        return default_export_folder(self.project)
 
     def _apply_profile_to_widgets(self, profile_data, expand):
         self._scope_selector.set_scope(profile_data.get('scope', default_scope()))

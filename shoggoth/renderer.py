@@ -451,6 +451,7 @@ class CardRenderer:
             image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
         finally:
             capture = self.rich_text.finish_html_capture() if text_as_html else None
+
         image.save(file_path, quality=quality, lossless=lossless, compress_level=1, method=6)
         if capture is not None:
             rotation = None

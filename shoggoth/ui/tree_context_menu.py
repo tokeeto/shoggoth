@@ -80,6 +80,24 @@ class TreeContextMenu:
         new_card_action.triggered.connect(lambda: self.new_card_in_encounter(encounter))
         menu.addAction(new_card_action)
 
+        menu.addSeparator()
+
+        # Add Act / Agenda / Enemy / Treachery / Location
+        for label_key, template in (
+            ("CTX_ADD_NEW_ACT", {'front': {'type': 'act'}, 'back': {'type': 'act_back'}}),
+            ("CTX_ADD_NEW_AGENDA", {'front': {'type': 'agenda'}, 'back': {'type': 'agenda_back'}}),
+            ("CTX_ADD_NEW_ENEMY", {'front': {'type': 'enemy'}, 'back': {'type': 'encounter'}}),
+            ("CTX_ADD_NEW_TREACHERY", {'front': {'type': 'treachery'}, 'back': {'type': 'encounter'}}),
+            ("CTX_ADD_NEW_LOCATION", {'front': {'type': 'location'}, 'back': {'type': 'location_back'}}),
+        ):
+            action = QAction(tr(label_key), self.parent)
+            action.triggered.connect(
+                lambda checked=False, tmpl=template: self.new_card_with_template(encounter, tmpl)
+            )
+            menu.addAction(action)
+
+        menu.addSeparator()
+
         # Export Set
         import shoggoth
         export_action = QAction(tr("CTX_EXPORT_SET"), self.parent)
@@ -110,6 +128,13 @@ class TreeContextMenu:
             set_active_action.triggered.connect(lambda: self.set_active_project(project))
             menu.addAction(set_active_action)
             menu.addSeparator()
+
+        # Open File Location
+        open_folder_action = QAction(tr("CTX_OPEN_FOLDER"), self.parent)
+        open_folder_action.triggered.connect(lambda: self.open_project_folder(project))
+        menu.addAction(open_folder_action)
+
+        menu.addSeparator()
 
         # New Encounter Set
         new_encounter_action = QAction(tr("CTX_NEW_ENCOUNTER_SET"), self.parent)
@@ -197,6 +222,25 @@ class TreeContextMenu:
         # Encounter set categories (Story, Locations, Encounter)
         if parent_data and parent_data.get('type') == 'encounter':
             encounter = parent_data.get('data')
+            if category_name == 'Story':
+                act_tmpl = {'front': {'type': 'act'}, 'back': {'type': 'act_back'}}
+                agenda_tmpl = {'front': {'type': 'agenda'}, 'back': {'type': 'agenda_back'}}
+                story_tmpl = {'front': {'type': 'story'}, 'back': {'type': 'story'}}
+                act_action = QAction(tr("CTX_ADD_NEW_ACT"), self.parent)
+                act_action.triggered.connect(lambda: self.new_card_with_template(encounter, act_tmpl))
+                menu.addAction(act_action)
+                agenda_action = QAction(tr("CTX_ADD_NEW_AGENDA"), self.parent)
+                agenda_action.triggered.connect(lambda: self.new_card_with_template(encounter, agenda_tmpl))
+                menu.addAction(agenda_action)
+                story_action = QAction(tr("CTX_ADD_NEW_STORY"), self.parent)
+                story_action.triggered.connect(lambda: self.new_card_with_template(encounter, story_tmpl))
+                menu.addAction(story_action)
+                if self.clipboard:
+                    menu.addSeparator()
+                    paste_action = QAction(tr("CTX_PASTE_CARD"), self.parent)
+                    paste_action.triggered.connect(lambda: self.paste_card(encounter, None))
+                    menu.addAction(paste_action)
+                return
             if category_name == 'Locations':
                 tmpl = {'front': {'type': 'location'}, 'back': {'type': 'location_back'}}
                 action = QAction(tr("CTX_ADD_NEW_LOCATION"), self.parent)
@@ -601,6 +645,14 @@ class TreeContextMenu:
         import shoggoth
         if shoggoth.app:
             shoggoth.app.file_browser.set_active_project(project)
+
+    def open_project_folder(self, project):
+        """Open the folder containing the project file in the OS file browser"""
+        from pathlib import Path
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        folder = Path(project.file_path).parent
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def close_project(self, project):
         """Close a project"""
