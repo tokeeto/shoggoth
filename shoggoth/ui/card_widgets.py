@@ -554,8 +554,17 @@ class IllustrationWidget(QWidget):
         fold_layout = QVBoxLayout(self.fold_widget)
         fold_layout.setContentsMargins(0, 0, 0, 0)
 
+        mirror_row = QHBoxLayout()
         self.mirror_checkbox = QCheckBox(tr("FIELD_MIRROR"))
-        fold_layout.addWidget(self.mirror_checkbox)
+        mirror_row.addWidget(self.mirror_checkbox)
+        self.copy_back_to_front_btn = QPushButton(tr("BTN_COPY_ILLUSTRATION_BACK_TO_FRONT"))
+        self.copy_back_to_front_btn.setToolTip(tr("TOOLTIP_COPY_ILLUSTRATION_BACK_TO_FRONT"))
+        self.copy_front_to_back_btn = QPushButton(tr("BTN_COPY_ILLUSTRATION_FRONT_TO_BACK"))
+        self.copy_front_to_back_btn.setToolTip(tr("TOOLTIP_COPY_ILLUSTRATION_FRONT_TO_BACK"))
+        mirror_row.addWidget(self.copy_back_to_front_btn)
+        mirror_row.addWidget(self.copy_front_to_back_btn)
+        mirror_row.addStretch()
+        fold_layout.addLayout(mirror_row)
 
         self.position_view = IllustrationPositionView()
         self.position_view.pan_committed.connect(self._on_view_pan)

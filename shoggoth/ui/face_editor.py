@@ -184,6 +184,17 @@ class FaceEditor(QWidget):
     LIST_FIELDS = set()  # Fields stored as lists but displayed as comma-separated
     # Fields stored as True when set, and removed (None) rather than False when unset
     BOOL_FIELDS = {'illustration_mirror'}
+    # Layout/image fields copied when syncing front ↔ back illustration settings
+    ILLUSTRATION_COPY_KEYS = (
+        'illustration',
+        'illustration_pan_x',
+        'illustration_pan_y',
+        'illustration_scale',
+        'illustration_mirror',
+        'illustration_rotation',
+        'illustration_greyscale',
+        'illustrator',
+    )
 
     def on_field_changed(self, field_name):
         """Handle field change"""
@@ -399,9 +410,54 @@ class FaceEditor(QWidget):
         illustration.scale_input.input.textChanged.connect(lambda: self.on_field_changed('illustration_scale'))
         illustration.artist_input.input.textChanged.connect(lambda: self.on_field_changed('illustrator'))
         illustration.mirror_checkbox.toggled.connect(lambda: self.on_field_changed('illustration_mirror'))
+        illustration.copy_back_to_front_btn.clicked.connect(
+            lambda: self.copy_illustration_layout('back', 'front'))
+        illustration.copy_front_to_back_btn.clicked.connect(
+            lambda: self.copy_illustration_layout('front', 'back'))
 
         self.main_layout.addWidget(illustration)
         return illustration
+
+    def _card_editor(self):
+        """Walk parents to find the CardEditor that owns both face editors."""
+        parent = self.parent()
+        while parent is not None:
+            if hasattr(parent, 'front_editor') and hasattr(parent, 'back_editor'):
+                return parent
+            parent = parent.parent()
+        return None
+
+    def copy_illustration_layout(self, source_side, dest_side):
+        """Copy illustration path/pan/scale/mirror (etc.) from one face to the other."""
+        card = self.face.card
+        source = card.front if source_side == 'front' else card.back
+        dest = card.front if dest_side == 'front' else card.back
+
+        for key in self.ILLUSTRATION_COPY_KEYS:
+            # Use raw face data so we copy explicit values (or clear them),
+            # not resolved fallbacks / <copy> sentinels.
+            dest.set(key, source.data.get(key))
+
+        card_editor = self._card_editor()
+        dest_editor = None
+        if card_editor is not None:
+            dest_editor = (
+                card_editor.front_editor if dest_side == 'front'
+                else card_editor.back_editor
+            )
+        if dest_editor is not None:
+            dest_editor.load_data()
+            iw = getattr(dest_editor, 'illustration_widget', None)
+            if iw is not None:
+                iw.sync_viewport()
+                iw.update_scale_warning()
+
+        parent = card_editor if card_editor is not None else self
+        while parent is not None:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
 
     def enter_translation_mode(self):
         """Hide non-translatable fields."""
