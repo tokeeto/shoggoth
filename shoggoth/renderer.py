@@ -439,14 +439,20 @@ class CardRenderer:
         return front, back
 
     @staticmethod
-    def _filename_base(variant, filename_format):
-        """Return the base filename stem for a card variant."""
+    def _filename_base(variant, filename_format, multi_version=False):
+        """Return the base filename stem for a card variant.
+
+        When multi_version is True and the format would otherwise collide
+        across identical copies (player amount expansion), include {index}.
+        """
         import re
         def safe(s):
             return re.sub(r'[^\w\-.]', '_', str(s)).lower()
 
         if filename_format == 'name':
-            # 1_cardname_back.png
+            # 1_cardname_back.png  (or ..._back_0.png for duplicate copies)
+            if multi_version and not variant.encounter:
+                return f'{variant.project_number}_{safe(variant.name)}_{{face}}_{{index}}.{{format}}'
             return f'{variant.project_number}_{safe(variant.name)}_{{face}}.{{format}}'
         if filename_format == 'order':
             # 001-card-a.png
@@ -457,6 +463,8 @@ class CardRenderer:
             if variant.encounter:
                 enc_code = variant.encounter.get('code', '') or safe(variant.encounter.name)
                 return f'{project_code}_{enc_code}_{variant.encounter_number}_{{face}}.{{format}}'
+            if multi_version:
+                return f'{project_code}_{variant.project_number}_{{face}}_{{index}}.{{format}}'
             return f'{project_code}_{variant.project_number}_{{face}}.{{format}}'
         # default
         # abcd-012345-abcde-02442_cardname_back_0.png
@@ -471,9 +479,10 @@ class CardRenderer:
             faces = card.versions
             if not separate_versions:
                 faces = [card]
+            multi_version = len(faces) > 1
 
             for index, variant in enumerate(faces):
-                base = self._filename_base(variant, filename_format)
+                base = self._filename_base(variant, filename_format, multi_version=multi_version)
                 for face, name in ((variant.front, 'front'), (variant.back, 'back')):
                     # if this is a repeated card, only export it once
                     if face['type'] in ('player', 'encounter') and not include_backs:
@@ -529,9 +538,10 @@ class CardRenderer:
         faces = card.versions
         if not separate_versions:
             faces = [card]
+        multi_version = len(faces) > 1
 
         for index, variant in enumerate(faces):
-            base = CardRenderer._filename_base(variant, filename_format)
+            base = CardRenderer._filename_base(variant, filename_format, multi_version=multi_version)
             for face, name in ((variant.front, 'front'), (variant.back, 'back')):
                 # if this is a repeated card, only export it once
                 if face['type'] in ('player', 'encounter') and not include_backs:
