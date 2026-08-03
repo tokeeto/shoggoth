@@ -137,6 +137,13 @@ def open_asset_location(parent):
     dialog.exec()
 
 
+def open_shoggoth_location(parent):
+    """Open the folder containing the currently running Shoggoth executable"""
+    import sys
+    exe_dir = Path(sys.executable).parent
+    QDesktopServices.openUrl(QUrl.fromLocalFile(str(exe_dir)))
+
+
 def show_text_options(window):
     """Show text formatting options"""
     from PySide6.QtWidgets import QPlainTextEdit

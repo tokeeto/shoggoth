@@ -253,7 +253,7 @@ class Card:
 
     @property
     def name(self):
-        return self.data['name']
+        return self.data.get('name', 'Unnamed card')
 
     @property
     def amount(self):

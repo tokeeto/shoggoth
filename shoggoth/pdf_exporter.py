@@ -12,8 +12,8 @@ from pathlib import Path
 from shoggoth.files import prince_dir as _local_prince_dir
 
 # Printed card size for the one-card-per-page exports (mbprint, azao)
-_CARD_W_MM = 66.5
-_CARD_H_MM = 91
+_CARD_W_MM = 67.5
+_CARD_H_MM = 94
 _CSS_PX_PER_MM = 96 / 25.4
 
 
@@ -92,6 +92,21 @@ def check_prince_installed():
     return _local_prince_bin().exists()
 
 
+def _color_management_args(cmyk_profile):
+    """Prince flags that convert the PDF to a press-ready CMYK color space
+    tagged with the given ICC output-intent profile (e.g. a Fogra39L
+    profile for a professional print shop). Returns [] when no profile is
+    configured, leaving output as plain sRGB (the right default for home
+    printing, where the OS/printer driver does its own color management)."""
+    if not cmyk_profile:
+        return []
+    return [
+        '--pdf-profile=PDF/X-4',
+        f'--pdf-output-intent={cmyk_profile}',
+        '--convert-colors',
+    ]
+
+
 # Shared page setup for the one-card-per-page exports. Each card is a
 # positioned .card box so a vector text overlay can sit on top of the image.
 _CARD_PAGE_HEAD = f"""
@@ -166,8 +181,8 @@ def _pdf_html(cards, folder, size, format='png', include_backs=False):
                 img {
                     -prince-image-resolution: 900dpi;
                     break-before: page;
-                    width: 66.5mm;
-                    height: 91mm;
+                    width: 67.5mm;
+                    height: 94mm;
                     display: inline-block;
                     margin: 2mm;
                 }
@@ -188,7 +203,7 @@ def _pdf_html(cards, folder, size, format='png', include_backs=False):
     yield "</body>"
 
 
-def export(cards, target_file, image_folder, size=None, format='png', include_backs=False):
+def export(cards, target_file, image_folder, size=None, format='png', include_backs=False, cmyk_profile=None):
     prince_cmd, prince_cwd = _resolve_prince()
     if prince_cmd is None:
         raise Exception("can't export without prince")
@@ -209,13 +224,13 @@ def export(cards, target_file, image_folder, size=None, format='png', include_ba
 
     print(f"PDF html time: {time()-start_time}")
     subprocess.run(
-        [prince_cmd, temp_file, '-o', Path(target_file)],
+        [prince_cmd, temp_file, *_color_management_args(cmyk_profile), '-o', Path(target_file)],
         cwd=prince_cwd,
     )
     print(f"PDF time: {time()-start_time}")
 
 
-def create_mbprint_pdf(cards, target_file, image_folder, size=None):
+def create_mbprint_pdf(cards, target_file, image_folder, size=None, cmyk_profile=None):
     prince_cmd, prince_cwd = _resolve_prince()
     if prince_cmd is None:
         raise Exception("can't export without prince")
@@ -236,14 +251,14 @@ def create_mbprint_pdf(cards, target_file, image_folder, size=None):
     print(f"MBPrint html time: {time()-start_time}")
 
     subprocess.run(
-        [prince_cmd, temp_file, '-o', Path(target_file)],
+        [prince_cmd, temp_file, *_color_management_args(cmyk_profile), '-o', Path(target_file)],
         cwd=prince_cwd,
     )
 
     print(f"MBPrint pdf time: {time()-start_time}")
 
 
-def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None):
+def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None, cmyk_profile=None):
     prince_cmd, prince_cwd = _resolve_prince()
     if prince_cmd is None:
         raise Exception("can't export without prince")
@@ -256,6 +271,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None
     target_folder = Path(target_file_front).parent
     target_folder.mkdir(parents=True, exist_ok=True)
     temp_file = target_folder / '_temp.html'
+    color_args = _color_management_args(cmyk_profile)
 
     start_time = time()
     with open(temp_file, 'w', encoding='utf-8') as html_file:
@@ -264,7 +280,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None
     print(f"Azao front html time: {time()-start_time}")
 
     subprocess.run(
-        [prince_cmd, temp_file, '-o', Path(target_file_front)],
+        [prince_cmd, temp_file, *color_args, '-o', Path(target_file_front)],
         cwd=prince_cwd,
     )
     print(f"Azao pdf front time: {time()-start_time}")
@@ -276,7 +292,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None
     print(f"Azao front html time: {time()-start_time}")
 
     subprocess.run(
-        [prince_cmd, temp_file, '-o', Path(target_file_back)],
+        [prince_cmd, temp_file, *color_args, '-o', Path(target_file_back)],
         cwd=prince_cwd,
     )
     print(f"Azao pdf front time: {time()-start_time}")
