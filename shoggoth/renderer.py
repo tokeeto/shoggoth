@@ -1229,19 +1229,24 @@ class CardRenderer:
                 token_surface.paste(token_image, (0, int(token_size*1.1) * token_index), token_image)
 
             text_surface = Image.new('RGBA', region.size, (255, 255, 255, 0))
-            self.rich_text.render_text(
-                text_surface,
-                entry.get('text', ''),
-                Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-token_size*2}),
-                font=font.get('font', 'regular'),
-                font_size=int(font.get('size', 32)*s),
-                fill=font.get('color', '#231f20'),
-                outline=int(font.get('outline', 0)*s),
-                outline_fill=font.get('outline_color'),
-                alignment=font.get('alignment', 'left'),
-                scale=s,
-                project=side.card.project,
-            )
+            # Entries are laid out onto a local offscreen surface, then pasted at a
+            # position only known after every entry's rendered height is measured
+            # (see the weights/weight_pixels pass below). The HTML text layer can't
+            # express that two-pass, surface-relative placement, so it stays raster.
+            with self.rich_text.html_capture_paused():
+                self.rich_text.render_text(
+                    text_surface,
+                    entry.get('text', ''),
+                    Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-token_size*2}),
+                    font=font.get('font', 'regular'),
+                    font_size=int(font.get('size', 32)*s),
+                    fill=font.get('color', '#231f20'),
+                    outline=int(font.get('outline', 0)*s),
+                    outline_fill=font.get('outline_color'),
+                    alignment=font.get('alignment', 'left'),
+                    scale=s,
+                    project=side.card.project,
+                )
             surfaces.append((token_surface, text_surface))
 
         weights = [max(n.getbbox()[3] if n.getbbox() else 0, m.getbbox()[3]if m.getbbox() else 0) for n, m in surfaces]
