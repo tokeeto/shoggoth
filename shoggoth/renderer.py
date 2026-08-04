@@ -671,6 +671,7 @@ class CardRenderer:
                 top = (cur_height - target_height) // 2
                 card_image = card_image.crop((left, top, left + target_width, top + target_height))
                 width, height = card_image.size
+                self.rich_text.shift_html_capture(left, top)
 
         # cut out bleed
         if not include_bleed:
@@ -680,6 +681,7 @@ class CardRenderer:
                 card_image.width - bleed,
                 card_image.height - bleed
             ))
+            self.rich_text.shift_html_capture(bleed, bleed)
 
         # mark bleed area red
         if include_bleed == 'mark':
