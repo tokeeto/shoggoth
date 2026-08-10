@@ -1230,7 +1230,25 @@ class CardRenderer:
                 token_image = self.get_resized_cached(token_path, (int(token_size), int(token_size)))
                 token_surface.paste(token_image, (0, int(token_size*1.1) * token_index), token_image)
 
+
             text_surface = Image.new('RGBA', region.size, (255, 255, 255, 0))
+
+            margin_left = 0
+            line_surface = None
+            if len(tokens) > 1:
+                line_surface = Image.new('RGBA', region.size, (255, 255, 255, 0))
+                draw = ImageDraw.Draw(line_surface)
+                draw.line(
+                    [0, 0, 0, int(len(tokens)*token_size*1.1)],
+                    width=int(max(2*s, 1)),
+                    fill=(0,0,0),
+                )
+                draw.line(
+                    [int(7*s), 0, int(7*s), int(len(tokens)*token_size*1.1)],
+                    width=int(max(2*s, 1)),
+                    fill=(0,0,0),
+                )
+                margin_left = int(30*s)
             # Entries are laid out onto a local offscreen surface, then pasted at a
             # position only known after every entry's rendered height is measured
             # (see the weights/weight_pixels pass below). The HTML text layer can't
@@ -1239,7 +1257,7 @@ class CardRenderer:
                 self.rich_text.render_text(
                     text_surface,
                     entry.get('text', ''),
-                    Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-token_size*2}),
+                    Region.unscaled({'x': margin_left, 'y': 0, 'height': region.height, 'width': region.width-token_size*2}),
                     font=font.get('font', 'regular'),
                     font_size=int(font.get('size', 32)*s),
                     fill=font.get('color', '#231f20'),
@@ -1249,13 +1267,13 @@ class CardRenderer:
                     scale=s,
                     project=side.card.project,
                 )
-            surfaces.append((token_surface, text_surface))
+            surfaces.append((token_surface, text_surface, line_surface))
 
-        weights = [max(n.getbbox()[3] if n.getbbox() else 0, m.getbbox()[3]if m.getbbox() else 0) for n, m in surfaces]
+        weights = [max(n.getbbox()[3] if n.getbbox() else 0, m.getbbox()[3]if m.getbbox() else 0) for n, m, _ in surfaces]
         weight_pixels = region.height/sum(weights)
 
         for index, weight in enumerate(weights):
-            chaos, text = surfaces[index]
+            chaos, text, lines = surfaces[index]
             height = weight_pixels * weight
             y = region.y + int(sum(weights[:index]) * weight_pixels)
 
@@ -1263,6 +1281,8 @@ class CardRenderer:
                 card_image.paste(chaos, (region.x, y + int(height/2 - chaos.getbbox()[3]/2)), chaos)
             if text.getbbox():
                 card_image.paste(text, (region.x + int(token_size*1.3), y + int(height/2 - text.getbbox()[3]/2)), text)
+            if lines:
+                card_image.paste(lines, (region.x + int(token_size*1.3), y + int(height/2 - chaos.getbbox()[3]/2)), lines)
 
         # Token area
         token_region = Region(side.get('chaos_extra_region'), s)

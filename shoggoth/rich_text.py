@@ -1272,7 +1272,14 @@ class RichTextRenderer:
                         # (or, if the line is empty, the full line width).
                         split = self._hyphenate_split(value, font_obj, avail - current_line_width)
                         if split is None and current_line_width == 0:
-                            break  # can't split further and it's alone on the line: accept overflow
+                            # Can't split further and it's alone on the line: this is a
+                            # genuine horizontal overflow (e.g. one long unbreakable word
+                            # too wide for the region), so report it as not-fitting to let
+                            # the caller shrink the font size, unless this is already the
+                            # last (forced) attempt — then just accept the overflow.
+                            if not force:
+                                return commands, False, i / num_tokens
+                            break
 
                         if split is not None:
                             head, tail = split
@@ -1482,6 +1489,7 @@ class RichTextRenderer:
                     fill=fill, outline=outline, outline_fill=outline_fill,
                     force=force, scale=scale,
                 )
+                print(fits, frac)
                 if fits or force:
                     break
 

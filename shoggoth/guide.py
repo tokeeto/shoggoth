@@ -466,7 +466,7 @@ def _process_lines(lines: list, guide) -> str:
 
 def _apply_traits(text: str) -> str:
     """Replace [[trait]] with <t>trait</t> before markdown processing."""
-    return re.sub(r'\[\[([^\]\n]+)\]\]', r'<t>\1</t>', text)
+    return re.sub(r'\[\[([^\]\n]+)\]\]', r'<span class="trait">\1</span>', text)
 
 
 def _apply_project_refs(text: str, guide=None) -> str:
