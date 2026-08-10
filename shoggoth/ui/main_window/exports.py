@@ -6,11 +6,11 @@ ProjectExportDialog (Images/PDF/TTS/arkham.build/Guides).
 import multiprocessing
 import threading
 import time
-from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
+from shoggoth.files import default_export_folder
 from shoggoth.i18n import tr
 
 
@@ -44,7 +44,7 @@ def _read_export_prefs(window, bleed=None, format=None, quality=None, separate_v
 
 
 def _export_folder(window):
-    folder = Path(window.active_project.file_path).parent / f'Export of {window.active_project.name}'
+    folder = default_export_folder(window.active_project)
     folder.mkdir(parents=True, exist_ok=True)
     return folder
 

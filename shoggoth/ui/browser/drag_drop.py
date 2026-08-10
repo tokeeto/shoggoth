@@ -8,14 +8,27 @@ import shoggoth
 
 
 class CompactLeafDelegate(QStyledItemDelegate):
-    """Shifts leaf nodes left by one indentation to remove expand-arrow dead space."""
+    """Shifts leaf nodes left by one indentation to remove expand-arrow dead space.
+
+    Only applied to node types that are *always* leaves everywhere in the tree
+    (cards, guides) — for those, no sibling ever has an arrow, so compacting is
+    safe. Types whose leaf/branch status varies with data (encounter sets,
+    category groupings, the locations shortcut) always reserve the arrow-space
+    column instead, so arrow/icon/text stay 3 fixed columns lined up with
+    siblings that do have children — icon presence isn't a reliable signal
+    here since e.g. an encounter set's icon is optional.
+    """
+
+    _ALWAYS_LEAF_TYPES = {'card', 'guide'}
 
     def __init__(self, tree):
         super().__init__(tree)
         self._tree = tree
 
     def paint(self, painter, option, index):
-        if not index.model().hasChildren(index):
+        data = index.data(Qt.UserRole) or {}
+        is_always_leaf = data.get('type') in self._ALWAYS_LEAF_TYPES
+        if is_always_leaf and not index.model().hasChildren(index):
             opt = QStyleOptionViewItem(option)
             opt.rect = option.rect.adjusted(-self._tree.indentation(), 0, 0, 0)
             super().paint(painter, opt, index)

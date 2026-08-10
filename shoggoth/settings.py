@@ -106,6 +106,7 @@ class SettingsManager:
         defaults = {
             'prince_cmd': 'prince',
             'prince_dir': '',
+            'cmyk_profile': '',
             'show_bleed': True,
             'show_regions': False,
             'hyphenation_enabled': is_fresh_install,
@@ -254,7 +255,22 @@ class SettingsDialog(QDialog):
         
         prince_layout.addRow(tr("LABEL_PRINCE_DIRECTORY"), prince_dir_layout)
         prince_layout.addRow("", QLabel(tr("HELP_PRINCE_DIRECTORY")))
-        
+
+        # CMYK output-intent profile (used for PDF/X press-ready output; see
+        # pdf_exporter._color_management_args). Left blank, PDFs stay plain
+        # sRGB, which is what home printer drivers expect.
+        cmyk_profile_layout = QHBoxLayout()
+        self.cmyk_profile_input = QLineEdit()
+        self.cmyk_profile_input.setPlaceholderText(tr("PLACEHOLDER_CMYK_PROFILE"))
+        cmyk_profile_layout.addWidget(self.cmyk_profile_input)
+
+        browse_cmyk_btn = QPushButton(tr("BTN_BROWSE"))
+        browse_cmyk_btn.clicked.connect(self.browse_cmyk_profile)
+        cmyk_profile_layout.addWidget(browse_cmyk_btn)
+
+        prince_layout.addRow(tr("LABEL_CMYK_PROFILE"), cmyk_profile_layout)
+        prince_layout.addRow("", QLabel(tr("HELP_CMYK_PROFILE")))
+
         prince_group.setLayout(prince_layout)
         layout.addWidget(prince_group)
 
@@ -453,7 +469,18 @@ class SettingsDialog(QDialog):
         )
         if directory:
             self.prince_dir_input.setText(directory)
-    
+
+    def browse_cmyk_profile(self):
+        """Browse for a CMYK output-intent ICC profile"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            tr("DLG_SELECT_CMYK_PROFILE"),
+            str(Path.home()),
+            "ICC Profiles (*.icc *.icm);;All Files (*)"
+        )
+        if file_path:
+            self.cmyk_profile_input.setText(file_path)
+
     def load_settings(self):
         """Load current settings into the dialog"""
         self.prince_cmd_input.setText(
@@ -461,6 +488,9 @@ class SettingsDialog(QDialog):
         )
         self.prince_dir_input.setText(
             self.settings.get('Shoggoth', 'prince_dir', '')
+        )
+        self.cmyk_profile_input.setText(
+            self.settings.get('Shoggoth', 'cmyk_profile', '')
         )
         self.show_bleed_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_bleed', True)
@@ -514,6 +544,7 @@ class SettingsDialog(QDialog):
         """Save settings and close dialog"""
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
         self.settings.set('Shoggoth', 'prince_dir', self.prince_dir_input.text())
+        self.settings.set('Shoggoth', 'cmyk_profile', self.cmyk_profile_input.text())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
         self.settings.set('Shoggoth', 'show_regions', self.show_regions_checkbox.isChecked())
 

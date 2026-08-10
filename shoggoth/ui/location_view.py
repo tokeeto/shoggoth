@@ -15,6 +15,7 @@ from PySide6.QtGui import (
 )
 from io import BytesIO
 from pathlib import Path
+from shoggoth import files
 from shoggoth.files import overlay_dir
 
 
@@ -1002,7 +1003,7 @@ class LocationViewWidget(QWidget):
         project = self.encounter_set.project
         enc_id = self.encounter_set.id
 
-        export_folder = Path(project.folder) / f'Export of {project.name}'
+        export_folder = files.default_export_folder(project)
         export_folder.mkdir(parents=True, exist_ok=True)
 
         img_path = export_folder / f'{enc_id}_location_overview.png'

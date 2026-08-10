@@ -208,6 +208,19 @@ class HtmlTextCapture:
     def __init__(self):
         self.parts = []
         self.fonts = {}    # css font-family -> font file path
+        # Accumulated (dx, dy) the canvas was cropped by *after* text layout
+        # (trim + bleed cutout), so spans recorded in pre-crop coordinates
+        # can be shifted back onto the exported image. See translate().
+        self.offset_x = 0
+        self.offset_y = 0
+
+    def translate(self, dx, dy):
+        """Record that the canvas was subsequently cropped by (dx, dy) from
+        its top-left, i.e. the point that used to be (dx, dy) is now (0, 0).
+        Call this once per crop, in the same pre-rotation coordinate space
+        the spans were recorded in."""
+        self.offset_x += dx
+        self.offset_y += dy
 
     def fragment(self, width, height, rotation=None):
         """Build the overlay fragment for one card side.
@@ -218,6 +231,11 @@ class HtmlTextCapture:
         in pre-rotation coordinates and rotated as a whole via CSS.
         """
         spans = '\n'.join(self.parts)
+        if self.offset_x or self.offset_y:
+            # Undo the post-layout crop (trim/bleed) that shifted the
+            # rasterized image but not these already-recorded coordinates.
+            spans = (f'<div style="position:absolute;left:0;top:0;'
+                     f'transform:translate({-self.offset_x}px,{-self.offset_y}px);">\n{spans}\n</div>')
         if rotation in ('cw', 'ccw'):
             # Pre-rotation canvas was height x width; map it onto the final
             # image the same way PIL's rotate(expand=True) did.
@@ -1254,7 +1272,14 @@ class RichTextRenderer:
                         # (or, if the line is empty, the full line width).
                         split = self._hyphenate_split(value, font_obj, avail - current_line_width)
                         if split is None and current_line_width == 0:
-                            break  # can't split further and it's alone on the line: accept overflow
+                            # Can't split further and it's alone on the line: this is a
+                            # genuine horizontal overflow (e.g. one long unbreakable word
+                            # too wide for the region), so report it as not-fitting to let
+                            # the caller shrink the font size, unless this is already the
+                            # last (forced) attempt — then just accept the overflow.
+                            if not force:
+                                return commands, False, i / num_tokens
+                            break
 
                         if split is not None:
                             head, tail = split
@@ -1333,6 +1358,13 @@ class RichTextRenderer:
         self._html_tls.capture = None
         return capture
 
+    def shift_html_capture(self, dx, dy):
+        """Record a post-layout crop (see HtmlTextCapture.translate) on this
+        thread's active capture, if any. No-op when not capturing."""
+        capture = getattr(self._html_tls, 'capture', None)
+        if capture is not None:
+            capture.translate(dx, dy)
+
     @contextmanager
     def html_capture_paused(self):
         """Rasterize text normally within this block (e.g. for rotated fields)."""
@@ -1359,11 +1391,16 @@ class RichTextRenderer:
                     continue
                 family = meta['family']
                 capture.fonts[family] = meta['path']
+
+                # Bolton fix
+                descent = max(0, meta['descent'])
+                if family == 'shoggoth-skill':
+                    descent = meta['size'] * .2
                 style = (
                     f'position:absolute;white-space:pre;'
                     f'left:{cmd["x"]:.2f}px;top:{cmd["y"] - meta["ascent"]:.2f}px;'
                     f"font-family:'{family}';font-size:{meta['size']}px;"
-                    f'line-height:{meta["ascent"] + meta["descent"]}px;'
+                    f'line-height:{meta["ascent"] + descent}px;'
                     f'color:{cmd["fill"] or "#231f20"};'
                 )
                 if cmd.get('outline'):
@@ -1452,6 +1489,7 @@ class RichTextRenderer:
                     fill=fill, outline=outline, outline_fill=outline_fill,
                     force=force, scale=scale,
                 )
+                print(fits, frac)
                 if fits or force:
                     break
 
