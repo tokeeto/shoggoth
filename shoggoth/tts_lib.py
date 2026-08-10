@@ -204,6 +204,7 @@ TYPE_TAG_MAP = {
     'chaos': 'ScenarioReference',
     'player': 'PlayerCard',
     'encounter': 'ScenarioCard',
+    'investigator': 'Investigator',
 }
 
 
@@ -227,7 +228,7 @@ def card_to_tts(card, id, number, image_folder):
         if tag:
             data['Tags'].append(tag)
 
-    data['Description'] = card.name
+    data['Description'] = card.get('subtitle')
     data['Nickname'] = card.name
     data['CardID'] = id * 100
     data['GMNotes'] = build_gm_notes_string(card)
@@ -240,12 +241,12 @@ def export_all(project, image_folder, sync=True):
     for encounter in project.encounter_sets:
         encounter_wrapper = deepcopy(encounter_template)
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
-        encounter_wrapper["DeckIDs"] = []
+        encounter_wrapper['DeckIDs'] = []
         encounter_wrapper['Nickname'] = encounter.name
         for card in encounter.cards:
-            encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, 0, image_folder))
+            encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
             current_id += 1
-            encounter_wrapper["DeckIDs"].append(current_id)
+            encounter_wrapper['DeckIDs'].append(current_id)
     for card in project.player_cards:
         wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
         current_id += 1
@@ -287,12 +288,12 @@ def export_campaign(project, image_folder, sync=True):
     for encounter in project.encounter_sets:
         encounter_wrapper = deepcopy(encounter_template)
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
-        encounter_wrapper["DeckIDs"] = []
+        encounter_wrapper['DeckIDs'] = []
         encounter_wrapper['Nickname'] = encounter.name
         for card in encounter.cards:
-            encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, 0, image_folder))
+            encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
             current_id += 1
-            encounter_wrapper["DeckIDs"].append(current_id)
+            encounter_wrapper['DeckIDs'].append(current_id)
 
     return_status = 0
     if files.tts_dir:
