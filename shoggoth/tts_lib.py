@@ -4,6 +4,7 @@ from shoggoth import files
 from shoggoth.export_helpers import build_gm_notes_string
 from copy import deepcopy
 from pathlib import Path
+import re
 from shoggoth import renderer
 from shoggoth import tts_sync
 
@@ -208,6 +209,10 @@ TYPE_TAG_MAP = {
 }
 
 
+def remove_formatting_tags(text: str) -> str:
+    return re.sub(r"</?[^>]+>", "", text)
+
+
 def card_to_tts(card, id, number, image_folder):
     data = deepcopy(card_template)
     data['CustomDeck'][id] = deepcopy(inner_card_template)
@@ -229,7 +234,7 @@ def card_to_tts(card, id, number, image_folder):
             data['Tags'].append(tag)
 
     data['Description'] = card.get('subtitle')
-    data['Nickname'] = card.name
+    data['Nickname'] = remove_formatting_tags(card.name)
     data['CardID'] = id * 100
     data['GMNotes'] = build_gm_notes_string(card)
     return data

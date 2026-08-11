@@ -816,6 +816,13 @@ function convert_card(path, collection, image_folder) {
         out["name"] = file_parts[file_parts.length - 1];
     }
 
+    // id from existing Zoop GUID if possible
+    let zoopGuid = settings.get("TtsZoopGuid");
+    if (zoopGuid) {
+        out["id"] = zoopGuid;
+        println("  TtsZoopGuid: " + zoopGuid);
+    }
+
     // front/back types
     out["front"] = {
         type: front_types[script_name],
