@@ -23,7 +23,7 @@ class FaceEditor(QWidget):
     type_changed = Signal(object)  # Emits the face object
 
     # Fields that carry translatable prose content
-    TRANSLATABLE_FIELDS = frozenset({'name', 'subtitle', 'text', 'flavor_text', 'traits'})
+    TRANSLATABLE_FIELDS = frozenset({'name', 'subtitle', 'text', 'flavor_text', 'traits', 'label'})
 
     def __init__(self, face, parent=None):
         super().__init__(parent)
@@ -349,6 +349,7 @@ class FaceEditor(QWidget):
             return
 
         section = QWidget()
+        section.setProperty("enabled_in_translation_project", True)
         section_layout = QVBoxLayout(section)
         section_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -358,6 +359,7 @@ class FaceEditor(QWidget):
         toggle.setArrowType(Qt.RightArrow)
         toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         toggle.setAutoRaise(True)
+        toggle.setProperty("enabled_in_translation_project", True)
         section_layout.addWidget(toggle)
 
         content = QWidget()
@@ -451,8 +453,9 @@ class FaceEditor(QWidget):
                 continue
 
             if enable_translation_mode:
-                is_translatable = self._is_widget_translatable(widget, translatable_widgets)
-                widget.setEnabled(is_translatable)
+                if not widget.property("enabled_in_translation_project"):
+                    is_translatable = self._is_widget_translatable(widget, translatable_widgets)
+                    widget.setEnabled(is_translatable)
             else:
                 widget.setEnabled(True)
 
