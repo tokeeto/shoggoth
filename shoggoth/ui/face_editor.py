@@ -79,6 +79,7 @@ class FaceEditor(QWidget):
         type_layout.addWidget(type_label)
         type_layout.addWidget(self.type_combo)
         type_widget = QWidget()
+        type_widget.setProperty("visible_in_translation_project", False)
         type_widget.setLayout(type_layout)
         self.main_layout.addWidget(type_widget)
 
@@ -349,7 +350,7 @@ class FaceEditor(QWidget):
             return
 
         section = QWidget()
-        section.setProperty("enabled_in_translation_project", True)
+        section.setProperty("visible_in_translation_project", True)
         section_layout = QVBoxLayout(section)
         section_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -359,7 +360,7 @@ class FaceEditor(QWidget):
         toggle.setArrowType(Qt.RightArrow)
         toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         toggle.setAutoRaise(True)
-        toggle.setProperty("enabled_in_translation_project", True)
+        toggle.setProperty("visible_in_translation_project", True)
         section_layout.addWidget(toggle)
 
         content = QWidget()
@@ -445,35 +446,21 @@ class FaceEditor(QWidget):
             if name in self.TRANSLATABLE_FIELDS:
                 translatable_widgets.add(widget)
 
-        if hasattr(self, 'type_combo'):
-            self.type_combo.setEnabled(not enable_translation_mode)
-
         for widget in self._iter_main_widgets():
             if widget is self:
                 continue
 
             if enable_translation_mode:
-                if not widget.property("enabled_in_translation_project"):
+                if not widget.property("visible_in_translation_project"):
                     is_translatable = self._is_widget_translatable(widget, translatable_widgets)
-                    widget.setEnabled(is_translatable)
+                    widget.setVisible(is_translatable)
             else:
-                widget.setEnabled(True)
+                widget.setVisible(True)
 
     def enter_translation_mode(self):
         """Lock non-translatable fields while keeping the form visible."""
-        for i in range(self.main_layout.count()):
-            item = self.main_layout.itemAt(i)
-            w = item.widget() if item else None
-            if w is not None:
-                w.setVisible(True)
         self._apply_translation_widget_state(True)
 
     def exit_translation_mode(self):
         """Restore all fields."""
         self._apply_translation_widget_state(False)
-        for i in range(self.main_layout.count()):
-            item = self.main_layout.itemAt(i)
-            w = item.widget() if item else None
-            if w is not None:
-                w.setVisible(True)
-        self.load_data()

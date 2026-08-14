@@ -33,7 +33,7 @@ class CardEditor(QWidget):
         content = QWidget()
         layout = QVBoxLayout()
 
-        self.translation_notice = QLabel("Translation mode: inherited fields are locked")
+        self.translation_notice = QLabel(tr("TRANSLATION_MODE_NOTE"))
         self.translation_notice.setVisible(False)
         self.translation_notice.setStyleSheet(
             "QLabel { color: #7a5b14; background: #fff4cc; border: 1px solid #d9c27a; "

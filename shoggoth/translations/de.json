@@ -189,6 +189,7 @@
   "PLACEHOLDER_ROLAN": "Rolan Banks",
   "MSG_ENTER_INVESTIGATOR": "Name des Ermittlers eingeben:",
   "// ===== CARD EDITOR =====": "",
+  "TRANSLATION_MODE_NOTE": "Übersetungsmodus: nur bearbeitbare Felder sind sichtbar",
   "TAB_FRONT": "Vorne",
   "TAB_BACK": "Hinten",
   "CARD_DATA_JSON": "Kartendaten (JSON)",

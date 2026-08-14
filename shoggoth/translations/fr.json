@@ -194,6 +194,7 @@
   "PLACEHOLDER_ROLAN": "Rolan Banks",
   "MSG_ENTER_INVESTIGATOR": "Saisissez le nom de l'investigateur :",
   "// ===== CARD EDITOR =====": "",
+  "TRANSLATION_MODE_NOTE": "Translation Mode: only editable fields are visible",
   "TAB_FRONT": "Recto",
   "TAB_BACK": "Verso",
   "CARD_DATA_JSON": "Données de la carte (JSON)",
