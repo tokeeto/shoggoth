@@ -33,6 +33,14 @@ class CardEditor(QWidget):
         content = QWidget()
         layout = QVBoxLayout()
 
+        self.translation_notice = QLabel("Translation mode: inherited fields are locked")
+        self.translation_notice.setVisible(False)
+        self.translation_notice.setStyleSheet(
+            "QLabel { color: #7a5b14; background: #fff4cc; border: 1px solid #d9c27a; "
+            "padding: 6px 10px; border-radius: 4px; font-weight: 600; }"
+        )
+        layout.addWidget(self.translation_notice)
+
         # Basic info section (collapsible)
         basic_group = QWidget()
         basic_layout = QVBoxLayout()
@@ -418,14 +426,16 @@ class CardEditor(QWidget):
         self.data_changed.emit()
 
     def enter_translation_mode(self):
-        """Switch both face editors into translation mode."""
+        """Switch both face editors into translation mode and show a translation notice."""
+        self.translation_notice.setVisible(True)
         if self.front_editor:
             self.front_editor.enter_translation_mode()
         if self.back_editor:
             self.back_editor.enter_translation_mode()
 
     def exit_translation_mode(self):
-        """Restore both face editors to normal editing mode."""
+        """Restore both face editors to normal editing mode and hide the translation notice."""
+        self.translation_notice.setVisible(False)
         if self.front_editor:
             self.front_editor.exit_translation_mode()
         if self.back_editor:

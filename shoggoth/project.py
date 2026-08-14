@@ -237,6 +237,11 @@ class Project:
         return self.data.get(key, default)
 
     @property
+    def is_translation(self):
+        """Whether this project is a translation for another project."""
+        return bool(getattr(self, '_translation', None) or self.data.get('project'))
+
+    @property
     def translations(self):
         """Return a dict of {language: Translation} for all registered translations."""
         result = {}

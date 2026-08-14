@@ -403,20 +403,71 @@ class FaceEditor(QWidget):
         self.main_layout.addWidget(illustration)
         return illustration
 
-    def enter_translation_mode(self):
-        """Hide non-translatable fields."""
-        translatable_containers = {
+    def _iter_main_widgets(self):
+        """Yield every widget in this editor, including nested field widgets."""
+        seen = set()
+        for i in range(self.main_layout.count()):
+            item = self.main_layout.itemAt(i)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is None:
+                continue
+            stack = [widget]
+            while stack:
+                current = stack.pop()
+                if current is None or id(current) in seen:
+                    continue
+                seen.add(id(current))
+                yield current
+                for child in current.findChildren(QWidget):
+                    if id(child) not in seen:
+                        stack.append(child)
+
+    def _is_widget_translatable(self, widget, translatable_widgets):
+        """Return True if the widget or one of its ancestors belongs to a translatable field."""
+        current = widget
+        while current is not None:
+            if current in translatable_widgets:
+                return True
+            current = current.parent()
+        return False
+
+    def _apply_translation_widget_state(self, enable_translation_mode):
+        """Lock or unlock editor widgets according to translation mode."""
+        translatable_widgets = {
             w for name, w in self.field_containers.items()
             if name in self.TRANSLATABLE_FIELDS
         }
+        for name, widget in self.fields.items():
+            if name in self.TRANSLATABLE_FIELDS:
+                translatable_widgets.add(widget)
+
+        if hasattr(self, 'type_combo'):
+            self.type_combo.setEnabled(not enable_translation_mode)
+
+        for widget in self._iter_main_widgets():
+            if widget is self:
+                continue
+
+            if enable_translation_mode:
+                is_translatable = self._is_widget_translatable(widget, translatable_widgets)
+                widget.setEnabled(is_translatable)
+            else:
+                widget.setEnabled(True)
+
+    def enter_translation_mode(self):
+        """Lock non-translatable fields while keeping the form visible."""
         for i in range(self.main_layout.count()):
             item = self.main_layout.itemAt(i)
             w = item.widget() if item else None
             if w is not None:
-                w.setVisible(w in translatable_containers)
+                w.setVisible(True)
+        self._apply_translation_widget_state(True)
 
     def exit_translation_mode(self):
         """Restore all fields."""
+        self._apply_translation_widget_state(False)
         for i in range(self.main_layout.count()):
             item = self.main_layout.itemAt(i)
             w = item.widget() if item else None
