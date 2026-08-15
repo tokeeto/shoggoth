@@ -90,7 +90,7 @@ def show_card(window, card):
     window.toggle_preview_action.setChecked(True)
 
     # Enter translation mode if this card belongs to a translation project
-    if card.project.data.get('project'):
+    if card.project.is_translation:
         editor.enter_translation_mode()
 
     _mount(window, editor)

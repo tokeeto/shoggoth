@@ -205,6 +205,7 @@
   "PLACEHOLDER_ROLAN": "Rolan Banks",
   "MSG_ENTER_INVESTIGATOR": "Enter investigator name:",
   "// ===== CARD EDITOR =====": "",
+  "TRANSLATION_MODE_NOTE": "Translation Mode: only editable fields are visible",
   "TAB_FRONT": "Front",
   "TAB_BACK": "Back",
   "CARD_DATA_JSON": "Card Data (JSON)",

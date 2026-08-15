@@ -191,6 +191,7 @@
   "PLACEHOLDER_ROLAN": "罗兰·班克斯",
   "MSG_ENTER_INVESTIGATOR": "输入调查员名称：",
   "// ===== CARD EDITOR =====": "",
+  "TRANSLATION_MODE_NOTE": "Translation Mode: only editable fields are visible",
   "TAB_FRONT": "正面",
   "TAB_BACK": "背面",
   "CARD_DATA_JSON": "卡牌数据（JSON）",

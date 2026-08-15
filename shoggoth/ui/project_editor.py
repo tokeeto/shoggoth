@@ -45,7 +45,7 @@ class ProjectEditor(QWidget):
 
     def setup_ui(self):
         """Setup the user interface"""
-        if self.project.data.get('project'):
+        if self.project.is_translation:
             self._setup_translation_ui()
         else:
             self._setup_project_ui()
@@ -198,7 +198,7 @@ class ProjectEditor(QWidget):
         """Load project data into fields"""
         self._updating = True
 
-        if self.project.data.get('project'):
+        if self.project.is_translation:
             # Translation project: only show card count
             self.card_count_label.setText(str(len(self.project.get_all_cards())))
         else:

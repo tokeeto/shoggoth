@@ -209,6 +209,7 @@
   "PLACEHOLDER_ROLAN": "Rolan Banks",
   "MSG_ENTER_INVESTIGATOR": "Introduza o nome do investigador:",
   "// ===== CARD EDITOR =====": "",
+  "TRANSLATION_MODE_NOTE": "Translation Mode: only editable fields are visible",
   "TAB_FRONT": "Frente",
   "TAB_BACK": "Verso",
   "CARD_DATA_JSON": "Dados da Carta (JSON)",
