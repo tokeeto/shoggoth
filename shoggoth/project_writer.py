@@ -65,7 +65,6 @@ class TranslationWriter(Writer):
 
     def save_encounter_set(self, encounter_set):
         """Save data to file"""
-        print('saving encounter set', encounter_set)
         with open(self.translation.file_path, 'r', encoding='utf-8') as f:
             orig_data = json.load(f)
         if not orig_data.get('encounter_sets'):

@@ -119,8 +119,6 @@ class EncounterSet:
         self.data['card_amount'] = max(current_number - 1, max(manual_numbers, default=0))
 
     def set(self, key, value):
-        print('encounter set, setting', key, value)
         self.data[key] = value
         self.dirty = True
-        print('is dirty', self.dirty)
 

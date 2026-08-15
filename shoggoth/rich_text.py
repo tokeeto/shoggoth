@@ -962,6 +962,10 @@ class RichTextRenderer:
         def poly_bounds(yy):
             if not polygon:
                 return x_orig, x_orig + region.width
+            # yy is the line's baseline; check bounds at the top of the
+            # glyphs (baseline minus font height) so ascenders can't poke
+            # out of a polygon edge that narrows going upward.
+            yy -= state['fonts'][state['font']].size
             xs = []
             for idx in range(len(polygon) - 1):
                 (x1, y1), (x2, y2) = polygon[idx], polygon[idx + 1]
@@ -1489,7 +1493,6 @@ class RichTextRenderer:
                     fill=fill, outline=outline, outline_fill=outline_fill,
                     force=force, scale=scale,
                 )
-                print(fits, frac)
                 if fits or force:
                     break
 
