@@ -959,13 +959,7 @@ class RichTextRenderer:
         wcache = self._wcache
 
         # Polygon helpers
-        def poly_bounds(yy):
-            if not polygon:
-                return x_orig, x_orig + region.width
-            # yy is the line's baseline; check bounds at the top of the
-            # glyphs (baseline minus font height) so ascenders can't poke
-            # out of a polygon edge that narrows going upward.
-            yy -= state['fonts'][state['font']].size
+        def _poly_bounds_at(yy):
             xs = []
             for idx in range(len(polygon) - 1):
                 (x1, y1), (x2, y2) = polygon[idx], polygon[idx + 1]
@@ -974,8 +968,23 @@ class RichTextRenderer:
                 t = (yy - y1) / (y2 - y1)
                 xs.append(x1 + t * (x2 - x1))
             if not xs:
-                return x_orig, x_orig + region.width
+                return None
             return min(xs), max(xs)
+
+        def poly_bounds(yy):
+            if not polygon:
+                return x_orig, x_orig + region.width
+            # yy is the line's baseline. Check bounds both there and at the
+            # top of the glyphs (baseline minus font height), and use
+            # whichever pair is more restrictive, so a polygon edge that
+            # narrows in either direction can't be poked out of.
+            top = _poly_bounds_at(yy - state['fonts'][state['font']].size)
+            base = _poly_bounds_at(yy)
+            if top is None:
+                return base if base is not None else (x_orig, x_orig + region.width)
+            if base is None:
+                return top
+            return max(top[0], base[0]), min(top[1], base[1])
 
         def eff_bounds(yy):
             nonlocal prev_block_indent
