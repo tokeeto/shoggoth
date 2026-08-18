@@ -137,13 +137,20 @@ SUBTITLE_MAP = {
     '%:WEAKNESS': 'weakness'
 }
 
+
 def _export_card(card, project, position, image_pattern=None):
     """Export a single card to arkham.build format"""
     front = card.front
     back = card.back
 
     export_info = get_card_export_type(card)
-    skill_icons = get_skill_icons(front)
+    # Skills icons or skills for investigators - renders the same on arkham.build
+    skill_icons = get_skill_icons(front) or {
+        "skill_willpower": _safe_int(front.get('willpower')),
+        "skill_intellect": _safe_int(front.get('intellect')),
+        "skill_combat": _safe_int(front.get('combat')),
+        "skill_agility": _safe_int(front.get('agility')),
+    }
 
     # Determine pack code
     # TODO: Add pack_code field to project or use project code
@@ -181,12 +188,6 @@ def _export_card(card, project, position, image_pattern=None):
 
         # Skill icons
         **skill_icons,
-
-        # Skills (for investigators)
-        "skill_willpower": _safe_int(front.get('willpower')),
-        "skill_intellect": _safe_int(front.get('intellect')),
-        "skill_combat": _safe_int(front.get('combat')),
-        "skill_agility": _safe_int(front.get('agility')),
 
         # Cost and XP
         "cost": _safe_int(front.get('cost')),
