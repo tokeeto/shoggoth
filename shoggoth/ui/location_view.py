@@ -7,11 +7,12 @@ from PySide6.QtWidgets import (
     QGraphicsPathItem, QGraphicsEllipseItem, QWidget, QVBoxLayout,
     QHBoxLayout, QPushButton, QLabel, QMenu, QCheckBox,
     QApplication, QDialog, QDialogButtonBox, QGridLayout,
+    QScrollArea, QFrame,
 )
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QSize, QTimer
 from PySide6.QtGui import (
-    QPainter, QPen, QBrush, QColor, QPainterPath, QPixmap, QFont,
-    QCursor, QIcon, QImage
+    QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker,
+    QPolygonF, QPixmap, QFont, QCursor, QIcon, QImage
 )
 from io import BytesIO
 from pathlib import Path
@@ -20,25 +21,46 @@ from shoggoth.files import overlay_dir
 
 
 class ConnectionArrow(QGraphicsPathItem):
-    """Arrow representing a connection between two locations"""
+    """Arrow representing a connection between two locations.
 
-    def __init__(self, source_node, target_node, connection_symbol):
+    A single arrow can represent either a one-way connection (arrowhead on
+    the target end only) or a two-way connection (arrowhead on both ends),
+    when `reverse_symbol` is set.
+    """
+
+    LINE_WIDTH = 4
+    OUTLINE_WIDTH = 4
+    LINE_COLOR = QColor(156, 0, 0)  # maroon
+    OUTLINE_COLOR = QColor(255, 255, 255)
+    HOVER_LINE_COLOR = QColor(200, 40, 40)
+    ARROW_SIZE = 16
+
+    def __init__(self, source_node, target_node, connection_symbol, reverse_symbol=None):
         super().__init__()
         self.source_node = source_node
         self.target_node = target_node
         self.connection_symbol = connection_symbol
+        self.reverse_symbol = reverse_symbol
         self.hovered = False
+        self._fill_path = QPainterPath()
 
-        # Styling
-        self.default_pen = QPen(QColor(100, 100, 100), 2)
-        self.hover_pen = QPen(QColor(255, 100, 100), 3)
-        self.setPen(self.default_pen)
+        # The outline is drawn as a mitered (pointy-cornered) stroke around
+        # the outside of the filled arrow shape, not a separate rounded pen
+        # along the centerline - that's what keeps the shaft and head as one
+        # continuous piece instead of two overlapping strokes.
+        self.outline_pen = QPen(self.OUTLINE_COLOR, self.OUTLINE_WIDTH * 2)
+        self.outline_pen.setJoinStyle(Qt.MiterJoin)
+        self.outline_pen.setMiterLimit(5)
 
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
-        self.setZValue(-1)  # Draw behind nodes
+        self.setZValue(1)  # Draw on top of location cards
 
         self.update_path()
+
+    @property
+    def bidirectional(self):
+        return self.reverse_symbol is not None
 
     def _rect_edge_intersection(self, center, rect_width, rect_height, direction_x, direction_y):
         """Calculate where a ray from center intersects the rectangle edge"""
@@ -88,8 +110,42 @@ class ConnectionArrow(QGraphicsPathItem):
         t = min(t_values)
         return QPointF(center.x() + direction_x * t, center.y() + direction_y * t)
 
+    def _make_arrowhead_polygon(self, tip, dir_x, dir_y, size):
+        """Build a triangle arrowhead pointing in (dir_x, dir_y), tip at `tip`"""
+        back_x = tip.x() - dir_x * size
+        back_y = tip.y() - dir_y * size
+        perp_x, perp_y = -dir_y, dir_x
+        half_width = size * 0.55
+        p1 = QPointF(back_x + perp_x * half_width, back_y + perp_y * half_width)
+        p2 = QPointF(back_x - perp_x * half_width, back_y - perp_y * half_width)
+        return QPolygonF([tip, p1, p2])
+
+    def _make_shaft_polygon(self, start, end, dir_x, dir_y):
+        """Build the shaft as a thin rectangle from start to end"""
+        perp_x, perp_y = -dir_y, dir_x
+        hw = self.LINE_WIDTH / 2
+        return QPolygonF([
+            QPointF(start.x() + perp_x * hw, start.y() + perp_y * hw),
+            QPointF(start.x() - perp_x * hw, start.y() - perp_y * hw),
+            QPointF(end.x() - perp_x * hw, end.y() - perp_y * hw),
+            QPointF(end.x() + perp_x * hw, end.y() + perp_y * hw),
+        ])
+
+    @staticmethod
+    def _polygon_path(polygon):
+        path = QPainterPath()
+        path.addPolygon(polygon)
+        path.closeSubpath()
+        return path
+
     def update_path(self):
-        """Update the arrow path based on node positions"""
+        """Update the arrow's filled shape based on node positions.
+
+        The shaft and arrowhead(s) are built as one unioned polygon (rather
+        than a separately-stroked line plus separately-filled triangles) so
+        they read as a single continuous arrow instead of two overlapping
+        pieces.
+        """
         if not self.source_node or not self.target_node:
             return
 
@@ -120,48 +176,62 @@ class ConnectionArrow(QGraphicsPathItem):
             target_center, target_rect.width(), target_rect.height(), -dir_x, -dir_y
         )
 
-        # Create curved path
-        path = QPainterPath()
-        path.moveTo(start)
+        arrow_size = self.ARROW_SIZE
 
-        # Control point for curve (offset perpendicular to line)
-        mid = QPointF((start.x() + end.x()) / 2, (start.y() + end.y()) / 2)
-        # Add slight curve
-        ctrl_offset = 20
-        ctrl = QPointF(mid.x() - dir_y * ctrl_offset, mid.y() + dir_x * ctrl_offset)
+        # Shaft runs to the base of the arrowhead(s) so the union has no gap.
+        shaft_start = start
+        shaft_end = QPointF(end.x() - dir_x * arrow_size, end.y() - dir_y * arrow_size)
+        if self.bidirectional:
+            shaft_start = QPointF(start.x() + dir_x * arrow_size, start.y() + dir_y * arrow_size)
 
-        path.quadTo(ctrl, end)
-
-        # Add arrowhead
-        arrow_size = 10
-
-        # Calculate arrowhead points using normalized direction
-        arrow_p1 = QPointF(
-            end.x() - arrow_size * (dir_x * 0.866 + dir_y * 0.5),
-            end.y() - arrow_size * (dir_y * 0.866 - dir_x * 0.5)
+        fill_path = self._polygon_path(self._make_shaft_polygon(shaft_start, shaft_end, dir_x, dir_y))
+        fill_path = fill_path.united(
+            self._polygon_path(self._make_arrowhead_polygon(end, dir_x, dir_y, arrow_size))
         )
-        arrow_p2 = QPointF(
-            end.x() - arrow_size * (dir_x * 0.866 - dir_y * 0.5),
-            end.y() - arrow_size * (dir_y * 0.866 + dir_x * 0.5)
-        )
+        if self.bidirectional:
+            fill_path = fill_path.united(
+                self._polygon_path(self._make_arrowhead_polygon(start, -dir_x, -dir_y, arrow_size))
+            )
 
-        path.moveTo(end)
-        path.lineTo(arrow_p1)
-        path.moveTo(end)
-        path.lineTo(arrow_p2)
+        self._fill_path = fill_path
+        self.setPath(fill_path)
+        self.prepareGeometryChange()
 
-        self.setPath(path)
+    def boundingRect(self):
+        margin = self.OUTLINE_WIDTH + 1
+        return self._fill_path.boundingRect().adjusted(-margin, -margin, margin, margin)
+
+    def shape(self):
+        stroker = QPainterPathStroker()
+        stroker.setWidth(self.OUTLINE_WIDTH * 2)
+        stroker.setJoinStyle(Qt.MiterJoin)
+        outline = stroker.createStroke(self._fill_path)
+        return self._fill_path.united(outline)
+
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # White outline, stroked around the outside of the filled shape so
+        # the shaft and arrowhead(s) share one continuous silhouette.
+        painter.setPen(self.outline_pen)
+        painter.setBrush(QBrush(self.OUTLINE_COLOR))
+        painter.drawPath(self._fill_path)
+
+        # Maroon (or hover red) fill on top, same shape, no border.
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(self.HOVER_LINE_COLOR if self.hovered else self.LINE_COLOR))
+        painter.drawPath(self._fill_path)
 
     def hoverEnterEvent(self, event):
         self.hovered = True
-        self.setPen(self.hover_pen)
         self.setCursor(QCursor(Qt.PointingHandCursor))
+        self.update()
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
         self.hovered = False
-        self.setPen(self.default_pen)
         self.unsetCursor()
+        self.update()
         super().hoverLeaveEvent(event)
 
 
@@ -186,6 +256,7 @@ class LocationNode(QGraphicsItem):
         self._icon_mode = False
         self._connection_icon = None
         self._flip_scale_x = 1.0
+        self.hidden = False  # marked hidden by the user (see LocationView hide mode)
 
         # Stable key for this node
         self.node_key = f"{card.id}_{face_side}"
@@ -282,8 +353,32 @@ class LocationNode(QGraphicsItem):
         else:
             self._paint_card_mode(painter)
 
+        if self.hidden:
+            self._paint_hidden_overlay(painter)
+
         if self._flip_scale_x < 1.0:
             painter.restore()
+
+    def _paint_hidden_overlay(self, painter):
+        """Dim the node and draw a badge to mark it as hidden (shown only in 'show' mode)"""
+        rect = self.boundingRect()
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(QColor(20, 20, 20, 140)))
+        painter.drawRect(rect)
+
+        badge_size = 22
+        bx = rect.width() - badge_size - 4
+        by = 4
+        painter.setPen(QPen(QColor(0, 0, 0)))
+        painter.setBrush(QBrush(QColor(220, 60, 60, 235)))
+        painter.drawEllipse(QRectF(bx, by, badge_size, badge_size))
+
+        font = QFont()
+        font.setPointSize(11)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QPen(QColor(255, 255, 255)))
+        painter.drawText(QRectF(bx, by, badge_size, badge_size), Qt.AlignCenter, "H")
 
     def _paint_card_mode(self, painter):
         """Paint in card thumbnail mode"""
@@ -299,19 +394,6 @@ class LocationNode(QGraphicsItem):
             painter.setPen(QPen(QColor(0, 120, 255), 3))
             painter.setBrush(Qt.NoBrush)
             painter.drawRect(0, 0, self.CARD_WIDTH, self.CARD_HEIGHT)
-
-        # Draw connection symbol indicator
-        connection = self.face.get('connection')
-        if connection:
-            painter.setPen(QPen(QColor(0, 0, 0)))
-            painter.setBrush(QBrush(QColor(255, 255, 200, 200)))
-            painter.drawEllipse(self.CARD_WIDTH - 25, 5, 20, 20)
-
-            font = QFont()
-            font.setPointSize(8)
-            font.setBold(True)
-            painter.setFont(font)
-            painter.drawText(QRectF(self.CARD_WIDTH - 25, 5, 20, 20), Qt.AlignCenter, connection[:2])
 
     def _paint_icon_mode(self, painter):
         """Paint in icon mode - just show connection symbol"""
@@ -445,6 +527,8 @@ class LocationView(QGraphicsView):
     # Signals
     card_double_clicked = Signal(object)  # Emits card when double-clicked
     connections_changed = Signal(list)  # Emitted when connections are modified; carries list of affected cards
+    hidden_locations_changed = Signal()  # Emitted when a node is hidden/unhidden, or nodes are (re)built
+    hide_mode_changed = Signal(bool)  # Emitted when hide mode is toggled
 
     def __init__(self, encounter_set, renderer, parent=None):
         super().__init__(parent)
@@ -470,6 +554,7 @@ class LocationView(QGraphicsView):
         self.connection_drag_line = None
         self.drag_source_node = None
         self._hovered_node = None
+        self.hide_mode = self._get_saved_hide_mode()
 
         # Flip animation state
         self._flip_animations = {}
@@ -510,6 +595,7 @@ class LocationView(QGraphicsView):
             if node_key in saved_positions:
                 pos = saved_positions[node_key]
                 node.setPos(pos['x'], pos['y'])
+                node.hidden = bool(pos.get('hidden', False))
             else:
                 col = i % cols
                 row = i // cols
@@ -524,8 +610,15 @@ class LocationView(QGraphicsView):
         # Fit view to content
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
 
+        self.hidden_locations_changed.emit()
+
     def _build_arrows(self):
-        """Build arrows based on connection data"""
+        """Build arrows based on connection data.
+
+        When a connection exists in both directions between the same pair of
+        nodes, it is collapsed into a single two-way arrow rather than two
+        overlapping one-way arrows.
+        """
         # Remove existing arrows
         for arrow in self.arrows:
             self.scene.removeItem(arrow)
@@ -542,24 +635,81 @@ class LocationView(QGraphicsView):
                     symbol_to_nodes[connection] = []
                 symbol_to_nodes[connection].append(node)
 
-        # Create arrows for each connection
+        # Build directed edges: (source_key, target_key) -> symbol matched
+        # (the target's own connection symbol, listed in source's connections)
+        directed = {}
         for key, source_node in self.location_nodes.items():
-            connections = source_node.face.get('connections', [])
-            if not connections:
-                continue
-
+            connections = source_node.face.get('connections', []) or []
             for symbol in connections:
-                target_nodes = symbol_to_nodes.get(symbol, [])
-                for target_node in target_nodes:
-                    if target_node != source_node:
-                        arrow = ConnectionArrow(source_node, target_node, symbol)
-                        self.scene.addItem(arrow)
-                        self.arrows.append(arrow)
+                for target_node in symbol_to_nodes.get(symbol, []):
+                    if target_node is not source_node:
+                        directed[(key, target_node.node_key)] = symbol
+
+        # Collapse reciprocal pairs into a single two-way arrow
+        seen_pairs = set()
+        for (src_key, tgt_key), symbol in directed.items():
+            pair = frozenset((src_key, tgt_key))
+            if pair in seen_pairs:
+                continue
+            seen_pairs.add(pair)
+
+            source_node = self.location_nodes[src_key]
+            target_node = self.location_nodes[tgt_key]
+            reverse_symbol = directed.get((tgt_key, src_key))
+
+            arrow = ConnectionArrow(source_node, target_node, symbol, reverse_symbol)
+            self.scene.addItem(arrow)
+            self.arrows.append(arrow)
+
+        self._apply_visibility()
 
     def update_arrows(self):
         """Update all arrow positions"""
         for arrow in self.arrows:
             arrow.update_path()
+
+    def _apply_visibility(self):
+        """Show/hide nodes and arrows according to hide mode and each node's hidden flag"""
+        for node in self.location_nodes.values():
+            node.setVisible(not (self.hide_mode and node.hidden))
+        for arrow in self.arrows:
+            arrow.setVisible(not (
+                self.hide_mode and (arrow.source_node.hidden or arrow.target_node.hidden)
+            ))
+
+    def get_hidden_nodes(self):
+        """Return the list of nodes currently marked hidden (regardless of hide mode)"""
+        return [node for node in self.location_nodes.values() if node.hidden]
+
+    def _get_saved_hide_mode(self):
+        meta = self.encounter_set.data.get('meta', {})
+        return bool(meta.get('location_hide_mode', False))
+
+    def _save_hide_mode(self):
+        if 'meta' not in self.encounter_set.data:
+            self.encounter_set.data['meta'] = {}
+        self.encounter_set.data['meta']['location_hide_mode'] = self.hide_mode
+        self.encounter_set.dirty = True
+
+    def toggle_hide_mode(self):
+        """Swap between 'show' (hidden locations dimmed but visible) and 'hide' modes"""
+        self.hide_mode = not self.hide_mode
+        self._save_hide_mode()
+        self._apply_visibility()
+        self.hide_mode_changed.emit(self.hide_mode)
+
+    def set_node_hidden(self, node, hidden):
+        """Mark a location node hidden/unhidden and persist it"""
+        if node.hidden == hidden:
+            return
+        node.hidden = hidden
+        self.save_node_position(node)
+        node.update()
+        self._apply_visibility()
+        self.hidden_locations_changed.emit()
+
+    def toggle_node_hidden(self, node):
+        self.set_node_hidden(node, not node.hidden)
 
     def start_connection_drag(self, source_node, pos):
         """Start dragging to create a new connection"""
@@ -583,7 +733,7 @@ class LocationView(QGraphicsView):
         # Find target node under cursor
         target_node = None
         for item in self.scene.items(pos):
-            if isinstance(item, LocationNode) and item != self.drag_source_node:
+            if isinstance(item, LocationNode) and item != self.drag_source_node and item.isVisible():
                 target_node = item
                 break
 
@@ -625,23 +775,32 @@ class LocationView(QGraphicsView):
             self._build_arrows()
             self.connections_changed.emit(affected_cards)
 
-    def remove_connection(self, arrow):
-        """Remove a connection arrow"""
-        source_node = arrow.source_node
-        symbol = arrow.connection_symbol
-
-        connections = source_node.face.get('connections', []) or []
+    def _remove_connection_symbol(self, node, symbol, affected_cards):
+        """Remove a single symbol from a node's connections list, if present"""
+        connections = node.face.get('connections', []) or []
         connections = list(connections)
 
         if symbol in connections:
             connections.remove(symbol)
-            if connections:
-                source_node.face.set('connections', connections)
-            else:
-                source_node.face.set('connections', None)
-            self._refresh_node_thumbnail(source_node)
+            node.face.set('connections', connections if connections else None)
+            self._refresh_node_thumbnail(node)
+            if node.card not in affected_cards:
+                affected_cards.append(node.card)
+
+    def remove_connection(self, arrow):
+        """Remove a connection arrow.
+
+        For a two-way arrow this removes the connection in both directions —
+        the user can redraw one or both directions again if they want to.
+        """
+        affected_cards = []
+        self._remove_connection_symbol(arrow.source_node, arrow.connection_symbol, affected_cards)
+        if arrow.bidirectional:
+            self._remove_connection_symbol(arrow.target_node, arrow.reverse_symbol, affected_cards)
+
+        if affected_cards:
             self._build_arrows()
-            self.connections_changed.emit([source_node.card])
+            self.connections_changed.emit(affected_cards)
 
     def flip_node(self, node):
         """Start a flip animation for a node"""
@@ -690,6 +849,13 @@ class LocationView(QGraphicsView):
                 self.flip_node(self._hovered_node)
             event.accept()
             return
+        if event.key() == Qt.Key_H:
+            if event.modifiers() & Qt.ShiftModifier:
+                self.toggle_hide_mode()
+            elif self._hovered_node:
+                self.toggle_node_hidden(self._hovered_node)
+            event.accept()
+            return
         super().keyPressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -716,7 +882,7 @@ class LocationView(QGraphicsView):
             items = self.scene.items(scene_pos)
 
             for item in items:
-                if isinstance(item, ConnectionArrow):
+                if isinstance(item, ConnectionArrow) and item.isVisible():
                     # Show context menu for arrow
                     self._show_arrow_context_menu(item, event.globalPos())
                     return
@@ -746,18 +912,19 @@ class LocationView(QGraphicsView):
         return meta.get('location_graph', {})
 
     def save_node_position(self, node):
-        """Save a single node's position"""
+        """Save a single node's position and hidden state"""
         # Ensure meta structure exists
         if 'meta' not in self.encounter_set.data:
             self.encounter_set.data['meta'] = {}
         if 'location_graph' not in self.encounter_set.data['meta']:
             self.encounter_set.data['meta']['location_graph'] = {}
 
-        # Save position
+        # Save position and hidden state together
         pos = node.scenePos()
         self.encounter_set.data['meta']['location_graph'][node.node_key] = {
             'x': pos.x(),
-            'y': pos.y()
+            'y': pos.y(),
+            'hidden': node.hidden,
         }
 
         # Mark as dirty
@@ -894,6 +1061,65 @@ class LocationView(QGraphicsView):
         return image
 
 
+class HiddenLocationsPanel(QWidget):
+    """Side panel listing hidden locations, each with an Unhide button.
+
+    Only shown while there is at least one hidden location.
+    """
+
+    unhide_requested = Signal(object)  # emits the LocationNode to unhide
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedWidth(220)
+        self.setVisible(False)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(6, 6, 6, 6)
+
+        title = QLabel(f"<b>{tr('LABEL_HIDDEN_LOCATIONS')}</b>")
+        outer.addWidget(title)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        outer.addWidget(scroll)
+
+        self._list_widget = QWidget()
+        self._list_layout = QVBoxLayout(self._list_widget)
+        self._list_layout.setContentsMargins(0, 0, 0, 0)
+        self._list_layout.addStretch()
+        scroll.setWidget(self._list_widget)
+
+    def set_nodes(self, nodes):
+        """Rebuild the row list from the given LocationNodes"""
+        while self._list_layout.count():
+            item = self._list_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        for node in nodes:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+
+            name = getattr(node.card, 'name', None) or node.node_key
+            label = QLabel(name)
+            label.setWordWrap(True)
+            row_layout.addWidget(label, 1)
+
+            unhide_btn = QPushButton(tr("BTN_UNHIDE"))
+            unhide_btn.setToolTip(tr("TOOLTIP_UNHIDE"))
+            unhide_btn.clicked.connect(lambda checked=False, n=node: self.unhide_requested.emit(n))
+            row_layout.addWidget(unhide_btn)
+
+            self._list_layout.addWidget(row)
+
+        self._list_layout.addStretch()
+        self.setVisible(bool(nodes))
+
+
 class LocationViewWidget(QWidget):
     """Container widget for LocationView with toolbar"""
 
@@ -925,6 +1151,11 @@ class LocationViewWidget(QWidget):
         self.icon_mode_cb.toggled.connect(self._toggle_icon_mode)
         toolbar.addWidget(self.icon_mode_cb)
 
+        # Hide mode indicator
+        self.hide_mode_label = QLabel()
+        self.hide_mode_label.setToolTip(tr("TOOLTIP_HIDE_MODE"))
+        toolbar.addWidget(self.hide_mode_label)
+
         # Simulation toggle button
         self.simulate_btn = QPushButton(tr("BTN_SIMULATE"))
         self.simulate_btn.setCheckable(True)
@@ -950,18 +1181,41 @@ class LocationViewWidget(QWidget):
 
         layout.addLayout(toolbar)
 
-        # Location view
+        # Location view + hidden-locations side panel
+        body = QHBoxLayout()
+
         self.location_view = LocationView(encounter_set, renderer)
         self.location_view.card_double_clicked.connect(self.card_selected.emit)
-        layout.addWidget(self.location_view)
+        self.location_view.hidden_locations_changed.connect(self._refresh_hidden_panel)
+        self.location_view.hide_mode_changed.connect(self._update_hide_mode_label)
+        body.addWidget(self.location_view, 1)
+
+        self.hidden_panel = HiddenLocationsPanel()
+        self.hidden_panel.unhide_requested.connect(self._unhide_node)
+        body.addWidget(self.hidden_panel)
+
+        layout.addLayout(body)
 
         # Simulation timer (30 fps = ~33ms interval)
         self._sim_timer = QTimer(self)
         self._sim_timer.setInterval(33)
         self._sim_timer.timeout.connect(self._simulation_step)
 
+        self._update_hide_mode_label(self.location_view.hide_mode)
+        self._refresh_hidden_panel()
+
     def _refresh(self):
         self.location_view.refresh()
+
+    def _refresh_hidden_panel(self):
+        self.hidden_panel.set_nodes(self.location_view.get_hidden_nodes())
+
+    def _update_hide_mode_label(self, hide_mode):
+        key = "LABEL_HIDE_MODE_ON" if hide_mode else "LABEL_HIDE_MODE_OFF"
+        self.hide_mode_label.setText(tr(key))
+
+    def _unhide_node(self, node):
+        self.location_view.set_node_hidden(node, False)
 
     def _toggle_simulation(self, enabled):
         """Toggle the simulation on/off"""
