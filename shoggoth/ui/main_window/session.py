@@ -52,10 +52,20 @@ class SessionManager:
         self.capture_layout()
         self.save()
 
-    def set_last_selected(self, element_id, element_type):
-        """Record the last viewed element and persist the session."""
+    def set_last_selected(self, element_id, element_type, project=None):
+        """Record the last viewed element - and the project it belongs to - and persist the session.
+
+        The owning project must be recorded alongside the element: with
+        multiple projects open, the project that ends up active (e.g. because
+        its root node was clicked afterwards, which doesn't itself count as
+        "selecting an element") can drift away from the project the last
+        remembered element actually lives in.
+        """
         self.settings['session']['last_id'] = element_id
         self.settings['session']['last_type'] = element_type
+        self.settings['session']['last_project'] = (
+            getattr(project, '_node_id_path', project.file_path) if project else None
+        )
         self.save_session()
 
     def save_session(self):
@@ -132,29 +142,50 @@ class SessionManager:
         # Restore last selected element
         if last_id := session.get('last_id'):
             last_type = session.get('last_type', 'card')
-            QTimer.singleShot(100, lambda: self._restore_last_element(last_id, last_type))
+            last_project_path = session.get('last_project')
+            QTimer.singleShot(100, lambda: self._restore_last_element(last_id, last_type, last_project_path))
 
-    def _restore_last_element(self, element_id, element_type):
-        """Restore the last selected element by ID and type"""
+    def _restore_last_element(self, element_id, element_type, project_path=None):
+        """Restore the last selected element by ID and type.
+
+        `project_path` identifies which open project the element belongs to
+        (see set_last_selected) - it may differ from whichever project ended
+        up active by the time the session was saved. Falls back to the active
+        project for old session files that predate this field.
+        """
         window = self.window
-        if not window.active_project:
+
+        project = None
+        if project_path:
+            for p in window.open_projects:
+                path = getattr(p, '_node_id_path', p.file_path)
+                if path == project_path:
+                    project = p
+                    break
+        if project is None:
+            project = window.active_project
+        if not project:
             return
+
+        # Make sure the element's actual owning project is active before
+        # showing it, in case it differs from whatever ended up active.
+        window.file_browser.set_active_project(project)
 
         element = None
         if element_type == 'card':
-            element = window.active_project.get_card(element_id)
+            element = project.get_card(element_id)
             if element:
                 window.show_card(element)
         elif element_type == 'encounter':
-            element = window.active_project.get_encounter_set(element_id)
+            element = project.get_encounter_set(element_id)
             if element:
                 window.show_encounter(element)
         elif element_type == 'guide':
-            element = window.active_project.get_guide(element_id)
+            element = project.get_guide(element_id)
             if element:
                 window.show_guide(element)
         elif element_type == 'locations':
-            element = window.active_project.get_encounter_set(element_id)
+            element = project.get_encounter_set(element_id)
             if element:
                 window.show_locations(element)
 

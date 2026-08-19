@@ -17,7 +17,7 @@ logging.getLogger('PIL').setLevel(logging.ERROR)
 logging.getLogger('pillow').setLevel(logging.ERROR)
 logger = logging.getLogger('shoggoth')
 
-card_value_pattern = re.compile(r'(<:(.+?) (.+?)>)')
+card_value_pattern = re.compile(r'(<:(.*?) (.+?)>)')
 _ILLUS_LRU_MAXSIZE = 24
 # "Natural" pixel size of a PDF page (page points are 1/72"). Only fixes what
 # illustration_scale=1.0 means for PDFs; actual rasterization is done at the
@@ -544,7 +544,7 @@ class CardRenderer:
         # card reference
         references = re.findall(card_value_pattern, value)
         for match in references:
-            value = value.replace(match[0], self.card_value(side.card.project, match[1], match[2]))
+            value = value.replace(match[0], self.card_value(side.card.project, match[1] or side.card.id, match[2]))
 
         # translations
         for orig, trans in self.translations.items():

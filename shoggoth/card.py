@@ -238,6 +238,10 @@ class Card:
         self.project = project
         if 'id' not in data:
             data['id'] = str(uuid4())
+            # See EncounterSet.__init__: a freshly-generated id only exists in
+            # memory until the project is saved - mark it dirty so it's not
+            # silently regenerated (mismatching a saved session selection) next load.
+            self.dirty = True
 
         self.front = Face(self.data['front'], card=self)
         self.back = Face(self.data['back'], card=self)

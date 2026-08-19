@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QGraphicsPathItem, QGraphicsEllipseItem, QWidget, QVBoxLayout,
     QHBoxLayout, QPushButton, QLabel, QMenu, QCheckBox,
     QApplication, QDialog, QDialogButtonBox, QGridLayout,
-    QScrollArea, QFrame,
+    QScrollArea, QFrame, QTabBar, QInputDialog,
 )
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QSize, QTimer
 from PySide6.QtGui import (
@@ -16,6 +16,7 @@ from PySide6.QtGui import (
 )
 from io import BytesIO
 from pathlib import Path
+from uuid import uuid4
 from shoggoth import files
 from shoggoth.files import overlay_dir
 
@@ -110,41 +111,17 @@ class ConnectionArrow(QGraphicsPathItem):
         t = min(t_values)
         return QPointF(center.x() + direction_x * t, center.y() + direction_y * t)
 
-    def _make_arrowhead_polygon(self, tip, dir_x, dir_y, size):
-        """Build a triangle arrowhead pointing in (dir_x, dir_y), tip at `tip`"""
-        back_x = tip.x() - dir_x * size
-        back_y = tip.y() - dir_y * size
-        perp_x, perp_y = -dir_y, dir_x
-        half_width = size * 0.55
-        p1 = QPointF(back_x + perp_x * half_width, back_y + perp_y * half_width)
-        p2 = QPointF(back_x - perp_x * half_width, back_y - perp_y * half_width)
-        return QPolygonF([tip, p1, p2])
-
-    def _make_shaft_polygon(self, start, end, dir_x, dir_y):
-        """Build the shaft as a thin rectangle from start to end"""
-        perp_x, perp_y = -dir_y, dir_x
-        hw = self.LINE_WIDTH / 2
-        return QPolygonF([
-            QPointF(start.x() + perp_x * hw, start.y() + perp_y * hw),
-            QPointF(start.x() - perp_x * hw, start.y() - perp_y * hw),
-            QPointF(end.x() - perp_x * hw, end.y() - perp_y * hw),
-            QPointF(end.x() + perp_x * hw, end.y() + perp_y * hw),
-        ])
-
-    @staticmethod
-    def _polygon_path(polygon):
-        path = QPainterPath()
-        path.addPolygon(polygon)
-        path.closeSubpath()
-        return path
-
     def update_path(self):
         """Update the arrow's filled shape based on node positions.
 
-        The shaft and arrowhead(s) are built as one unioned polygon (rather
-        than a separately-stroked line plus separately-filled triangles) so
-        they read as a single continuous arrow instead of two overlapping
-        pieces.
+        The shaft and arrowhead(s) are traced as a single simple polygon in
+        one pass, rather than built as separate shaft/arrowhead QPainterPaths
+        combined with `united()`. That boolean union can, at certain angles,
+        leave a stray internal edge where the thin shaft meets the much wider
+        arrowhead base - invisible under the fill, but the outline pass still
+        strokes it, producing a small rectangular white glitch right at that
+        junction. Tracing one outline by hand sidesteps the boolean clip
+        entirely so there's nothing left to mis-merge.
         """
         if not self.source_node or not self.target_node:
             return
@@ -177,21 +154,43 @@ class ConnectionArrow(QGraphicsPathItem):
         )
 
         arrow_size = self.ARROW_SIZE
+        hw = self.LINE_WIDTH / 2
+        half_width = arrow_size * 0.55
+        perp_x, perp_y = -dir_y, dir_x
 
-        # Shaft runs to the base of the arrowhead(s) so the union has no gap.
-        shaft_start = start
-        shaft_end = QPointF(end.x() - dir_x * arrow_size, end.y() - dir_y * arrow_size)
-        if self.bidirectional:
-            shaft_start = QPointF(start.x() + dir_x * arrow_size, start.y() + dir_y * arrow_size)
+        # "Shoulder" = where the shaft's edge steps out to the arrowhead's
+        # (wider) back edge, at each end that has an arrowhead.
+        end_shoulder = QPointF(end.x() - dir_x * arrow_size, end.y() - dir_y * arrow_size)
 
-        fill_path = self._polygon_path(self._make_shaft_polygon(shaft_start, shaft_end, dir_x, dir_y))
-        fill_path = fill_path.united(
-            self._polygon_path(self._make_arrowhead_polygon(end, dir_x, dir_y, arrow_size))
-        )
+        # Trace the outline once: out along the +perp side from the end tip
+        # to the start end, then back along the -perp side to close the loop.
+        points = [
+            end,
+            QPointF(end_shoulder.x() + perp_x * half_width, end_shoulder.y() + perp_y * half_width),
+            QPointF(end_shoulder.x() + perp_x * hw, end_shoulder.y() + perp_y * hw),
+        ]
         if self.bidirectional:
-            fill_path = fill_path.united(
-                self._polygon_path(self._make_arrowhead_polygon(start, -dir_x, -dir_y, arrow_size))
-            )
+            start_shoulder = QPointF(start.x() + dir_x * arrow_size, start.y() + dir_y * arrow_size)
+            points += [
+                QPointF(start_shoulder.x() + perp_x * hw, start_shoulder.y() + perp_y * hw),
+                QPointF(start_shoulder.x() + perp_x * half_width, start_shoulder.y() + perp_y * half_width),
+                start,
+                QPointF(start_shoulder.x() - perp_x * half_width, start_shoulder.y() - perp_y * half_width),
+                QPointF(start_shoulder.x() - perp_x * hw, start_shoulder.y() - perp_y * hw),
+            ]
+        else:
+            points += [
+                QPointF(start.x() + perp_x * hw, start.y() + perp_y * hw),
+                QPointF(start.x() - perp_x * hw, start.y() - perp_y * hw),
+            ]
+        points += [
+            QPointF(end_shoulder.x() - perp_x * hw, end_shoulder.y() - perp_y * hw),
+            QPointF(end_shoulder.x() - perp_x * half_width, end_shoulder.y() - perp_y * half_width),
+        ]
+
+        fill_path = QPainterPath()
+        fill_path.addPolygon(QPolygonF(points))
+        fill_path.closeSubpath()
 
         self._fill_path = fill_path
         self.setPath(fill_path)
@@ -257,6 +256,7 @@ class LocationNode(QGraphicsItem):
         self._connection_icon = None
         self._flip_scale_x = 1.0
         self.hidden = False  # marked hidden by the user (see LocationView hide mode)
+        self.default_pos = QPointF(0, 0)  # grid fallback position, set in LocationView._build_view
 
         # Stable key for this node
         self.node_key = f"{card.id}_{face_side}"
@@ -319,8 +319,8 @@ class LocationNode(QGraphicsItem):
         other = self.card.back if self.face_side == 'front' else self.card.front
         return other is not None
 
-    def _do_flip(self):
-        """Swap to the opposite card face and rebuild connections"""
+    def _swap_face(self):
+        """Swap face/face_side and refresh visuals, without rebuilding arrows or persisting"""
         if self.face_side == 'front':
             self.face = self.card.back
             self.face_side = 'back'
@@ -329,7 +329,12 @@ class LocationNode(QGraphicsItem):
             self.face_side = 'front'
         self._generate_thumbnail()
         self._load_connection_icon()
+
+    def _do_flip(self):
+        """Swap to the opposite card face, rebuild connections, and persist the flip"""
+        self._swap_face()
         self.view._build_arrows()
+        self.view.save_node_position(self)
 
     def hoverEnterEvent(self, event):
         self.view._hovered_node = self
@@ -427,6 +432,11 @@ class LocationNode(QGraphicsItem):
             painter.drawEllipse(2, 2, self.ICON_SIZE - 4, self.ICON_SIZE - 4)
 
     def itemChange(self, change, value):
+        if change == QGraphicsItem.ItemPositionChange and self.view.snap_enabled:
+            return QPointF(
+                round(value.x() / SNAP_STEP_X) * SNAP_STEP_X,
+                round(value.y() / SNAP_STEP_Y) * SNAP_STEP_Y,
+            )
         if change == QGraphicsItem.ItemPositionHasChanged:
             # Update all connected arrows
             self.view.update_arrows()
@@ -454,6 +464,11 @@ class LocationNode(QGraphicsItem):
             event.accept()
         else:
             super().mouseReleaseEvent(event)
+
+
+# Invisible global snap grid: ~3x5 points per card footprint, in scene units.
+SNAP_STEP_X = LocationNode.CARD_WIDTH / 3
+SNAP_STEP_Y = LocationNode.CARD_HEIGHT / 5
 
 
 class ConnectionDragLine(QGraphicsPathItem):
@@ -529,6 +544,7 @@ class LocationView(QGraphicsView):
     connections_changed = Signal(list)  # Emitted when connections are modified; carries list of affected cards
     hidden_locations_changed = Signal()  # Emitted when a node is hidden/unhidden, or nodes are (re)built
     hide_mode_changed = Signal(bool)  # Emitted when hide mode is toggled
+    layouts_changed = Signal()  # Emitted when layouts are added/removed/renamed/switched
 
     def __init__(self, encounter_set, renderer, parent=None):
         super().__init__(parent)
@@ -554,7 +570,7 @@ class LocationView(QGraphicsView):
         self.connection_drag_line = None
         self.drag_source_node = None
         self._hovered_node = None
-        self.hide_mode = self._get_saved_hide_mode()
+        self._load_layouts()
 
         # Flip animation state
         self._flip_animations = {}
@@ -579,7 +595,7 @@ class LocationView(QGraphicsView):
             if card.grouping == 'location':
                 locations.append((card, card.front, 'front'))
 
-        # Load saved positions
+        # Load saved positions from the active layout
         saved_positions = self._get_saved_positions()
 
         # Create nodes with grid layout (default) or saved positions
@@ -590,16 +606,23 @@ class LocationView(QGraphicsView):
         for i, (card, face, face_side) in enumerate(locations):
             node = LocationNode(card, face, face_side, self.renderer, self)
 
-            # Use saved position or default grid position
+            # Default grid position, used whenever a layout has no saved entry
+            col = i % cols
+            row = i // cols
+            node.default_pos = QPointF(col * spacing_x, row * spacing_y)
+
             node_key = f"{card.id}_{face_side}"
             if node_key in saved_positions:
                 pos = saved_positions[node_key]
-                node.setPos(pos['x'], pos['y'])
+                # Set hidden/flipped before setPos: setPos can trigger itemChange ->
+                # save_node_position (ItemSendsGeometryChanges is already set),
+                # which would otherwise persist the wrong (default) hidden/flipped value.
                 node.hidden = bool(pos.get('hidden', False))
+                if pos.get('flipped', False) and node.can_flip():
+                    node._swap_face()
+                node.setPos(pos['x'], pos['y'])
             else:
-                col = i % cols
-                row = i // cols
-                node.setPos(col * spacing_x, row * spacing_y)
+                node.setPos(node.default_pos)
 
             self.scene.addItem(node)
             self.location_nodes[node_key] = node
@@ -669,11 +692,12 @@ class LocationView(QGraphicsView):
             arrow.update_path()
 
     def _apply_visibility(self):
-        """Show/hide nodes and arrows according to hide mode and each node's hidden flag"""
+        """Show/hide nodes and arrows according to hide mode, show_arrows, and each node's hidden flag"""
         for node in self.location_nodes.values():
             node.setVisible(not (self.hide_mode and node.hidden))
+        show_arrows = self.show_arrows
         for arrow in self.arrows:
-            arrow.setVisible(not (
+            arrow.setVisible(show_arrows and not (
                 self.hide_mode and (arrow.source_node.hidden or arrow.target_node.hidden)
             ))
 
@@ -681,20 +705,9 @@ class LocationView(QGraphicsView):
         """Return the list of nodes currently marked hidden (regardless of hide mode)"""
         return [node for node in self.location_nodes.values() if node.hidden]
 
-    def _get_saved_hide_mode(self):
-        meta = self.encounter_set.data.get('meta', {})
-        return bool(meta.get('location_hide_mode', False))
-
-    def _save_hide_mode(self):
-        if 'meta' not in self.encounter_set.data:
-            self.encounter_set.data['meta'] = {}
-        self.encounter_set.data['meta']['location_hide_mode'] = self.hide_mode
-        self.encounter_set.dirty = True
-
     def toggle_hide_mode(self):
         """Swap between 'show' (hidden locations dimmed but visible) and 'hide' modes"""
         self.hide_mode = not self.hide_mode
-        self._save_hide_mode()
         self._apply_visibility()
         self.hide_mode_changed.emit(self.hide_mode)
 
@@ -906,34 +919,165 @@ class LocationView(QGraphicsView):
         else:
             self.scale(1 / factor, 1 / factor)
 
+    # --- Layout persistence -------------------------------------------------
+
+    def _load_layouts(self):
+        """Load (migrating if necessary) the list of layouts from encounter set meta"""
+        meta = self.encounter_set.data.setdefault('meta', {})
+
+        if 'location_layouts' not in meta:
+            old_nodes = meta.pop('location_graph', {})
+            old_hide_mode = meta.pop('location_hide_mode', False)
+            layout_id = str(uuid4())
+            meta['location_layouts'] = [{
+                'id': layout_id,
+                'name': tr('LABEL_LAYOUT_NAME').format(n=1),
+                'show_arrows': True,
+                'snap_enabled': False,
+                'hide_mode': old_hide_mode,
+                'nodes': old_nodes,
+            }]
+            meta['location_active_layout'] = layout_id
+            self.encounter_set.dirty = True
+
+        self.layouts = meta['location_layouts']
+        self.active_layout_id = meta.get('location_active_layout')
+        if not any(l['id'] == self.active_layout_id for l in self.layouts):
+            self.active_layout_id = self.layouts[0]['id']
+            meta['location_active_layout'] = self.active_layout_id
+
+    @property
+    def active_layout(self):
+        for layout in self.layouts:
+            if layout['id'] == self.active_layout_id:
+                return layout
+        # Stale id (shouldn't normally happen) - repair and fall back
+        self.active_layout_id = self.layouts[0]['id']
+        self.encounter_set.data['meta']['location_active_layout'] = self.active_layout_id
+        return self.layouts[0]
+
+    @property
+    def hide_mode(self):
+        return bool(self.active_layout.get('hide_mode', False))
+
+    @hide_mode.setter
+    def hide_mode(self, value):
+        self.active_layout['hide_mode'] = bool(value)
+        self.encounter_set.dirty = True
+
+    @property
+    def snap_enabled(self):
+        return bool(self.active_layout.get('snap_enabled', False))
+
+    @snap_enabled.setter
+    def snap_enabled(self, value):
+        self.active_layout['snap_enabled'] = bool(value)
+        self.encounter_set.dirty = True
+
+    @property
+    def show_arrows(self):
+        return bool(self.active_layout.get('show_arrows', True))
+
+    @show_arrows.setter
+    def show_arrows(self, value):
+        self.active_layout['show_arrows'] = bool(value)
+        self.encounter_set.dirty = True
+        self._apply_visibility()
+
     def _get_saved_positions(self):
-        """Get saved node positions from encounter set meta"""
-        meta = self.encounter_set.data.get('meta', {})
-        return meta.get('location_graph', {})
+        """Get saved node positions from the active layout"""
+        return self.active_layout.get('nodes', {})
 
     def save_node_position(self, node):
-        """Save a single node's position and hidden state"""
-        # Ensure meta structure exists
-        if 'meta' not in self.encounter_set.data:
-            self.encounter_set.data['meta'] = {}
-        if 'location_graph' not in self.encounter_set.data['meta']:
-            self.encounter_set.data['meta']['location_graph'] = {}
+        """Save a single node's position, hidden state, and flip state into the active layout"""
+        nodes = self.active_layout.setdefault('nodes', {})
 
-        # Save position and hidden state together
         pos = node.scenePos()
-        self.encounter_set.data['meta']['location_graph'][node.node_key] = {
+        nodes[node.node_key] = {
             'x': pos.x(),
             'y': pos.y(),
             'hidden': node.hidden,
+            'flipped': node.face_side != 'front',
         }
 
-        # Mark as dirty
         self.encounter_set.dirty = True
 
     def save_all_positions(self):
         """Save all node positions"""
         for node in self.location_nodes.values():
             self.save_node_position(node)
+
+    def switch_layout(self, layout_id):
+        """Switch the active layout, repositioning existing nodes (no rebuild)"""
+        if layout_id == self.active_layout_id:
+            return
+        if not any(l['id'] == layout_id for l in self.layouts):
+            return
+
+        self.active_layout_id = layout_id
+        self.encounter_set.data['meta']['location_active_layout'] = layout_id
+        self.encounter_set.dirty = True
+
+        saved_positions = self._get_saved_positions()
+        for node in self.location_nodes.values():
+            entry = saved_positions.get(node.node_key)
+            if entry:
+                # hidden/flipped before setPos - see comment in _build_view
+                node.hidden = bool(entry.get('hidden', False))
+                if entry.get('flipped', False) != (node.face_side != 'front') and node.can_flip():
+                    node._swap_face()
+                node.setPos(entry['x'], entry['y'])
+            else:
+                node.hidden = False
+                if node.face_side != 'front' and node.can_flip():
+                    node._swap_face()
+                node.setPos(node.default_pos)
+            node.update()
+
+        # Rebuild (not just reposition) arrows: flip state may have changed
+        # each node's connection data.
+        self._build_arrows()
+        self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
+        self.hidden_locations_changed.emit()
+        self.layouts_changed.emit()
+
+    def add_layout(self, name=None):
+        """Create a new, empty layout and switch to it"""
+        layout_id = str(uuid4())
+        self.layouts.append({
+            'id': layout_id,
+            'name': name or tr('LABEL_LAYOUT_NAME').format(n=len(self.layouts) + 1),
+            'show_arrows': True,
+            'snap_enabled': False,
+            'hide_mode': False,
+            'nodes': {},
+        })
+        self.encounter_set.dirty = True
+        self.switch_layout(layout_id)
+
+    def remove_layout(self, layout_id):
+        """Remove a layout (refusing to remove the last remaining one)"""
+        if len(self.layouts) <= 1:
+            return
+        index = next((i for i, l in enumerate(self.layouts) if l['id'] == layout_id), None)
+        if index is None:
+            return
+        was_active = layout_id == self.active_layout_id
+        del self.layouts[index]
+        self.encounter_set.dirty = True
+        if was_active:
+            self.switch_layout(self.layouts[0]['id'])
+        else:
+            self.layouts_changed.emit()
+
+    def rename_layout(self, layout_id, name):
+        """Rename a layout"""
+        for layout in self.layouts:
+            if layout['id'] == layout_id:
+                layout['name'] = name
+                self.encounter_set.dirty = True
+                self.layouts_changed.emit()
+                return
 
     def init_simulation(self):
         """Initialize or reset simulation velocities"""
@@ -1062,8 +1206,10 @@ class LocationView(QGraphicsView):
 
 
 class HiddenLocationsPanel(QWidget):
-    """Side panel listing hidden locations, each with an Unhide button.
+    """List of hidden locations, each with an Unhide button.
 
+    Meant to be embedded inside a larger scrollable sidebar (see
+    LocationViewWidget), so it does not scroll or size itself independently.
     Only shown while there is at least one hidden location.
     """
 
@@ -1071,25 +1217,17 @@ class HiddenLocationsPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(220)
         self.setVisible(False)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(6, 6, 6, 6)
+        outer.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel(f"<b>{tr('LABEL_HIDDEN_LOCATIONS')}</b>")
         outer.addWidget(title)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        outer.addWidget(scroll)
-
-        self._list_widget = QWidget()
-        self._list_layout = QVBoxLayout(self._list_widget)
+        self._list_layout = QVBoxLayout()
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.addStretch()
-        scroll.setWidget(self._list_widget)
+        outer.addLayout(self._list_layout)
 
     def set_nodes(self, nodes):
         """Rebuild the row list from the given LocationNodes"""
@@ -1116,106 +1254,232 @@ class HiddenLocationsPanel(QWidget):
 
             self._list_layout.addWidget(row)
 
-        self._list_layout.addStretch()
         self.setVisible(bool(nodes))
 
 
 class LocationViewWidget(QWidget):
-    """Container widget for LocationView with toolbar"""
+    """Container widget for LocationView: layout tabs on top, graphics view +
+    right-hand control sidebar below."""
 
     card_selected = Signal(object)
+
+    SIDEBAR_WIDTH = 230
 
     def __init__(self, encounter_set, renderer, parent=None):
         super().__init__(parent)
         self.encounter_set = encounter_set
         self.renderer = renderer
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
 
-        # Toolbar
-        toolbar = QHBoxLayout()
+        # Layout tabs
+        tabs_row = QHBoxLayout()
 
-        title = QLabel(f"<b>{tr('TITLE_LOCATIONS').format(name=encounter_set.name)}</b>")
-        toolbar.addWidget(title)
+        self.layout_tabs = QTabBar()
+        self.layout_tabs.setExpanding(False)
+        self.layout_tabs.currentChanged.connect(self._on_tab_changed)
+        self.layout_tabs.tabCloseRequested.connect(self._delete_layout)
+        self.layout_tabs.tabBarDoubleClicked.connect(self._rename_layout)
+        tabs_row.addWidget(self.layout_tabs, 1)
 
-        toolbar.addStretch()
+        add_layout_btn = QPushButton(tr("SYMBOL_PLUS"))
+        add_layout_btn.setFixedWidth(28)
+        add_layout_btn.setToolTip(tr("TOOLTIP_ADD_LAYOUT"))
+        add_layout_btn.clicked.connect(self._add_layout)
+        tabs_row.addWidget(add_layout_btn)
 
-        help_label = QLabel(tr("HELP_LOCATION_VIEW"))
-        help_label.setStyleSheet("color: #888;")
-        toolbar.addWidget(help_label)
+        outer.addLayout(tabs_row)
 
-        # Icon mode checkbox
-        self.icon_mode_cb = QCheckBox(tr("LABEL_ICONS"))
-        self.icon_mode_cb.setToolTip(tr("TOOLTIP_ICON_MODE"))
-        self.icon_mode_cb.toggled.connect(self._toggle_icon_mode)
-        toolbar.addWidget(self.icon_mode_cb)
-
-        # Hide mode indicator
-        self.hide_mode_label = QLabel()
-        self.hide_mode_label.setToolTip(tr("TOOLTIP_HIDE_MODE"))
-        toolbar.addWidget(self.hide_mode_label)
-
-        # Simulation toggle button
-        self.simulate_btn = QPushButton(tr("BTN_SIMULATE"))
-        self.simulate_btn.setCheckable(True)
-        self.simulate_btn.setToolTip(tr("TOOLTIP_SIMULATE"))
-        self.simulate_btn.toggled.connect(self._toggle_simulation)
-        toolbar.addWidget(self.simulate_btn)
-
-        # Screenshot button
-        screenshot_btn = QPushButton(tr("BTN_SCREENSHOT"))
-        screenshot_btn.setToolTip(tr("TOOLTIP_SCREENSHOT"))
-        screenshot_btn.clicked.connect(self._take_screenshot)
-        toolbar.addWidget(screenshot_btn)
-
-        # Export button
-        self._export_guide_btn = QPushButton(tr("BTN_EXPORT_LOCATION"))
-        self._export_guide_btn.setToolTip(tr("TOOLTIP_EXPORT_LOCATION"))
-        self._export_guide_btn.clicked.connect(self._export_to_guide)
-        toolbar.addWidget(self._export_guide_btn)
-
-        refresh_btn = QPushButton(tr("BTN_REFRESH"))
-        refresh_btn.clicked.connect(self._refresh)
-        toolbar.addWidget(refresh_btn)
-
-        layout.addLayout(toolbar)
-
-        # Location view + hidden-locations side panel
+        # Location view + right-hand sidebar
         body = QHBoxLayout()
 
         self.location_view = LocationView(encounter_set, renderer)
         self.location_view.card_double_clicked.connect(self.card_selected.emit)
         self.location_view.hidden_locations_changed.connect(self._refresh_hidden_panel)
-        self.location_view.hide_mode_changed.connect(self._update_hide_mode_label)
+        self.location_view.hide_mode_changed.connect(self._update_hide_mode_button)
+        self.location_view.layouts_changed.connect(self._refresh_tabs)
         body.addWidget(self.location_view, 1)
 
-        self.hidden_panel = HiddenLocationsPanel()
-        self.hidden_panel.unhide_requested.connect(self._unhide_node)
-        body.addWidget(self.hidden_panel)
+        body.addWidget(self._build_sidebar(encounter_set))
 
-        layout.addLayout(body)
+        outer.addLayout(body)
 
         # Simulation timer (30 fps = ~33ms interval)
         self._sim_timer = QTimer(self)
         self._sim_timer.setInterval(33)
         self._sim_timer.timeout.connect(self._simulation_step)
 
-        self._update_hide_mode_label(self.location_view.hide_mode)
+        self._refresh_tabs()
+        self._sync_controls_to_active_layout()
         self._refresh_hidden_panel()
+
+    def _build_sidebar(self, encounter_set):
+        sidebar = QWidget()
+        sidebar.setFixedWidth(self.SIDEBAR_WIDTH)
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        sidebar_layout.addWidget(scroll)
+
+        content = QWidget()
+        col = QVBoxLayout(content)
+        col.setContentsMargins(6, 6, 6, 6)
+
+        title = QLabel(f"<b>{tr('TITLE_LOCATIONS').format(name=encounter_set.name)}</b>")
+        title.setWordWrap(True)
+        col.addWidget(title)
+
+        help_label = QLabel(tr("HELP_LOCATION_VIEW"))
+        help_label.setWordWrap(True)
+        help_label.setStyleSheet("color: #888;")
+        col.addWidget(help_label)
+
+        self.icon_mode_cb = QCheckBox(tr("LABEL_ICONS"))
+        self.icon_mode_cb.setToolTip(tr("TOOLTIP_ICON_MODE"))
+        self.icon_mode_cb.toggled.connect(self._toggle_icon_mode)
+        col.addWidget(self.icon_mode_cb)
+
+        self.snap_cb = QCheckBox(tr("LABEL_SNAP_TO_GRID"))
+        self.snap_cb.setToolTip(tr("TOOLTIP_SNAP_TO_GRID"))
+        self.snap_cb.toggled.connect(self._toggle_snap)
+        col.addWidget(self.snap_cb)
+
+        self.show_arrows_cb = QCheckBox(tr("LABEL_SHOW_ARROWS"))
+        self.show_arrows_cb.setToolTip(tr("TOOLTIP_SHOW_ARROWS"))
+        self.show_arrows_cb.toggled.connect(self._toggle_show_arrows)
+        col.addWidget(self.show_arrows_cb)
+
+        self.hide_mode_btn = QPushButton()
+        self.hide_mode_btn.setCheckable(True)
+        self.hide_mode_btn.setToolTip(tr("TOOLTIP_HIDE_MODE"))
+        self.hide_mode_btn.toggled.connect(self._on_hide_mode_btn_toggled)
+        col.addWidget(self.hide_mode_btn)
+
+        self.simulate_btn = QPushButton(tr("BTN_SIMULATE"))
+        self.simulate_btn.setCheckable(True)
+        self.simulate_btn.setToolTip(tr("TOOLTIP_SIMULATE"))
+        self.simulate_btn.toggled.connect(self._toggle_simulation)
+        col.addWidget(self.simulate_btn)
+
+        screenshot_btn = QPushButton(tr("BTN_SCREENSHOT"))
+        screenshot_btn.setToolTip(tr("TOOLTIP_SCREENSHOT"))
+        screenshot_btn.clicked.connect(self._take_screenshot)
+        col.addWidget(screenshot_btn)
+
+        self._export_guide_btn = QPushButton(tr("BTN_EXPORT_LOCATION"))
+        self._export_guide_btn.setToolTip(tr("TOOLTIP_EXPORT_LOCATION"))
+        self._export_guide_btn.clicked.connect(self._export_to_guide)
+        col.addWidget(self._export_guide_btn)
+
+        refresh_btn = QPushButton(tr("BTN_REFRESH"))
+        refresh_btn.clicked.connect(self._refresh)
+        col.addWidget(refresh_btn)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        col.addWidget(separator)
+
+        self.hidden_panel = HiddenLocationsPanel()
+        self.hidden_panel.unhide_requested.connect(self._unhide_node)
+        col.addWidget(self.hidden_panel)
+
+        col.addStretch()
+        scroll.setWidget(content)
+
+        return sidebar
 
     def _refresh(self):
         self.location_view.refresh()
+        self._refresh_tabs()
+        self._sync_controls_to_active_layout()
 
     def _refresh_hidden_panel(self):
         self.hidden_panel.set_nodes(self.location_view.get_hidden_nodes())
 
-    def _update_hide_mode_label(self, hide_mode):
+    def _update_hide_mode_button(self, hide_mode):
         key = "LABEL_HIDE_MODE_ON" if hide_mode else "LABEL_HIDE_MODE_OFF"
-        self.hide_mode_label.setText(tr(key))
+        self.hide_mode_btn.blockSignals(True)
+        self.hide_mode_btn.setChecked(hide_mode)
+        self.hide_mode_btn.setText(tr(key))
+        self.hide_mode_btn.blockSignals(False)
+
+    def _on_hide_mode_btn_toggled(self, checked):
+        if checked != self.location_view.hide_mode:
+            self.location_view.toggle_hide_mode()
 
     def _unhide_node(self, node):
         self.location_view.set_node_hidden(node, False)
+
+    # --- Layout tabs ---------------------------------------------------
+
+    def _refresh_tabs(self):
+        self.layout_tabs.blockSignals(True)
+        while self.layout_tabs.count():
+            self.layout_tabs.removeTab(0)
+        for layout in self.location_view.layouts:
+            index = self.layout_tabs.addTab(layout['name'])
+            self.layout_tabs.setTabData(index, layout['id'])
+        multiple = self.layout_tabs.count() > 1
+        self.layout_tabs.setTabsClosable(multiple)
+        active_index = next(
+            (i for i in range(self.layout_tabs.count())
+             if self.layout_tabs.tabData(i) == self.location_view.active_layout_id),
+            0,
+        )
+        self.layout_tabs.setCurrentIndex(active_index)
+        self.layout_tabs.blockSignals(False)
+
+    def _sync_controls_to_active_layout(self):
+        self.snap_cb.blockSignals(True)
+        self.snap_cb.setChecked(self.location_view.snap_enabled)
+        self.snap_cb.blockSignals(False)
+
+        self.show_arrows_cb.blockSignals(True)
+        self.show_arrows_cb.setChecked(self.location_view.show_arrows)
+        self.show_arrows_cb.blockSignals(False)
+
+        self._update_hide_mode_button(self.location_view.hide_mode)
+
+    def _on_tab_changed(self, index):
+        layout_id = self.layout_tabs.tabData(index)
+        if layout_id and layout_id != self.location_view.active_layout_id:
+            self.location_view.switch_layout(layout_id)
+            self._sync_controls_to_active_layout()
+
+    def _add_layout(self):
+        self.location_view.add_layout()
+        self._refresh_tabs()
+        self._sync_controls_to_active_layout()
+
+    def _delete_layout(self, index):
+        layout_id = self.layout_tabs.tabData(index)
+        if not layout_id or len(self.location_view.layouts) <= 1:
+            return
+        self.location_view.remove_layout(layout_id)
+        self._refresh_tabs()
+        self._sync_controls_to_active_layout()
+
+    def _rename_layout(self, index):
+        layout_id = self.layout_tabs.tabData(index)
+        if not layout_id:
+            return
+        current_name = self.layout_tabs.tabText(index)
+        name, ok = QInputDialog.getText(
+            self, tr("DLG_RENAME_LAYOUT"), tr("MSG_ENTER_LAYOUT_NAME"), text=current_name
+        )
+        if ok and name.strip():
+            self.location_view.rename_layout(layout_id, name.strip())
+            self._refresh_tabs()
+
+    def _toggle_snap(self, enabled):
+        self.location_view.snap_enabled = enabled
+
+    def _toggle_show_arrows(self, enabled):
+        self.location_view.show_arrows = enabled
 
     def _toggle_simulation(self, enabled):
         """Toggle the simulation on/off"""
@@ -1256,11 +1520,18 @@ class LocationViewWidget(QWidget):
 
         project = self.encounter_set.project
         enc_id = self.encounter_set.id
+        active_layout_id = self.location_view.active_layout_id
+        # 0-based to match the [encounter:id:location_overview:index] guide tag,
+        # which defaults to index 0 when omitted.
+        layout_index = next(
+            i for i, layout in enumerate(self.location_view.layouts)
+            if layout['id'] == active_layout_id
+        )
 
         export_folder = files.default_export_folder(project)
         export_folder.mkdir(parents=True, exist_ok=True)
 
-        img_path = export_folder / f'{enc_id}_location_overview.png'
+        img_path = export_folder / f'{enc_id}_location_overview_{layout_index}.png'
         image.save(str(img_path))
 
         import shoggoth

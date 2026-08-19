@@ -51,7 +51,7 @@ def _begin_view(window, project, nav_type, nav_id, remember=True):
     window.nav.push(nav_type, nav_id)
     clear_editor(window)
     if remember:
-        window.session.set_last_selected(nav_id, nav_type)
+        window.session.set_last_selected(nav_id, nav_type, project)
 
 
 def _mount(window, widget, scroll=True):

@@ -3,24 +3,28 @@ arkham.build export - exports a Shoggoth project to arkham.build format
 
 Schema reference: https://github.com/arkham-build/fan-made-content/blob/main/schemas/project.schema.json
 """
+import base64
 import datetime
 import re
+from io import BytesIO
 from shoggoth.export_helpers import (
     get_card_export_type, get_skill_icons,
     is_player_card, is_investigator_card
 )
 
 
-AB_IMAGE_FORMAT = 'jpg'
+AB_IMAGE_FORMAT = 'webp'
 AB_IMAGE_SIZE = {'width': 750, 'height': 1039, 'bleed': 36}  # MTG trim (default)
-AB_IMAGE_QUALITY = 90
+AB_IMAGE_QUALITY = 85
 
 
-def export_project(project, image_pattern=None):
+def export_project(project, renderer, image_pattern=None):
     """
     Export a full Shoggoth project to arkham.build format.
 
     Returns a dict matching the arkham.build project schema.
+    renderer: CardRenderer used to render card images embedded as data URIs
+    when image_pattern is not given (see _image_url).
     image_pattern: URL template with {code} placeholder, e.g. "https://example.com/cards/{code}.jpg"
     """
     # TODO: These fields should be editable in a project settings UI
@@ -81,7 +85,7 @@ def export_project(project, image_pattern=None):
     # Export all cards
     position = 1
     for card in project.cards:
-        card_data = _export_card(card, project, position, image_pattern)
+        card_data = _export_card(card, project, renderer, position, image_pattern)
         if card_data:
             data["data"]["cards"].append(card_data)
             position += 1
@@ -138,7 +142,7 @@ SUBTITLE_MAP = {
 }
 
 
-def _export_card(card, project, position, image_pattern=None):
+def _export_card(card, project, renderer, position, image_pattern=None):
     """Export a single card to arkham.build format"""
     front = card.front
     back = card.back
@@ -236,7 +240,7 @@ def _export_card(card, project, position, image_pattern=None):
         # "bonded_to": front.get('bonded_to'),  # Bonded card code
         # "tags": front.get('tags', ''),  # Card tags for search
 
-        "image_url": _image_url(card, image_pattern, back=False),
+        "image_url": _image_url(card, renderer, image_pattern, back=False),
         "thumbnail_url": card.data.get('thumbnail_url'),
     }
 
@@ -248,7 +252,7 @@ def _export_card(card, project, position, image_pattern=None):
             "back_flavor": back.get('flavor_text', ''),
             "back_traits": back.get('traits', ''),
             "back_illustrator": back.get('illustrator', ''),
-            "back_image_url": _image_url(card, image_pattern, back=True),
+            "back_image_url": _image_url(card, renderer, image_pattern, back=True),
             "back_thumbnail_url": card.data.get('back_thumbnail_url'),
         })
 
@@ -361,15 +365,27 @@ def _format_customization_text(entries):
     return '\n'.join(lines) if lines else None
 
 
-def _image_url(card, pattern, back=False):
-    """Build an image URL from pattern, falling back to stored card data."""
+def _image_url(card, renderer, pattern, back=False):
+    """Build an image URL from pattern, falling back to stored card data,
+    falling back to a rendered image embedded directly as a base64 data URI --
+    arkham.build puts this straight into an <img src>, so a data URI is the
+    only self-contained option that doesn't depend on hosting the image
+    somewhere reachable by the site."""
     if pattern:
         code = card.data.get('code', card.id)
         if back:
             code = code + '_back'
         return pattern.format(code=code)
     key = 'back_image_url' if back else 'image_url'
-    return card.data.get(key)
+    stored = card.data.get(key)
+    if stored:
+        return stored
+    face = card.back if back else card.front
+    image = renderer.render_card_side(card, face, include_bleed=False, **AB_IMAGE_SIZE)
+    buffer = BytesIO()
+    image.save(buffer, format=AB_IMAGE_FORMAT, quality=AB_IMAGE_QUALITY)
+    encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
+    return f'data:image/{AB_IMAGE_FORMAT};base64,{encoded}'
 
 
 def _safe_int(value):

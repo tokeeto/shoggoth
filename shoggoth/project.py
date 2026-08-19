@@ -399,13 +399,16 @@ class Project:
         return self.cards
 
     def has_unsaved_changes(self):
-        """Check whether any card (or card face) has unsaved edits"""
+        """Check whether any card (or card face) or encounter set has unsaved edits"""
         for card in self.get_all_cards():
             if getattr(card, 'dirty', False):
                 return True
             for face in (getattr(card, 'front', None), getattr(card, 'back', None)):
                 if face is not None and getattr(face, 'dirty', False):
                     return True
+        for encounter_set in self.encounter_sets:
+            if encounter_set.dirty:
+                return True
         return False
 
     def set_dirty(self, id, value=True):
