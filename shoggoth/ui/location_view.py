@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QPushButton, QLabel, QMenu, QCheckBox,
     QApplication, QDialog, QDialogButtonBox, QGridLayout,
     QScrollArea, QFrame, QTabBar, QInputDialog,
+    QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QSize, QTimer
 from PySide6.QtGui import (
@@ -244,7 +245,7 @@ class LocationNode(QGraphicsItem):
     # Icon mode size
     ICON_SIZE = 60
 
-    def __init__(self, card, face, face_side, renderer, view):
+    def __init__(self, card, face, face_side, renderer, view, node_key=None, is_extra=False):
         super().__init__()
         self.card = card
         self.face = face
@@ -258,8 +259,13 @@ class LocationNode(QGraphicsItem):
         self.hidden = False  # marked hidden by the user (see LocationView hide mode)
         self.default_pos = QPointF(0, 0)  # grid fallback position, set in LocationView._build_view
 
+        # is_extra: True for a manually-added card (Add Card / Add Locations
+        # From Set), False for a card native to this encounter set. Deletion
+        # behaves differently for each - see LocationView.delete_nodes.
+        self.is_extra = is_extra
+
         # Stable key for this node
-        self.node_key = f"{card.id}_{face_side}"
+        self.node_key = node_key or f"{card.id}_{face_side}"
 
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
@@ -536,6 +542,123 @@ class PickConnectionSymbolDialog(QDialog):
         self.accept()
 
 
+class LocationCardPickerDialog(QDialog):
+    """Dialog for picking any single card in the project to add to the location view"""
+
+    def __init__(self, project, parent=None):
+        super().__init__(parent)
+        self.project = project
+        self._all_cards = []
+        self.setWindowTitle(tr("DLG_ADD_CARD"))
+        self.setMinimumSize(320, 420)
+
+        layout = QVBoxLayout(self)
+
+        self._search = QLineEdit()
+        self._search.setPlaceholderText(tr("PLACEHOLDER_SEARCH_CARDS"))
+        self._search.textChanged.connect(self._filter)
+        layout.addWidget(self._search)
+
+        self._list = QListWidget()
+        self._list.itemDoubleClicked.connect(self.accept)
+        layout.addWidget(self._list, stretch=1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        add_btn = QPushButton(tr("BTN_ADD"))
+        add_btn.setDefault(True)
+        add_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton(tr("BTN_CANCEL"))
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(add_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+        self._populate()
+        self._search.setFocus()
+
+    def _populate(self):
+        try:
+            self._all_cards = list(self.project.cards)
+        except Exception:
+            self._all_cards = []
+        self._filter('')
+
+    def _filter(self, text):
+        self._list.clear()
+        q = text.lower()
+        for card in self._all_cards:
+            if not q or q in card.name.lower():
+                item = QListWidgetItem(card.name)
+                item.setData(Qt.UserRole, card.id)
+                self._list.addItem(item)
+        if self._list.count():
+            self._list.setCurrentRow(0)
+
+    def selected_card_id(self):
+        item = self._list.currentItem()
+        return item.data(Qt.UserRole) if item else None
+
+
+class LocationSetPickerDialog(QDialog):
+    """Dialog for picking an encounter set whose location cards should be bulk-added"""
+
+    def __init__(self, project, parent=None):
+        super().__init__(parent)
+        self.project = project
+        self._all_sets = []
+        self.setWindowTitle(tr("DLG_ADD_LOCATIONS_FROM_SET"))
+        self.setMinimumSize(300, 350)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(tr("MSG_SELECT_SET_FOR_LOCATIONS")))
+
+        self._search = QLineEdit()
+        self._search.setPlaceholderText(tr("PLACEHOLDER_SEARCH_ENCOUNTERS"))
+        self._search.textChanged.connect(self._filter)
+        layout.addWidget(self._search)
+
+        self._list = QListWidget()
+        self._list.itemDoubleClicked.connect(self.accept)
+        layout.addWidget(self._list, stretch=1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        add_btn = QPushButton(tr("BTN_ADD"))
+        add_btn.setDefault(True)
+        add_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton(tr("BTN_CANCEL"))
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(add_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+        self._populate()
+        self._search.setFocus()
+
+    def _populate(self):
+        try:
+            self._all_sets = list(self.project.encounter_sets)
+        except Exception:
+            self._all_sets = []
+        self._filter('')
+
+    def _filter(self, text):
+        self._list.clear()
+        q = text.lower()
+        for es in self._all_sets:
+            if not q or q in es.name.lower():
+                item = QListWidgetItem(es.name)
+                item.setData(Qt.UserRole, es.id)
+                self._list.addItem(item)
+        if self._list.count():
+            self._list.setCurrentRow(0)
+
+    def selected_set_id(self):
+        item = self._list.currentItem()
+        return item.data(Qt.UserRole) if item else None
+
+
 class LocationView(QGraphicsView):
     """Main view for editing location connections"""
 
@@ -589,29 +712,42 @@ class LocationView(QGraphicsView):
         self.location_nodes.clear()
         self.arrows.clear()
 
-        # Find all location cards using the same grouping logic as the tree view
-        locations = []
-        for card in self.encounter_set.cards:
-            if card.grouping == 'location':
-                locations.append((card, card.front, 'front'))
-
         # Load saved positions from the active layout
         saved_positions = self._get_saved_positions()
+
+        # Native location cards, using the same grouping logic as the tree view -
+        # excluding any the user has explicitly deleted from this layout.
+        removed = set(self.active_layout.get('removed_locations', []))
+        locations = []
+        for card in self.encounter_set.cards:
+            if card.grouping == 'location' and card.id not in removed:
+                locations.append((card, card.front, 'front', f"{card.id}_front", False))
+
+        # Manually-added cards (Add Card / Add Locations From Set), duplicates allowed.
+        project = self.encounter_set.project
+        for entry in self.active_layout.get('extra_cards', []):
+            card = project.get_card(entry['card_id'])
+            if card is None:
+                continue  # card no longer exists in the project - skip gracefully
+            node_key = f"extra_{entry['instance_id']}"
+            flipped = saved_positions.get(node_key, {}).get('flipped', False)
+            face_side = 'back' if flipped else 'front'
+            face = card.back if face_side == 'back' else card.front
+            locations.append((card, face, face_side, node_key, True))
 
         # Create nodes with grid layout (default) or saved positions
         cols = max(3, int(len(locations) ** 0.5) + 1)
         spacing_x = LocationNode.CARD_WIDTH + 80
         spacing_y = LocationNode.CARD_HEIGHT + 60
 
-        for i, (card, face, face_side) in enumerate(locations):
-            node = LocationNode(card, face, face_side, self.renderer, self)
+        for i, (card, face, face_side, node_key, is_extra) in enumerate(locations):
+            node = LocationNode(card, face, face_side, self.renderer, self, node_key=node_key, is_extra=is_extra)
 
             # Default grid position, used whenever a layout has no saved entry
             col = i % cols
             row = i // cols
             node.default_pos = QPointF(col * spacing_x, row * spacing_y)
 
-            node_key = f"{card.id}_{face_side}"
             if node_key in saved_positions:
                 pos = saved_positions[node_key]
                 # Set hidden/flipped before setPos: setPos can trigger itemChange ->
@@ -1007,6 +1143,38 @@ class LocationView(QGraphicsView):
         for node in self.location_nodes.values():
             self.save_node_position(node)
 
+    def add_extra_cards(self, card_ids):
+        """Add one new node instance per given card id (duplicates allowed) and rebuild"""
+        if not card_ids:
+            return
+        entries = self.active_layout.setdefault('extra_cards', [])
+        for card_id in card_ids:
+            entries.append({'instance_id': uuid4().hex, 'card_id': card_id})
+        self.encounter_set.dirty = True
+        self._build_view()
+
+    def delete_nodes(self, nodes):
+        """Remove node(s) from the current layout only - never touches project/card data.
+
+        Native (encounter-set) nodes are recorded as removed so _build_view
+        excludes them; manually-added (extra) nodes just drop their entry.
+        Either kind can be added back via add_extra_cards.
+        """
+        if not nodes:
+            return
+        removed = self.active_layout.setdefault('removed_locations', [])
+        extra_entries = self.active_layout.setdefault('extra_cards', [])
+        saved_nodes = self.active_layout.setdefault('nodes', {})
+        for node in nodes:
+            if node.is_extra:
+                instance_id = node.node_key[len('extra_'):]
+                extra_entries[:] = [e for e in extra_entries if e['instance_id'] != instance_id]
+            elif node.card.id not in removed:
+                removed.append(node.card.id)
+            saved_nodes.pop(node.node_key, None)
+        self.encounter_set.dirty = True
+        self._build_view()
+
     def switch_layout(self, layout_id):
         """Switch the active layout, repositioning existing nodes (no rebuild)"""
         if layout_id == self.active_layout_id:
@@ -1379,6 +1547,25 @@ class LocationViewWidget(QWidget):
         refresh_btn.clicked.connect(self._refresh)
         col.addWidget(refresh_btn)
 
+        cards_separator = QFrame()
+        cards_separator.setFrameShape(QFrame.HLine)
+        col.addWidget(cards_separator)
+
+        add_card_btn = QPushButton(tr("BTN_ADD_CARD"))
+        add_card_btn.setToolTip(tr("TOOLTIP_ADD_CARD"))
+        add_card_btn.clicked.connect(self._add_card)
+        col.addWidget(add_card_btn)
+
+        add_set_btn = QPushButton(tr("BTN_ADD_LOCATIONS_FROM_SET"))
+        add_set_btn.setToolTip(tr("TOOLTIP_ADD_LOCATIONS_FROM_SET"))
+        add_set_btn.clicked.connect(self._add_locations_from_set)
+        col.addWidget(add_set_btn)
+
+        delete_btn = QPushButton(tr("BTN_DELETE_SELECTED"))
+        delete_btn.setToolTip(tr("TOOLTIP_DELETE_SELECTED"))
+        delete_btn.clicked.connect(self._delete_selected)
+        col.addWidget(delete_btn)
+
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         col.addWidget(separator)
@@ -1413,6 +1600,34 @@ class LocationViewWidget(QWidget):
 
     def _unhide_node(self, node):
         self.location_view.set_node_hidden(node, False)
+
+    def _add_card(self):
+        dlg = LocationCardPickerDialog(self.encounter_set.project, self)
+        if dlg.exec_() == QDialog.Accepted and dlg.selected_card_id():
+            self.location_view.add_extra_cards([dlg.selected_card_id()])
+
+    def _add_locations_from_set(self):
+        dlg = LocationSetPickerDialog(self.encounter_set.project, self)
+        if dlg.exec_() == QDialog.Accepted and dlg.selected_set_id():
+            es = self.encounter_set.project.get_encounter_set(dlg.selected_set_id())
+            if es:
+                card_ids = [c.id for c in es.cards if c.grouping == 'location']
+                self.location_view.add_extra_cards(card_ids)
+
+    def _delete_selected(self):
+        selected = [n for n in self.location_view.location_nodes.values() if n.isSelected()]
+        if not selected:
+            return
+        names = ", ".join((n.card.name or n.node_key) for n in selected[:5])
+        if len(selected) > 5:
+            names += ", ..."
+        reply = QMessageBox.question(
+            self, tr("DLG_DELETE_LOCATION_CARD"),
+            tr("MSG_DELETE_LOCATION_CARD_CONFIRM").format(count=len(selected), names=names),
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            self.location_view.delete_nodes(selected)
 
     # --- Layout tabs ---------------------------------------------------
 

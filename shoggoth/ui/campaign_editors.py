@@ -2,7 +2,7 @@
 Campaign card editors for Shoggoth (act, agenda, chaos, story)
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLineEdit,
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QCheckBox, QSpinBox, QLabel
 )
 
@@ -14,17 +14,21 @@ class ActEditor(FaceEditor):
     """Editor for act cards (front side)"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_name_field()
         self.add_labeled_line(tr("FIELD_INDEX"), "index")
-        self.add_labeled_line(tr("FIELD_CLUES"), "clues")
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_NUMBERS"))
+        self.add_numbers_panel([
+            (tr("FIELD_CLUES"), "clues"),
+        ])
+
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row(include_victory=False)
+
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
 
@@ -32,15 +36,15 @@ class ActBackEditor(FaceEditor):
     """Editor for act cards (back side)"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_name_field()
         self.add_labeled_line(tr("FIELD_INDEX"), "index")
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row(include_victory=False)
 
-        # Copyright and extra text fields
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
 
@@ -48,17 +52,21 @@ class AgendaEditor(FaceEditor):
     """Editor for agenda cards (front side)"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_name_field()
         self.add_labeled_line(tr("FIELD_INDEX"), "index")
-        self.add_labeled_line(tr("FIELD_DOOM"), "doom")
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_NUMBERS"))
+        self.add_numbers_panel([
+            (tr("FIELD_DOOM"), "doom"),
+        ])
+
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row(include_victory=False)
+
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
 
@@ -66,15 +74,15 @@ class AgendaBackEditor(FaceEditor):
     """Editor for agenda cards (back side)"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_name_field()
         self.add_labeled_line(tr("FIELD_INDEX"), "index")
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row(include_victory=False)
 
-        # Copyright and extra text fields
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
 
@@ -84,13 +92,14 @@ class ChaosEditor(FaceEditor):
     NUM_ENTRIES = 10
 
     def setup_ui(self):
+        self.start_band(tr("BAND_IDENTITY"))
         self.add_labeled_line(tr("FIELD_DIFFICULTY"), "difficulty")
 
         # Entries section
-        entries_group = QGroupBox(tr("GROUP_CHAOS_BAG_ENTRIES"))
+        self.start_band(tr("GROUP_CHAOS_BAG_ENTRIES"))
         entries_layout = QVBoxLayout()
-        entries_layout.setSpacing(8)
-        entries_layout.setContentsMargins(6, 6, 6, 6)
+        entries_layout.setSpacing(6)
+        entries_layout.setContentsMargins(0, 0, 0, 0)
 
         self.entry_widgets = []  # Store (token_input, text_input) pairs
 
@@ -117,18 +126,13 @@ class ChaosEditor(FaceEditor):
 
             self.entry_widgets.append((token_input, text_input))
 
-        entries_group.setLayout(entries_layout)
-        self.main_layout.addWidget(entries_group)
+        self._target_layout().addLayout(entries_layout)
 
         # Token area section
-        token_area_group = QGroupBox(tr("GROUP_TOKEN_AREA"))
-        token_area_layout = QVBoxLayout()
-        token_area_layout.setSpacing(4)
-        token_area_layout.setContentsMargins(6, 6, 6, 6)
-
+        self.start_band(tr("GROUP_TOKEN_AREA"))
         self.token_area_enabled = QCheckBox(tr("FIELD_TOKEN_AREA_ENABLED"))
         self.token_area_enabled.toggled.connect(self.on_token_area_changed)
-        token_area_layout.addWidget(self.token_area_enabled)
+        self._target_layout().addWidget(self.token_area_enabled)
 
         fields_widget = QWidget()
         fields_layout = QHBoxLayout()
@@ -147,14 +151,10 @@ class ChaosEditor(FaceEditor):
         fields_layout.addWidget(self.token_area_title)
 
         fields_widget.setLayout(fields_layout)
-        token_area_layout.addWidget(fields_widget)
+        self._target_layout().addWidget(fields_widget)
 
-        token_area_group.setLayout(token_area_layout)
-        self.main_layout.addWidget(token_area_group)
-
-        # Copyright and extra text fields
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
     def load_data(self):
@@ -259,13 +259,13 @@ class StoryEditor(FaceEditor):
     """Editor for story cards"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_name_field()
         self.add_class_field()
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_victory_field()
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row(include_flavor=False)
 
-        # Copyright and extra text fields
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_footer_row()
-
         self.main_layout.addStretch()

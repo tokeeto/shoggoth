@@ -2,12 +2,11 @@
 Encounter card editors for Shoggoth (enemy, treachery, location)
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel
+    QWidget, QHBoxLayout, QLabel
 )
 
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.editor_widgets import IconComboBox
-from shoggoth.ui.field_widgets import LabeledLineEdit
 from shoggoth.i18n import tr
 
 
@@ -15,63 +14,23 @@ class EnemyEditor(FaceEditor):
     """Editor for enemy cards"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
-
-        # Attack, Health, Evade on one row (1/3 each)
-        combat_widget = QWidget()
-        combat_layout = QHBoxLayout()
-        combat_layout.setContentsMargins(0, 0, 0, 0)
-        combat_layout.setSpacing(4)
-        for field, label in [
-            ("attack", tr("FIELD_ATTACK")),
-            ("health", tr("FIELD_HEALTH")),
-            ("evade", tr("FIELD_EVADE")),
-        ]:
-            widget = LabeledLineEdit(label)
-            self.fields[field] = widget.input
-            def make_callback(field_name):
-                return lambda: self.on_field_changed(field_name)
-            widget.input.textChanged.connect(make_callback(field))
-            combat_layout.addWidget(widget)
-        combat_widget.setLayout(combat_layout)
-        self.main_layout.addWidget(combat_widget)
-
-        # Traits with autocomplete
-        self.add_trait_field()
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
         self.add_class_field()
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
+        self.start_band(tr("BAND_NUMBERS"))
+        self.add_numbers_panel([
+            (tr("FIELD_ATTACK") + " / " + tr("FIELD_HEALTH") + " / " + tr("FIELD_EVADE"),
+             ["attack", "health", "evade"]),
+            (tr("FIELD_DAMAGE") + " / " + tr("FIELD_HORROR"), ["damage", "horror"]),
+        ])
 
-        # Flavor text at reduced height (2 lines)
-        flavor_widget = self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
-        flavor_widget.input.setMinimumHeight(58)
-        flavor_widget.input.setMaximumHeight(58)
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
 
-        # Damage and Horror on one row
-        dmg_widget = QWidget()
-        dmg_layout = QHBoxLayout()
-        dmg_layout.setContentsMargins(0, 0, 0, 0)
-        dmg_layout.setSpacing(4)
-        for field, label in [
-            ("damage", tr("FIELD_DAMAGE")),
-            ("horror", tr("FIELD_HORROR")),
-        ]:
-            widget = LabeledLineEdit(label)
-            self.fields[field] = widget.input
-            def make_callback(field_name):
-                return lambda: self.on_field_changed(field_name)
-            widget.input.textChanged.connect(make_callback(field))
-            dmg_layout.addWidget(widget)
-        dmg_widget.setLayout(dmg_layout)
-        self.main_layout.addWidget(dmg_widget)
-
-        self.add_victory_field()
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
 
@@ -79,19 +38,16 @@ class TreacheryEditor(FaceEditor):
     """Editor for treachery cards"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
-        self.add_trait_field()
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
         self.add_class_field()
-        self.add_victory_field()
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
+
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
 
@@ -119,9 +75,12 @@ class LocationEditor(FaceEditor):
     ]
 
     def setup_ui(self):
+        self.start_band(tr("BAND_IDENTITY"))
+
         # Connection symbol (this location's own symbol)
         conn_layout = QHBoxLayout()
         conn_label = QLabel(tr("FIELD_CONNECTION_SYMBOL"))
+        conn_label.setProperty("role", "field-label")
         conn_label.setMinimumWidth(110)
 
         self.connection_combo = IconComboBox()
@@ -133,20 +92,15 @@ class LocationEditor(FaceEditor):
         conn_layout.addStretch()  # Push to left
         conn_widget = QWidget()
         conn_widget.setLayout(conn_layout)
-        self.main_layout.addWidget(conn_widget)
+        self._target_layout().addWidget(conn_widget)
 
         # Basic fields
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
-
-        self.add_labeled_line(tr("FIELD_SHROUD"), "shroud")
-        self.add_trait_field()
-        self.add_labeled_line(tr("FIELD_CLUES"), "clues")
-        self.add_victory_field()
+        self.add_identity_row()
 
         # Connections section - single row of icon dropdowns
         connections_row = QHBoxLayout()
         connections_label = QLabel(tr("FIELD_CONNECTIONS"))
+        connections_label.setProperty("role", "field-label")
         connections_label.setMinimumWidth(110)
         connections_row.addWidget(connections_label)
 
@@ -162,16 +116,19 @@ class LocationEditor(FaceEditor):
         connections_row.addStretch()  # Push to left
         connections_widget = QWidget()
         connections_widget.setLayout(connections_row)
-        self.main_layout.addWidget(connections_widget)
+        self._target_layout().addWidget(connections_widget)
 
-        # Text fields
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_NUMBERS"))
+        self.add_numbers_panel([
+            (tr("FIELD_SHROUD") + " / " + tr("FIELD_CLUES"), ["shroud", "clues"]),
+        ])
+
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
+
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
     def on_connection_changed(self):

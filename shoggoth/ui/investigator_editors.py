@@ -2,12 +2,12 @@
 Investigator card editors for Shoggoth
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+    QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPlainTextEdit, QLabel
 )
 
 from shoggoth.ui.face_editor import FaceEditor
-from shoggoth.ui.field_widgets import LabeledLineEdit, ClassSelectorWidget
+from shoggoth.ui.field_widgets import ClassSelectorWidget
 from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.i18n import tr
 
@@ -16,61 +16,29 @@ class InvestigatorEditor(FaceEditor):
     """Editor for investigator cards (front side)"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
-        self.add_trait_field()
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
 
         # Classes
         classes_widget = ClassSelectorWidget()
         classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_widget
         self.field_containers['classes'] = classes_widget
-        self.main_layout.addWidget(classes_widget)
+        self._target_layout().addWidget(classes_widget)
 
-        # Stats in a grid
-        box_widget = QWidget()
-        box_layout = QHBoxLayout()
+        self.start_band(tr("BAND_NUMBERS"))
+        self.add_numbers_panel([
+            (tr("FIELD_WILLPOWER") + " / " + tr("FIELD_INTELLECT") + " / "
+             + tr("FIELD_COMBAT") + " / " + tr("FIELD_AGILITY"),
+             ["willpower", "intellect", "combat", "agility"]),
+            (tr("FIELD_HEALTH") + " / " + tr("FIELD_SANITY"),
+             self.add_icon_field_pair("damage", "health", "horror", "sanity")),
+        ])
 
-        for field, label in [
-            ("willpower", tr("FIELD_WILLPOWER")),
-            ("intellect", tr("FIELD_INTELLECT")),
-            ("combat", tr("FIELD_COMBAT")),
-            ("agility", tr("FIELD_AGILITY")),
-        ]:
-            widget = LabeledLineEdit(label)
-            self.fields[field] = widget.input
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row(include_victory=False)
 
-            def make_callback(field_name):
-                return lambda: self.on_field_changed(field_name)
-            widget.input.textChanged.connect(make_callback(field))
-            box_layout.addWidget(widget)
-
-        box_widget.setLayout(box_layout)
-        self.main_layout.addWidget(box_widget)
-
-        # Stats in a grid
-        box_widget = QWidget()
-        box_layout = QHBoxLayout()
-        for field, label in [
-            ("health", tr("FIELD_HEALTH")),
-            ("sanity", tr("FIELD_SANITY")),
-        ]:
-            widget = LabeledLineEdit(label)
-            self.fields[field] = widget.input
-
-            def make_callback(field_name):
-                return lambda: self.on_field_changed(field_name)
-            widget.input.textChanged.connect(make_callback(field))
-            box_layout.addWidget(widget)
-
-        box_widget.setLayout(box_layout)
-        self.main_layout.addWidget(box_widget)
-
-        # Text fields
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
-
-        # Illustration
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
 
         # Mask template dropdown
@@ -78,6 +46,7 @@ class InvestigatorEditor(FaceEditor):
         mask_layout = QHBoxLayout()
         mask_layout.setContentsMargins(0, 0, 0, 0)
         mask_label = QLabel(tr("FIELD_APPLY_MASK"))
+        mask_label.setProperty("role", "field-label")
         mask_label.setMinimumWidth(80)
         self._mask_combo = NoScrollComboBox()
         self._mask_combo.addItem(tr("OPTION_DEFAULT"), userData=None)
@@ -88,11 +57,9 @@ class InvestigatorEditor(FaceEditor):
         mask_layout.addWidget(self._mask_combo)
         mask_layout.addStretch()
         mask_row.setLayout(mask_layout)
-        self.main_layout.addWidget(mask_row)
+        self._target_layout().addWidget(mask_row)
 
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
     def _on_mask_changed(self):
@@ -126,23 +93,21 @@ class InvestigatorBackEditor(FaceEditor):
     NUM_ENTRIES = 8
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
-        self.add_trait_field()
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
 
         # Classes
         classes_widget = ClassSelectorWidget()
         classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_widget
         self.field_containers['classes'] = classes_widget
-        self.main_layout.addWidget(classes_widget)
+        self._target_layout().addWidget(classes_widget)
 
         # Deck building entries section
-        self._entries_group = QGroupBox(tr("GROUP_DECK_BUILDING_OPTIONS"))
-        entries_group = self._entries_group
+        self._entries_group = self.start_band(tr("GROUP_DECK_BUILDING_OPTIONS"))
         entries_layout = QVBoxLayout()
-        entries_layout.setSpacing(15)
-        entries_layout.setContentsMargins(6, 6, 6, 6)
+        entries_layout.setSpacing(12)
+        entries_layout.setContentsMargins(0, 0, 0, 0)
 
         self.entry_widgets = []  # Store (header_input, text_input) pairs
 
@@ -169,18 +134,14 @@ class InvestigatorBackEditor(FaceEditor):
 
             self.entry_widgets.append((header_input, value_input))
 
-        entries_group.setLayout(entries_layout)
-        self.main_layout.addWidget(entries_group)
+        self._target_layout().addLayout(entries_layout)
 
-        # Flavor text
+        self.start_band(tr("BAND_RULES_TEXT"))
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
 
-        # Illustration
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
     def enter_translation_mode(self):

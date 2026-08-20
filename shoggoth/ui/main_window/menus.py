@@ -239,6 +239,7 @@ def _create_language_menu(window, menubar):
     card_lang_header.setObjectName("palette_skip")
     language_menu.addAction(card_lang_header)
 
+    window.card_lang_header = card_lang_header
     window.card_language_actions = []
     available_card_languages = get_available_languages_from_dir(translation_dir)
     current_card_lang = window.config.get('Shoggoth', 'card_language', 'en')
@@ -251,3 +252,18 @@ def _create_language_menu(window, menubar):
         action.triggered.connect(lambda checked, code=lang_code: window.change_card_language(code))
         language_menu.addAction(action)
         window.card_language_actions.append(action)
+
+
+def update_card_language_menu_state(window):
+    """Reflect the active project's language override (if any) in the Card
+    Language menu: gray it out and check the overriding language, since the
+    project setting takes precedence over the global UI card-language pick."""
+    override = window.active_project.language if window.active_project else ''
+    effective = override or window.config.get('Shoggoth', 'card_language', 'en')
+
+    tooltip = tr("HELP_CARD_LANGUAGE_LOCKED") if override else ""
+    window.card_lang_header.setToolTip(tooltip)
+    for action in window.card_language_actions:
+        action.setEnabled(not override)
+        action.setChecked(action.data() == effective)
+        action.setToolTip(tooltip)

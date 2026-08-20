@@ -19,22 +19,27 @@ from shoggoth.perf import perf
 # tiny (small grayscale masks), so this cap is generous, not a tight budget.
 _GLYPH_RUN_CACHE_MAXSIZE = 4000
 
-# Only keep regexes for the rare parametric tags (size, margin, indent, font, image)
+# Only keep regexes for the rare parametric tags (size, margin, indent, font, image, spacing)
 _size_re = re.compile(r'<size (\d+)>', flags=re.IGNORECASE)
 # <margin> accepts multiple space-separated numbers but only the first is used
 _margin_re = re.compile(r'<margin (\d+)(\s\d+)*>', flags=re.IGNORECASE)
 _indent_re = re.compile(r'<indent (\d+)>', flags=re.IGNORECASE)
 _font_re = re.compile(r'<font "(.+?)">', flags=re.IGNORECASE)
 _image_re = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
+_spacing_re = re.compile(r'<spacing ([\d.]+)>', flags=re.IGNORECASE)
 _tag_kv = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 
 # Typographic tuning (fractions are of the current font size)
 LINE_HEIGHT_FACTOR = 1.30
-STRIKETHROUGH_Y_FACTOR = 0.45   # bar offset below the text anchor
+STRIKETHROUGH_Y_FACTOR = -0.45   # bar offset below the text anchor
 UNDERLINE_Y_FACTOR = 0.88
 DBL_UNDERLINE_Y_FACTOR = 0.12
 QUOTE_INDENT = 50               # text indent inside <blockquote>
 QUOTE_BAR_SPACING = 10          # gap between the two blockquote bars
+
+# Punctuation marks that French typography prefixes with a space; that space
+# must not become a line-break point, so "word :" stays glued together.
+FRENCH_SPACED_PUNCT = {':', ';', '!', '?'}
 
 
 def _parse_tag_attributes(tag_string):
@@ -276,7 +281,7 @@ class HtmlTextCapture:
 
 
 class RichTextRenderer:
-    def __init__(self, card_renderer, hyphenation_enabled=True):
+    def __init__(self, card_renderer, hyphenation_enabled=True, french_punctuation=False):
         self.card_renderer = card_renderer
         self.icon_cache = {}
         self.font_cache = {}
@@ -289,6 +294,7 @@ class RichTextRenderer:
         self._html_tls = threading.local()
 
         self.hyphenation_enabled = hyphenation_enabled
+        self.french_punctuation = french_punctuation
 
         # ── Width cache (shared across all renders) ──────────────────────────
         self._wcache = _WidthCache()
@@ -417,6 +423,8 @@ class RichTextRenderer:
             'caption': {'path': font_dir / "Arno Pro" / "arnopro_caption.otf"},
             'bold': {'path': font_dir / "Arno Pro" / "arnopro_bold.otf"},
             'semibold': {'path': font_dir / "Arno Pro" / "arnopro_semibold.ttf"},
+            'display': {'path': font_dir / "Arno Pro" / "arnopro_display.otf"},
+            'displaybold': {'path': font_dir / "Arno Pro" / "arnopro_bolddisplay.otf"},
             'italic': {'path': font_dir / "Arno Pro" / "arnopro_italic.otf"},
             'bolditalic': {'path': font_dir / "Arno Pro" / "arnopro_bolditalic.otf"},
             'icon': {'path': font_dir / "AHLCGSymbol.otf"},
@@ -737,6 +745,28 @@ class RichTextRenderer:
         combined = toks[pre_i]['value'] + ' ' + ''.join(t['value'] for t in suffix)
         return list(toks[:pre_i]) + [{'type': 'text', 'value': combined}]
 
+    def _merge_french_spacing(self, tokens):
+        """Glue "<word><space><punct>" into a single non-breaking unit for
+        every French-spaced punctuation mark in FRENCH_SPACED_PUNCT, so the
+        preceding word and its punctuation never split across a line break."""
+        if not tokens:
+            return tokens
+
+        result = []
+        i, n = 0, len(tokens)
+        while i < n:
+            tok = tokens[i]
+            if (tok['type'] == 'text' and tok['value'] != ' '
+                    and i + 2 < n
+                    and tokens[i + 1]['type'] == 'text' and tokens[i + 1]['value'] == ' '
+                    and tokens[i + 2]['type'] == 'text' and tokens[i + 2]['value'] in FRENCH_SPACED_PUNCT):
+                result.append({'type': 'text', 'value': tok['value'] + ' ' + tokens[i + 2]['value']})
+                i += 3
+                continue
+            result.append(tok)
+            i += 1
+        return result
+
     def _prevent_runts(self, tokens):
         """Combine the last two plain-text words of each paragraph to prevent single-word last lines."""
         if not tokens:
@@ -850,6 +880,12 @@ class RichTextRenderer:
                         pos += len(m[0])
                         continue
 
+                    m = _spacing_re.match(remaining)
+                    if m:
+                        tokens.append({'type': 'letter_spacing', 'value': float(m[1])})
+                        pos += len(m[0])
+                        continue
+
                     m = _font_re.match(remaining)
                     if m:
                         font_key, missing = self._resolve_font(m[1], project=project)
@@ -891,13 +927,15 @@ class RichTextRenderer:
                 pos += 1
             tokens.append({'type': 'text', 'value': text[start:pos]})
 
+        if self.french_punctuation:
+            tokens = self._merge_french_spacing(tokens)
         tokens = self._prevent_runts(tokens)
         tokens = self._merge_hr_breaks(tokens)
         return tokens
 
     def _layout(self, tokens, region, polygon, font_size, base_font='regular',
                 alignment='left', fill='#231f20', outline=0, outline_fill=None,
-                force=False, scale=1.0):
+                force=False, scale=1.0, letter_spacing=1.0):
         fonts = self.load_fonts(font_size)
         line_height = int(font_size * LINE_HEIGHT_FACTOR)
 
@@ -957,6 +995,31 @@ class RichTextRenderer:
 
         # Width helper
         wcache = self._wcache
+
+        # ── Letter spacing ────────────────────────────────────────────────
+        # Pillow has no tracking/letter-spacing parameter, so a multiplier
+        # other than 1.0 is implemented by measuring and drawing character
+        # by character instead of shaping the run as one string. That means
+        # spaced runs skip the flush() run-merging optimisation below (see
+        # 'no_merge'); fine since <spacing> targets short static text.
+        def _spaced_width(value, font_obj):
+            if letter_spacing == 1.0 or not value:
+                return wcache.width(value, font_obj)
+            return sum(wcache.width(ch, font_obj) for ch in value) * letter_spacing
+
+        def _text_items(value, font_obj, strike, underline):
+            if letter_spacing == 1.0 or not value:
+                return [{
+                    'cmd': 'text', 'value': value, 'font': font_obj,
+                    'width': wcache.width(value, font_obj),
+                    'strikethrough': strike, 'underline': underline,
+                }]
+            return [{
+                'cmd': 'text', 'value': ch, 'font': font_obj,
+                'width': wcache.width(ch, font_obj) * letter_spacing,
+                'strikethrough': strike, 'underline': underline,
+                'no_merge': True,
+            } for ch in value]
 
         # Polygon helpers
         def _poly_bounds_at(yy):
@@ -1107,6 +1170,37 @@ class RichTextRenderer:
             for item in items:
                 c = item['cmd']
                 if c in ('text', 'glyph'):
+                    if item.get('no_merge'):
+                        # Letter-spaced character: drawn on its own at the
+                        # explicit spaced width, never shaped together with
+                        # its neighbours (that would re-introduce natural
+                        # kerning and undo the spacing).
+                        x_pos += _emit_merged()
+                        fobj = item['font']
+                        commands.append({
+                            'cmd': 'text', 'x': x_pos, 'y': line_y,
+                            'value': item['value'], 'font': fobj,
+                            'line_height': line_height,
+                            'fill': fill, 'outline': outline, 'outline_fill': outline_fill,
+                        })
+                        if item.get('strikethrough'):
+                            sy = int(line_y + font_size * STRIKETHROUGH_Y_FACTOR)
+                            commands.append({
+                                'cmd': 'line',
+                                'x1': int(x_pos), 'y1': sy,
+                                'x2': int(x_pos + item['width']), 'y2': sy,
+                                'fill': fill, 'width': max(1, font_size // 16),
+                            })
+                        if item.get('underline'):
+                            uy = int(line_y + font_size * UNDERLINE_Y_FACTOR)
+                            commands.append({
+                                'cmd': 'line',
+                                'x1': int(x_pos), 'y1': uy,
+                                'x2': int(x_pos + item['width']), 'y2': uy,
+                                'fill': fill, 'width': max(1, font_size // 18),
+                            })
+                        x_pos += item['width']
+                        continue
                     fobj = item['font']
                     st = item.get('strikethrough', False)
                     ul = item.get('underline', False)
@@ -1230,8 +1324,15 @@ class RichTextRenderer:
                 else:
                     advance = state['fonts']['regular'].size
                 start_new_line(advance)
-                current_indent = 0
-                indent_current = False
+                # <br> is a forced "skip the rest of this line" break, not a
+                # paragraph break: it should keep the current list item's
+                # hanging indent, same as a natural word-wrap continuation
+                # would. A real newline does start a fresh (unindented) line.
+                if t == 'newline':
+                    current_indent = 0
+                    indent_current = False
+                else:
+                    indent_current = current_indent > 0
                 quote_last = False
                 overflow_check_pending = True
 
@@ -1271,11 +1372,12 @@ class RichTextRenderer:
                     if y > y_limit and not force:
                         return commands, False, i / num_tokens
 
+                items = None  # set for 'text'; other branches use single 'item'
                 if t == 'text':
                     value = token['value']
                     font_obj = state['fonts'][state['font']]
                     while True:
-                        w = wcache.width(value, font_obj)
+                        w = _spaced_width(value, font_obj)
                         avail = wrap_width(y)
                         if current_line_width + w <= avail:
                             break
@@ -1296,14 +1398,9 @@ class RichTextRenderer:
 
                         if split is not None:
                             head, tail = split
-                            pending.append({
-                                'cmd': 'text',
-                                'value': head,
-                                'font': font_obj,
-                                'width': wcache.width(head, font_obj),
-                                'strikethrough': state['strikethrough'],
-                                'underline': state['underline'],
-                            })
+                            pending.extend(_text_items(
+                                head, font_obj, state['strikethrough'], state['underline'],
+                            ))
                             has_renderable = True
                             value = tail
 
@@ -1312,14 +1409,7 @@ class RichTextRenderer:
                         if y > y_limit and not force:
                             return commands, False, i / num_tokens
 
-                    item = {
-                        'cmd': 'text',
-                        'value': value,
-                        'font': font_obj,
-                        'width': w,
-                        'strikethrough': state['strikethrough'],
-                        'underline': state['underline'],
-                    }
+                    items = _text_items(value, font_obj, state['strikethrough'], state['underline'])
                 elif t == 'font_icon':
                     font_obj = state['fonts']['icon']
                     w = wcache.width(token['value'], font_obj)
@@ -1345,7 +1435,10 @@ class RichTextRenderer:
                     if y > y_limit and not force:
                         return commands, False, i / num_tokens
 
-                pending.append(item)
+                if items is not None:
+                    pending.extend(items)
+                else:
+                    pending.append(item)
                 has_renderable = True
                 current_line_width += w
 
@@ -1487,6 +1580,15 @@ class RichTextRenderer:
         with perf.span('parse_text (tokenize)'):
             tokens = self.parse_text(text, project=project)
 
+        # <spacing N> applies to the whole rendered text, not from its
+        # position onward; multiple tags are undefined behavior (last wins).
+        letter_spacing = 1.0
+        if any(tok['type'] == 'letter_spacing' for tok in tokens):
+            letter_spacing = next(
+                tok['value'] for tok in reversed(tokens) if tok['type'] == 'letter_spacing'
+            )
+            tokens = [tok for tok in tokens if tok['type'] != 'letter_spacing']
+
         if not font:
             font = 'regular'
         if min_font_size is None:
@@ -1500,7 +1602,7 @@ class RichTextRenderer:
                     tokens, region, polygon, current_size,
                     base_font=font, alignment=alignment,
                     fill=fill, outline=outline, outline_fill=outline_fill,
-                    force=force, scale=scale,
+                    force=force, scale=scale, letter_spacing=letter_spacing,
                 )
                 if fits or force:
                     break

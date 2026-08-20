@@ -73,7 +73,7 @@ def run():
         from shoggoth.project import Project
 
         p = Project.load(args.render)
-        r = CardRenderer()
+        r = CardRenderer(hyphenation_enabled=p.auto_hyphenate, french_punctuation=p.french_punctuation)
         if args.card_id:
             cards = [p.get_card(args.card_id)]
         else:

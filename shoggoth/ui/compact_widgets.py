@@ -1,0 +1,591 @@
+"""
+Shared compact-editor components: Band, Stepper, NumbersPanel, chip helpers, SegmentedToggle.
+
+These are pure-Qt building blocks styled via the dynamic-property selectors defined in
+compact_theme.EDITOR_QSS (setProperty("role", ...) / setProperty("chip", ...)) rather than by
+subclassing every widget — see compact_theme.py for the actual colors/values.
+"""
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QPushButton,
+    QLineEdit, QToolButton, QButtonGroup, QCompleter, QSizePolicy
+)
+from PySide6.QtCore import Qt, Signal, QEvent
+from PySide6.QtGui import QFocusEvent
+
+from shoggoth.i18n import tr
+
+# Class chip colors — semantic (map to the game's own class colors), the one deliberate
+# exception to the "no custom color" rule elsewhere in the compact editor theme.
+# value -> (background, text)
+CLASS_CHIP_COLORS = {
+    'guardian': ('#2a5f8f', '#eaf3fb'),
+    'seeker': ('#c9a227', '#2b2205'),
+    'rogue': ('#2e7d46', '#eafbf0'),
+    'survivor': ('#a5322f', '#fbeaea'),
+    'mystic': ('#5c3f8f', '#f1eafb'),
+    'neutral': ('#6b6f76', '#f2f2f3'),
+    'specialist': ('#2b2f36', '#e8e8ea'),
+    'weakness': ('#ffffff', '#111111'),
+    'basic weakness': ('#ffffff', '#111111'),
+}
+CLASS_SUGGESTIONS = [
+    'guardian', 'seeker', 'rogue', 'survivor', 'mystic',
+    'neutral', 'specialist', 'weakness', 'basic weakness',
+]
+_DEFAULT_CLASS_CHIP_COLOR = ('#5a5f66', '#f2f2f3')
+
+_CLASS_LABEL_KEYS = {
+    'guardian': 'CLASS_GUARDIAN', 'seeker': 'CLASS_SEEKER', 'rogue': 'CLASS_ROGUE',
+    'survivor': 'CLASS_SURVIVOR', 'mystic': 'CLASS_MYSTIC', 'neutral': 'CLASS_NEUTRAL',
+    'specialist': 'CLASS_SPECIALIST', 'weakness': 'CLASS_WEAKNESS', 'basic weakness': 'CLASS_BASIC_WEAKNESS',
+}
+
+
+def class_label(value):
+    key = _CLASS_LABEL_KEYS.get(value)
+    return tr(key) if key else value.title()
+
+
+def _hairline(vertical=False):
+    frame = QFrame()
+    frame.setFrameShape(QFrame.VLine if vertical else QFrame.HLine)
+    frame.setFrameShadow(QFrame.Sunken)
+    frame.setProperty("role", "divider" if vertical else "hairline")
+    return frame
+
+
+class Band(QWidget):
+    """A section: uppercase label + hairline rule + padded content area.
+
+    No border around the band itself — bands are separated by the rule + spacing only, per
+    the style guide ("never nest a bordered box inside a bordered box more than one level deep").
+    """
+
+    def __init__(self, title, hint=None, collapsible=False, parent=None):
+        super().__init__(parent)
+        self.collapsible = collapsible
+        # Never let a band get stretched taller than its content — extra vertical space
+        # (e.g. from the scroll area forcing the whole column to fill the viewport) must
+        # go to the trailing addStretch() in FaceEditor.main_layout, not leak into a band.
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 14, 0, 0)
+        outer.setSpacing(7)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(8)
+
+        self.toggle = None
+        if collapsible:
+            self.toggle = QToolButton()
+            self.toggle.setCheckable(True)
+            self.toggle.setChecked(False)
+            self.toggle.setArrowType(Qt.RightArrow)
+            self.toggle.setText(title.upper())
+            self.toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+            self.toggle.setAutoRaise(True)
+            self.toggle.setProperty("role", "band-label")
+            self.toggle.toggled.connect(self._on_toggled)
+            header.addWidget(self.toggle)
+        else:
+            label = QLabel(title.upper())
+            label.setProperty("role", "band-label")
+            header.addWidget(label)
+
+        header.addWidget(_hairline(), 1)
+
+        self.hint_label = None
+        if hint:
+            self.hint_label = QLabel(hint)
+            self.hint_label.setProperty("role", "band-hint")
+            header.addWidget(self.hint_label)
+
+        outer.addLayout(header)
+
+        self.content = QWidget()
+        self.content_layout = QVBoxLayout(self.content)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(10)
+        outer.addWidget(self.content)
+
+        if collapsible:
+            self.content.setVisible(False)
+
+    def _on_toggled(self, checked):
+        self.toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+        self.content.setVisible(checked)
+
+    def set_expanded(self, expanded):
+        if self.toggle is not None:
+            self.toggle.setChecked(expanded)
+
+
+class Stepper(QWidget):
+    """A `- value +` stepper: three fixed-width cells, no visible gap.
+
+    The middle cell stays a real, freely-editable QLineEdit (not a spinbox) since several
+    Arkham fields legitimately hold non-numeric tokens ("X", "-", "*"). The +/- buttons only
+    do a best-effort integer parse/clamp/increment; anything else is left for the user to type.
+    """
+
+    textChanged = Signal(str)
+
+    def __init__(self, width=34, minimum=0, maximum=99, floor_value=None, parent=None):
+        super().__init__(parent)
+        self.minimum = minimum
+        self.maximum = maximum
+        # An optional sentinel text one notch below `minimum` — e.g. Cost's "---" ("cannot
+        # be played/paid for by normal means"), reached by pressing "-" at minimum, and left
+        # by pressing "+" back to minimum.
+        self.floor_value = floor_value
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.minus_btn = QPushButton("−")
+        self.minus_btn.setProperty("role", "stepper-btn")
+        self.minus_btn.setFixedSize(20, 24)
+        self.minus_btn.clicked.connect(lambda: self._step(-1))
+
+        self.value_input = QLineEdit()
+        self.value_input.setProperty("role", "stepper-value")
+        self.value_input.setFixedSize(width, 24)
+        self.value_input.textChanged.connect(self.textChanged.emit)
+
+        self.plus_btn = QPushButton("+")
+        self.plus_btn.setProperty("role", "stepper-btn")
+        self.plus_btn.setFixedSize(20, 24)
+        self.plus_btn.clicked.connect(lambda: self._step(1))
+
+        layout.addWidget(self.minus_btn)
+        layout.addWidget(self.value_input)
+        layout.addWidget(self.plus_btn)
+
+    def _step(self, delta):
+        text = self.value_input.text().strip()
+
+        if self.floor_value is not None and text == self.floor_value:
+            if delta > 0:
+                self.value_input.setText(str(self.minimum))
+            # delta < 0: already at the floor, nothing lower to go to
+            return
+
+        try:
+            value = int(text)
+        except (ValueError, TypeError):
+            return
+
+        new_value = value + delta
+        if self.floor_value is not None and new_value < self.minimum:
+            self.value_input.setText(self.floor_value)
+            return
+
+        value = max(self.minimum, min(self.maximum, new_value))
+        self.value_input.setText(str(value))
+
+    def text(self):
+        return self.value_input.text()
+
+    def setText(self, text):
+        self.value_input.setText(text)
+
+
+PER_TAG = "<per>"
+
+
+class PerStepper(QWidget):
+    """A Stepper with a trailing "per investigator" toggle button.
+
+    Several stat fields (enemy attack/health/evade, location/act clue thresholds, agenda
+    doom thresholds) can be printed as "X per investigator" — the toggle appends/removes a
+    literal "<per>" suffix on the *stored* value, same idea as UniqueNameField's "<unique>"
+    prefix toggle on the name field, just suffixed and shared across these stepper fields
+    instead of being its own one-off widget.
+    """
+
+    textChanged = Signal(str)
+
+    def __init__(self, width=34, minimum=0, maximum=99, floor_value=None, parent=None):
+        super().__init__(parent)
+        self._updating = False
+
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+
+        self.stepper = Stepper(width=width, minimum=minimum, maximum=maximum, floor_value=floor_value)
+        self.stepper.textChanged.connect(self._on_changed)
+        row.addWidget(self.stepper)
+
+        self.per_btn = QPushButton("P")
+        self.per_btn.setCheckable(True)
+        self.per_btn.setProperty("role", "per-btn")
+        self.per_btn.setFixedSize(22, 24)
+        self.per_btn.setToolTip(tr("TOOLTIP_PER"))
+        self.per_btn.toggled.connect(self._on_toggle_per)
+        row.addWidget(self.per_btn)
+
+    def _on_changed(self, *_):
+        if not self._updating:
+            self.textChanged.emit(self.text())
+
+    def _on_toggle_per(self, _checked):
+        self._on_changed()
+
+    def text(self):
+        """The raw stored value: the stepper's value plus the <per> tag (if toggled)."""
+        suffix = PER_TAG if self.per_btn.isChecked() else ""
+        return self.stepper.text() + suffix
+
+    def setText(self, value):
+        """Load a raw stored value: a literal trailing "<per>" (if present) becomes the
+        toggle state; everything before it goes into the stepper untouched."""
+        self._updating = True
+        value = value or ""
+        per = value.endswith(PER_TAG)
+        self.stepper.setText(value[:-len(PER_TAG)] if per else value)
+        self.per_btn.setChecked(per)
+        self._updating = False
+
+
+class NumbersPanel(QFrame):
+    """Bordered mini-panel holding several stat sub-groups, divided by thin vertical rules."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.StyledPanel)
+        self.setFrameShadow(QFrame.Sunken)
+        self.layout_ = QHBoxLayout(self)
+        self.layout_.setContentsMargins(13, 11, 13, 11)
+        self.layout_.setSpacing(14)
+        self._first = True
+
+    def add_group(self, label, widget, stretch=0):
+        """Add a labelled sub-group (e.g. "Cost", "Health / Sanity") to the panel."""
+        if not self._first:
+            self.layout_.addWidget(_hairline(vertical=True))
+        self._first = False
+
+        group = QWidget()
+        group_layout = QVBoxLayout(group)
+        group_layout.setContentsMargins(0, 0, 0, 0)
+        group_layout.setSpacing(6)
+
+        if label:
+            label_widget = QLabel(label.upper())
+            label_widget.setProperty("role", "field-label")
+            group_layout.addWidget(label_widget)
+
+        group_layout.addWidget(widget)
+        self.layout_.addWidget(group, stretch)
+        return group
+
+
+class TagChipsField(QWidget):
+    """Chip editor for open, user-typed lists (Traits): filled pills with `x`, plus a trailing
+    dashed "+ <label>" ghost chip that turns into a text entry with autocomplete on click.
+
+    Stores/round-trips the exact same "value1. value2." dot-joined string format the rest of
+    the app expects — this widget only changes how the user edits that string.
+    """
+
+    textChanged = Signal(str)
+
+    def __init__(self, add_label="+ trait", completions=None, parent=None):
+        super().__init__(parent)
+        self._values = []
+        self._placeholder_values = []
+        self._completions = completions or []
+
+        self.flow = QHBoxLayout(self)
+        self.flow.setContentsMargins(6, 4, 6, 4)
+        self.flow.setSpacing(5)
+        self.flow.addStretch(1)
+
+        self.add_btn = QPushButton(add_label)
+        self.add_btn.setProperty("chip", "tag-add")
+        self.add_btn.clicked.connect(self._start_add)
+        self.flow.insertWidget(0, self.add_btn)
+
+        self.entry = QLineEdit()
+        self.entry.setVisible(False)
+        self.entry.setFixedWidth(120)
+        if self._completions:
+            completer = QCompleter(self._completions)
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchContains)
+            self.entry.setCompleter(completer)
+        # Enter commits the trait and keeps adding (most cards take 1-3 traits, so
+        # re-clicking "+ trait" after every single one is annoying); losing focus commits
+        # whatever's typed and closes back to the ghost chip. Enter on an empty entry also
+        # closes — that's the "I'm done" signal.
+        self.entry.returnPressed.connect(self._on_return_pressed)
+        self.entry.installEventFilter(self)
+        self.flow.insertWidget(0, self.entry)
+
+    def _start_add(self):
+        self.add_btn.setVisible(False)
+        self.entry.setVisible(True)
+        self.entry.setFocus()
+
+    def _close_entry(self):
+        self.entry.blockSignals(True)
+        self.entry.clear()
+        self.entry.blockSignals(False)
+        self.entry.setVisible(False)
+        self.add_btn.setVisible(True)
+
+    def _commit_entry_text(self, text):
+        self.entry.blockSignals(True)
+        self.entry.clear()
+        self.entry.blockSignals(False)
+        formatted = text[0].upper() + text[1:]
+        if not formatted.endswith('.'):
+            formatted += '.'
+        if formatted not in self._values:
+            self._values.append(formatted)
+        self._rebuild()
+        self.textChanged.emit(self.text())
+
+    def _on_return_pressed(self):
+        text = self.entry.text().strip()
+        if not text:
+            self._close_entry()
+            return
+        self._commit_entry_text(text)
+        self.entry.setFocus()
+
+    def eventFilter(self, obj, event):
+        if obj is self.entry and event.type() == QEvent.FocusOut:
+            # The completer popup opening/taking focus also fires a FocusOut on the entry
+            # (QLineEdit only suppresses this for its own editingFinished signal, not for a
+            # plain event filter) — that's not the user clicking away, so ignore it. This is
+            # the same PopupFocusReason check QLineEdit itself uses internally for this.
+            reason = event.reason() if isinstance(event, QFocusEvent) else None
+            if reason == Qt.PopupFocusReason:
+                return super().eventFilter(obj, event)
+            text = self.entry.text().strip()
+            if text:
+                self._commit_entry_text(text)
+            self._close_entry()
+        return super().eventFilter(obj, event)
+
+    def _remove(self, value):
+        if value in self._values:
+            self._values.remove(value)
+            self._rebuild()
+            self.textChanged.emit(self.text())
+
+    def _rebuild(self):
+        for i in reversed(range(self.flow.count())):
+            item = self.flow.itemAt(i)
+            widget = item.widget()
+            if widget is not None and widget not in (self.add_btn, self.entry):
+                widget.setParent(None)
+        insert_at = self.flow.indexOf(self.entry)
+        if self._values:
+            for value in self._values:
+                chip = QPushButton(f"{value.rstrip('.')} ×")
+                chip.setProperty("chip", "tag")
+                chip.clicked.connect(lambda _, v=value: self._remove(v))
+                self.flow.insertWidget(insert_at, chip)
+                insert_at += 1
+        else:
+            # No explicit value set on this face — show the inherited/fallback traits as
+            # non-interactive "ghost" chips, same spirit as a placeholder on a text field.
+            for value in self._placeholder_values:
+                chip = QPushButton(value.rstrip('.'))
+                chip.setProperty("chip", "tag-ghost")
+                chip.setEnabled(False)
+                self.flow.insertWidget(insert_at, chip)
+                insert_at += 1
+
+    def text(self):
+        return ' '.join(self._values)
+
+    def setText(self, text):
+        text = (text or '').strip()
+        self._values = [v.strip() + '.' for v in text.split('.') if v.strip()] if text else []
+        self._rebuild()
+
+    def set_placeholder(self, text):
+        """Show the inherited/fallback trait values as muted ghost chips when empty."""
+        text = (text or '').strip()
+        self._placeholder_values = [v.strip() + '.' for v in text.split('.') if v.strip()] if text else []
+        if not self._values:
+            self._rebuild()
+
+
+class SegmentedToggle(QWidget):
+    """A row of equal-height rounded buttons with a single exclusive active state.
+
+    `values` (optional) parallels `options` with the underlying data value each button
+    represents (defaults to the button's index) — e.g. the Level selector uses button
+    labels ['–','0',...,'5','C'] backed by values ['None','0',...,'5','Custom'].
+    """
+
+    currentChanged = Signal(int)
+    valueChanged = Signal(object)
+
+    def __init__(self, options, values=None, parent=None):
+        super().__init__(parent)
+        self.values = list(values) if values is not None else list(range(len(options)))
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.group = QButtonGroup(self)
+        self.group.setExclusive(True)
+        self.buttons = []
+        for i, label in enumerate(options):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setProperty("role", "segment")
+            pos = "left" if i == 0 else ("right" if i == len(options) - 1 else "mid")
+            btn.setProperty("segmentPos", pos)
+            btn.setFixedHeight(28)
+            self.group.addButton(btn, i)
+            layout.addWidget(btn)
+            self.buttons.append(btn)
+        if self.buttons:
+            self.buttons[0].setChecked(True)
+        self.group.idClicked.connect(self._on_clicked)
+
+    def _on_clicked(self, index):
+        self.currentChanged.emit(index)
+        self.valueChanged.emit(self.values[index])
+
+    def current_index(self):
+        return self.group.checkedId()
+
+    def set_current_index(self, index):
+        if 0 <= index < len(self.buttons):
+            self.buttons[index].setChecked(True)
+
+    def current_value(self):
+        index = self.group.checkedId()
+        return self.values[index] if index >= 0 else None
+
+    def set_current_value(self, value):
+        try:
+            index = self.values.index(value)
+        except ValueError:
+            index = 0
+        self.set_current_index(index)
+
+
+def _class_chip_style(value, checked=False):
+    bg, fg = CLASS_CHIP_COLORS.get(value, _DEFAULT_CLASS_CHIP_COLOR)
+    border = "2px solid #333" if checked else "1px solid rgba(0,0,0,.2)"
+    return (
+        f"QPushButton {{ background: {bg}; color: {fg}; border-radius: 5px; "
+        f"padding: 4px 9px; font-size: 11px; font-weight: 600; border: {border}; }}"
+    )
+
+
+class _ClassSuggestionPopup(QWidget):
+    """Popup grid of colored class-chip suggestions, opened by the "+ class" ghost chip."""
+
+    def __init__(self, field):
+        super().__init__(field, Qt.Popup)
+        self.field = field
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        grid = QGridLayout()
+        grid.setSpacing(5)
+        self.buttons = {}
+        for i, value in enumerate(CLASS_SUGGESTIONS):
+            btn = QPushButton(class_label(value))
+            btn.setCheckable(True)
+            btn.setChecked(value in field.values())
+            btn.setStyleSheet(_class_chip_style(value, checked=btn.isChecked()))
+            btn.clicked.connect(lambda _, v=value: self._toggle(v))
+            self.buttons[value] = btn
+            grid.addWidget(btn, i // 3, i % 3)
+        layout.addLayout(grid)
+
+    def _toggle(self, value):
+        self.field._toggle(value)
+        btn = self.buttons[value]
+        btn.setChecked(value in self.field.values())
+        btn.setStyleSheet(_class_chip_style(value, checked=btn.isChecked()))
+
+
+class ClassChipsField(QWidget):
+    """Chip editor for the card Class field: colored chips (semantic per-class colors)
+    plus a "+" ghost chip that opens a popup of suggested classes to toggle on/off.
+
+    Unlike TagChipsField, suggestions are picked from a fixed popup rather than typed —
+    classes are a closed-ish set — but arbitrary legacy/custom values are still rendered
+    (in a neutral color) if already present in the data, so nothing is silently dropped.
+    """
+
+    changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._values = []
+
+        self.flow = QHBoxLayout(self)
+        self.flow.setContentsMargins(6, 4, 6, 4)
+        self.flow.setSpacing(5)
+        self.flow.addStretch(1)
+
+        self.add_btn = QPushButton(f"+ {tr('FIELD_CLASSES').lower()}")
+        self.add_btn.setProperty("chip", "tag-add")
+        self.add_btn.clicked.connect(self._show_suggestions)
+        self.flow.insertWidget(0, self.add_btn)
+
+    def values(self):
+        return list(self._values)
+
+    def _show_suggestions(self):
+        popup = _ClassSuggestionPopup(self)
+        pos = self.add_btn.mapToGlobal(self.add_btn.rect().bottomLeft())
+        popup.move(pos)
+        popup.show()
+
+    def _toggle(self, value):
+        if value in self._values:
+            self._values.remove(value)
+        else:
+            self._values.append(value)
+        self._rebuild()
+        self.changed.emit()
+
+    def _remove(self, value):
+        if value in self._values:
+            self._values.remove(value)
+            self._rebuild()
+            self.changed.emit()
+
+    def _rebuild(self):
+        for i in reversed(range(self.flow.count())):
+            widget = self.flow.itemAt(i).widget()
+            if widget is not None and widget is not self.add_btn:
+                widget.setParent(None)
+        insert_at = self.flow.indexOf(self.add_btn)
+        for value in self._values:
+            chip = QPushButton(f"{class_label(value)} ×")
+            chip.setStyleSheet(_class_chip_style(value))
+            chip.setFlat(True)
+            chip.clicked.connect(lambda _, v=value: self._remove(v))
+            self.flow.insertWidget(insert_at, chip)
+            insert_at += 1
+
+    def get_classes(self):
+        return list(self._values) if self._values else None
+
+    def set_classes(self, value):
+        if not value:
+            self._values = []
+        elif isinstance(value, list):
+            self._values = [str(v) for v in value]
+        else:
+            self._values = [v.strip() for v in str(value).split(',') if v.strip()]
+        self._rebuild()

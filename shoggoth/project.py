@@ -216,6 +216,46 @@ class Project:
         self.data['icon'] = value
 
     @property
+    def auto_hyphenate(self):
+        return self.data.get('meta', {}).get('auto_hyphenate', True)
+
+    @auto_hyphenate.setter
+    def auto_hyphenate(self, value):
+        if 'meta' not in self.data:
+            self.data['meta'] = {}
+        self.data['meta']['auto_hyphenate'] = value
+        self.dirty = True
+
+    @property
+    def french_punctuation(self):
+        return self.data.get('meta', {}).get('french_punctuation', False)
+
+    @french_punctuation.setter
+    def french_punctuation(self, value):
+        if 'meta' not in self.data:
+            self.data['meta'] = {}
+        self.data['meta']['french_punctuation'] = value
+        self.dirty = True
+
+    @property
+    def language(self):
+        """Card rendering language override for this project.
+
+        Empty string means "no override" — the global UI card-language
+        setting applies. A non-empty value (e.g. 'de') overrides it, so a
+        German translation project renders "GEGNER" instead of "ENEMY"
+        without the user having to flip the UI-level setting.
+        """
+        return self.data.get('meta', {}).get('language', '')
+
+    @language.setter
+    def language(self, value):
+        if 'meta' not in self.data:
+            self.data['meta'] = {}
+        self.data['meta']['language'] = value
+        self.dirty = True
+
+    @property
     def folder(self):
         return Path(self.file_path).parent
 
@@ -768,6 +808,12 @@ class Translation:
 
         # project
         self.project.data['name'] = self.data.get('project_name', self.project.name)
+
+        # Card language: default a translation project to the language it's
+        # translated into, so e.g. a German translation renders "GEGNER"
+        # instead of "ENEMY" without a manual UI-language switch. Editable
+        # afterwards via the project editor like any other project setting.
+        self.project.data.setdefault('meta', {})['language'] = self.language
 
         # encounter sets
         for encounter_id in self.data.get('encounter_sets', {}):

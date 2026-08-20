@@ -194,7 +194,7 @@ class CardRenderer:
     CARD_HEIGHT = 1050
     CARD_BLEED = 72
 
-    def __init__(self, locale='en', hyphenation_enabled=True):
+    def __init__(self, locale='en', hyphenation_enabled=True, french_punctuation=False):
         # Base paths
         self.assets_path = asset_dir
         self.templates_path = template_dir
@@ -208,23 +208,36 @@ class CardRenderer:
         self._illus_resized_lru = OrderedDict()  # (path, size) → PIL Image; bounded LRU
         self.translations = {}
         self.locale = locale
-        self.translations = {}
-        if self.locale:
-            try:
-                with perf.span('Load translation file'):
-                    with open(translation_dir / f'{self.locale}.json', 'r', encoding='utf-8') as file:
-                        self.translations = json.load(file)
-            except Exception as e:
-                print('error while loading translation for renderer:', e)
+        self.set_locale(locale)
 
         # Initialize rich text renderer
         self.hyphenation_enabled = hyphenation_enabled
-        self.rich_text = RichTextRenderer(self, hyphenation_enabled=hyphenation_enabled)
+        self.french_punctuation = french_punctuation
+        self.rich_text = RichTextRenderer(self, hyphenation_enabled=hyphenation_enabled,
+                                           french_punctuation=french_punctuation)
+
+    def set_locale(self, locale: str):
+        """Update the card rendering language on the fly (e.g. project language
+        override, or a menu change) by reloading the locale's translation file."""
+        self.locale = locale
+        self.translations = {}
+        if locale:
+            try:
+                with perf.span('Load translation file'):
+                    with open(translation_dir / f'{locale}.json', 'r', encoding='utf-8') as file:
+                        self.translations = json.load(file)
+            except Exception as e:
+                print('error while loading translation for renderer:', e)
 
     def set_hyphenation_enabled(self, enabled: bool):
         """Update hyphenation on the fly (e.g. when the user toggles the setting)."""
         self.hyphenation_enabled = enabled
         self.rich_text.hyphenation_enabled = enabled
+
+    def set_french_punctuation(self, enabled: bool):
+        """Update French punctuation spacing on the fly (e.g. when the user toggles the setting)."""
+        self.french_punctuation = enabled
+        self.rich_text.french_punctuation = enabled
 
     def get_illustration_cached(self, path) -> _ImgDims:
         """Return illustration dimensions without decoding pixels.

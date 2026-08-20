@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QPushButton, QLabel, QFileDialog,
     QScrollArea, QGridLayout, QGroupBox, QInputDialog,
-    QMessageBox
+    QMessageBox, QCheckBox, QComboBox
 )
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QPixmap, QImage
@@ -14,7 +14,8 @@ from pathlib import Path
 import threading
 
 import shoggoth
-from shoggoth.i18n import tr
+from shoggoth.files import translation_dir
+from shoggoth.i18n import tr, get_available_languages_from_dir
 
 
 class ProjectEditor(QWidget):
@@ -42,6 +43,15 @@ class ProjectEditor(QWidget):
         # Load thumbnails in background
         if self.card_renderer:
             threading.Thread(target=self.load_thumbnails, daemon=True).start()
+
+    def _build_language_combo(self):
+        """A combo box of card-render languages, plus a leading 'Automatic'
+        entry (empty string) that means "follow the global UI setting"."""
+        combo = QComboBox()
+        combo.addItem(tr("OPT_LANGUAGE_AUTOMATIC"), "")
+        for lang_code, lang_name in get_available_languages_from_dir(translation_dir).items():
+            combo.addItem(lang_name, lang_code)
+        return combo
 
     def setup_ui(self):
         """Setup the user interface"""
@@ -90,6 +100,24 @@ class ProjectEditor(QWidget):
         self.icon_preview.setStyleSheet("border: 1px solid #aaa; background: #d4c3a0;")
         icon_layout.addWidget(self.icon_preview)
         info_layout.addRow(tr("FIELD_ICON"), icon_layout)
+
+        # Card language override
+        self.language_combo = self._build_language_combo()
+        self.language_combo.currentIndexChanged.connect(lambda: self.on_field_changed('language'))
+        info_layout.addRow(tr("FIELD_PROJECT_LANGUAGE"), self.language_combo)
+        info_layout.addRow("", QLabel(tr("HELP_PROJECT_LANGUAGE")))
+
+        # Auto-hyphenate
+        self.auto_hyphenate_checkbox = QCheckBox(tr("OPT_ENABLE_HYPHENATION"))
+        self.auto_hyphenate_checkbox.setToolTip(tr("HELP_HYPHENATION"))
+        self.auto_hyphenate_checkbox.toggled.connect(lambda: self.on_field_changed('auto_hyphenate'))
+        info_layout.addRow(tr("FIELD_AUTO_HYPHENATE"), self.auto_hyphenate_checkbox)
+
+        # French punctuation spacing
+        self.french_punctuation_checkbox = QCheckBox(tr("OPT_ENABLE_FRENCH_PUNCTUATION"))
+        self.french_punctuation_checkbox.setToolTip(tr("HELP_FRENCH_PUNCTUATION"))
+        self.french_punctuation_checkbox.toggled.connect(lambda: self.on_field_changed('french_punctuation'))
+        info_layout.addRow(tr("FIELD_FRENCH_PUNCTUATION"), self.french_punctuation_checkbox)
 
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
@@ -167,6 +195,13 @@ class ProjectEditor(QWidget):
         lang_label = QLabel(self.project.data.get('language', '').upper())
         info_layout.addRow("Language:", lang_label)
 
+        # Card language override — defaults to the translation's own
+        # language (see Translation.apply()), but can still be changed.
+        self.language_combo = self._build_language_combo()
+        self.language_combo.currentIndexChanged.connect(lambda: self.on_field_changed('language'))
+        info_layout.addRow(tr("FIELD_PROJECT_LANGUAGE"), self.language_combo)
+        info_layout.addRow("", QLabel(tr("HELP_PROJECT_LANGUAGE")))
+
         self.card_count_label = QLabel("0")
         info_layout.addRow(tr("FIELD_TOTAL_CARDS"), self.card_count_label)
 
@@ -201,11 +236,17 @@ class ProjectEditor(QWidget):
         if self.project.is_translation:
             # Translation project: only show card count
             self.card_count_label.setText(str(len(self.project.get_all_cards())))
+            idx = self.language_combo.findData(self.project.language)
+            self.language_combo.setCurrentIndex(idx if idx >= 0 else 0)
         else:
             self.name_input.setText(self.project.get('name', ''))
             self.code_input.setText(self.project.get('code', ''))
             self.copyright_input.setText(self.project.get('default_copyright', ''))
             self.icon_input.setText(self.project.get('icon', ''))
+            idx = self.language_combo.findData(self.project.language)
+            self.language_combo.setCurrentIndex(idx if idx >= 0 else 0)
+            self.auto_hyphenate_checkbox.setChecked(self.project.auto_hyphenate)
+            self.french_punctuation_checkbox.setChecked(self.project.french_punctuation)
 
             # Update statistics
             encounter_sets = list(self.project.encounter_sets)
@@ -244,6 +285,24 @@ class ProjectEditor(QWidget):
             self.project.data['default_copyright'] = self.copyright_input.text()
         elif field_name == 'icon':
             self.project.data['icon'] = self.icon_input.text()
+        elif field_name == 'language':
+            self.project.language = self.language_combo.currentData() or ''
+            if shoggoth.app and shoggoth.app.active_project is self.project:
+                effective = self.project.language or shoggoth.app.config.get('Shoggoth', 'card_language', 'en')
+                shoggoth.app.card_renderer.set_locale(effective)
+                shoggoth.app.schedule_preview_update()
+                from shoggoth.ui.main_window import menus
+                menus.update_card_language_menu_state(shoggoth.app)
+        elif field_name == 'auto_hyphenate':
+            self.project.auto_hyphenate = self.auto_hyphenate_checkbox.isChecked()
+            if shoggoth.app and shoggoth.app.active_project is self.project:
+                shoggoth.app.card_renderer.set_hyphenation_enabled(self.project.auto_hyphenate)
+                shoggoth.app.schedule_preview_update()
+        elif field_name == 'french_punctuation':
+            self.project.french_punctuation = self.french_punctuation_checkbox.isChecked()
+            if shoggoth.app and shoggoth.app.active_project is self.project:
+                shoggoth.app.card_renderer.set_french_punctuation(self.project.french_punctuation)
+                shoggoth.app.schedule_preview_update()
 
         self.project.dirty = True
         self.data_changed.emit()

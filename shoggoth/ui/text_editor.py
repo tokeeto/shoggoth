@@ -5,9 +5,33 @@ from PySide6.QtWidgets import QTextEdit, QCompleter, QToolTip
 from PySide6.QtCore import Qt, QStringListModel, QRect, QPoint
 from PySide6.QtGui import (
     QSyntaxHighlighter, QTextCharFormat, QColor, QFont,
-    QTextCursor, QPalette
+    QTextCursor, QPalette, QFontDatabase
 )
 import re
+
+from shoggoth.files import font_dir
+
+_editor_font_family = None
+
+
+def _load_editor_font():
+    """Register ShoggothEditorFont.otf (built by scripts/build_editor_font.py) and
+    return its family name. The font's 'calt' ligature rules render markup tags like
+    "<action>" as their icon glyph while leaving the underlying characters editable
+    one at a time, so backspace still un-types the tag letter by letter."""
+    global _editor_font_family
+    if _editor_font_family is not None:
+        return _editor_font_family
+
+    path = font_dir / "ShoggothEditorFont.otf"
+    families = []
+    if path.exists():
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        if font_id != -1:
+            families = QFontDatabase.applicationFontFamilies(font_id)
+
+    _editor_font_family = families[0] if families else QFont().defaultFamily()
+    return _editor_font_family
 
 
 class ArkhamTextHighlighter(QSyntaxHighlighter):
@@ -215,8 +239,20 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
 class ArkhamTextEdit(QTextEdit):
     """Custom text edit widget with autocomplete for Arkham Horror card text"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, monospace=False):
         super().__init__(parent)
+
+        # ShoggothEditorFont's ligatures render markup tags as icon glyphs, which is
+        # what card text fields want — but that same substitution obfuscates raw JSON
+        # (e.g. a "<action>" inside a text value stops looking like the literal
+        # characters being edited). Callers displaying raw data (JSON editors) should
+        # pass monospace=True for a plain, readable fixed-pitch font instead.
+        if monospace:
+            editor_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        else:
+            editor_font = QFont(_load_editor_font())
+        editor_font.setPointSize(self.font().pointSize())
+        self.setFont(editor_font)
 
         # Enable syntax highlighting
         self.highlighter = ArkhamTextHighlighter(self.document())

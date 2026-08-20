@@ -2,98 +2,48 @@
 Player card editors for Shoggoth (asset, event, skill, customizable)
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLineEdit, QSpinBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QSpinBox
 )
 
 from shoggoth.ui.face_editor import FaceEditor
-from shoggoth.ui.editor_widgets import SlotsWidget, NoScrollComboBox
-from shoggoth.ui.field_widgets import LabeledLineEdit, ClassSelectorWidget
+from shoggoth.ui.editor_widgets import SlotChipsField
 from shoggoth.ui.card_widgets import IconsWidget
 from shoggoth.i18n import tr
+
+# Level selector shared by Asset/Event/Skill: en-dash (no level) / 0-5 / C (custom).
+# Values are literal strings the renderer sentinel-checks for ('None'/'Custom') — see
+# renderer.py:render_level.
+LEVEL_LABELS = ['–', '0', '1', '2', '3', '4', '5', 'C']
+LEVEL_VALUES = ['None', '0', '1', '2', '3', '4', '5', 'Custom']
 
 
 class AssetEditor(FaceEditor):
     """Editor for asset cards"""
 
     def setup_ui(self):
-        # Basic fields
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
+        self.add_class_and_level_row(LEVEL_LABELS, LEVEL_VALUES)
 
-        # Traits with autocomplete
-        self.add_trait_field()
-
-        # Grid for compact fields
-        grid_widget = QWidget()
-        grid_layout = QFormLayout()
-
-        # Classes
-        classes_widget = ClassSelectorWidget()
-        classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
-        self.fields['classes'] = classes_widget
-        self.field_containers['classes'] = classes_widget
-        grid_layout.addRow(classes_widget)
-
-        # Cost
-        cost_input = LabeledLineEdit(tr("FIELD_COST"))
-        cost_input.input.textChanged.connect(lambda: self.on_field_changed('cost'))
-        self.fields['cost'] = cost_input.input
-        grid_layout.addRow(cost_input)
-
-        # Level
-        level_combo = NoScrollComboBox()
-        level_combo.addItems([tr('OPTION_NONE'), '0', '1', '2', '3', '4', '5', tr('OPTION_CUSTOM')])
-        level_combo.setItemData(0, 'None')
-        level_combo.setItemData(7, 'Custom')
-        level_combo.currentTextChanged.connect(lambda: self.on_field_changed('level'))
-        self.fields['level'] = level_combo
-        grid_layout.addRow(tr("FIELD_LEVEL"), level_combo)
-
-        grid_widget.setLayout(grid_layout)
-        self.main_layout.addWidget(grid_widget)
-
-        # Icons widget (separate from grid)
+        self.start_band(tr("BAND_NUMBERS"))
         self.icons_widget = IconsWidget()
         self.icons_widget.iconsChanged.connect(self.on_icons_changed)
-        self.main_layout.addWidget(self.icons_widget)
-
-        # Continue with more grid fields
-        grid_widget2 = QWidget()
-        grid_layout2 = QFormLayout()
-
-        # Health
-        health_input = LabeledLineEdit(tr("FIELD_HEALTH"))
-        health_input.input.textChanged.connect(lambda: self.on_field_changed('health'))
-        self.fields['health'] = health_input.input
-        grid_layout2.addRow(health_input)
-
-        # Sanity
-        sanity_input = LabeledLineEdit(tr("FIELD_SANITY"))
-        sanity_input.input.textChanged.connect(lambda: self.on_field_changed('sanity'))
-        self.fields['sanity'] = sanity_input.input
-        grid_layout2.addRow(sanity_input)
-
-        grid_widget2.setLayout(grid_layout2)
-        self.main_layout.addWidget(grid_widget2)
-
-        # Slots widget (separate from grid for better layout)
-        self.slots_widget = SlotsWidget()
+        self.slots_widget = SlotChipsField()
         self.slots_widget.slotsChanged.connect(self.on_slots_changed)
-        self.main_layout.addWidget(self.slots_widget)
+        self.add_numbers_panel([
+            (tr("FIELD_COST"), "cost"),
+            (tr("LABEL_ICONS"), self.icons_widget),
+            (tr("FIELD_HEALTH") + " / " + tr("FIELD_SANITY"),
+             self.add_icon_field_pair("damage", "health", "horror", "sanity")),
+            (tr("FIELD_SLOT"), self.slots_widget),
+        ])
 
-        # Text fields
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
 
-        self.add_victory_field()
-
-        # Illustration
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
     def load_data(self):
@@ -126,51 +76,24 @@ class EventEditor(FaceEditor):
     """Editor for event cards"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
+        self.add_class_and_level_row(LEVEL_LABELS, LEVEL_VALUES)
 
-        # Traits with autocomplete
-        self.add_trait_field()
-
-        # Grid for compact fields
-        grid_widget = QWidget()
-        grid_layout = QFormLayout()
-
-        classes_widget = ClassSelectorWidget()
-        classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
-        self.fields['classes'] = classes_widget
-        self.field_containers['classes'] = classes_widget
-        grid_layout.addRow(classes_widget)
-
-        cost_input = LabeledLineEdit(tr("FIELD_COST"))
-        cost_input.input.textChanged.connect(lambda: self.on_field_changed('cost'))
-        self.fields['cost'] = cost_input.input
-        grid_layout.addRow(cost_input)
-
-        level_combo = NoScrollComboBox()
-        level_combo.addItems([tr('OPTION_NONE'), '0', '1', '2', '3', '4', '5', tr('OPTION_CUSTOM')])
-        level_combo.setItemData(0, 'None')
-        level_combo.setItemData(7, 'Custom')
-        level_combo.currentTextChanged.connect(lambda: self.on_field_changed('level'))
-        self.fields['level'] = level_combo
-        grid_layout.addRow(tr("FIELD_LEVEL"), level_combo)
-
-        grid_widget.setLayout(grid_layout)
-        self.main_layout.addWidget(grid_widget)
-
-        # Icons widget (separate from grid)
+        self.start_band(tr("BAND_NUMBERS"))
         self.icons_widget = IconsWidget()
         self.icons_widget.iconsChanged.connect(self.on_icons_changed)
-        self.main_layout.addWidget(self.icons_widget)
+        self.add_numbers_panel([
+            (tr("FIELD_COST"), "cost"),
+            (tr("LABEL_ICONS"), self.icons_widget),
+        ])
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
-        self.add_victory_field()
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
+
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
     def load_data(self):
@@ -200,15 +123,17 @@ class CustomizableEditor(FaceEditor):
     NUM_ENTRIES = 12
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_name_field()
+
+        self.start_band(tr("BAND_RULES_TEXT"))
         self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
 
         # Entries section (customization options)
-        from PySide6.QtWidgets import QGroupBox, QLineEdit as _QLineEdit
-        entries_group = QGroupBox(tr("GROUP_CUSTOMIZATION_OPTIONS"))
+        self.start_band(tr("GROUP_CUSTOMIZATION_OPTIONS"))
         entries_layout = QVBoxLayout()
-        entries_layout.setSpacing(6)
-        entries_layout.setContentsMargins(6, 6, 6, 6)
+        entries_layout.setSpacing(4)
+        entries_layout.setContentsMargins(0, 0, 0, 0)
 
         self.entry_widgets = []  # Store (cost_input, name_input, text_input) tuples
 
@@ -244,12 +169,10 @@ class CustomizableEditor(FaceEditor):
 
             self.entry_widgets.append((cost_input, name_input, text_input))
 
-        entries_group.setLayout(entries_layout)
-        self.main_layout.addWidget(entries_group)
+        self._target_layout().addLayout(entries_layout)
 
-        # Copyright and extra text fields
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
     def load_data(self):
