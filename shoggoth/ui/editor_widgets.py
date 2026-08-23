@@ -185,6 +185,10 @@ class IconComboBox(NoScrollComboBox):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        # Flat, borderless chrome — same "role" as the other icon dropdowns
+        # (compact_theme.EDITOR_QSS), so all of these read as one family of controls.
+        self.setProperty("role", "flat-combo")
+
         # Set fixed narrow width
         self.setFixedWidth(55)
         self.setIconSize(QSize(28, 28))

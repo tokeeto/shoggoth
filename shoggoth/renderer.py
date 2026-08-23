@@ -97,7 +97,7 @@ DEFAULT_TEXT_FIELDS = [
     'attack', 'evade', 'health', 'stamina', 'sanity', 'victory',
     'clues', 'doom', 'shroud', 'willpower', 'intellect',
     'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty',
-    'text1', 'text2', 'text3', 'chaos_extra',
+    'text1', 'text2', 'text3', 'chaos_extra', 'tracking',
 ]
 DEFAULT_IMAGE_FIELDS = [
     'template', 'illustration'
@@ -646,12 +646,13 @@ class CardRenderer:
             self.render_connection_icons,
             self.render_tokens,
             self.render_health,
-            self.render_text,
             self.render_class_symbols,
             self.render_enemy_stats,
             self.render_slots,
             self.render_chaos,
+            self.render_tracking_box,
             self.render_customizable,
+            self.render_text,
             self.render_images,
         ]:
             try:
@@ -1299,6 +1300,20 @@ class CardRenderer:
 
         # Token area
         token_region = Region(side.get('chaos_extra_region'), s)
+        if not token_region:
+            return
+        draw = ImageDraw.Draw(card_image, "RGBA")
+        draw.rounded_rectangle(
+            [
+                token_region.x, token_region.y-20*s,
+                token_region.x + token_region.width, token_region.y + token_region.height
+            ],
+            25 * s,
+            fill=(52, 42, 20, 50),
+        )
+
+    def render_tracking_box(self, card_image, side, s: float = 1.0):
+        token_region = Region(side.get('tracking_region'), s)
         if not token_region:
             return
         draw = ImageDraw.Draw(card_image, "RGBA")

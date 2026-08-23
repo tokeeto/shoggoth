@@ -36,6 +36,9 @@ class ConnectionArrow(QGraphicsPathItem):
     OUTLINE_COLOR = QColor(255, 255, 255)
     HOVER_LINE_COLOR = QColor(200, 40, 40)
     ARROW_SIZE = 16
+    # In fixed-length mode the arrow's total length is this fraction of a
+    # card width, regardless of how far apart the two nodes actually are.
+    FIXED_LENGTH_RATIO = 0.9
 
     def __init__(self, source_node, target_node, connection_symbol, reverse_symbol=None):
         super().__init__()
@@ -146,13 +149,23 @@ class ConnectionArrow(QGraphicsPathItem):
         dir_x = dx / length
         dir_y = dy / length
 
-        # Calculate edge intersections for proper arrow endpoints
-        start = self._rect_edge_intersection(
-            source_center, source_rect.width(), source_rect.height(), dir_x, dir_y
-        )
-        end = self._rect_edge_intersection(
-            target_center, target_rect.width(), target_rect.height(), -dir_x, -dir_y
-        )
+        if self.source_node.view.fixed_length_arrows:
+            # Fixed-length arrow centered on the midpoint between the two
+            # node centers, floating free of both cards regardless of how
+            # far apart they are (matches the official products' look).
+            mid_x = (source_center.x() + target_center.x()) / 2
+            mid_y = (source_center.y() + target_center.y()) / 2
+            half_length = (LocationNode.CARD_WIDTH * self.FIXED_LENGTH_RATIO) / 2
+            start = QPointF(mid_x - dir_x * half_length, mid_y - dir_y * half_length)
+            end = QPointF(mid_x + dir_x * half_length, mid_y + dir_y * half_length)
+        else:
+            # Calculate edge intersections for proper arrow endpoints
+            start = self._rect_edge_intersection(
+                source_center, source_rect.width(), source_rect.height(), dir_x, dir_y
+            )
+            end = self._rect_edge_intersection(
+                target_center, target_rect.width(), target_rect.height(), -dir_x, -dir_y
+            )
 
         arrow_size = self.ARROW_SIZE
         hw = self.LINE_WIDTH / 2
@@ -279,15 +292,26 @@ class LocationNode(QGraphicsItem):
         self._generate_thumbnail()
         self._load_connection_icon()
 
+    # Render resolution for thumbnails - same low-res size CardRenderer.get_thumbnail()
+    # uses elsewhere (browser tree). The location view can have dozens of
+    # nodes on screen at once, so rendering each at full card resolution
+    # (the renderer's default) risked exhausting memory; this keeps
+    # thumbnails legible while cutting render + buffer cost substantially.
+    THUMBNAIL_RENDER_WIDTH = 375
+    THUMBNAIL_RENDER_HEIGHT = 519
+
     def _generate_thumbnail(self):
         """Generate a thumbnail of the location card"""
         try:
-            image = self.renderer.render_card_side(self.card, self.face, include_bleed=False)
+            image = self.renderer.render_card_side(
+                self.card, self.face, include_bleed=False,
+                width=self.THUMBNAIL_RENDER_WIDTH, height=self.THUMBNAIL_RENDER_HEIGHT, bleed=18,
+            )
             image = image.resize((self.CARD_WIDTH, self.CARD_HEIGHT))
 
             # Convert to QPixmap
             buffer = BytesIO()
-            image.save(buffer, format='PNG')
+            image.save(buffer, format='JPEG', quality=90)
             buffer.seek(0)
 
             pixmap = QPixmap()
@@ -1070,6 +1094,7 @@ class LocationView(QGraphicsView):
                 'name': tr('LABEL_LAYOUT_NAME').format(n=1),
                 'show_arrows': True,
                 'snap_enabled': False,
+                'fixed_length_arrows': False,
                 'hide_mode': old_hide_mode,
                 'nodes': old_nodes,
             }]
@@ -1119,6 +1144,16 @@ class LocationView(QGraphicsView):
         self.active_layout['show_arrows'] = bool(value)
         self.encounter_set.dirty = True
         self._apply_visibility()
+
+    @property
+    def fixed_length_arrows(self):
+        return bool(self.active_layout.get('fixed_length_arrows', False))
+
+    @fixed_length_arrows.setter
+    def fixed_length_arrows(self, value):
+        self.active_layout['fixed_length_arrows'] = bool(value)
+        self.encounter_set.dirty = True
+        self.update_arrows()
 
     def _get_saved_positions(self):
         """Get saved node positions from the active layout"""
@@ -1217,6 +1252,7 @@ class LocationView(QGraphicsView):
             'name': name or tr('LABEL_LAYOUT_NAME').format(n=len(self.layouts) + 1),
             'show_arrows': True,
             'snap_enabled': False,
+            'fixed_length_arrows': False,
             'hide_mode': False,
             'nodes': {},
         })
@@ -1521,6 +1557,11 @@ class LocationViewWidget(QWidget):
         self.show_arrows_cb.toggled.connect(self._toggle_show_arrows)
         col.addWidget(self.show_arrows_cb)
 
+        self.fixed_length_arrows_cb = QCheckBox(tr("LABEL_FIXED_LENGTH_ARROWS"))
+        self.fixed_length_arrows_cb.setToolTip(tr("TOOLTIP_FIXED_LENGTH_ARROWS"))
+        self.fixed_length_arrows_cb.toggled.connect(self._toggle_fixed_length_arrows)
+        col.addWidget(self.fixed_length_arrows_cb)
+
         self.hide_mode_btn = QPushButton()
         self.hide_mode_btn.setCheckable(True)
         self.hide_mode_btn.setToolTip(tr("TOOLTIP_HIDE_MODE"))
@@ -1657,6 +1698,10 @@ class LocationViewWidget(QWidget):
         self.show_arrows_cb.setChecked(self.location_view.show_arrows)
         self.show_arrows_cb.blockSignals(False)
 
+        self.fixed_length_arrows_cb.blockSignals(True)
+        self.fixed_length_arrows_cb.setChecked(self.location_view.fixed_length_arrows)
+        self.fixed_length_arrows_cb.blockSignals(False)
+
         self._update_hide_mode_button(self.location_view.hide_mode)
 
     def _on_tab_changed(self, index):
@@ -1695,6 +1740,9 @@ class LocationViewWidget(QWidget):
 
     def _toggle_show_arrows(self, enabled):
         self.location_view.show_arrows = enabled
+
+    def _toggle_fixed_length_arrows(self, enabled):
+        self.location_view.fixed_length_arrows = enabled
 
     def _toggle_simulation(self, enabled):
         """Toggle the simulation on/off"""

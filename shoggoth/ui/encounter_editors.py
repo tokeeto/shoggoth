@@ -7,6 +7,8 @@ from PySide6.QtWidgets import (
 
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.editor_widgets import IconComboBox
+from shoggoth.ui.compact_widgets import NumbersPanel
+from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
 
 
@@ -21,8 +23,16 @@ class EnemyEditor(FaceEditor):
         self.start_band(tr("BAND_NUMBERS"))
         self.add_numbers_panel([
             (tr("FIELD_ATTACK") + " / " + tr("FIELD_HEALTH") + " / " + tr("FIELD_EVADE"),
-             ["attack", "health", "evade"]),
-            (tr("FIELD_DAMAGE") + " / " + tr("FIELD_HORROR"), ["damage", "horror"]),
+             self.add_icon_stat_row(
+                 (overlay_dir / 'svg' / 'skill_icon_C.svg', "attack"),
+                 (overlay_dir / 'damage.png', "health"),
+                 (overlay_dir / 'svg' / 'skill_icon_A.svg', "evade"),
+             )),
+            (tr("FIELD_DAMAGE") + " / " + tr("FIELD_HORROR"),
+             self.add_icon_count_row(
+                 (overlay_dir / 'damage.png', "damage"),
+                 (overlay_dir / 'horror.png', "horror"),
+             )),
         ])
 
         self.start_band(tr("BAND_RULES_TEXT"))
@@ -76,47 +86,37 @@ class LocationEditor(FaceEditor):
 
     def setup_ui(self):
         self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
 
-        # Connection symbol (this location's own symbol)
-        conn_layout = QHBoxLayout()
-        conn_label = QLabel(tr("FIELD_CONNECTION_SYMBOL"))
-        conn_label.setProperty("role", "field-label")
-        conn_label.setMinimumWidth(110)
+        # Connections: this location's own symbol, then its 6 outgoing connection
+        # slots — one row, a vertical divider setting the "own symbol" apart from
+        # the rest (same bordered-panel/divider look as add_numbers_panel()).
+        connections_label = QLabel(tr("FIELD_CONNECTIONS"))
+        connections_label.setProperty("role", "field-label")
+        self._target_layout().addWidget(connections_label)
+
+        connections_panel = NumbersPanel()
 
         self.connection_combo = IconComboBox()
         self.connection_combo.currentIndexChanged.connect(lambda: self.on_connection_changed())
         self.fields['connection'] = self.connection_combo
+        connections_panel.add_group(None, self.connection_combo)
 
-        conn_layout.addWidget(conn_label)
-        conn_layout.addWidget(self.connection_combo)
-        conn_layout.addStretch()  # Push to left
-        conn_widget = QWidget()
-        conn_widget.setLayout(conn_layout)
-        self._target_layout().addWidget(conn_widget)
-
-        # Basic fields
-        self.add_identity_row()
-
-        # Connections section - single row of icon dropdowns
-        connections_row = QHBoxLayout()
-        connections_label = QLabel(tr("FIELD_CONNECTIONS"))
-        connections_label.setProperty("role", "field-label")
-        connections_label.setMinimumWidth(110)
-        connections_row.addWidget(connections_label)
-
+        connection_slots = QHBoxLayout()
+        connection_slots.setContentsMargins(0, 0, 0, 0)
+        connection_slots.setSpacing(6)
         # Store connection combos for easy access
         self.connection_combos = []
-
         for i in range(6):
             combo = IconComboBox()
             combo.currentIndexChanged.connect(lambda: self.on_connections_changed())
             self.connection_combos.append(combo)
-            connections_row.addWidget(combo)
+            connection_slots.addWidget(combo)
+        connection_slots_widget = QWidget()
+        connection_slots_widget.setLayout(connection_slots)
+        connections_panel.add_group(None, connection_slots_widget)
 
-        connections_row.addStretch()  # Push to left
-        connections_widget = QWidget()
-        connections_widget.setLayout(connections_row)
-        self._target_layout().addWidget(connections_widget)
+        self._target_layout().addWidget(connections_panel)
 
         self.start_band(tr("BAND_NUMBERS"))
         self.add_numbers_panel([

@@ -5,14 +5,17 @@ These are pure-Qt building blocks styled via the dynamic-property selectors defi
 compact_theme.EDITOR_QSS (setProperty("role", ...) / setProperty("chip", ...)) rather than by
 subclassing every widget — see compact_theme.py for the actual colors/values.
 """
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QPushButton,
     QLineEdit, QToolButton, QButtonGroup, QCompleter, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal, QEvent
-from PySide6.QtGui import QFocusEvent
+from PySide6.QtGui import QFocusEvent, QPixmap
 
 from shoggoth.i18n import tr
+from shoggoth.ui.editor_widgets import NoScrollComboBox
 
 # Class chip colors — semantic (map to the game's own class colors), the one deliberate
 # exception to the "no custom color" rule elsewhere in the compact editor theme.
@@ -248,6 +251,126 @@ class PerStepper(QWidget):
         per = value.endswith(PER_TAG)
         self.stepper.setText(value[:-len(PER_TAG)] if per else value)
         self.per_btn.setChecked(per)
+        self._updating = False
+
+
+def _icon_label(icon_path, size=16):
+    """A fixed-size QLabel showing icon_path scaled to size, or blank if missing."""
+    label = QLabel()
+    if icon_path and Path(icon_path).exists():
+        pixmap = QPixmap(str(icon_path)).scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        label.setPixmap(pixmap)
+    label.setFixedSize(size, size)
+    return label
+
+
+class IconStatField(QWidget):
+    """Icon + closed-set dropdown ("-"/X/0-9) + "per investigator" toggle button.
+
+    Used for stats that are always one of a small fixed set of printed values (enemy
+    attack/health/evade) — unlike Stepper's freely-typed value, a dropdown is the more
+    honest control here since nothing outside that set is ever printed on a card.
+    """
+
+    LABELS = ['–', 'X'] + [str(n) for n in range(10)]
+    VALUES = ['<dash>', 'X'] + [str(n) for n in range(10)]
+
+    textChanged = Signal(str)
+
+    def __init__(self, icon_path=None, parent=None):
+        super().__init__(parent)
+        self._updating = False
+
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+
+        row.addWidget(_icon_label(icon_path))
+
+        self.combo = NoScrollComboBox()
+        for label, value in zip(self.LABELS, self.VALUES):
+            self.combo.addItem(label, value)
+        self.combo.setProperty("role", "flat-combo")
+        self.combo.setFixedWidth(38)
+        self.combo.currentIndexChanged.connect(self._on_changed)
+        row.addWidget(self.combo)
+
+        self.per_btn = QPushButton("P")
+        self.per_btn.setCheckable(True)
+        self.per_btn.setProperty("role", "per-btn")
+        self.per_btn.setFixedSize(22, 24)
+        self.per_btn.setToolTip(tr("TOOLTIP_PER"))
+        self.per_btn.toggled.connect(self._on_changed)
+        row.addWidget(self.per_btn)
+
+    def _on_changed(self, *_):
+        if not self._updating:
+            self.textChanged.emit(self.text())
+
+    def text(self):
+        """The raw stored value: the dropdown's value plus the <per> tag (if toggled)."""
+        suffix = PER_TAG if self.per_btn.isChecked() else ""
+        return (self.combo.currentData() or "") + suffix
+
+    def setText(self, value):
+        """Load a raw stored value: a literal trailing "<per>" (if present) becomes the
+        toggle state; an unrecognized remaining value (outside the fixed set) falls back
+        to the first entry, same as SegmentedToggle does for an unrecognized value."""
+        self._updating = True
+        value = value or ""
+        per = value.endswith(PER_TAG)
+        if per:
+            value = value[:-len(PER_TAG)]
+        try:
+            index = self.VALUES.index(value)
+        except ValueError:
+            index = 0
+        self.combo.setCurrentIndex(index)
+        self.per_btn.setChecked(per)
+        self._updating = False
+
+
+class IconCountField(QWidget):
+    """Icon + plain 0-N count dropdown, no "per investigator" toggle.
+
+    For stats that are just "how many of this icon to print" (enemy damage/horror) rather
+    than a printed number — there's no "X" or "-" case, since it's not a value on the card
+    at all, just an icon repeat count.
+    """
+
+    textChanged = Signal(str)
+
+    def __init__(self, icon_path=None, max_count=5, parent=None):
+        super().__init__(parent)
+        self._updating = False
+        self.values = [str(n) for n in range(max_count + 1)]
+
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+
+        row.addWidget(_icon_label(icon_path))
+
+        self.combo = NoScrollComboBox()
+        self.combo.addItems(self.values)
+        self.combo.setProperty("role", "flat-combo")
+        self.combo.setFixedWidth(38)
+        self.combo.currentIndexChanged.connect(self._on_changed)
+        row.addWidget(self.combo)
+
+    def _on_changed(self, *_):
+        if not self._updating:
+            self.textChanged.emit(self.text())
+
+    def text(self):
+        return self.combo.currentText()
+
+    def setText(self, value):
+        """An unrecognized value (outside 0-max_count) falls back to 0, same as
+        IconStatField does for its own out-of-range values."""
+        self._updating = True
+        index = self.values.index(value) if value in self.values else 0
+        self.combo.setCurrentIndex(index)
         self._updating = False
 
 

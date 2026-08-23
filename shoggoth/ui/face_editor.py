@@ -4,7 +4,7 @@ FaceEditor base class for Shoggoth face editors
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QTextEdit, QComboBox,
-    QLabel, QCompleter, QCheckBox, QToolButton
+    QLabel, QCompleter, QCheckBox, QToolButton, QSpinBox
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QPixmap, QFont, QFontDatabase
@@ -15,7 +15,9 @@ from shoggoth.ui.field_widgets import (
     UniqueNameField
 )
 from shoggoth.ui.card_widgets import IllustrationWidget
-from shoggoth.ui.compact_widgets import Band, Stepper, PerStepper, NumbersPanel, TagChipsField, SegmentedToggle
+from shoggoth.ui.compact_widgets import (
+    Band, Stepper, PerStepper, IconStatField, IconCountField, NumbersPanel, TagChipsField, SegmentedToggle
+)
 from shoggoth.files import overlay_dir, font_dir
 from shoggoth.i18n import tr
 import shoggoth
@@ -142,15 +144,17 @@ class FaceEditor(QWidget):
         return self.current_band.content_layout if self.current_band else self.main_layout
 
     # Cost's "-" at 0 drops to this sentinel: "cannot be played/paid for by normal means"
-    # (as opposed to "0", which is free-but-payable). Attack/health/evade instead drop to
-    # the "<dash>" icon-font glyph (rich_text.py) — the "no value printed" dash used on
-    # enemy stat lines. See renderer/defaults for the same literal strings.
-    STEPPER_FLOOR_VALUES = {'cost': '---', 'attack': '<dash>', 'health': '<dash>', 'evade': '<dash>'}
+    # (as opposed to "0", which is free-but-payable). Enemy attack/health/evade use
+    # IconStatField instead of a Stepper — their own "-" option stores the "<dash>"
+    # icon-font glyph (rich_text.py) directly, the "no value printed" dash used on enemy
+    # stat lines. See renderer/defaults for the same literal strings.
+    STEPPER_FLOOR_VALUES = {'cost': '---'}
 
     # Fields printed as "X per investigator" on real cards — these get a PerStepper (a
     # Stepper plus a toggle button appending/removing the literal "<per>" tag) instead of
-    # a plain Stepper.
-    PER_TOGGLE_FIELDS = {'attack', 'health', 'evade', 'clues', 'doom'}
+    # a plain Stepper. (Enemy attack/health/evade are printed "per investigator" too, but
+    # use IconStatField, which bundles the same toggle itself.)
+    PER_TOGGLE_FIELDS = {'clues', 'doom'}
 
     def _make_stepper(self, field_name):
         floor_value = self.STEPPER_FLOOR_VALUES.get(field_name)
@@ -193,6 +197,46 @@ class FaceEditor(QWidget):
         row.setSpacing(10)
         row.addWidget(self._make_icon_field(icon1, field1, width))
         row.addWidget(self._make_icon_field(icon2, field2, width))
+        widget = QWidget()
+        widget.setLayout(row)
+        return widget
+
+    def _make_icon_stat_field(self, icon_path, field_name):
+        """An [icon][-/X/0-9 dropdown][per-investigator toggle] cluster — see IconStatField."""
+        widget = IconStatField(icon_path)
+        widget.textChanged.connect(lambda _, f=field_name: self.on_field_changed(f))
+        self.fields[field_name] = widget
+        return widget
+
+    def add_icon_stat_row(self, *icon_field_pairs):
+        """Row of icon+dropdown+toggle stat clusters (e.g. enemy Attack/Health/Evade) —
+        build with _make_icon_stat_field() and pass the result as a pre-built widget item
+        into add_numbers_panel(). `icon_field_pairs` is (icon_path, field_name) tuples."""
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(10)
+        for icon_path, field_name in icon_field_pairs:
+            row.addWidget(self._make_icon_stat_field(icon_path, field_name))
+        widget = QWidget()
+        widget.setLayout(row)
+        return widget
+
+    def _make_icon_count_field(self, icon_path, field_name, max_count=5):
+        """An [icon][0-max_count dropdown] cluster — see IconCountField."""
+        widget = IconCountField(icon_path, max_count=max_count)
+        widget.textChanged.connect(lambda _, f=field_name: self.on_field_changed(f))
+        self.fields[field_name] = widget
+        return widget
+
+    def add_icon_count_row(self, *icon_field_pairs):
+        """Row of icon+count-dropdown clusters (e.g. enemy Damage/Horror icon counts) —
+        build with _make_icon_count_field() and pass the result as a pre-built widget item
+        into add_numbers_panel(). `icon_field_pairs` is (icon_path, field_name) tuples."""
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(10)
+        for icon_path, field_name in icon_field_pairs:
+            row.addWidget(self._make_icon_count_field(icon_path, field_name))
         widget = QWidget()
         widget.setLayout(row)
         return widget
@@ -282,7 +326,7 @@ class FaceEditor(QWidget):
         """Set widget value based on type"""
         if isinstance(widget, ClassSelectorWidget):
             widget.set_classes(value)
-        elif isinstance(widget, (Stepper, PerStepper, TagChipsField, UniqueNameField)):
+        elif isinstance(widget, (Stepper, PerStepper, IconStatField, IconCountField, TagChipsField, UniqueNameField)):
             widget.setText(str(value) if value else '')
         elif isinstance(widget, SegmentedToggle):
             widget.set_current_value(value)
@@ -302,7 +346,7 @@ class FaceEditor(QWidget):
         """Get widget value based on type"""
         if isinstance(widget, ClassSelectorWidget):
             return widget.get_classes()
-        elif isinstance(widget, (Stepper, PerStepper, TagChipsField, UniqueNameField)):
+        elif isinstance(widget, (Stepper, PerStepper, IconStatField, IconCountField, TagChipsField, UniqueNameField)):
             return widget.text()
         elif isinstance(widget, SegmentedToggle):
             return widget.current_value()
@@ -512,14 +556,14 @@ class FaceEditor(QWidget):
                 flavor_widget.input.textChanged.connect(lambda: self.on_field_changed(flavor_field))
                 self.fields[flavor_field] = flavor_widget.input
                 self.field_containers[flavor_field] = flavor_widget
-                bottom_row.addWidget(flavor_widget, 3)  # 75%
+                bottom_row.addWidget(flavor_widget, 3, Qt.AlignTop)  # 75%
 
             if include_victory:
                 victory_widget = LabeledLineEdit(tr("FIELD_VICTORY"))
                 victory_widget.input.textChanged.connect(lambda: self._handle_victory_autoformat(victory_field))
                 self.fields[victory_field] = victory_widget.input
                 self.field_containers[victory_field] = victory_widget
-                bottom_row.addWidget(victory_widget, 1)  # 25%
+                bottom_row.addWidget(victory_widget, 1, Qt.AlignTop)  # 25%
 
             bottom_widget = QWidget()
             bottom_widget.setLayout(bottom_row)
@@ -594,6 +638,45 @@ class FaceEditor(QWidget):
         """Add the "additional text fields" fold (call inside a "Print & credits" band —
         this does not open one itself)."""
         self.add_extra_fields_section()
+
+    def add_token_area_widget(self):
+        """Enable/height/title controls for a bottom-of-card token/tracking box (Chaos,
+        Story). Opens its own band. Wires straight to self.on_token_area_changed —
+        subclasses implement that to write out their own region field names and to
+        shrink whichever other region the box eats into; use load_token_area() in
+        load_data() to populate these widgets back from face data."""
+        self.start_band(tr("GROUP_TOKEN_AREA"))
+        self.token_area_enabled = QCheckBox(tr("FIELD_TOKEN_AREA_ENABLED"))
+        self.token_area_enabled.toggled.connect(self.on_token_area_changed)
+        self._target_layout().addWidget(self.token_area_enabled)
+
+        fields_widget = QWidget()
+        fields_layout = QHBoxLayout()
+        fields_layout.setContentsMargins(0, 0, 0, 0)
+
+        fields_layout.addWidget(QLabel(tr("FIELD_TOKEN_AREA_HEIGHT")))
+        self.token_area_height = QSpinBox()
+        self.token_area_height.setRange(10, 1000)
+        self.token_area_height.setValue(300)
+        self.token_area_height.valueChanged.connect(self.on_token_area_changed)
+        fields_layout.addWidget(self.token_area_height)
+
+        fields_layout.addWidget(QLabel(tr("FIELD_TOKEN_AREA_TITLE")))
+        self.token_area_title = QLineEdit()
+        self.token_area_title.textChanged.connect(self.on_token_area_changed)
+        fields_layout.addWidget(self.token_area_title)
+
+        fields_widget.setLayout(fields_layout)
+        self._target_layout().addWidget(fields_widget)
+
+    def load_token_area(self, region_field, title_field):
+        """Populate add_token_area_widget()'s widgets — read raw data to avoid
+        fallback confusion, same as the rest of load_data()."""
+        region = self.face.data.get(region_field)
+        self.token_area_enabled.setChecked(bool(region))
+        if region:
+            self.token_area_height.setValue(region.get('height', 100))
+        self.token_area_title.setText(self.face.data.get(title_field, '') or '')
 
     def extra_text_fields(self):
         """ Text fields that render on this face (a '<field>_region' resolves)

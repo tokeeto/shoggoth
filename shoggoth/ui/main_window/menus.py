@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QActionGroup
 
 from shoggoth.files import translation_dir
 from shoggoth.i18n import get_available_languages, get_available_languages_from_dir, tr
-from shoggoth.ui.main_window import exports, help_dialogs, projects
+from shoggoth.ui.main_window import exports, help_dialogs, image_tools, projects
 from shoggoth.ui import snippet_loader
 
 
@@ -148,6 +148,10 @@ def _create_tools_menu(window, menubar):
     _add_action(window, tools_menu, tr("MENU_SHOGGOTH_LOCATION"),
                 lambda: help_dialogs.open_shoggoth_location(window))
 
+    tools_menu.addSeparator()
+
+    _add_action(window, tools_menu, tr("MENU_ADD_FADED_EDGE"),
+                lambda: image_tools.open_fade_edge_dialog(window))
 
 def _create_help_menu(window, menubar):
     help_menu = menubar.addMenu(tr("MENU_HELP"))
