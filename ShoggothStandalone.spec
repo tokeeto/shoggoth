@@ -33,7 +33,6 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'numpy',              # only reachable via optional PIL/pyvips array APIs we don't call
         'PySide6.QtNetwork',  # networking goes through requests/sockets, not Qt
     ],
     noarchive=False,
