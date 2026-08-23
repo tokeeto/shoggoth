@@ -34,6 +34,39 @@ def _load_editor_font():
     return _editor_font_family
 
 
+def _ligatures_enabled():
+    """Read the 'enable_ligatures' setting. Defaults to True when no app/config
+    is available yet (e.g. widgets constructed before the main window exists)."""
+    import shoggoth
+    config = getattr(getattr(shoggoth, 'app', None), 'config', None)
+    if config is None:
+        return True
+    return config.getboolean('Shoggoth', 'enable_ligatures', True)
+
+
+def _resolve_editor_font_family():
+    """Family name for non-monospace text edits: ShoggothEditorFont when
+    ligatures are enabled, otherwise the plain system font so markup tags
+    like "<action>" stay literal characters instead of being drawn as icons."""
+    return _load_editor_font() if _ligatures_enabled() else QFont().defaultFamily()
+
+
+def refresh_ligature_setting():
+    """Re-apply the current ligature setting's font family to every open,
+    non-monospace ArkhamTextEdit. Called after the setting changes so already
+    open card editors update without needing to be reopened."""
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if not app:
+        return
+    family = _resolve_editor_font_family()
+    for widget in app.allWidgets():
+        if isinstance(widget, ArkhamTextEdit) and not widget.monospace:
+            font = widget.font()
+            font.setFamily(family)
+            widget.setFont(font)
+
+
 class ArkhamTextHighlighter(QSyntaxHighlighter):
     """Syntax highlighter for Arkham Horror card text"""
 
@@ -241,6 +274,7 @@ class ArkhamTextEdit(QTextEdit):
 
     def __init__(self, parent=None, monospace=False):
         super().__init__(parent)
+        self.monospace = monospace
 
         # ShoggothEditorFont's ligatures render markup tags as icon glyphs, which is
         # what card text fields want — but that same substitution obfuscates raw JSON
@@ -250,7 +284,7 @@ class ArkhamTextEdit(QTextEdit):
         if monospace:
             editor_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         else:
-            editor_font = QFont(_load_editor_font())
+            editor_font = QFont(_resolve_editor_font_family())
         editor_font.setPointSize(self.font().pointSize())
         self.setFont(editor_font)
 

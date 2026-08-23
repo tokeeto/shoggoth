@@ -105,6 +105,7 @@ class SettingsManager:
             'cmyk_profile': '',
             'show_bleed': True,
             'show_regions': False,
+            'enable_ligatures': True,
             # Appearance
             'color_scheme': 'system',
             'ui_style': 'Fusion',
@@ -319,6 +320,17 @@ class SettingsDialog(QDialog):
         preview_group.setLayout(preview_layout)
         layout.addWidget(preview_group)
 
+        # Text editor group
+        editor_group = QGroupBox(tr("GROUP_TEXT_EDITOR"))
+        editor_layout = QFormLayout()
+
+        self.enable_ligatures_checkbox = QCheckBox(tr("OPT_ENABLE_LIGATURES"))
+        self.enable_ligatures_checkbox.setToolTip(tr("HELP_ENABLE_LIGATURES"))
+        editor_layout.addRow(tr("LABEL_ENABLE_LIGATURES"), self.enable_ligatures_checkbox)
+
+        editor_group.setLayout(editor_layout)
+        layout.addWidget(editor_group)
+
         layout.addStretch()
         widget.setLayout(layout)
         return widget
@@ -482,6 +494,9 @@ class SettingsDialog(QDialog):
         self.show_regions_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_regions', False)
         )
+        self.enable_ligatures_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'enable_ligatures', True)
+        )
 
         # Appearance settings
         saved_style = self.settings.get('Shoggoth', 'ui_style', 'Fusion')
@@ -528,6 +543,10 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'cmyk_profile', self.cmyk_profile_input.text())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
         self.settings.set('Shoggoth', 'show_regions', self.show_regions_checkbox.isChecked())
+        self.settings.set('Shoggoth', 'enable_ligatures', self.enable_ligatures_checkbox.isChecked())
+
+        from shoggoth.ui.text_editor import refresh_ligature_setting
+        refresh_ligature_setting()
 
         # Appearance
         ui_style = self.style_combo.currentData()
