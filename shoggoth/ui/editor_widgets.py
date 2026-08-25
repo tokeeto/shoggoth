@@ -222,3 +222,19 @@ class IconComboBox(NoScrollComboBox):
     def currentSymbol(self):
         """Get current symbol name"""
         return self.itemData(self.currentIndex())
+
+
+# The 32 real connection symbols split cleanly by naming convention into the
+# original glyphs and their `_alt` variants (not every original has an alt) —
+# used by ConnectionSymbolField (compact_widgets.py) as its two popover pages.
+CONNECTION_ORIGINALS = [
+    s for s in IconComboBox.CONNECTION_SYMBOLS if s != 'None' and not s.endswith('_alt')
+]
+CONNECTION_ALTS = [s for s in IconComboBox.CONNECTION_SYMBOLS if s.endswith('_alt')]
+
+
+def connection_symbol_label(symbol):
+    """Human-readable label for a connection symbol slug, e.g. 'double_slash_alt' -> 'Double Slash (Alt)'."""
+    base = symbol[:-4] if symbol.endswith('_alt') else symbol
+    label = base.replace('_', ' ').title()
+    return f"{label} (Alt)" if symbol.endswith('_alt') else label

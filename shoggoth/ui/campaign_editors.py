@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from shoggoth.ui.face_editor import FaceEditor
+from shoggoth.ui.compact_widgets import PLAYER_CLASSES
 from shoggoth.i18n import tr
 
 
@@ -232,7 +233,7 @@ class StoryEditor(FaceEditor):
     def setup_ui(self):
         self.start_band(tr("BAND_IDENTITY"))
         self.add_name_field()
-        self.add_class_field()
+        self.add_class_field(default_classes=PLAYER_CLASSES)
 
         self.start_band(tr("BAND_RULES_TEXT"))
         self.add_rules_text_row(include_flavor=False)

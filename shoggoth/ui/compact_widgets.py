@@ -9,13 +9,16 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QPushButton,
-    QLineEdit, QToolButton, QButtonGroup, QCompleter, QSizePolicy
+    QLineEdit, QToolButton, QButtonGroup, QCompleter, QSizePolicy, QApplication
 )
-from PySide6.QtCore import Qt, Signal, QEvent
-from PySide6.QtGui import QFocusEvent, QPixmap
+from PySide6.QtCore import Qt, Signal, QEvent, QSize
+from PySide6.QtGui import QFocusEvent, QPixmap, QIcon
 
+from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
-from shoggoth.ui.editor_widgets import NoScrollComboBox
+from shoggoth.ui.editor_widgets import (
+    NoScrollComboBox, CONNECTION_ORIGINALS, CONNECTION_ALTS, connection_symbol_label
+)
 
 # Class chip colors — semantic (map to the game's own class colors), the one deliberate
 # exception to the "no custom color" rule elsewhere in the compact editor theme.
@@ -31,10 +34,13 @@ CLASS_CHIP_COLORS = {
     'weakness': ('#ffffff', '#111111'),
     'basic weakness': ('#ffffff', '#111111'),
 }
-CLASS_SUGGESTIONS = [
-    'guardian', 'seeker', 'rogue', 'survivor', 'mystic',
-    'neutral', 'specialist', 'weakness', 'basic weakness',
-]
+# Per-container default toggle rows (see ClassChipsField) — each face editor passes the
+# preset that matches what its card type actually needs, rather than one shared list.
+PLAYER_CLASSES = ['guardian', 'survivor', 'seeker', 'mystic', 'rogue', 'neutral']
+ENCOUNTER_CLASSES = ['weakness', 'basic weakness', 'neutral']
+# Universal pool offered by the "Special" popover, minus whatever's already in the
+# field's own default row (e.g. an encounter field only sees "specialist" there).
+SPECIAL_CANDIDATES = ['specialist', 'weakness', 'basic weakness']
 _DEFAULT_CLASS_CHIP_COLOR = ('#5a5f66', '#f2f2f3')
 
 _CLASS_LABEL_KEYS = {
@@ -601,6 +607,9 @@ class SegmentedToggle(QWidget):
 
 
 def _class_chip_style(value, checked=False):
+    """Always-colored chip style (semantic per-class color) for compact list rows —
+    used by the Special popover and by overflow (legacy/custom) chips, where every
+    row shown is already a real value, not an unselected option."""
     bg, fg = CLASS_CHIP_COLORS.get(value, _DEFAULT_CLASS_CHIP_COLOR)
     border = "2px solid #333" if checked else "1px solid rgba(0,0,0,.2)"
     return (
@@ -609,75 +618,130 @@ def _class_chip_style(value, checked=False):
     )
 
 
-class _ClassSuggestionPopup(QWidget):
-    """Popup grid of colored class-chip suggestions, opened by the "+ class" ghost chip."""
+def _class_toggle_style(value, checked):
+    """Always-visible main-row toggle style: neutral/palette-based when unchecked (so
+    inactive classes don't read as "active" just for being on screen), the class's
+    semantic color when checked — mirrors _class_chip_style's property set exactly so
+    toggling doesn't shift size/padding."""
+    if not checked:
+        return (
+            "QPushButton { background: palette(button); color: palette(button-text); "
+            "border: 1px solid palette(mid); border-radius: 5px; padding: 4px 9px; "
+            "font-size: 11px; font-weight: 600; }"
+        )
+    bg, fg = CLASS_CHIP_COLORS.get(value, _DEFAULT_CLASS_CHIP_COLOR)
+    return (
+        f"QPushButton {{ background: {bg}; color: {fg}; border: 1px solid {bg}; "
+        "border-radius: 5px; padding: 4px 9px; font-size: 11px; font-weight: 600; }"
+    )
+
+
+class _ClassSpecialPopover(QWidget):
+    """Popover opened by the "Special ▾" button: preset values not already covered by
+    the field's own default row (e.g. Weakness/Basic Weakness are hidden here for an
+    encounter-card field, since they're already primary toggles there), plus a free-text
+    entry for anything else — arbitrary legacy/custom class strings included."""
 
     def __init__(self, field):
         super().__init__(field, Qt.Popup)
         self.field = field
+        candidates = [v for v in SPECIAL_CANDIDATES if v not in field.default_classes]
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
-        grid = QGridLayout()
-        grid.setSpacing(5)
         self.buttons = {}
-        for i, value in enumerate(CLASS_SUGGESTIONS):
+        for value in candidates:
             btn = QPushButton(class_label(value))
             btn.setCheckable(True)
             btn.setChecked(value in field.values())
             btn.setStyleSheet(_class_chip_style(value, checked=btn.isChecked()))
-            btn.clicked.connect(lambda _, v=value: self._toggle(v))
+            btn.clicked.connect(lambda _, v=value: self._pick(v))
             self.buttons[value] = btn
-            grid.addWidget(btn, i // 3, i % 3)
-        layout.addLayout(grid)
+            layout.addWidget(btn)
 
-    def _toggle(self, value):
-        self.field._toggle(value)
+        self.entry = QLineEdit()
+        self.entry.setPlaceholderText(tr("PLACEHOLDER_CUSTOM_CLASS"))
+        self.entry.returnPressed.connect(self._commit_entry)
+        layout.addWidget(self.entry)
+
+    def _pick(self, value):
+        self.field._pick(value)
         btn = self.buttons[value]
         btn.setChecked(value in self.field.values())
         btn.setStyleSheet(_class_chip_style(value, checked=btn.isChecked()))
 
+    def _commit_entry(self):
+        text = self.entry.text().strip().lower()
+        if not text:
+            return
+        self.entry.clear()
+        self.field._pick(text)
+        self.close()
+
 
 class ClassChipsField(QWidget):
-    """Chip editor for the card Class field: colored chips (semantic per-class colors)
-    plus a "+" ghost chip that opens a popup of suggested classes to toggle on/off.
-
-    Unlike TagChipsField, suggestions are picked from a fixed popup rather than typed —
-    classes are a closed-ish set — but arbitrary legacy/custom values are still rendered
-    (in a neutral color) if already present in the data, so nothing is silently dropped.
+    """Chip editor for the card Class field: an always-visible row of toggle buttons
+    for the container's own default classes (e.g. Guardian/Seeker/... for player cards,
+    Weakness/Basic Weakness/Neutral for encounter cards — see PLAYER_CLASSES/
+    ENCOUNTER_CLASSES), a "Special ▾" popover for everything else, and overflow chips
+    for arbitrary legacy/custom values already present in the data (never silently
+    dropped). Plain click selects a single value; Shift/Ctrl-click combines multiple.
     """
 
     changed = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, default_classes=None, parent=None):
         super().__init__(parent)
         self._values = []
+        self.default_classes = list(default_classes) if default_classes else list(PLAYER_CLASSES)
 
         self.flow = QHBoxLayout(self)
         self.flow.setContentsMargins(6, 4, 6, 4)
         self.flow.setSpacing(5)
-        self.flow.addStretch(1)
 
-        self.add_btn = QPushButton(f"+ {tr('FIELD_CLASSES').lower()}")
-        self.add_btn.setProperty("chip", "tag-add")
-        self.add_btn.clicked.connect(self._show_suggestions)
-        self.flow.insertWidget(0, self.add_btn)
+        self.toggle_buttons = {}
+        for value in self.default_classes:
+            btn = QPushButton(class_label(value))
+            btn.setCheckable(True)
+            btn.setStyleSheet(_class_toggle_style(value, False))
+            btn.clicked.connect(lambda _, v=value: self._pick(v))
+            self.toggle_buttons[value] = btn
+            self.flow.addWidget(btn)
+
+        self.special_btn = QPushButton(f"{tr('LABEL_SPECIAL')} ▾")
+        self.special_btn.setProperty("chip", "tag-ghost")
+        self.special_btn.clicked.connect(self._show_special)
+        self.flow.addWidget(self.special_btn)
+
+        self.overflow_layout = QHBoxLayout()
+        self.overflow_layout.setContentsMargins(0, 0, 0, 0)
+        self.overflow_layout.setSpacing(5)
+        self.flow.addLayout(self.overflow_layout)
+        self.flow.addStretch(1)
 
     def values(self):
         return list(self._values)
 
-    def _show_suggestions(self):
-        popup = _ClassSuggestionPopup(self)
-        pos = self.add_btn.mapToGlobal(self.add_btn.rect().bottomLeft())
+    def _show_special(self):
+        popup = _ClassSpecialPopover(self)
+        pos = self.special_btn.mapToGlobal(self.special_btn.rect().bottomLeft())
         popup.move(pos)
         popup.show()
 
-    def _toggle(self, value):
-        if value in self._values:
-            self._values.remove(value)
+    def _pick(self, value):
+        modifiers = QApplication.keyboardModifiers()
+        combine = bool(modifiers & (Qt.ShiftModifier | Qt.ControlModifier))
+        if combine:
+            if value in self._values:
+                self._values.remove(value)
+            else:
+                self._values.append(value)
+        elif self._values == [value]:
+            self._values = []
         else:
-            self._values.append(value)
+            self._values = [value]
         self._rebuild()
         self.changed.emit()
 
@@ -688,18 +752,24 @@ class ClassChipsField(QWidget):
             self.changed.emit()
 
     def _rebuild(self):
-        for i in reversed(range(self.flow.count())):
-            widget = self.flow.itemAt(i).widget()
-            if widget is not None and widget is not self.add_btn:
+        for value, btn in self.toggle_buttons.items():
+            checked = value in self._values
+            btn.blockSignals(True)
+            btn.setChecked(checked)
+            btn.blockSignals(False)
+            btn.setStyleSheet(_class_toggle_style(value, checked))
+
+        for i in reversed(range(self.overflow_layout.count())):
+            widget = self.overflow_layout.itemAt(i).widget()
+            if widget is not None:
                 widget.setParent(None)
-        insert_at = self.flow.indexOf(self.add_btn)
-        for value in self._values:
+        overflow = [v for v in self._values if v not in self.default_classes]
+        for value in overflow:
             chip = QPushButton(f"{class_label(value)} ×")
-            chip.setStyleSheet(_class_chip_style(value))
+            chip.setStyleSheet(_class_chip_style(value, checked=True))
             chip.setFlat(True)
             chip.clicked.connect(lambda _, v=value: self._remove(v))
-            self.flow.insertWidget(insert_at, chip)
-            insert_at += 1
+            self.overflow_layout.addWidget(chip)
 
     def get_classes(self):
         return list(self._values) if self._values else None
@@ -712,3 +782,252 @@ class ClassChipsField(QWidget):
         else:
             self._values = [v.strip() for v in str(value).split(',') if v.strip()]
         self._rebuild()
+
+
+class _ConnectionSymbolPopover(QWidget):
+    """Icon grid popover shared by ConnectionSymbolField's own-symbol button and its
+    "+ add symbol" button, split into Originals/Alts tabs (the real 32-symbol set
+    already divides cleanly along that naming convention — see CONNECTION_ORIGINALS/
+    CONNECTION_ALTS in editor_widgets.py).
+
+    `multi=False` (own symbol): a single pick, closes the popover; the current
+    selection is highlighted.
+    `multi=True` (connects to): picking adds a chip and the popover stays open so
+    several can be added in a row; symbols already connected-to are disabled.
+    """
+
+    COLUMNS = 6
+
+    def __init__(self, field, multi):
+        super().__init__(field, Qt.Popup)
+        self.field = field
+        self.multi = multi
+        self.buttons = {}
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setSpacing(6)
+
+        tabs_row = QHBoxLayout()
+        tabs_row.setContentsMargins(0, 0, 0, 0)
+        tabs_row.setSpacing(2)
+        outer.addLayout(tabs_row)
+
+        groups = [(tr("LABEL_ORIGINALS"), CONNECTION_ORIGINALS), (tr("LABEL_ALTS"), CONNECTION_ALTS)]
+        self.tab_buttons = {}
+        self.pages = {}
+        for name, symbols in groups:
+            tab_btn = QPushButton(name)
+            tab_btn.setCheckable(True)
+            tab_btn.setProperty("role", "segment")
+            tab_btn.clicked.connect(lambda _, n=name: self._show_page(n))
+            self.tab_buttons[name] = tab_btn
+            tabs_row.addWidget(tab_btn)
+
+            page = QWidget()
+            grid = QGridLayout(page)
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setSpacing(3)
+            for i, symbol in enumerate(symbols):
+                btn = QToolButton()
+                icon_path = overlay_dir / 'svg' / f"connection_{symbol}.svg"
+                if icon_path.exists():
+                    btn.setIcon(QIcon(str(icon_path)))
+                else:
+                    btn.setText(symbol[:2])
+                btn.setIconSize(QSize(24, 24))
+                btn.setToolTip(connection_symbol_label(symbol))
+                btn.clicked.connect(lambda _, s=symbol: self._pick(s))
+                grid.addWidget(btn, i // self.COLUMNS, i % self.COLUMNS)
+                self.buttons[symbol] = btn
+            outer.addWidget(page)
+            self.pages[name] = page
+
+        if multi:
+            hint = QLabel(tr("HINT_SYMBOL_PICKER"))
+            hint.setProperty("role", "band-hint")
+            outer.addWidget(hint)
+
+        self._refresh_state()
+        first_name = groups[0][0]
+        self.tab_buttons[first_name].setChecked(True)
+        self._show_page(first_name)
+
+    def _show_page(self, name):
+        for n, btn in self.tab_buttons.items():
+            btn.setChecked(n == name)
+        for n, page in self.pages.items():
+            page.setVisible(n == name)
+
+    def _refresh_state(self):
+        if self.multi:
+            used = set(self.field.get_connections() or [])
+            for symbol, btn in self.buttons.items():
+                btn.setEnabled(symbol not in used)
+        else:
+            current = self.field.get_connection()
+            for symbol, btn in self.buttons.items():
+                btn.setStyleSheet(
+                    "QToolButton { background: palette(highlight); border-radius: 4px; }"
+                    if symbol == current else ""
+                )
+
+    def _pick(self, symbol):
+        if self.multi:
+            if self.field._add_connection(symbol):
+                self._refresh_state()
+        else:
+            self.field._set_own_symbol(symbol)
+            self.close()
+
+
+class ConnectionSymbolField(QWidget):
+    """Location connections editor (mock 1a): this location's own symbol (single
+    choice) plus the symbols it connects to, both picked from the shared
+    _ConnectionSymbolPopover grid instead of a 1-column combo box listing all 32
+    symbols. Connects-to is capped at MAX_CONNECTIONS — a real rendering constraint,
+    not an arbitrary UI limit (renderer.render_connection_icons looks up fixed
+    connection_1_region..connection_6_region slots from the card art defaults).
+    """
+
+    MAX_CONNECTIONS = 6
+    changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._own = None
+        self._connections = []
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(12)
+
+        own_col = QVBoxLayout()
+        own_col.setContentsMargins(0, 0, 0, 0)
+        own_col.setSpacing(5)
+        own_label = QLabel(tr("LABEL_THIS_LOCATION").upper())
+        own_label.setProperty("role", "field-label")
+        own_col.addWidget(own_label)
+
+        own_row = QHBoxLayout()
+        own_row.setContentsMargins(0, 0, 0, 0)
+        own_row.setSpacing(3)
+        self.own_btn = QPushButton()
+        self.own_btn.setProperty("chip", "tag")
+        self.own_btn.clicked.connect(lambda: self._open_popover(multi=False))
+        own_row.addWidget(self.own_btn)
+        self.own_clear_btn = QPushButton("×")
+        self.own_clear_btn.setProperty("chip", "tag-ghost")
+        self.own_clear_btn.setFixedWidth(20)
+        self.own_clear_btn.clicked.connect(self._clear_own_symbol)
+        own_row.addWidget(self.own_clear_btn)
+        own_col.addLayout(own_row)
+
+        own_widget = QWidget()
+        own_widget.setLayout(own_col)
+        outer.addWidget(own_widget)
+
+        outer.addWidget(_hairline(vertical=True))
+
+        connects_col = QVBoxLayout()
+        connects_col.setContentsMargins(0, 0, 0, 0)
+        connects_col.setSpacing(5)
+        self.connects_label = QLabel()
+        self.connects_label.setProperty("role", "field-label")
+        connects_col.addWidget(self.connects_label)
+
+        self.chip_layout = QHBoxLayout()
+        self.chip_layout.setContentsMargins(0, 0, 0, 0)
+        self.chip_layout.setSpacing(5)
+        self.add_btn = QPushButton(tr("BUTTON_ADD_SYMBOL"))
+        self.add_btn.setProperty("chip", "tag-add")
+        self.add_btn.clicked.connect(lambda: self._open_popover(multi=True))
+        self.chip_layout.addWidget(self.add_btn)
+        self.chip_layout.addStretch(1)
+        connects_col.addLayout(self.chip_layout)
+
+        connects_widget = QWidget()
+        connects_widget.setLayout(connects_col)
+        outer.addWidget(connects_widget, 1)
+
+        self._refresh()
+
+    def _open_popover(self, multi):
+        popup = _ConnectionSymbolPopover(self, multi)
+        anchor = self.add_btn if multi else self.own_btn
+        pos = anchor.mapToGlobal(anchor.rect().bottomLeft())
+        popup.move(pos)
+        popup.show()
+
+    def _set_own_symbol(self, symbol):
+        self._own = symbol
+        self._refresh()
+        self.changed.emit()
+
+    def _clear_own_symbol(self):
+        if self._own is not None:
+            self._own = None
+            self._refresh()
+            self.changed.emit()
+
+    def _add_connection(self, symbol):
+        if symbol in self._connections or len(self._connections) >= self.MAX_CONNECTIONS:
+            return False
+        self._connections.append(symbol)
+        self._refresh()
+        self.changed.emit()
+        return True
+
+    def _remove_connection(self, symbol):
+        if symbol in self._connections:
+            self._connections.remove(symbol)
+            self._refresh()
+            self.changed.emit()
+
+    def _refresh(self):
+        if self._own:
+            self.own_btn.setIcon(QIcon(str(overlay_dir / 'svg' / f"connection_{self._own}.svg")))
+            self.own_btn.setText(connection_symbol_label(self._own))
+        else:
+            self.own_btn.setIcon(QIcon())
+            self.own_btn.setText(tr("OPTION_NONE"))
+        self.own_clear_btn.setVisible(bool(self._own))
+
+        self.connects_label.setText(
+            f"{tr('LABEL_CONNECTS_TO')} · {len(self._connections)}/{self.MAX_CONNECTIONS}"
+        )
+
+        for i in reversed(range(self.chip_layout.count())):
+            item = self.chip_layout.itemAt(i)
+            widget = item.widget()
+            if widget is not None and widget is not self.add_btn:
+                widget.setParent(None)
+        insert_at = self.chip_layout.indexOf(self.add_btn)
+        for symbol in self._connections:
+            chip = QPushButton(f"{connection_symbol_label(symbol)} ×")
+            chip.setIcon(QIcon(str(overlay_dir / 'svg' / f"connection_{symbol}.svg")))
+            chip.setProperty("chip", "tag")
+            chip.clicked.connect(lambda _, s=symbol: self._remove_connection(s))
+            self.chip_layout.insertWidget(insert_at, chip)
+            insert_at += 1
+        self.add_btn.setVisible(len(self._connections) < self.MAX_CONNECTIONS)
+
+    def get_connection(self):
+        return self._own
+
+    def set_connection(self, value):
+        self._own = value if value and value != 'None' else None
+        self._refresh()
+
+    def get_connections(self):
+        return list(self._connections) if self._connections else None
+
+    def set_connections(self, value):
+        if not value:
+            connections = []
+        elif isinstance(value, list):
+            connections = [str(v) for v in value if v and str(v) != 'None']
+        else:
+            connections = [v.strip() for v in str(value).split(',') if v.strip()]
+        self._connections = connections[:self.MAX_CONNECTIONS]
+        self._refresh()

@@ -151,8 +151,13 @@ def _mbprint_html(cards, folder, size):
 
     for card in cards:
         w_mm, h_mm = _card_mm(card)
-        for path in CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False):
-            yield _card_page(path, w_mm, h_mm)
+        if not card.has_versions:
+            path = CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)
+            for _ in range(card.amount):
+                yield _card_page(path[0], w_mm, h_mm)
+        else:
+            for path in CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False):
+                yield _card_page(path, w_mm, h_mm)
     yield "</body>"
 
 
@@ -166,40 +171,80 @@ def _azao_html(cards, folder, size, side='front'):
     offset = 0 if side == 'front' else 1
     for card in cards:
         w_mm, h_mm = _card_mm(card)
-        for path in CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)[offset::2]:
-            yield _card_page(path, w_mm, h_mm)
+        if not card.has_versions:
+            path = CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)[offset::2]
+            for _ in range(card.amount):
+                yield _card_page(path[0], w_mm, h_mm)
+        else:
+            for path in CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)[offset::2]:
+                yield _card_page(path, w_mm, h_mm)
     yield "</body>"
+
+def _pdf_card_box(path, w_mm, h_mm):
+    """One card box for the flow-layout (several-per-page) plain PDF export:
+    the raster image plus, if the renderer wrote an HTML text sidecar next to
+    it, the vector text overlay scaled from card pixels down to the box's
+    printed size. Unlike `_card_page` (one card per page, page-sized box),
+    this box is flowed inline alongside its siblings, so it needs its own
+    positioning context for the overlay to line up."""
+    style = '' if (w_mm, h_mm) == (_CARD_W_MM, _CARD_H_MM) else f' style="width:{w_mm}mm;height:{h_mm}mm"'
+    sidecar = Path(path).with_suffix('.html')
+    if sidecar.exists():
+        overlay = sidecar.read_text(encoding='utf-8')
+        m = re.search(r'data-width="(\d+)"', overlay)
+        if m:
+            k = w_mm * _CSS_PX_PER_MM / int(m[1])
+            return (f'<div class="card"{style}><img src="{path}">'
+                    f'<div class="text-scale" style="transform:scale({k:.6f})">{overlay}</div></div>\n')
+    return f'<div class="card"{style}><img src="{path}"></div>\n'
+
 
 def _pdf_html(cards, folder, size, format='png', include_backs=False):
     """ Simple document template for pdf prints """
-    yield """
+    yield f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
             <style>
-                img {
-                    -prince-image-resolution: 900dpi;
-                    break-before: page;
-                    width: 67.5mm;
-                    height: 94mm;
+                .card {{
+                    position: relative;
                     display: inline-block;
+                    width: {_CARD_W_MM}mm;
+                    height: {_CARD_H_MM}mm;
                     margin: 2mm;
-                }
-                @page {
+                    break-inside: avoid;
+                }}
+                .card > img {{
+                    -prince-image-resolution: 900dpi;
+                    width: 100%;
+                    height: 100%;
+                    display: block;
+                }}
+                .card > .text-scale {{
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    transform-origin: 0 0;
+                }}
+                @page {{
                     margin: 10mm;
                     size: a4;
-                }
+                }}
             </style>
-        </head>
-        <body>
     """
+    yield _font_css(folder)
+    yield "</head>\n<body>\n"
 
     for card in cards:
         w_mm, h_mm = _card_mm(card)
-        style = '' if (w_mm, h_mm) == (_CARD_W_MM, _CARD_H_MM) else f' style="width:{w_mm}mm;height:{h_mm}mm"'
-        for path in CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=include_backs):
-            yield f'<img src="{path}"{style}>\n'
+        if not card.has_versions:
+            path = CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=include_backs)
+            for _ in range(card.amount):
+                yield _pdf_card_box(path[0], w_mm, h_mm)
+        else:
+            for path in CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=include_backs):
+                yield _pdf_card_box(path, w_mm, h_mm)
     yield "</body>"
 
 

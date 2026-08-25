@@ -232,7 +232,7 @@ class ClassSelectorWidget(QWidget):
 
     classesChanged = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, default_classes=None):
         super().__init__(parent)
 
         layout = QVBoxLayout(self)
@@ -243,7 +243,7 @@ class ClassSelectorWidget(QWidget):
         label.setProperty("role", "field-label")
         layout.addWidget(label)
 
-        self.chips = ClassChipsField()
+        self.chips = ClassChipsField(default_classes=default_classes)
         self.chips.changed.connect(self.classesChanged.emit)
         layout.addWidget(self.chips)
 

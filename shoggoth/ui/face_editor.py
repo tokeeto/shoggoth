@@ -334,7 +334,7 @@ class FaceEditor(QWidget):
             if isinstance(value, list):
                 widget.setText(', '.join(str(v) for v in value))
             else:
-                widget.setText(str(value) if value else '')
+                widget.setText('' if value in (None, '') else str(value))
         elif isinstance(widget, QTextEdit):
             widget.setPlainText(str(value) if value else '')
         elif isinstance(widget, QComboBox):
@@ -585,22 +585,22 @@ class FaceEditor(QWidget):
         self._target_layout().addWidget(widget)
         return widget
 
-    def add_class_field(self, label=None, field_name="classes"):
+    def add_class_field(self, label=None, field_name="classes", default_classes=None):
         """Helper to add a class selector widget"""
-        widget = ClassSelectorWidget()
+        widget = ClassSelectorWidget(default_classes=default_classes)
         widget.classesChanged.connect(lambda: self.on_field_changed(field_name))
         self.fields[field_name] = widget
         self.field_containers[field_name] = widget
         self._target_layout().addWidget(widget)
         return widget
 
-    def add_class_and_level_row(self, level_labels, level_values, level_field="level"):
+    def add_class_and_level_row(self, level_labels, level_values, level_field="level", default_classes=None):
         """Classes (flexible width) + a Level segmented button row sharing one line."""
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(16)
 
-        classes_widget = ClassSelectorWidget()
+        classes_widget = ClassSelectorWidget(default_classes=default_classes)
         classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_widget
         self.field_containers['classes'] = classes_widget

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.editor_widgets import SlotChipsField
 from shoggoth.ui.card_widgets import IconsWidget
+from shoggoth.ui.compact_widgets import PLAYER_CLASSES
 from shoggoth.i18n import tr
 
 # Level selector shared by Asset/Event/Skill: en-dash (no level) / 0-5 / C (custom).
@@ -23,7 +24,7 @@ class AssetEditor(FaceEditor):
     def setup_ui(self):
         self.start_band(tr("BAND_IDENTITY"))
         self.add_identity_row()
-        self.add_class_and_level_row(LEVEL_LABELS, LEVEL_VALUES)
+        self.add_class_and_level_row(LEVEL_LABELS, LEVEL_VALUES, default_classes=PLAYER_CLASSES)
 
         self.start_band(tr("BAND_NUMBERS"))
         self.icons_widget = IconsWidget()
@@ -78,7 +79,7 @@ class EventEditor(FaceEditor):
     def setup_ui(self):
         self.start_band(tr("BAND_IDENTITY"))
         self.add_identity_row()
-        self.add_class_and_level_row(LEVEL_LABELS, LEVEL_VALUES)
+        self.add_class_and_level_row(LEVEL_LABELS, LEVEL_VALUES, default_classes=PLAYER_CLASSES)
 
         self.start_band(tr("BAND_NUMBERS"))
         self.icons_widget = IconsWidget()

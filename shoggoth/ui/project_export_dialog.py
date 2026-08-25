@@ -349,7 +349,6 @@ class ProjectExportDialog(QDialog):
         is_plain = flavor == 'pdf'
         self._pdf_format_frame.setVisible(is_plain)
         self._pdf_info_label.setVisible(not is_plain)
-        self._pdf_vector_text.setVisible(not is_plain)
         self._pdf_output_single.setVisible(not is_azao)
         self._pdf_output_azao.setVisible(is_azao)
         self._update_pdf_format_info()

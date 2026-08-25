@@ -1385,7 +1385,17 @@ class RichTextRenderer:
                         # Word doesn't fit on the current line: try to hyphenate
                         # it so part of it can still fill the remaining space
                         # (or, if the line is empty, the full line width).
-                        split = self._hyphenate_split(value, font_obj, avail - current_line_width)
+                        # Only worth trying if there's actually a line below
+                        # this one to hold the tail — otherwise (e.g. a
+                        # single-line region) the split head would render but
+                        # the tail would land past y_limit and never show,
+                        # when shrinking the font (or accepting a whole-word
+                        # horizontal overflow) is the correct fallback.
+                        next_line_available = (y + state['fonts']['regular'].size) <= y_limit
+                        split = (
+                            self._hyphenate_split(value, font_obj, avail - current_line_width)
+                            if next_line_available else None
+                        )
                         if split is None and current_line_width == 0:
                             # Can't split further and it's alone on the line: this is a
                             # genuine horizontal overflow (e.g. one long unbreakable word

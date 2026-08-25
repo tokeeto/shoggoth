@@ -318,8 +318,14 @@ class Card:
         return 'other'
 
     @property
-    def versions(self):
+    def has_versions(self):
         if not isinstance(self.encounter_number, str) or '-' not in self.encounter_number:
+            return False
+        return True
+
+    @property
+    def versions(self):
+        if not self.has_versions:
             return [self]
 
         versions = []
