@@ -56,7 +56,7 @@ def _pdf_page_dims(path):
 # TRIM_SIZES below).
 CARD_SIZES = {
     'standard': {'width': 1500, 'height': 2100},
-    'mini': {'width': 1000, 'height': 1537},
+    'mini': {'width': 1001, 'height': 1504},
 }
 
 # True physical trim sizes (px, no bleed) for 'standard' cards, at the same
@@ -507,16 +507,14 @@ class CardRenderer:
 
     def card_value(self, project, id, field):
         path = field.split('.')
-        val = project.get_card(id)
-        if len(path) > 1:
-            if path[0] == 'front':
-                val = val.front
-            if path[0] == 'back':
-                val = val.back
-            path = path[1:]
-        val = val.get(path[0])
+        element = project.get_by_id(id)
+        if not element:
+            return None
+        data = element.data
+        for key in path:
+            data = data.get(key, {})
 
-        return val
+        return data or None
 
     def text_replacement(self, field, value, side):
         """ handles advanced text replacement fields """

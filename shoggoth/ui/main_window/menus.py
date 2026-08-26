@@ -18,6 +18,7 @@ def create_menus(window):
     menubar = window.menuBar()
 
     _create_file_menu(window, menubar)
+    _create_edit_menu(window, menubar)
     _create_project_menu(window, menubar)
     _create_export_menu(window, menubar)
     _create_tools_menu(window, menubar)
@@ -68,6 +69,14 @@ def _create_file_menu(window, menubar):
     file_menu.addSeparator()
 
     _add_action(window, file_menu, tr("MENU_EXIT"), window.close)
+
+
+def _create_edit_menu(window, menubar):
+    edit_menu = menubar.addMenu(tr("MENU_EDIT"))
+
+    from shoggoth.ui.insert_link import insert_link_at_focus
+    _add_action(window, edit_menu, tr("MENU_INSERT_LINK"),
+                lambda: insert_link_at_focus(), shortcut="Ctrl+L")
 
 
 def _create_project_menu(window, menubar):

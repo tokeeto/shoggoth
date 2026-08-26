@@ -655,6 +655,7 @@ class Guide:
         html = html.replace("file://{{arno_pro_bold}}", (files.font_dir / 'Arno Pro/arnopro_bold.otf').as_uri())
         html = html.replace("file://{{arno_pro_bolditalic}}", (files.font_dir / 'Arno Pro/arnopro_bolditalic.otf').as_uri())
         html = html.replace("file://{{arno_pro_italic}}", (files.font_dir / 'Arno Pro/arnopro_italic.otf').as_uri())
+        html = html.replace("file://{{bolton}}", (files.font_dir / 'Bolton.ttf').as_uri())
         html = html.replace("file://{{teutonic}}", (files.font_dir / 'Arkhamic.ttf').as_uri())
         html = html.replace("file://{{ahlcgsymbol}}", (files.font_dir / 'AHLCGSymbol.otf').as_uri())
         html = html.replace("file://{{resolution_glyph_top}}", (files.guide_dir / 'resolution_glyph_top.png').as_uri())

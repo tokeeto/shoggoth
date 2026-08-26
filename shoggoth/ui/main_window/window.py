@@ -30,7 +30,9 @@ from shoggoth.files import asset_dir
 from shoggoth.i18n import load_language, tr
 from shoggoth.ui.browser import FileBrowser
 from shoggoth.ui.preview_widget import ImprovedCardPreview
-from shoggoth.ui.goto_dialog import GotoCardDialog
+from shoggoth.ui.element_selector import (
+    ElementSelectorDialog, KIND_ENCOUNTER, KIND_GUIDE, KIND_PROJECT,
+)
 from shoggoth.ui.command_palette import CommandPaletteDialog
 from shoggoth.ui.main_window import commands, exports, menus, projects, views
 from shoggoth.ui.main_window.navigation import NavigationHistory
@@ -296,17 +298,24 @@ class ShoggothMainWindow(QMainWindow):
             QMessageBox.information(self, tr("DLG_NO_PROJECT"), tr("MSG_OPEN_PROJECT_FIRST"))
             return
 
-        dialog = GotoCardDialog(self.active_project, self)
-        dialog.card_selected.connect(self.on_goto_card_selected)
+        dialog = ElementSelectorDialog(
+            self.active_project, title=tr("DLG_GOTO_CARD"),
+            instructions=tr("HELP_NAVIGATION"), parent=self,
+        )
+        dialog.element_chosen.connect(self.on_goto_element_selected)
         dialog.exec()
 
-    def on_goto_card_selected(self, card):
-        """Handle card selection from goto dialog"""
-        if hasattr(card, 'is_guide') and card.is_guide:
-            self.show_guide(card.guide)
+    def on_goto_element_selected(self, entry):
+        """Navigate to the element picked in the Go-to dialog."""
+        if entry.kind == KIND_GUIDE:
+            self.show_guide(entry.obj)
+        elif entry.kind == KIND_ENCOUNTER:
+            self.show_encounter(entry.obj)
+        elif entry.kind == KIND_PROJECT:
+            self.show_project(entry.obj)
         else:
-            self.show_card(card)
-        self.select_item_in_tree(card.id)
+            self.show_card(entry.obj)
+        self.select_item_in_tree(entry.id)
 
     def show_command_palette(self):
         """Show the command palette."""

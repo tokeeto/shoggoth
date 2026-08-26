@@ -387,6 +387,11 @@ class Project:
                 return guide
         return None
 
+    def get_by_id(self, id):
+        if self.id == id:
+            return self
+        return self.get_guide(id) or self.get_encounter_set(id) or self.get_card(id)
+
     def assign_card_numbers(self):
         encounter_sets = list(self.encounter_sets)
         player_cards = list(self.player_cards)
