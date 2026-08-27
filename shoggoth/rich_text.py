@@ -1299,7 +1299,7 @@ class RichTextRenderer:
                 set_scope('align', token['value'], token['start'], alignment)
 
             elif t == 'margin':
-                y += token['value']
+                y += int(token['value'] * scale)
 
             elif t == 'indent_push':
                 push_scope('block_indent', token['value'])
