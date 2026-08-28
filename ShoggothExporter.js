@@ -78,7 +78,7 @@ const back_types = {
     "AgendaTreachery.js": "treachery",
     "Asset.js": "player",
     "AssetAsset.js": "asset",
-    "AssetStory.js": "story",
+    "AssetStory.js": "player",
     "AssetStoryAsset.js": "asset",
     "AssetStoryEnemy.js": "enemy",
     "AssetStoryPortrait.js": "story",
@@ -388,6 +388,10 @@ const TAG_MAP = {
     "<hs>": "",
     "<shs>": "",
     "<lhs>": "",
+    "<vh>": "",
+    // Resolution tags
+    "<res>": "<resolution><b>R",
+    "</res>": "</b>"
 };
 
 function translate_tags(value) {
@@ -831,6 +835,41 @@ function convert_card(path, collection, image_folder) {
         type: back_types[script_name],
     };
 
+    // Story cards
+    if (out['front']['type'] === "story") {
+        let parts = [];
+        let sections = ["A", "B", "C"];
+        for (let s of sections) {
+            let header = has_value(settings.get("Header" + s));
+            let story = has_value(settings.get("AccentedStory" + s));
+            let rules = has_value(settings.get("Rules" + s));
+            if (header) parts.push("<b>" + String(header) + "</b>");
+            if (story) parts.push("<blockquote>" + String(story) + "</blockquote>");
+            if (rules) parts.push(String(rules));
+        }
+        if (parts.length > 0) {
+            out["front"]["text"] = parts.join("\n");
+        }
+    }
+    if (out['back']['type'] === "story") {
+        let parts = [];
+        let sections = ["A", "B", "C"];
+        for (let s of sections) {
+            let header = has_value(settings.get("Header" + s + "Back"));
+            let story = has_value(settings.get("AccentedStory" + s + "Back"));
+            let rules = has_value(settings.get("Rules" + s + "Back"));
+            if (header) parts.push("<b>" + String(header) + "</b>");
+            if (story) parts.push("<blockquote>" + String(story) + "</blockquote>");
+            if (rules) parts.push(String(rules));
+        }
+        if (parts.length > 0) {
+            out["back"]["text"] = parts.join("\n");
+        }
+    }
+
+
+
+
     // unique
     if (has_value(settings.get("Unique")) && settings.get("Unique") != "0") {
         out["front"]["title"] = "<unique><name>";
@@ -860,8 +899,21 @@ function convert_card(path, collection, image_folder) {
     // shoggoth defaults level to 0 when the key is missing), so unlike other
     // fields it must survive the None-scrubbing.
     let level = settings.get("Level");
-    if (level != null && String(level) !== "")
+    if (level != null && String(level) !== "") {
         out["front"]["level"] = String(level);
+    }
+    else {
+        out["front"]["level"] = "None"
+    }
+    if (out['back']['type'] === "asset") {
+        if (level != null && String(level) !== "") {
+            out["back"]["level"] = String(level);
+        }
+        else {
+            out["back"]["level"] = "None"
+        }
+    }
+    
     if (has_value(settings.get("Slot"))) {
         let slots = [String(settings.get("Slot"))];
         if (has_value(settings.get("Slot2"))) {
@@ -885,7 +937,7 @@ function convert_card(path, collection, image_folder) {
             (settings.get("PerInvestigatorEvade") == "1" ? "<per>" : "");
     }
     if (has_value(settings.get("Attack"))) {
-        out["front"]["combat"] = String(settings.get("Attack")).replace("-", "<dash>") +
+        out["front"]["attack"] = String(settings.get("Attack")).replace("-", "<dash>") +
             (settings.get("PerInvestigatorAttack") == "1" ? "<per>" : "");
     }
 
@@ -928,7 +980,7 @@ function convert_card(path, collection, image_folder) {
     // subtype (for weakness cards)
     if (has_value(settings.get("Subtype"))){
         out["front"]["classes"] = out["front"]["classes"] || [];
-        out["front"]["classes"].push(String(settings.get("Subtype")).toLowerCase().replace("basicweakness", "basic weakness"));
+        out["front"]["classes"].push(String(settings.get("Subtype")).toLowerCase().replace("basicweakness", "basic weakness").replace("storyweakness", "weakness"));
     }
 
     // investigator skills (only Investigator*.js define these settings)
@@ -1045,13 +1097,17 @@ function convert_card(path, collection, image_folder) {
         let deck_id = has_value(settings.get("ScenarioDeckID"));
         out["front"]["index"] =
             String(settings.get("ScenarioIndex")) + (deck_id ? String(deck_id) : "");
+        let back_id = String.fromCharCode(deck_id.charCodeAt(deck_id.length - 1) + 1);
+        out["back"]["index"] = String(settings.get("ScenarioIndex")) + (back_id ? String(back_id) : "");
     }
 
     // location icon
     if (has_value(settings.get("LocationIcon"))) {
-        out["front"]["connection"] = String(
+        let c = String(
             settings.get("LocationIcon"),
         ).toLowerCase();
+        c = c === 'moon' ? 'crescent' : c;
+        out["front"]["connection"] = c;
     }
 
     // connections
@@ -1059,7 +1115,9 @@ function convert_card(path, collection, image_folder) {
     for (let i = 1; i <= 6; i++) {
         let c = has_value(settings.get("Connection" + i + "Icon"));
         if (c) {
-            connections.push(String(c).toLowerCase());
+            c = String(c).toLowerCase();
+            c = c === 'moon' ? 'crescent' : c;
+            connections.push(c);
         }
     }
     if (connections.length > 0) {
@@ -1130,7 +1188,9 @@ function convert_card(path, collection, image_folder) {
         if (String(backLocIcon) === "Copy front") {
             out["back"]["connection"] = "<copy>";
         } else if (String(backLocIcon) !== "None") {
-            out["back"]["connection"] = String(backLocIcon).toLowerCase();
+            backLocIcon = String(backLocIcon).toLowerCase();
+            backLocIcon = backLocIcon === 'moon' ? 'crescent' : backLocIcon;
+            out["back"]["connection"] = backLocIcon;
         }
     }
 
@@ -1146,7 +1206,9 @@ function convert_card(path, collection, image_folder) {
             copy_count++;
             continue;
         }
-        back_connections.push(String(c).toLowerCase());
+        c = String(c).toLowerCase();
+        c = c === 'moon' ? 'crescent' : c;
+        back_connections.push(c);
     }
     if (back_conn_count > 0 && copy_count === back_conn_count) {
         out["back"]["connections"] = "<copy>";
@@ -1181,7 +1243,7 @@ function convert_card(path, collection, image_folder) {
         out["back"]["sanity"] = settings.get("SanityBack");
     }
     if (has_value(settings.get("AttackBack")))
-        out["back"]["combat"] =
+        out["back"]["attack"] =
             String(settings.get("AttackBack")) +
             (settings.get("PerInvestigatorAttackBack") == "1" ? "<per>" : "");
     if (has_value(settings.get("EvadeBack")))
@@ -1217,8 +1279,8 @@ function convert_card(path, collection, image_folder) {
             let header = has_value(settings.get("Header" + s + "Back"));
             let story = has_value(settings.get("AccentedStory" + s + "Back"));
             let rules = has_value(settings.get("Rules" + s + "Back"));
-            if (header) parts.push(String(header));
-            if (story) parts.push(String(story));
+            if (header) parts.push("<b>" + String(header) + "</b>");
+            if (story) parts.push("<blockquote>" + String(story) + "</blockquote>");
             if (rules) parts.push(String(rules));
         }
         if (parts.length > 0) {
