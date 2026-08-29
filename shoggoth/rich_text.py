@@ -8,6 +8,7 @@ import platform
 import pathlib
 import threading
 import re
+from types import SimpleNamespace
 import pyphen
 from shoggoth.files import font_dir
 from shoggoth.i18n import tr
@@ -1026,7 +1027,16 @@ class RichTextRenderer:
             xs = []
             for idx in range(len(polygon) - 1):
                 (x1, y1), (x2, y2) = polygon[idx], polygon[idx + 1]
-                if (y1 < yy and y2 < yy) or (y1 > yy and y2 > yy) or y1 == y2:
+                if y1 == y2:
+                    continue
+                # Half-open on the upper end (a band's own top edge owns yy,
+                # its bottom edge does not) so a sample that lands exactly on
+                # the seam between two stacked bands -- e.g. a notch that
+                # narrows then widens, like a location card's shroud-icon cut
+                # -- crosses only one band's pair of edges instead of both,
+                # which would otherwise union them into the full outer width.
+                ylo, yhi = (y1, y2) if y1 < y2 else (y2, y1)
+                if yy < ylo or yy >= yhi:
                     continue
                 t = (yy - y1) / (y2 - y1)
                 xs.append(x1 + t * (x2 - x1))
@@ -1481,6 +1491,11 @@ class RichTextRenderer:
         if capture is not None:
             capture.translate(dx, dy)
 
+    @property
+    def is_html_capturing(self):
+        """Whether this thread currently has an active HTML capture."""
+        return getattr(self._html_tls, 'capture', None) is not None
+
     @contextmanager
     def html_capture_paused(self):
         """Rasterize text normally within this block (e.g. for rotated fields)."""
@@ -1604,15 +1619,44 @@ class RichTextRenderer:
         if min_font_size is None:
             min_font_size = font_size // 2
 
-        current_size = font_size
+        # The search below steps the font size down in whole pixels. font_size,
+        # min_font_size, region and polygon are all already resolution-scaled
+        # (renderer.py multiplies each by `scale`), so a 1px step is a much
+        # coarser fraction of the font size at low render resolutions than at
+        # full resolution: the same source text can shrink-to-fit at a
+        # visibly different *relative* size -- and therefore land differently
+        # once centered -- purely because of the chosen export resolution.
+        #
+        # Do the search itself in nominal (scale == 1) units, which
+        # reproduces exactly the decision full-resolution export would make,
+        # then convert the single winning size to this render's actual pixel
+        # size for one final real-scale layout pass. This way only that last,
+        # unavoidable pixel rounding varies with resolution -- not the whole
+        # search trajectory.
+        rescale = scale and scale != 1.0
+        if rescale:
+            search_region = SimpleNamespace(
+                x=region.x / scale, y=region.y / scale,
+                width=region.width / scale, height=region.height / scale,
+            )
+            search_polygon = [(x / scale, y / scale) for x, y in polygon] if polygon else None
+            search_font_size = font_size / scale
+            search_min_size = min_font_size / scale
+            search_scale = 1.0
+        else:
+            search_region, search_polygon = region, polygon
+            search_font_size, search_min_size = font_size, min_font_size
+            search_scale = scale
+
+        current_size = round(search_font_size)
         with perf.span('layout shrink-fit loop (_layout, all size steps)'):
-            while current_size >= min_font_size:
-                force = current_size == min_font_size
+            while True:
+                force = current_size <= search_min_size
                 commands, fits, frac = self._layout(
-                    tokens, region, polygon, current_size,
+                    tokens, search_region, search_polygon, current_size,
                     base_font=font, alignment=alignment,
                     fill=fill, outline=outline, outline_fill=outline_fill,
-                    force=force, scale=scale, letter_spacing=letter_spacing,
+                    force=force, scale=search_scale, letter_spacing=letter_spacing,
                 )
                 if fits or force:
                     break
@@ -1625,6 +1669,17 @@ class RichTextRenderer:
                     current_size -= 1
                 if 0 < frac < 0.3:
                     current_size -= 1
+
+        if rescale:
+            # The fit was already decided above in nominal space; force=True
+            # so this real-scale pass is accepted regardless of `fits`.
+            current_size = max(min_font_size, round(current_size * scale))
+            commands, fits, frac = self._layout(
+                tokens, region, polygon, current_size,
+                base_font=font, alignment=alignment,
+                fill=fill, outline=outline, outline_fill=outline_fill,
+                force=True, scale=scale, letter_spacing=letter_spacing,
+            )
 
         if valignment == 'center' and commands:
             ys = [cmd['y'] for cmd in commands if 'y' in cmd]

@@ -584,6 +584,8 @@
   "THEME_LIGHT": "Light",
   "THEME_DARK": "Dark",
   "GROUP_PREVIEW_SETTINGS": "Preview Settings",
+  "LABEL_PREVIEW_RESOLUTION": "Preview Resolution:",
+  "HELP_PREVIEW_RESOLUTION": "Resolution the live card preview is rendered at. Lower resolutions render faster but can also reveal issues (e.g. text layout) that only show up at that resolution.",
   "OPT_SHOW_BLEED": "Show bleed area in preview",
   "HELP_BLEED_AREA": "The bleed area is the margin for error in cutting/printing",
   "LABEL_BLEED_DISPLAY": "Bleed Display:",
