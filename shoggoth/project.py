@@ -621,6 +621,7 @@ class Project:
         mini = TEMPLATES.MINI_INVESTIGATOR()
         mini['name'] = f'mini {name}'
         mini['investigator'] = name
+        mini['investigator_id'] = investigator["id"]
 
         investigator['back']['entries'][3][1] = f"<:{signature['id']} name>, <:{weakness['id']} name>, 1 random basic weakness."
 
