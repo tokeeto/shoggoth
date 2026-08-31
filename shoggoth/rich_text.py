@@ -8,6 +8,7 @@ import platform
 import pathlib
 import threading
 import re
+from types import SimpleNamespace
 import pyphen
 from shoggoth.files import font_dir
 from shoggoth.i18n import tr
@@ -19,22 +20,27 @@ from shoggoth.perf import perf
 # tiny (small grayscale masks), so this cap is generous, not a tight budget.
 _GLYPH_RUN_CACHE_MAXSIZE = 4000
 
-# Only keep regexes for the rare parametric tags (size, margin, indent, font, image)
+# Only keep regexes for the rare parametric tags (size, margin, indent, font, image, spacing)
 _size_re = re.compile(r'<size (\d+)>', flags=re.IGNORECASE)
 # <margin> accepts multiple space-separated numbers but only the first is used
 _margin_re = re.compile(r'<margin (\d+)(\s\d+)*>', flags=re.IGNORECASE)
 _indent_re = re.compile(r'<indent (\d+)>', flags=re.IGNORECASE)
 _font_re = re.compile(r'<font "(.+?)">', flags=re.IGNORECASE)
 _image_re = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
+_spacing_re = re.compile(r'<spacing ([\d.]+)>', flags=re.IGNORECASE)
 _tag_kv = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 
 # Typographic tuning (fractions are of the current font size)
 LINE_HEIGHT_FACTOR = 1.30
-STRIKETHROUGH_Y_FACTOR = 0.45   # bar offset below the text anchor
+STRIKETHROUGH_Y_FACTOR = -0.45   # bar offset below the text anchor
 UNDERLINE_Y_FACTOR = 0.88
 DBL_UNDERLINE_Y_FACTOR = 0.12
 QUOTE_INDENT = 50               # text indent inside <blockquote>
 QUOTE_BAR_SPACING = 10          # gap between the two blockquote bars
+
+# Punctuation marks that French typography prefixes with a space; that space
+# must not become a line-break point, so "word :" stays glued together.
+FRENCH_SPACED_PUNCT = {':', ';', '!', '?'}
 
 
 def _parse_tag_attributes(tag_string):
@@ -208,6 +214,19 @@ class HtmlTextCapture:
     def __init__(self):
         self.parts = []
         self.fonts = {}    # css font-family -> font file path
+        # Accumulated (dx, dy) the canvas was cropped by *after* text layout
+        # (trim + bleed cutout), so spans recorded in pre-crop coordinates
+        # can be shifted back onto the exported image. See translate().
+        self.offset_x = 0
+        self.offset_y = 0
+
+    def translate(self, dx, dy):
+        """Record that the canvas was subsequently cropped by (dx, dy) from
+        its top-left, i.e. the point that used to be (dx, dy) is now (0, 0).
+        Call this once per crop, in the same pre-rotation coordinate space
+        the spans were recorded in."""
+        self.offset_x += dx
+        self.offset_y += dy
 
     def fragment(self, width, height, rotation=None):
         """Build the overlay fragment for one card side.
@@ -218,6 +237,11 @@ class HtmlTextCapture:
         in pre-rotation coordinates and rotated as a whole via CSS.
         """
         spans = '\n'.join(self.parts)
+        if self.offset_x or self.offset_y:
+            # Undo the post-layout crop (trim/bleed) that shifted the
+            # rasterized image but not these already-recorded coordinates.
+            spans = (f'<div style="position:absolute;left:0;top:0;'
+                     f'transform:translate({-self.offset_x}px,{-self.offset_y}px);">\n{spans}\n</div>')
         if rotation in ('cw', 'ccw'):
             # Pre-rotation canvas was height x width; map it onto the final
             # image the same way PIL's rotate(expand=True) did.
@@ -258,7 +282,7 @@ class HtmlTextCapture:
 
 
 class RichTextRenderer:
-    def __init__(self, card_renderer, hyphenation_enabled=True):
+    def __init__(self, card_renderer, hyphenation_enabled=True, french_punctuation=False):
         self.card_renderer = card_renderer
         self.icon_cache = {}
         self.font_cache = {}
@@ -271,6 +295,7 @@ class RichTextRenderer:
         self._html_tls = threading.local()
 
         self.hyphenation_enabled = hyphenation_enabled
+        self.french_punctuation = french_punctuation
 
         # ── Width cache (shared across all renders) ──────────────────────────
         self._wcache = _WidthCache()
@@ -399,6 +424,8 @@ class RichTextRenderer:
             'caption': {'path': font_dir / "Arno Pro" / "arnopro_caption.otf"},
             'bold': {'path': font_dir / "Arno Pro" / "arnopro_bold.otf"},
             'semibold': {'path': font_dir / "Arno Pro" / "arnopro_semibold.ttf"},
+            'display': {'path': font_dir / "Arno Pro" / "arnopro_display.otf"},
+            'displaybold': {'path': font_dir / "Arno Pro" / "arnopro_bolddisplay.otf"},
             'italic': {'path': font_dir / "Arno Pro" / "arnopro_italic.otf"},
             'bolditalic': {'path': font_dir / "Arno Pro" / "arnopro_bolditalic.otf"},
             'icon': {'path': font_dir / "AHLCGSymbol.otf"},
@@ -719,6 +746,28 @@ class RichTextRenderer:
         combined = toks[pre_i]['value'] + ' ' + ''.join(t['value'] for t in suffix)
         return list(toks[:pre_i]) + [{'type': 'text', 'value': combined}]
 
+    def _merge_french_spacing(self, tokens):
+        """Glue "<word><space><punct>" into a single non-breaking unit for
+        every French-spaced punctuation mark in FRENCH_SPACED_PUNCT, so the
+        preceding word and its punctuation never split across a line break."""
+        if not tokens:
+            return tokens
+
+        result = []
+        i, n = 0, len(tokens)
+        while i < n:
+            tok = tokens[i]
+            if (tok['type'] == 'text' and tok['value'] != ' '
+                    and i + 2 < n
+                    and tokens[i + 1]['type'] == 'text' and tokens[i + 1]['value'] == ' '
+                    and tokens[i + 2]['type'] == 'text' and tokens[i + 2]['value'] in FRENCH_SPACED_PUNCT):
+                result.append({'type': 'text', 'value': tok['value'] + ' ' + tokens[i + 2]['value']})
+                i += 3
+                continue
+            result.append(tok)
+            i += 1
+        return result
+
     def _prevent_runts(self, tokens):
         """Combine the last two plain-text words of each paragraph to prevent single-word last lines."""
         if not tokens:
@@ -832,6 +881,12 @@ class RichTextRenderer:
                         pos += len(m[0])
                         continue
 
+                    m = _spacing_re.match(remaining)
+                    if m:
+                        tokens.append({'type': 'letter_spacing', 'value': float(m[1])})
+                        pos += len(m[0])
+                        continue
+
                     m = _font_re.match(remaining)
                     if m:
                         font_key, missing = self._resolve_font(m[1], project=project)
@@ -873,13 +928,15 @@ class RichTextRenderer:
                 pos += 1
             tokens.append({'type': 'text', 'value': text[start:pos]})
 
+        if self.french_punctuation:
+            tokens = self._merge_french_spacing(tokens)
         tokens = self._prevent_runts(tokens)
         tokens = self._merge_hr_breaks(tokens)
         return tokens
 
     def _layout(self, tokens, region, polygon, font_size, base_font='regular',
                 alignment='left', fill='#231f20', outline=0, outline_fill=None,
-                force=False, scale=1.0):
+                force=False, scale=1.0, letter_spacing=1.0):
         fonts = self.load_fonts(font_size)
         line_height = int(font_size * LINE_HEIGHT_FACTOR)
 
@@ -940,20 +997,67 @@ class RichTextRenderer:
         # Width helper
         wcache = self._wcache
 
+        # ── Letter spacing ────────────────────────────────────────────────
+        # Pillow has no tracking/letter-spacing parameter, so a multiplier
+        # other than 1.0 is implemented by measuring and drawing character
+        # by character instead of shaping the run as one string. That means
+        # spaced runs skip the flush() run-merging optimisation below (see
+        # 'no_merge'); fine since <spacing> targets short static text.
+        def _spaced_width(value, font_obj):
+            if letter_spacing == 1.0 or not value:
+                return wcache.width(value, font_obj)
+            return sum(wcache.width(ch, font_obj) for ch in value) * letter_spacing
+
+        def _text_items(value, font_obj, strike, underline):
+            if letter_spacing == 1.0 or not value:
+                return [{
+                    'cmd': 'text', 'value': value, 'font': font_obj,
+                    'width': wcache.width(value, font_obj),
+                    'strikethrough': strike, 'underline': underline,
+                }]
+            return [{
+                'cmd': 'text', 'value': ch, 'font': font_obj,
+                'width': wcache.width(ch, font_obj) * letter_spacing,
+                'strikethrough': strike, 'underline': underline,
+                'no_merge': True,
+            } for ch in value]
+
         # Polygon helpers
-        def poly_bounds(yy):
-            if not polygon:
-                return x_orig, x_orig + region.width
+        def _poly_bounds_at(yy):
             xs = []
             for idx in range(len(polygon) - 1):
                 (x1, y1), (x2, y2) = polygon[idx], polygon[idx + 1]
-                if (y1 < yy and y2 < yy) or (y1 > yy and y2 > yy) or y1 == y2:
+                if y1 == y2:
+                    continue
+                # Half-open on the upper end (a band's own top edge owns yy,
+                # its bottom edge does not) so a sample that lands exactly on
+                # the seam between two stacked bands -- e.g. a notch that
+                # narrows then widens, like a location card's shroud-icon cut
+                # -- crosses only one band's pair of edges instead of both,
+                # which would otherwise union them into the full outer width.
+                ylo, yhi = (y1, y2) if y1 < y2 else (y2, y1)
+                if yy < ylo or yy >= yhi:
                     continue
                 t = (yy - y1) / (y2 - y1)
                 xs.append(x1 + t * (x2 - x1))
             if not xs:
-                return x_orig, x_orig + region.width
+                return None
             return min(xs), max(xs)
+
+        def poly_bounds(yy):
+            if not polygon:
+                return x_orig, x_orig + region.width
+            # yy is the line's baseline. Check bounds both there and at the
+            # top of the glyphs (baseline minus font height), and use
+            # whichever pair is more restrictive, so a polygon edge that
+            # narrows in either direction can't be poked out of.
+            top = _poly_bounds_at(yy - state['fonts'][state['font']].size)
+            base = _poly_bounds_at(yy)
+            if top is None:
+                return base if base is not None else (x_orig, x_orig + region.width)
+            if base is None:
+                return top
+            return max(top[0], base[0]), min(top[1], base[1])
 
         def eff_bounds(yy):
             nonlocal prev_block_indent
@@ -1076,6 +1180,37 @@ class RichTextRenderer:
             for item in items:
                 c = item['cmd']
                 if c in ('text', 'glyph'):
+                    if item.get('no_merge'):
+                        # Letter-spaced character: drawn on its own at the
+                        # explicit spaced width, never shaped together with
+                        # its neighbours (that would re-introduce natural
+                        # kerning and undo the spacing).
+                        x_pos += _emit_merged()
+                        fobj = item['font']
+                        commands.append({
+                            'cmd': 'text', 'x': x_pos, 'y': line_y,
+                            'value': item['value'], 'font': fobj,
+                            'line_height': line_height,
+                            'fill': fill, 'outline': outline, 'outline_fill': outline_fill,
+                        })
+                        if item.get('strikethrough'):
+                            sy = int(line_y + font_size * STRIKETHROUGH_Y_FACTOR)
+                            commands.append({
+                                'cmd': 'line',
+                                'x1': int(x_pos), 'y1': sy,
+                                'x2': int(x_pos + item['width']), 'y2': sy,
+                                'fill': fill, 'width': max(1, font_size // 16),
+                            })
+                        if item.get('underline'):
+                            uy = int(line_y + font_size * UNDERLINE_Y_FACTOR)
+                            commands.append({
+                                'cmd': 'line',
+                                'x1': int(x_pos), 'y1': uy,
+                                'x2': int(x_pos + item['width']), 'y2': uy,
+                                'fill': fill, 'width': max(1, font_size // 18),
+                            })
+                        x_pos += item['width']
+                        continue
                     fobj = item['font']
                     st = item.get('strikethrough', False)
                     ul = item.get('underline', False)
@@ -1174,7 +1309,7 @@ class RichTextRenderer:
                 set_scope('align', token['value'], token['start'], alignment)
 
             elif t == 'margin':
-                y += token['value']
+                y += int(token['value'] * scale)
 
             elif t == 'indent_push':
                 push_scope('block_indent', token['value'])
@@ -1199,8 +1334,15 @@ class RichTextRenderer:
                 else:
                     advance = state['fonts']['regular'].size
                 start_new_line(advance)
-                current_indent = 0
-                indent_current = False
+                # <br> is a forced "skip the rest of this line" break, not a
+                # paragraph break: it should keep the current list item's
+                # hanging indent, same as a natural word-wrap continuation
+                # would. A real newline does start a fresh (unindented) line.
+                if t == 'newline':
+                    current_indent = 0
+                    indent_current = False
+                else:
+                    indent_current = current_indent > 0
                 quote_last = False
                 overflow_check_pending = True
 
@@ -1240,11 +1382,12 @@ class RichTextRenderer:
                     if y > y_limit and not force:
                         return commands, False, i / num_tokens
 
+                items = None  # set for 'text'; other branches use single 'item'
                 if t == 'text':
                     value = token['value']
                     font_obj = state['fonts'][state['font']]
                     while True:
-                        w = wcache.width(value, font_obj)
+                        w = _spaced_width(value, font_obj)
                         avail = wrap_width(y)
                         if current_line_width + w <= avail:
                             break
@@ -1252,20 +1395,32 @@ class RichTextRenderer:
                         # Word doesn't fit on the current line: try to hyphenate
                         # it so part of it can still fill the remaining space
                         # (or, if the line is empty, the full line width).
-                        split = self._hyphenate_split(value, font_obj, avail - current_line_width)
+                        # Only worth trying if there's actually a line below
+                        # this one to hold the tail — otherwise (e.g. a
+                        # single-line region) the split head would render but
+                        # the tail would land past y_limit and never show,
+                        # when shrinking the font (or accepting a whole-word
+                        # horizontal overflow) is the correct fallback.
+                        next_line_available = (y + state['fonts']['regular'].size) <= y_limit
+                        split = (
+                            self._hyphenate_split(value, font_obj, avail - current_line_width)
+                            if next_line_available else None
+                        )
                         if split is None and current_line_width == 0:
-                            break  # can't split further and it's alone on the line: accept overflow
+                            # Can't split further and it's alone on the line: this is a
+                            # genuine horizontal overflow (e.g. one long unbreakable word
+                            # too wide for the region), so report it as not-fitting to let
+                            # the caller shrink the font size, unless this is already the
+                            # last (forced) attempt — then just accept the overflow.
+                            if not force:
+                                return commands, False, i / num_tokens
+                            break
 
                         if split is not None:
                             head, tail = split
-                            pending.append({
-                                'cmd': 'text',
-                                'value': head,
-                                'font': font_obj,
-                                'width': wcache.width(head, font_obj),
-                                'strikethrough': state['strikethrough'],
-                                'underline': state['underline'],
-                            })
+                            pending.extend(_text_items(
+                                head, font_obj, state['strikethrough'], state['underline'],
+                            ))
                             has_renderable = True
                             value = tail
 
@@ -1274,14 +1429,7 @@ class RichTextRenderer:
                         if y > y_limit and not force:
                             return commands, False, i / num_tokens
 
-                    item = {
-                        'cmd': 'text',
-                        'value': value,
-                        'font': font_obj,
-                        'width': w,
-                        'strikethrough': state['strikethrough'],
-                        'underline': state['underline'],
-                    }
+                    items = _text_items(value, font_obj, state['strikethrough'], state['underline'])
                 elif t == 'font_icon':
                     font_obj = state['fonts']['icon']
                     w = wcache.width(token['value'], font_obj)
@@ -1307,7 +1455,10 @@ class RichTextRenderer:
                     if y > y_limit and not force:
                         return commands, False, i / num_tokens
 
-                pending.append(item)
+                if items is not None:
+                    pending.extend(items)
+                else:
+                    pending.append(item)
                 has_renderable = True
                 current_line_width += w
 
@@ -1332,6 +1483,18 @@ class RichTextRenderer:
         capture = getattr(self._html_tls, 'capture', None)
         self._html_tls.capture = None
         return capture
+
+    def shift_html_capture(self, dx, dy):
+        """Record a post-layout crop (see HtmlTextCapture.translate) on this
+        thread's active capture, if any. No-op when not capturing."""
+        capture = getattr(self._html_tls, 'capture', None)
+        if capture is not None:
+            capture.translate(dx, dy)
+
+    @property
+    def is_html_capturing(self):
+        """Whether this thread currently has an active HTML capture."""
+        return getattr(self._html_tls, 'capture', None) is not None
 
     @contextmanager
     def html_capture_paused(self):
@@ -1359,11 +1522,16 @@ class RichTextRenderer:
                     continue
                 family = meta['family']
                 capture.fonts[family] = meta['path']
+
+                # Bolton fix
+                descent = max(0, meta['descent'])
+                if family == 'shoggoth-skill':
+                    descent = meta['size'] * .2
                 style = (
                     f'position:absolute;white-space:pre;'
                     f'left:{cmd["x"]:.2f}px;top:{cmd["y"] - meta["ascent"]:.2f}px;'
                     f"font-family:'{family}';font-size:{meta['size']}px;"
-                    f'line-height:{meta["ascent"] + meta["descent"]}px;'
+                    f'line-height:{meta["ascent"] + descent}px;'
                     f'color:{cmd["fill"] or "#231f20"};'
                 )
                 if cmd.get('outline'):
@@ -1437,20 +1605,58 @@ class RichTextRenderer:
         with perf.span('parse_text (tokenize)'):
             tokens = self.parse_text(text, project=project)
 
+        # <spacing N> applies to the whole rendered text, not from its
+        # position onward; multiple tags are undefined behavior (last wins).
+        letter_spacing = 1.0
+        if any(tok['type'] == 'letter_spacing' for tok in tokens):
+            letter_spacing = next(
+                tok['value'] for tok in reversed(tokens) if tok['type'] == 'letter_spacing'
+            )
+            tokens = [tok for tok in tokens if tok['type'] != 'letter_spacing']
+
         if not font:
             font = 'regular'
         if min_font_size is None:
             min_font_size = font_size // 2
 
-        current_size = font_size
+        # The search below steps the font size down in whole pixels. font_size,
+        # min_font_size, region and polygon are all already resolution-scaled
+        # (renderer.py multiplies each by `scale`), so a 1px step is a much
+        # coarser fraction of the font size at low render resolutions than at
+        # full resolution: the same source text can shrink-to-fit at a
+        # visibly different *relative* size -- and therefore land differently
+        # once centered -- purely because of the chosen export resolution.
+        #
+        # Do the search itself in nominal (scale == 1) units, which
+        # reproduces exactly the decision full-resolution export would make,
+        # then convert the single winning size to this render's actual pixel
+        # size for one final real-scale layout pass. This way only that last,
+        # unavoidable pixel rounding varies with resolution -- not the whole
+        # search trajectory.
+        rescale = scale and scale != 1.0
+        if rescale:
+            search_region = SimpleNamespace(
+                x=region.x / scale, y=region.y / scale,
+                width=region.width / scale, height=region.height / scale,
+            )
+            search_polygon = [(x / scale, y / scale) for x, y in polygon] if polygon else None
+            search_font_size = font_size / scale
+            search_min_size = min_font_size / scale
+            search_scale = 1.0
+        else:
+            search_region, search_polygon = region, polygon
+            search_font_size, search_min_size = font_size, min_font_size
+            search_scale = scale
+
+        current_size = round(search_font_size)
         with perf.span('layout shrink-fit loop (_layout, all size steps)'):
-            while current_size >= min_font_size:
-                force = current_size == min_font_size
+            while True:
+                force = current_size <= search_min_size
                 commands, fits, frac = self._layout(
-                    tokens, region, polygon, current_size,
+                    tokens, search_region, search_polygon, current_size,
                     base_font=font, alignment=alignment,
                     fill=fill, outline=outline, outline_fill=outline_fill,
-                    force=force, scale=scale,
+                    force=force, scale=search_scale, letter_spacing=letter_spacing,
                 )
                 if fits or force:
                     break
@@ -1463,6 +1669,17 @@ class RichTextRenderer:
                     current_size -= 1
                 if 0 < frac < 0.3:
                     current_size -= 1
+
+        if rescale:
+            # The fit was already decided above in nominal space; force=True
+            # so this real-scale pass is accepted regardless of `fits`.
+            current_size = max(min_font_size, round(current_size * scale))
+            commands, fits, frac = self._layout(
+                tokens, region, polygon, current_size,
+                base_font=font, alignment=alignment,
+                fill=fill, outline=outline, outline_fill=outline_fill,
+                force=True, scale=scale, letter_spacing=letter_spacing,
+            )
 
         if valignment == 'center' and commands:
             ys = [cmd['y'] for cmd in commands if 'y' in cmd]

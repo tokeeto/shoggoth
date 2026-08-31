@@ -43,6 +43,11 @@ SECTION_COLORS = {
     'cover': '#8a5a3d',
 }
 
+# Sentinels for insert-toolbar snippets generated dynamically from the
+# section's linked encounter set, rather than static template text.
+_SETUP_SENTINEL = '__setup__'
+_LOCATION_LAYOUT_SENTINEL = '__location_layout__'
+
 
 # ── Markdown syntax highlighter ───────────────────────────────────────────────
 
@@ -778,7 +783,8 @@ class SectionEditorPanel(QWidget):
         self._insert_combo.setFixedHeight(24)
         for label, snippet in [
             (tr("INSERT_SNIPPET_STORY"),      ":::story\n*Flavor text here.*\n:::\n\n"),
-            (tr("INSERT_SNIPPET_SETUP"),      None),  # generated dynamically from linked encounter set
+            (tr("INSERT_SNIPPET_SETUP"),      _SETUP_SENTINEL),  # generated dynamically from linked encounter set
+            (tr("INSERT_SNIPPET_LOCATION_LAYOUT"), _LOCATION_LAYOUT_SENTINEL),  # ditto
             (tr("INSERT_SNIPPET_RESOLUTION"), ":::resolution\n## DO NOT READ<br>until end of scenario\n\n**If no resolution was reached (each investigator resigned or was defeated):** You all died. Tough luck.\n\n- The investigators lost the campaign.\n\n**Resolution 1**: *Huraa!*\n\n- Each investigator earns experience equal to the Victory X value of each card in the victory display.\n- The investigators win the campaign. Proceed to **Interlude 1 - Title Here**.\n:::\n\n"),
             (tr("INSERT_SNIPPET_CODEX"),      ":::codex\n**Rule name:** Rule description.\n:::\n\n"),
             (tr("INSERT_SNIPPET_TOC"),        ":::toc\n:::\n\n"),
@@ -856,10 +862,19 @@ class SectionEditorPanel(QWidget):
 
     def _insert_selected_snippet(self):
         snippet = self._insert_combo.currentData()
-        if snippet is None:
+        if snippet == _SETUP_SENTINEL:
             snippet = self._make_setup_snippet()
+        elif snippet == _LOCATION_LAYOUT_SENTINEL:
+            snippet = self._make_location_layout_snippet()
         if snippet:
             self._insert_snippet(snippet)
+
+    def _make_location_layout_snippet(self) -> str:
+        section = next((s for s in self.guide.sections if s.id == self.section_id), None)
+        es_id = section.encounter_set_id if section else None
+        if not es_id:
+            return "## Location layout\n\n"
+        return f"## Location layout\n[encounter:{es_id}:location_overview:0]\n\n"
 
     def _make_setup_snippet(self) -> str:
         section = next((s for s in self.guide.sections if s.id == self.section_id), None)

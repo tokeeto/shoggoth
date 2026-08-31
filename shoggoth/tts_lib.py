@@ -4,6 +4,7 @@ from shoggoth import files
 from shoggoth.export_helpers import build_gm_notes_string
 from copy import deepcopy
 from pathlib import Path
+import re
 from shoggoth import renderer
 from shoggoth import tts_sync
 
@@ -204,7 +205,12 @@ TYPE_TAG_MAP = {
     'chaos': 'ScenarioReference',
     'player': 'PlayerCard',
     'encounter': 'ScenarioCard',
+    'investigator': 'Investigator',
 }
+
+
+def remove_formatting_tags(text: str) -> str:
+    return re.sub(r"</?[^>]+>", "", text)
 
 
 def card_to_tts(card, id, number, image_folder):
@@ -227,8 +233,18 @@ def card_to_tts(card, id, number, image_folder):
         if tag:
             data['Tags'].append(tag)
 
-    data['Description'] = card.name
-    data['Nickname'] = card.name
+    # handling for horizontal cards (since they get scaled differently by TTS)
+    if card_type in ['Act', 'Agenda', 'Investigator']:
+        data['Transform']['scaleX'] *= 0.8214
+        data['Transform']['scaleZ'] *= 0.8214
+
+    # handling for investigators (since they are larger in TTS for clarity)
+    if card_type == 'Investigator':
+        data['Transform']['scaleX'] *= 1.15
+        data['Transform']['scaleZ'] *= 1.15
+
+    data['Description'] = card.get('subtitle')
+    data['Nickname'] = remove_formatting_tags(card.name)
     data['CardID'] = id * 100
     data['GMNotes'] = build_gm_notes_string(card)
     return data
@@ -240,12 +256,12 @@ def export_all(project, image_folder, sync=True):
     for encounter in project.encounter_sets:
         encounter_wrapper = deepcopy(encounter_template)
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
-        encounter_wrapper["DeckIDs"] = []
+        encounter_wrapper['DeckIDs'] = []
         encounter_wrapper['Nickname'] = encounter.name
         for card in encounter.cards:
-            encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, 0, image_folder))
+            encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
             current_id += 1
-            encounter_wrapper["DeckIDs"].append(current_id)
+            encounter_wrapper['DeckIDs'].append(current_id)
     for card in project.player_cards:
         wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
         current_id += 1
@@ -287,12 +303,12 @@ def export_campaign(project, image_folder, sync=True):
     for encounter in project.encounter_sets:
         encounter_wrapper = deepcopy(encounter_template)
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
-        encounter_wrapper["DeckIDs"] = []
+        encounter_wrapper['DeckIDs'] = []
         encounter_wrapper['Nickname'] = encounter.name
         for card in encounter.cards:
-            encounter_wrapper["ContainedObjects"].append(card_to_tts(card, current_id, 0, image_folder))
+            encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
             current_id += 1
-            encounter_wrapper["DeckIDs"].append(current_id)
+            encounter_wrapper['DeckIDs'].append(current_id)
 
     return_status = 0
     if files.tts_dir:

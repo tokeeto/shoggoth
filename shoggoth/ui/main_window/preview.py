@@ -7,8 +7,7 @@ import threading
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
 from shoggoth.i18n import tr
-
-PREVIEW_SIZE = {'width': 1500, 'height': 2079, 'bleed': 71}
+from shoggoth.settings import EXPORT_SIZES
 
 
 class PreviewController(QObject):
@@ -37,7 +36,10 @@ class PreviewController(QObject):
         self.rerender_now()
 
     def _preview_size(self):
-        return dict(PREVIEW_SIZE, trim=self.trim)
+        idx = self.window.config.getint('Shoggoth', 'preview_resolution', 0)
+        if not (0 <= idx < len(EXPORT_SIZES)):
+            idx = 0
+        return dict(EXPORT_SIZES[idx][1], trim=self.trim)
 
     def schedule_update(self):
         """Schedule a debounced background render of the current card"""

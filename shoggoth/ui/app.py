@@ -72,6 +72,11 @@ def main():
     window._snippet_filter = SnippetSequenceFilter(app)
     app.installEventFilter(window._snippet_filter)
 
+    # Ctrl+L "Insert Link" in any text field (app-wide, same rationale).
+    from shoggoth.ui.insert_link import InsertLinkFilter
+    window._insert_link_filter = InsertLinkFilter(app)
+    app.installEventFilter(window._insert_link_filter)
+
     # Subsequent runs: run incremental asset update silently in the background.
     # The signal is connected before the thread starts to guarantee delivery
     # even if the download completes before the Qt event loop ticks.

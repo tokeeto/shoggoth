@@ -2,9 +2,9 @@
 Editor widgets (comboboxes, slots) for Shoggoth face editors
 """
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QComboBox, QLabel
+    QWidget, QHBoxLayout, QGridLayout, QComboBox, QPushButton
 )
-from PySide6.QtCore import Signal, QSize
+from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QIcon
 
 from shoggoth.files import overlay_dir
@@ -49,101 +49,112 @@ class NoScrollComboBox(QComboBox):
         event.ignore()
 
 
-class SlotComboBox(NoScrollComboBox):
-    """ComboBox that displays available slot types with icons."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self.setIconSize(QSize(24, 24))
-
-        # Add empty option first
-        self.addItem('-', userData=None)
-
-        # Discover slot files dynamically
-        if overlay_dir.exists():
-            slot_files = sorted(overlay_dir.glob('slot_*.png'))
-            for slot_file in slot_files:
-                # Extract name from "slot_<name>.png"
-                name = slot_file.stem[5:]  # Remove "slot_" prefix
-                icon = QIcon(str(slot_file))
-                self.addItem(icon, name, userData=name)
-
-    def setCurrentSlot(self, slot_name):
-        """Set current selection by slot name"""
-        if not slot_name:
-            self.setCurrentIndex(0)
-        else:
-            for i in range(self.count()):
-                if self.itemData(i) == slot_name:
-                    self.setCurrentIndex(i)
-                    return
-            # If not found, default to empty
-            self.setCurrentIndex(0)
-
-    def currentSlot(self):
-        """Get current slot name (or None for empty)"""
-        return self.itemData(self.currentIndex())
+def _discover_slots():
+    """Slot type names, derived from the "slot_<name>.png" overlay assets."""
+    if not overlay_dir.exists():
+        return []
+    return [f.stem[5:] for f in sorted(overlay_dir.glob('slot_*.png'))]
 
 
-class SlotsWidget(QWidget):
-    """Widget with two slot comboboxes for asset cards."""
+def _slot_icon(name):
+    path = overlay_dir / f"slot_{name}.png"
+    return QIcon(str(path)) if path.exists() else QIcon()
+
+
+class _SlotSuggestionPopup(QWidget):
+    """Popup grid of slot-icon suggestions, opened by the "+ slot" ghost chip."""
+
+    def __init__(self, field):
+        super().__init__(field, Qt.Popup)
+        self.field = field
+        layout = QGridLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        for i, name in enumerate(field.slot_names):
+            btn = QPushButton(name.replace('_', ' ').title())
+            btn.setIcon(_slot_icon(name))
+            btn.setIconSize(QSize(20, 20))
+            btn.clicked.connect(lambda _, v=name: self._pick(v))
+            layout.addWidget(btn, i // 3, i % 3)
+
+    def _pick(self, value):
+        self.field._add(value)
+        self.close()
+
+
+class SlotChipsField(QWidget):
+    """Chip editor for an asset's slot(s): most cards use 0 or 1 slot and only rarely 2
+    (the game's actual max), so this starts as a single "+ slot" ghost chip and only
+    grows to a second chip when a second slot is actually added — instead of always
+    reserving width for two side-by-side comboboxes regardless of how many are used.
+
+    Stores/returns the raw ordered slot-name list the renderer expects directly (index 0
+    -> slot_1_region, index 1 -> slot_2_region — see renderer.py:render_slots); chip order
+    is simply pick order, no positional relabeling.
+    """
 
     slotsChanged = Signal(object)  # Emits list or None
 
+    SLOT_MAX = 2
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+        self._values = []
+        self.slot_names = _discover_slots()
 
-        self.slot1_combo = SlotComboBox()
-        self.slot2_combo = SlotComboBox()
+        self.flow = QHBoxLayout(self)
+        self.flow.setContentsMargins(6, 4, 6, 4)
+        self.flow.setSpacing(5)
+        self.flow.addStretch(1)
 
-        self.slot1_combo.currentIndexChanged.connect(self._on_changed)
-        self.slot2_combo.currentIndexChanged.connect(self._on_changed)
+        self.add_btn = QPushButton(f"+ {tr('FIELD_SLOT').lower()}")
+        self.add_btn.setProperty("chip", "tag-add")
+        self.add_btn.clicked.connect(self._show_suggestions)
+        self.flow.insertWidget(0, self.add_btn)
 
-        layout.addWidget(QLabel(tr("FIELD_SLOT") + " 1:"))
-        layout.addWidget(self.slot1_combo)
-        layout.addWidget(QLabel(tr("FIELD_SLOT") + " 2:"))
-        layout.addWidget(self.slot2_combo)
-        layout.addStretch()
+    def _show_suggestions(self):
+        popup = _SlotSuggestionPopup(self)
+        pos = self.add_btn.mapToGlobal(self.add_btn.rect().bottomLeft())
+        popup.move(pos)
+        popup.show()
 
-        self.setLayout(layout)
+    def _add(self, value):
+        if value not in self._values and len(self._values) < self.SLOT_MAX:
+            self._values.append(value)
+            self._rebuild()
+            self.slotsChanged.emit(self.get_slots())
 
-    def _on_changed(self):
-        """Emit the current slots value"""
-        self.slotsChanged.emit(self.get_slots())
+    def _remove(self, value):
+        if value in self._values:
+            self._values.remove(value)
+            self._rebuild()
+            self.slotsChanged.emit(self.get_slots())
+
+    def _rebuild(self):
+        for i in reversed(range(self.flow.count())):
+            widget = self.flow.itemAt(i).widget()
+            if widget is not None and widget is not self.add_btn:
+                widget.setParent(None)
+        insert_at = self.flow.indexOf(self.add_btn)
+        for value in self._values:
+            chip = QPushButton(f"{value.replace('_', ' ').title()} ×")
+            chip.setIcon(_slot_icon(value))
+            chip.setIconSize(QSize(16, 16))
+            chip.setProperty("chip", "tag")
+            chip.clicked.connect(lambda _, v=value: self._remove(v))
+            self.flow.insertWidget(insert_at, chip)
+            insert_at += 1
+        self.add_btn.setVisible(len(self._values) < self.SLOT_MAX)
 
     def get_slots(self):
-        """Get slots as list (reversed order for rendering) or None if both empty"""
-        slot1 = self.slot1_combo.currentSlot()
-        slot2 = self.slot2_combo.currentSlot()
-
-        if not slot1 and not slot2:
-            return None
-        # Return as [right, left] due to rendering order, filtering out None
-        result = [s for s in [slot2, slot1] if s]
-        return result if result else None
+        """Get slots as an ordered list, or None if empty."""
+        return list(self._values) if self._values else None
 
     def set_slots(self, slots):
-        """Set slots from list (reversed order) or None"""
-        # Block signals to prevent triggering changes during load
-        self.slot1_combo.blockSignals(True)
-        self.slot2_combo.blockSignals(True)
-        try:
-            if not slots:
-                self.slot1_combo.setCurrentSlot(None)
-                self.slot2_combo.setCurrentSlot(None)
-            elif len(slots) == 1:
-                self.slot1_combo.setCurrentSlot(slots[0])
-                self.slot2_combo.setCurrentSlot(None)
-            else:
-                # slots is [right, left], so reverse when setting
-                self.slot1_combo.setCurrentSlot(slots[1] if len(slots) > 1 else None)
-                self.slot2_combo.setCurrentSlot(slots[0])
-        finally:
-            self.slot1_combo.blockSignals(False)
-            self.slot2_combo.blockSignals(False)
+        """Set slots from an ordered list (or None)."""
+        self._values = [str(s) for s in slots][:self.SLOT_MAX] if slots else []
+        self._rebuild()
 
 
 class IconComboBox(NoScrollComboBox):
@@ -173,6 +184,10 @@ class IconComboBox(NoScrollComboBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        # Flat, borderless chrome — same "role" as the other icon dropdowns
+        # (compact_theme.EDITOR_QSS), so all of these read as one family of controls.
+        self.setProperty("role", "flat-combo")
 
         # Set fixed narrow width
         self.setFixedWidth(55)
@@ -207,3 +222,19 @@ class IconComboBox(NoScrollComboBox):
     def currentSymbol(self):
         """Get current symbol name"""
         return self.itemData(self.currentIndex())
+
+
+# The 32 real connection symbols split cleanly by naming convention into the
+# original glyphs and their `_alt` variants (not every original has an alt) —
+# used by ConnectionSymbolField (compact_widgets.py) as its two popover pages.
+CONNECTION_ORIGINALS = [
+    s for s in IconComboBox.CONNECTION_SYMBOLS if s != 'None' and not s.endswith('_alt')
+]
+CONNECTION_ALTS = [s for s in IconComboBox.CONNECTION_SYMBOLS if s.endswith('_alt')]
+
+
+def connection_symbol_label(symbol):
+    """Human-readable label for a connection symbol slug, e.g. 'double_slash_alt' -> 'Double Slash (Alt)'."""
+    base = symbol[:-4] if symbol.endswith('_alt') else symbol
+    label = base.replace('_', ' ').title()
+    return f"{label} (Alt)" if symbol.endswith('_alt') else label

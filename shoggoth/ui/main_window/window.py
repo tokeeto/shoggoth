@@ -30,7 +30,9 @@ from shoggoth.files import asset_dir
 from shoggoth.i18n import load_language, tr
 from shoggoth.ui.browser import FileBrowser
 from shoggoth.ui.preview_widget import ImprovedCardPreview
-from shoggoth.ui.goto_dialog import GotoCardDialog
+from shoggoth.ui.element_selector import (
+    ElementSelectorDialog, KIND_ENCOUNTER, KIND_GUIDE, KIND_PROJECT,
+)
 from shoggoth.ui.command_palette import CommandPaletteDialog
 from shoggoth.ui.main_window import commands, exports, menus, projects, views
 from shoggoth.ui.main_window.navigation import NavigationHistory
@@ -69,8 +71,7 @@ class ShoggothMainWindow(QMainWindow):
         self.current_guide = None
         self.current_guide_editor = None
         card_lang = self.config.get('Shoggoth', 'card_language', 'en')
-        hyphenation_enabled = self.config.getboolean('Shoggoth', 'hyphenation_enabled', True)
-        self.card_renderer = CardRenderer(locale=card_lang, hyphenation_enabled=hyphenation_enabled)
+        self.card_renderer = CardRenderer(locale=card_lang, hyphenation_enabled=True)
         self.card_file_monitor = None
 
         # Subsystems
@@ -297,17 +298,24 @@ class ShoggothMainWindow(QMainWindow):
             QMessageBox.information(self, tr("DLG_NO_PROJECT"), tr("MSG_OPEN_PROJECT_FIRST"))
             return
 
-        dialog = GotoCardDialog(self.active_project, self)
-        dialog.card_selected.connect(self.on_goto_card_selected)
+        dialog = ElementSelectorDialog(
+            self.active_project, title=tr("DLG_GOTO_CARD"),
+            instructions=tr("HELP_NAVIGATION"), parent=self,
+        )
+        dialog.element_chosen.connect(self.on_goto_element_selected)
         dialog.exec()
 
-    def on_goto_card_selected(self, card):
-        """Handle card selection from goto dialog"""
-        if hasattr(card, 'is_guide') and card.is_guide:
-            self.show_guide(card.guide)
+    def on_goto_element_selected(self, entry):
+        """Navigate to the element picked in the Go-to dialog."""
+        if entry.kind == KIND_GUIDE:
+            self.show_guide(entry.obj)
+        elif entry.kind == KIND_ENCOUNTER:
+            self.show_encounter(entry.obj)
+        elif entry.kind == KIND_PROJECT:
+            self.show_project(entry.obj)
         else:
-            self.show_card(card)
-        self.select_item_in_tree(card.id)
+            self.show_card(entry.obj)
+        self.select_item_in_tree(entry.id)
 
     def show_command_palette(self):
         """Show the command palette."""
@@ -384,16 +392,25 @@ class ShoggothMainWindow(QMainWindow):
         )
 
     def change_card_language(self, lang_code: str):
-        """Change the card rendering language"""
-        for action in self.card_language_actions:
-            action.setChecked(action.data() == lang_code)
+        """Change the card rendering language.
+
+        No-ops while the active project has its own language override (the
+        menu is grayed out in that case, but guard here too in case this is
+        reached some other way) — the project setting takes precedence.
+        """
+        if self.active_project and self.active_project.language:
+            menus.update_card_language_menu_state(self)
+            return
 
         self.config.set('Shoggoth', 'card_language', lang_code)
         self.config.save()
 
-        hyphenation_enabled = self.config.getboolean('Shoggoth', 'hyphenation_enabled', True)
-        self.card_renderer = CardRenderer(locale=lang_code, hyphenation_enabled=hyphenation_enabled)
+        hyphenation_enabled = self.active_project.auto_hyphenate if self.active_project else True
+        french_punctuation = self.active_project.french_punctuation if self.active_project else False
+        self.card_renderer = CardRenderer(locale=lang_code, hyphenation_enabled=hyphenation_enabled,
+                                           french_punctuation=french_punctuation)
         self.preview.rerender_now()
+        menus.update_card_language_menu_state(self)
 
     # ── File monitoring ───────────────────────────────────────────────────
 
@@ -430,6 +447,7 @@ class ShoggothMainWindow(QMainWindow):
         self.active_project = project
         if project:
             self.status_bar.showMessage(tr("STATUS_ACTIVE").format(name=project['name']))
+        menus.update_card_language_menu_state(self)
 
     def _on_layout_changed(self, *args):
         self.session.schedule_layout_save()

@@ -89,17 +89,6 @@ def _build_settings_commands(window) -> list[Command]:
         action=toggle('show_regions', window.schedule_preview_update),
     ))
 
-    def sync_hyphenation():
-        window.card_renderer.set_hyphenation_enabled(
-            window.config.getboolean('Shoggoth', 'hyphenation_enabled', True)
-        )
-        window.schedule_preview_update()
-
-    commands.append(Command(
-        name=tr("CMD_TOGGLE_HYPHENATION"),
-        category=cat,
-        action=toggle('hyphenation_enabled', sync_hyphenation),
-    ))
     commands.append(Command(
         name=tr("CMD_TOGGLE_EXPORT_BLEED"),
         category=cat,

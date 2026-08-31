@@ -89,6 +89,22 @@ class Face:
             self._fallback = self.__build_fallback(self.data['type'])
         return self._fallback
 
+    def _resolved_classes(self):
+        """ This face's class list, resolving a 'classes': '<copy>' fallback
+            (e.g. investigator_back mirroring the front's class) by reading
+            the other side's raw class data directly.
+
+            Can't just call self.get('classes')/other_side.get('classes')
+            here: get() resolves through __getitem__, which for a face with
+            variant blocks calls tags() to evaluate them - and tags() is what
+            calls this, so that route recurses. Reading .data directly breaks
+            the cycle.
+        """
+        classes = self.data.get('classes')
+        if classes is None and self.fallback.get('classes') == '<copy>':
+            classes = self.other_side.data.get('classes')
+        return classes or []
+
     def tags(self):
         """ The set of tags variant blocks can match against:
             the card's class (or multi patterns when it has several classes),
@@ -96,7 +112,7 @@ class Face:
             card belongs to an encounter set).
         """
         tags = set()
-        classes = self.data.get('classes') or []
+        classes = self._resolved_classes()
         if len(classes) == 1:
             tags.add(classes[0])
         elif len(classes) > 1:
@@ -177,7 +193,7 @@ class Face:
             shoggoth.app.update_card_in_tree(self.card.id)
 
     def get_class(self):
-        cls = self.data.get('classes')
+        cls = self._resolved_classes()
         if not cls:
             return None
         if len(cls) == 1:
@@ -186,7 +202,7 @@ class Face:
 
     def get_multi_patterns(self):
         """ Returns a number of patterns to match for multi class cards """
-        cls_count = len(self.data.get('classes'))
+        cls_count = len(self._resolved_classes())
         # 1st - straight count: multi3
         yield f'multi{cls_count}'
         # 2nd - plus, ranging from highest to lowest: multi4+
@@ -222,6 +238,10 @@ class Card:
         self.project = project
         if 'id' not in data:
             data['id'] = str(uuid4())
+            # See EncounterSet.__init__: a freshly-generated id only exists in
+            # memory until the project is saved - mark it dirty so it's not
+            # silently regenerated (mismatching a saved session selection) next load.
+            self.dirty = True
 
         self.front = Face(self.data['front'], card=self)
         self.back = Face(self.data['back'], card=self)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
-    QSizePolicy, QToolButton
+    QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QPointF, QRectF, QSize
 from PySide6.QtGui import (
@@ -15,6 +15,7 @@ from PySide6.QtGui import (
 
 from shoggoth.renderer import _pdf_page_dims, _render_pdf_page
 from shoggoth.ui.field_widgets import LabeledLineEdit
+from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
 
@@ -22,11 +23,14 @@ logger = logging.getLogger('shoggoth')
 
 
 class IconsWidget(QWidget):
-    """Widget for skill icons with +/- buttons for each icon type.
+    """Widget for skill icons: an icon + a 0-6 count dropdown per icon type.
 
-    Each icon has a single signed count. Positive counts map to the positive
-    letter (W, I, C, A, Q); negative counts map to the negative letter
-    (V, H, B, Z, P). The user just sees a number going from negative to positive.
+    Each icon has a single signed count internally. Positive counts map to the
+    positive letter (W, I, C, A, Q); negative counts map to the negative letter
+    (V, H, B, Z, P). The dropdown only offers 0-6 (no negative selection yet —
+    a possible future addition); a count loaded from existing negative data is
+    displayed as 0 until the user actively changes that dropdown, so it isn't
+    silently discarded just by opening the card.
 
     If a card's icons string contains both the positive AND negative letter for
     the same icon type (e.g. "WWVV"), that is an unsupported GUI state and the
@@ -43,7 +47,8 @@ class IconsWidget(QWidget):
     ]
     # Map negative letters back to their canonical (positive) key
     NEG_TO_POS = {'V': 'W', 'H': 'I', 'B': 'C', 'Z': 'A', 'P': 'Q'}
-    MAX_COUNT = 8
+    MAX_COUNT = 8  # safety clamp while parsing a raw icons string
+    UI_MAX = 6  # dropdown range: 0-6
 
     iconsChanged = Signal(str)
 
@@ -51,89 +56,73 @@ class IconsWidget(QWidget):
         super().__init__()
         # Signed counts keyed by the positive letter (W, I, C, A, Q)
         self.counts = {pos: 0 for pos, neg, _ in self.ICONS}
-        self.labels = {}
+        self.combos = {}
         self._updating = False
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
-
-        icons_label = QLabel(tr("LABEL_ICONS"))
-        layout.addWidget(icons_label)
+        layout.setSpacing(4)
 
         self._conflict_label = QLabel(tr("ICONS_CONFLICT_WARNING"))
         self._conflict_label.setStyleSheet("color: orange;")
+        self._conflict_label.setWordWrap(True)
         self._conflict_label.setVisible(False)
         layout.addWidget(self._conflict_label)
 
-        # Container for interactive rows (disabled as a unit when conflict)
+        # Container for interactive clusters (disabled as a unit when conflict)
         self._rows_widget = QWidget()
-        rows_layout = QVBoxLayout()
+        rows_layout = QHBoxLayout()
         rows_layout.setContentsMargins(0, 0, 0, 0)
-        rows_layout.setSpacing(2)
+        rows_layout.setSpacing(6)
 
         for pos, neg, name in self.ICONS:
-            row = QHBoxLayout()
-            row.setSpacing(4)
+            cluster = QHBoxLayout()
+            cluster.setContentsMargins(0, 0, 0, 0)
+            cluster.setSpacing(3)
 
-            # Icon image
             icon_label = QLabel()
             icon_label.setToolTip(name)
             icon_path = overlay_dir / 'svg' / f"skill_icon_{pos}.svg"
             if icon_path.exists():
                 pixmap = QPixmap(str(icon_path)).scaled(
-                    20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                    16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation
                 )
                 icon_label.setPixmap(pixmap)
             else:
                 icon_label.setText(pos)
-            icon_label.setFixedSize(20, 20)
-            row.addWidget(icon_label)
+            icon_label.setFixedSize(16, 16)
+            cluster.addWidget(icon_label)
 
-            minus_btn = QPushButton("-")
-            minus_btn.setFixedSize(24, 24)
-            minus_btn.clicked.connect(lambda checked, k=pos: self._decrement(k))
-            row.addWidget(minus_btn)
+            combo = NoScrollComboBox()
+            combo.addItems([str(n) for n in range(self.UI_MAX + 1)])
+            combo.setToolTip(name)
+            combo.setProperty("role", "flat-combo")
+            combo.setFixedWidth(30)
+            combo.currentIndexChanged.connect(lambda index, k=pos: self._on_combo_changed(k, index))
+            self.combos[pos] = combo
+            cluster.addWidget(combo)
 
-            count_label = QLabel("0")
-            count_label.setAlignment(Qt.AlignCenter)
-            count_label.setFixedWidth(24)
-            self.labels[pos] = count_label
-            row.addWidget(count_label)
+            cluster_widget = QWidget()
+            cluster_widget.setLayout(cluster)
+            rows_layout.addWidget(cluster_widget)
 
-            plus_btn = QPushButton("+")
-            plus_btn.setFixedSize(24, 24)
-            plus_btn.clicked.connect(lambda checked, k=pos: self._increment(k))
-            row.addWidget(plus_btn)
-
-            name_label = QLabel(name)
-            row.addWidget(name_label)
-
-            row.addStretch()
-            rows_layout.addLayout(row)
-
+        rows_layout.addStretch()
         self._rows_widget.setLayout(rows_layout)
         layout.addWidget(self._rows_widget)
         self.setLayout(layout)
 
-    def _update_label(self, key):
+    def _sync_combo(self, key):
         v = self.counts[key]
-        self.labels[key].setText(str(v))
-        self.labels[key].setStyleSheet("color: #cc4444;" if v < 0 else "")
+        combo = self.combos[key]
+        combo.blockSignals(True)
+        combo.setCurrentIndex(v if 0 <= v <= self.UI_MAX else 0)
+        combo.blockSignals(False)
 
-    def _increment(self, key):
-        if self.counts[key] < self.MAX_COUNT:
-            self.counts[key] += 1
-            self._update_label(key)
-            if not self._updating:
-                self.iconsChanged.emit(self.get_icons_string())
-
-    def _decrement(self, key):
-        if self.counts[key] > -self.MAX_COUNT:
-            self.counts[key] -= 1
-            self._update_label(key)
-            if not self._updating:
-                self.iconsChanged.emit(self.get_icons_string())
+    def _on_combo_changed(self, key, index):
+        if self._updating:
+            return
+        self.counts[key] = index
+        self.iconsChanged.emit(self.get_icons_string())
 
     def get_icons_string(self):
         """Return icons as an ordered string.
@@ -175,7 +164,7 @@ class IconsWidget(QWidget):
 
         for pos, neg, _ in self.ICONS:
             self.counts[pos] = raw_pos[pos] - raw_neg[pos]
-            self._update_label(pos)
+            self._sync_combo(pos)
 
         self._conflict_label.setVisible(conflict)
         self._rows_widget.setEnabled(not conflict)
@@ -523,7 +512,10 @@ class IllustrationPositionView(QWidget):
 
 
 class IllustrationWidget(QWidget):
-    """Widget for illustration settings"""
+    """Widget for illustration settings: the pan/zoom placement viewport to the left,
+    path/artist/pan/scale/mirror fields to the right — always both visible (no fold),
+    since positioning the art is a core part of building a card, not an occasional extra.
+    """
 
     def __init__(self, project=None, face=None):
         super().__init__()
@@ -531,11 +523,23 @@ class IllustrationWidget(QWidget):
         self.face = face
         self.scale_resolver = None
         self._committing = False
-        layout = QVBoxLayout()
 
-        # Image path (always visible; the fold toggle keeps the pan/zoom
-        # viewport - whose scroll-to-zoom fights page scrolling - out of the
-        # way until the user actually wants it)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(14)
+
+        # Left: image placement viewport (~30%)
+        self.position_view = IllustrationPositionView()
+        self.position_view.pan_committed.connect(self._on_view_pan)
+        self.position_view.scale_committed.connect(self._on_view_scale)
+        self.position_view.reset_requested.connect(self._on_view_reset)
+        root.addWidget(self.position_view, 3)
+
+        # Right: path+browse / artist / pan x+pan y+scale+mirror, one per line (~70%)
+        right_layout = QVBoxLayout()
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(8)
+
         path_layout = QHBoxLayout()
         self.path_input = LabeledLineEdit(tr("FIELD_IMAGE_PATH"))
         path_layout.addWidget(self.path_input)
@@ -566,31 +570,33 @@ class IllustrationWidget(QWidget):
         mirror_row.addStretch()
         fold_layout.addLayout(mirror_row)
 
-        self.position_view = IllustrationPositionView()
-        self.position_view.pan_committed.connect(self._on_view_pan)
-        self.position_view.scale_committed.connect(self._on_view_scale)
-        self.position_view.reset_requested.connect(self._on_view_reset)
-        fold_layout.addWidget(self.position_view)
+        self.artist_input = LabeledLineEdit(tr("FIELD_ARTIST"))
+        right_layout.addWidget(self.artist_input)
 
-        pan_scale_layout = QHBoxLayout()
+        placement_layout = QHBoxLayout()
         self.pan_y_input = LabeledLineEdit(tr("FIELD_PAN_Y"))
         self.pan_x_input = LabeledLineEdit(tr("FIELD_PAN_X"))
         self.scale_input = LabeledLineEdit(tr("FIELD_SCALE"))
-        pan_scale_layout.addWidget(self.pan_y_input)
-        pan_scale_layout.addWidget(self.pan_x_input)
-        pan_scale_layout.addWidget(self.scale_input)
+        placement_layout.addWidget(self.pan_y_input)
+        placement_layout.addWidget(self.pan_x_input)
+        placement_layout.addWidget(self.scale_input)
+        self.mirror_checkbox = QCheckBox(tr("FIELD_MIRROR"))
+        placement_layout.addWidget(self.mirror_checkbox)
 
         # Scale quality warning indicator
         self.scale_warning = QLabel("?")
         self.scale_warning.setFixedSize(18, 18)
         self.scale_warning.setAlignment(Qt.AlignCenter)
         self.scale_warning.hide()
-        pan_scale_layout.addWidget(self.scale_warning)
+        placement_layout.addWidget(self.scale_warning)
+        placement_layout.addStretch(1)
 
-        fold_layout.addLayout(pan_scale_layout)
+        right_layout.addLayout(placement_layout)
+        right_layout.addStretch(1)
 
-        layout.addWidget(self.fold_widget)
-        self.fold_widget.setVisible(False)
+        right_widget = QWidget()
+        right_widget.setLayout(right_layout)
+        root.addWidget(right_widget, 7)
 
         self.scale_input.input.textChanged.connect(self.update_scale_warning)
         self.path_input.input.textChanged.connect(self.update_scale_warning)
@@ -603,12 +609,6 @@ class IllustrationWidget(QWidget):
         self.pan_y_input.input.textChanged.connect(self.sync_viewport)
         self.scale_input.input.textChanged.connect(self.sync_viewport)
         self.mirror_checkbox.toggled.connect(self.sync_viewport)
-
-        # Artist
-        self.artist_input = LabeledLineEdit(tr("FIELD_ARTIST"))
-        layout.addWidget(self.artist_input)
-
-        self.setLayout(layout)
 
         self.sync_viewport()
 
@@ -681,11 +681,6 @@ class IllustrationWidget(QWidget):
             orientation=self.face.get('orientation', 'vertical'),
         )
         self.position_view.setVisible(self.position_view.has_image())
-
-    def _on_fold_toggled(self, checked):
-        """Expand/collapse the mirror/viewport/pan/scale section."""
-        self.fold_widget.setVisible(checked)
-        self.fold_button.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
 
     def _on_view_pan(self, pan_x, pan_y):
         """Write an absolute pan from the viewport into the fields."""

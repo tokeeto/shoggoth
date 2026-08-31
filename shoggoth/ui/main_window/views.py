@@ -48,10 +48,15 @@ def _cleanup_widget(widget):
 def _begin_view(window, project, nav_type, nav_id, remember=True):
     """Common preamble for every view switch"""
     window.file_browser.set_active_project(project)
+    window.card_renderer.set_hyphenation_enabled(project.auto_hyphenate)
+    window.card_renderer.set_french_punctuation(project.french_punctuation)
+    effective_language = project.language or window.config.get('Shoggoth', 'card_language', 'en')
+    if window.card_renderer.locale != effective_language:
+        window.card_renderer.set_locale(effective_language)
     window.nav.push(nav_type, nav_id)
     clear_editor(window)
     if remember:
-        window.session.set_last_selected(nav_id, nav_type)
+        window.session.set_last_selected(nav_id, nav_type, project)
 
 
 def _mount(window, widget, scroll=True):
@@ -85,12 +90,13 @@ def show_card(window, card):
     # Wire renderer helpers into the illustration widgets
     window.preview.connect_illustration_widgets(editor)
 
-    # Show preview dock
+    # Switch docks: hide guide preview (if left over from the guide editor), show card preview
+    window.guide_preview_dock.hide()
     window.preview_dock.show()
     window.toggle_preview_action.setChecked(True)
 
     # Enter translation mode if this card belongs to a translation project
-    if card.project.data.get('project'):
+    if card.project.is_translation:
         editor.enter_translation_mode()
 
     _mount(window, editor)

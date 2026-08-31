@@ -52,7 +52,7 @@ def _scenario_markdown(es_id: str | None = None) -> str:
             f"[encounter:{es_id}:icon]\n"
             ":::\n\n"
             "## Location layout\n"
-            f"[encounter:{es_id}:location_overview]\n\n"
+            f"[encounter:{es_id}:location_overview:0]\n\n"
             "## Resolution\n\n"
             + _RESOLUTION_TEMPLATE
         )
@@ -62,7 +62,7 @@ def _scenario_markdown(es_id: str | None = None) -> str:
         "## Setup\n\n"
         "- \n\n"
         "## Location layout\n"
-        "[encounter:SET_ID:location_overview]\n\n"
+        "[encounter:SET_ID:location_overview:0]\n\n"
         "## Resolution\n\n"
         + _RESOLUTION_TEMPLATE
     )
@@ -300,7 +300,9 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
                         return f'<img src="{icon_uri}" class="encounter-icon" title="{html_module.escape(name)}">'
                 return m.group(0)
 
-            es_id, prop = parts[0].strip(), parts[1].strip()
+            es_id, rest = parts[0].strip(), parts[1].strip()
+            rest_parts = rest.split(':')
+            prop = rest_parts[0].strip()
             es = guide.project.get_encounter_set(es_id)
             if es is None:
                 return m.group(0)
@@ -309,8 +311,14 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
                 return f'<img src="{icon_uri}" class="encounter-icon" title="{html_module.escape(es.name)}">'
 
             if prop == 'location_overview':
+                index = 0
+                if len(rest_parts) > 1 and rest_parts[1].strip():
+                    try:
+                        index = int(rest_parts[1].strip())
+                    except ValueError:
+                        index = 0
                 export_folder = files.default_export_folder(guide.project)
-                img_path = (export_folder / f'{es_id}_location_overview.png').resolve()
+                img_path = (export_folder / f'{es_id}_location_overview_{index}.png').resolve()
                 return f'<img src="{img_path.as_uri()}" class="location-overview">'
 
             try:
@@ -375,7 +383,7 @@ def _render_block(block_type: str, inner_html: str) -> str:
             '</div>'
         )
     if block_type == 'indent':
-        return f'<div style="margin-left: 2em;">\n{inner_html}\n</div>'
+        return f'<div style="margin-left: 1.4em;">\n{inner_html}\n</div>'
     return f'<div class="{block_type}">\n{inner_html}\n</div>'
 
 
@@ -466,7 +474,7 @@ def _process_lines(lines: list, guide) -> str:
 
 def _apply_traits(text: str) -> str:
     """Replace [[trait]] with <t>trait</t> before markdown processing."""
-    return re.sub(r'\[\[([^\]\n]+)\]\]', r'<t>\1</t>', text)
+    return re.sub(r'\[\[([^\]\n]+)\]\]', r'<span class="trait">\1</span>', text)
 
 
 def _apply_project_refs(text: str, guide=None) -> str:
@@ -647,6 +655,7 @@ class Guide:
         html = html.replace("file://{{arno_pro_bold}}", (files.font_dir / 'Arno Pro/arnopro_bold.otf').as_uri())
         html = html.replace("file://{{arno_pro_bolditalic}}", (files.font_dir / 'Arno Pro/arnopro_bolditalic.otf').as_uri())
         html = html.replace("file://{{arno_pro_italic}}", (files.font_dir / 'Arno Pro/arnopro_italic.otf').as_uri())
+        html = html.replace("file://{{bolton}}", (files.font_dir / 'Bolton.ttf').as_uri())
         html = html.replace("file://{{teutonic}}", (files.font_dir / 'Arkhamic.ttf').as_uri())
         html = html.replace("file://{{ahlcgsymbol}}", (files.font_dir / 'AHLCGSymbol.otf').as_uri())
         html = html.replace("file://{{resolution_glyph_top}}", (files.guide_dir / 'resolution_glyph_top.png').as_uri())

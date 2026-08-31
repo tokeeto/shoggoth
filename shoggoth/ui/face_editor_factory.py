@@ -4,7 +4,7 @@ Face editor factory and base/json editors for Shoggoth
 import json
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+    QWidget, QHBoxLayout, QPushButton, QLabel
 )
 
 from shoggoth.ui.face_editor import FaceEditor
@@ -37,11 +37,11 @@ class JsonEditor(FaceEditor):
 
         info = QLabel(tr("JSON_EDITOR_INFO"))
         info.setWordWrap(True)
-        info.setStyleSheet("color: #666; padding: 5px;")
+        info.setStyleSheet("padding: 5px;")
         self.main_layout.addWidget(info)
 
         # Create the JSON editor
-        self.json_editor = ArkhamTextEdit()
+        self.json_editor = ArkhamTextEdit(monospace=True)
         self.json_editor.setPlaceholderText("{\n  \"type\": \"asset\",\n  \"name\": \"Card Name\"\n}")
         self.json_editor.textChanged.connect(self.on_json_changed)
         self.main_layout.addWidget(self.json_editor)

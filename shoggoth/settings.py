@@ -99,17 +99,14 @@ class SettingsManager:
     
     def _set_defaults(self):
         """Set default values for settings"""
-        # No keys at all means this is a fresh install: new features default to
-        # enabled. If settings already exist, a newly-introduced key defaults to
-        # disabled so upgrading users aren't surprised by a behavior change.
-        is_fresh_install = len(self.settings.allKeys()) == 0
         defaults = {
             'prince_cmd': 'prince',
             'prince_dir': '',
             'cmyk_profile': '',
             'show_bleed': True,
             'show_regions': False,
-            'hyphenation_enabled': is_fresh_install,
+            'preview_resolution': 0,
+            'enable_ligatures': True,
             # Appearance
             'color_scheme': 'system',
             'ui_style': 'Fusion',
@@ -309,6 +306,12 @@ class SettingsDialog(QDialog):
         preview_group = QGroupBox(tr("GROUP_PREVIEW_SETTINGS"))
         preview_layout = QFormLayout()
 
+        # Preview resolution dropdown
+        self.preview_resolution_combo = QComboBox()
+        self.preview_resolution_combo.addItems([label for label, _ in EXPORT_SIZES])
+        self.preview_resolution_combo.setToolTip(tr("HELP_PREVIEW_RESOLUTION"))
+        preview_layout.addRow(tr("LABEL_PREVIEW_RESOLUTION"), self.preview_resolution_combo)
+
         # Show bleed checkbox
         self.show_bleed_checkbox = QCheckBox(tr("OPT_SHOW_BLEED"))
         self.show_bleed_checkbox.setToolTip(
@@ -324,16 +327,16 @@ class SettingsDialog(QDialog):
         preview_group.setLayout(preview_layout)
         layout.addWidget(preview_group)
 
-        # Text rendering group
-        text_group = QGroupBox(tr("GROUP_TEXT_SETTINGS"))
-        text_layout = QFormLayout()
+        # Text editor group
+        editor_group = QGroupBox(tr("GROUP_TEXT_EDITOR"))
+        editor_layout = QFormLayout()
 
-        self.hyphenation_checkbox = QCheckBox(tr("OPT_ENABLE_HYPHENATION"))
-        self.hyphenation_checkbox.setToolTip(tr("HELP_HYPHENATION"))
-        text_layout.addRow(tr("LABEL_HYPHENATION"), self.hyphenation_checkbox)
+        self.enable_ligatures_checkbox = QCheckBox(tr("OPT_ENABLE_LIGATURES"))
+        self.enable_ligatures_checkbox.setToolTip(tr("HELP_ENABLE_LIGATURES"))
+        editor_layout.addRow(tr("LABEL_ENABLE_LIGATURES"), self.enable_ligatures_checkbox)
 
-        text_group.setLayout(text_layout)
-        layout.addWidget(text_group)
+        editor_group.setLayout(editor_layout)
+        layout.addWidget(editor_group)
 
         layout.addStretch()
         widget.setLayout(layout)
@@ -492,14 +495,17 @@ class SettingsDialog(QDialog):
         self.cmyk_profile_input.setText(
             self.settings.get('Shoggoth', 'cmyk_profile', '')
         )
+        self.preview_resolution_combo.setCurrentIndex(
+            self.settings.getint('Shoggoth', 'preview_resolution', 0)
+        )
         self.show_bleed_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_bleed', True)
         )
         self.show_regions_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_regions', False)
         )
-        self.hyphenation_checkbox.setChecked(
-            self.settings.getboolean('Shoggoth', 'hyphenation_enabled', True)
+        self.enable_ligatures_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'enable_ligatures', True)
         )
 
         # Appearance settings
@@ -545,18 +551,13 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
         self.settings.set('Shoggoth', 'prince_dir', self.prince_dir_input.text())
         self.settings.set('Shoggoth', 'cmyk_profile', self.cmyk_profile_input.text())
+        self.settings.set('Shoggoth', 'preview_resolution', self.preview_resolution_combo.currentIndex())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
         self.settings.set('Shoggoth', 'show_regions', self.show_regions_checkbox.isChecked())
+        self.settings.set('Shoggoth', 'enable_ligatures', self.enable_ligatures_checkbox.isChecked())
 
-        hyphenation_enabled = self.hyphenation_checkbox.isChecked()
-        self.settings.set('Shoggoth', 'hyphenation_enabled', hyphenation_enabled)
-
-        # Push the new value to the live renderer - it doesn't read settings itself.
-        main_window = self.parent()
-        if main_window and hasattr(main_window, 'card_renderer'):
-            main_window.card_renderer.set_hyphenation_enabled(hyphenation_enabled)
-        if main_window and hasattr(main_window, 'schedule_preview_update'):
-            main_window.schedule_preview_update()
+        from shoggoth.ui.text_editor import refresh_ligature_setting
+        refresh_ligature_setting()
 
         # Appearance
         ui_style = self.style_combo.currentData()
@@ -569,6 +570,10 @@ class SettingsDialog(QDialog):
         main_window = self.parent()
         if main_window and hasattr(main_window, 'refresh_tree'):
             main_window.refresh_tree()
+
+        # Re-render the preview at the (possibly new) preview resolution
+        if main_window and hasattr(main_window, 'preview'):
+            main_window.preview.rerender_now()
 
         # Export settings
         self.settings.set('Shoggoth', 'export_size', self.export_size_combo.currentIndex())

@@ -3,17 +3,20 @@ Card editor widget for Shoggoth using PySide6
 """
 import json
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLineEdit, QTextEdit, QPushButton, QLabel, QComboBox,
-    QScrollArea, QGroupBox, QSpinBox, QMessageBox
+    QWidget, QVBoxLayout, QHBoxLayout,
+    QLineEdit, QPushButton, QLabel,
+    QScrollArea, QStackedWidget, QMessageBox, QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import Signal
 
 from shoggoth.ui.field_widgets import LabeledLineEdit, FieldWidget
 from shoggoth.ui.editor_widgets import NoScrollComboBox
+from shoggoth.ui.compact_widgets import Band, SegmentedToggle
+from shoggoth.ui import compact_theme
 from shoggoth.ui.text_editor import ArkhamTextEdit
 from shoggoth.ui.face_editor_factory import get_editor_for_face
 from shoggoth.i18n import tr
+import shoggoth
 
 
 class CardEditor(QWidget):
@@ -25,6 +28,12 @@ class CardEditor(QWidget):
     def __init__(self, card):
         super().__init__()
         self.card = card
+        # Whether front/back editors should be put into translation mode as soon as
+        # they're (re)created — set by enter/exit_translation_mode. Needed because the
+        # Front/Back/JSON toggle and a face type change both rebuild the face editors
+        # from scratch (see create_form_editors/on_type_changed), which would otherwise
+        # lose translation-mode state and show every field again.
+        self._translation_active = False
 
         # Main layout with scroll
         scroll = QScrollArea()
@@ -33,95 +42,84 @@ class CardEditor(QWidget):
         content = QWidget()
         layout = QVBoxLayout()
 
-        # Basic info section (collapsible)
-        basic_group = QWidget()
-        basic_layout = QVBoxLayout()
-        basic_layout.setContentsMargins(0, 0, 0, 0)
-        basic_layout.setSpacing(4)
-
-        # Header row with Name field and toggle button on the right
-        header_row = QHBoxLayout()
-        header_row.setContentsMargins(0, 0, 0, 0)
+        self.translation_notice = QLabel(tr("TRANSLATION_MODE_NOTE"))
+        self.translation_notice.setVisible(False)
+        self.translation_notice.setStyleSheet(
+            "QLabel { color: #7a5b14; background: #fff4cc; border: 1px solid #d9c27a; "
+            "padding: 6px 10px; border-radius: 4px; font-weight: 600; }"
+        )
+        layout.addWidget(self.translation_notice)
 
         self.name_input = LabeledLineEdit(tr("FIELD_NAME"))
-        header_row.addWidget(self.name_input)
+        layout.addWidget(self.name_input)
 
-        self.basic_toggle_btn = QPushButton("\u25b6")  # Right arrow
-        self.basic_toggle_btn.setFixedWidth(28)
-        self.basic_toggle_btn.setCheckable(True)
-        self.basic_toggle_btn.setChecked(False)
-        self.basic_toggle_btn.setToolTip(tr("TOOLTIP_TOGGLE_BASIC_INFO"))
-        self.basic_toggle_btn.clicked.connect(self.toggle_basic_info)
-        header_row.addWidget(self.basic_toggle_btn)
-
-        basic_layout.addLayout(header_row)
-
-        # Collapsible content (hidden by default)
-        self.basic_info_content = QWidget()
-        content_layout = QVBoxLayout()
-        content_layout.setContentsMargins(0, 0, 0, 0)
+        # Basic info (collapsible band, collapsed by default — rarely touched)
+        self.basic_info_band = Band(tr("BAND_BASIC_INFO"), collapsible=True)
 
         self.copyright_input = LabeledLineEdit(tr("FIELD_COPYRIGHT"))
-        content_layout.addWidget(self.copyright_input)
+        self.basic_info_band.content_layout.addWidget(self.copyright_input)
 
-        # Numbers
-        numbers_layout = QHBoxLayout()
+        numbers_row = QHBoxLayout()
+        numbers_row.setContentsMargins(0, 0, 0, 0)
         self.amount_input = LabeledLineEdit(tr("FIELD_AMOUNT_IN_SET"))
         self.collection_input = LabeledLineEdit(tr("FIELD_COLLECTION_NUM"))
         self.encounter_input = LabeledLineEdit(tr("FIELD_ENCOUNTER_SET_NUM"))
-        numbers_layout.addWidget(self.amount_input)
-        numbers_layout.addWidget(self.collection_input)
-        numbers_layout.addWidget(self.encounter_input)
-        content_layout.addLayout(numbers_layout)
+        numbers_row.addWidget(self.amount_input)
+        numbers_row.addWidget(self.collection_input)
+        numbers_row.addWidget(self.encounter_input)
+        self.basic_info_band.content_layout.addLayout(numbers_row)
 
         # Automatic enumeration override
         enumerated_row = QHBoxLayout()
+        enumerated_row.setContentsMargins(0, 0, 0, 0)
         enumerated_row.addWidget(QLabel(tr("FIELD_ENUMERATED")))
         self.enumerated_combo = NoScrollComboBox()
         self.enumerated_combo.addItem(tr("ENUM_MODE_DEFAULT"), '')
         self.enumerated_combo.addItem(tr("ENUM_MODE_IGNORED"), 'ignored')
         self.enumerated_combo.addItem(tr("ENUM_MODE_MANUAL"), 'manual')
         enumerated_row.addWidget(self.enumerated_combo, 1)
-        content_layout.addLayout(enumerated_row)
+        self.basic_info_band.content_layout.addLayout(enumerated_row)
 
         self.investigator_input = LabeledLineEdit(tr("FIELD_INVESTIGATOR_LINK"))
-        content_layout.addWidget(self.investigator_input)
+        self.basic_info_band.content_layout.addWidget(self.investigator_input)
 
         self.id_input = LabeledLineEdit(tr("ID"))
         self.id_input.input.setReadOnly(True)
-        content_layout.addWidget(self.id_input)
+        self.basic_info_band.content_layout.addWidget(self.id_input)
 
-        self.basic_info_content.setLayout(content_layout)
-        self.basic_info_content.setMaximumHeight(0)
-        basic_layout.addWidget(self.basic_info_content)
+        layout.addWidget(self.basic_info_band)
 
-        # Animation for collapsible content
-        self.basic_info_animation = QPropertyAnimation(self.basic_info_content, b"maximumHeight")
-        self.basic_info_animation.setDuration(150)
-        self.basic_info_animation.setEasingCurve(QEasingCurve.OutCubic)
+        # Header row: Front / Back / {} Json — one mutually-exclusive sliding toggle
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        self.view_toggle = SegmentedToggle(
+            [tr("TAB_FRONT"), tr("TAB_BACK"), tr("TAB_JSON")],
+            values=['front', 'back', 'json'],
+        )
+        self.view_toggle.valueChanged.connect(self._on_view_toggle_changed)
+        header_row.addWidget(self.view_toggle)
+        header_row.addStretch()
+        header_widget = QWidget()
+        header_widget.setLayout(header_row)
+        layout.addWidget(header_widget)
 
-        basic_group.setLayout(basic_layout)
-        layout.addWidget(basic_group)
-
-        # Add JSON view toggle at card level
-        json_button_row = QHBoxLayout()
-        self.json_view_btn = QPushButton(tr("BTN_VIEW_JSON"))
-        self.json_view_btn.setMaximumWidth(200)
-        self.json_view_btn.clicked.connect(self.toggle_json_view)
-        json_button_row.addWidget(self.json_view_btn)
-        json_button_row.addStretch()
-        json_widget = QWidget()
-        json_widget.setLayout(json_button_row)
-        layout.addWidget(json_widget)
-
-        # Container for face editors or JSON editor
+        # Container for face editors (stacked front/back) or JSON editor. Expanding +
+        # stretch=1 so it alone absorbs any leftover scroll-area height — without this,
+        # Qt spreads surplus space evenly across every top-level Preferred-policy widget
+        # in `layout` (name/basic-info/header included), which is harmless when the form
+        # is tall enough to already fill the viewport but visibly shuffles everything
+        # around for the comparatively short JSON view.
         self.editor_container = QWidget()
+        self.editor_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.editor_layout = QVBoxLayout()
         self.editor_container.setLayout(self.editor_layout)
-        layout.addWidget(self.editor_container)
+        layout.addWidget(self.editor_container, 1)
 
         # Track whether showing JSON
         self.showing_json = False
+        self.face_stack = None
+        self.front_editor = None
+        self.back_editor = None
 
         # Create initial editors (form view)
         self.create_form_editors()
@@ -133,6 +131,7 @@ class CardEditor(QWidget):
         main_layout = QVBoxLayout()
         main_layout.addWidget(scroll)
         self.setLayout(main_layout)
+        self.setStyleSheet(compact_theme.EDITOR_QSS)
 
         # Setup card field bindings
         self.fields = []
@@ -140,55 +139,52 @@ class CardEditor(QWidget):
         self.load_card()
 
     def create_form_editors(self):
-        """Create the form-based face editors"""
+        """Create the stacked front/back face editors"""
         # Clear container
         while self.editor_layout.count():
             item = self.editor_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # Front face editor
-        front_group = QGroupBox(tr("TAB_FRONT"))
-        self.front_layout = QVBoxLayout()
+        self.face_stack = QStackedWidget()
         self.front_editor = None
-        self.create_front_editor()
-        front_group.setLayout(self.front_layout)
-        self.editor_layout.addWidget(front_group)
-
-        # Back face editor
-        back_group = QGroupBox(tr("TAB_BACK"))
-        self.back_layout = QVBoxLayout()
         self.back_editor = None
+        self.create_front_editor()
         self.create_back_editor()
-        back_group.setLayout(self.back_layout)
-        self.editor_layout.addWidget(back_group)
+        self.editor_layout.addWidget(self.face_stack)
+        self._show_face(self.view_toggle.current_value())
 
     def create_json_editor(self):
-        """Create the JSON editor for entire card"""
+        """Create the JSON editor for entire card.
+
+        The title/info text sit in a compact (never-stretches, see Band's docstring)
+        header band, but the editor itself is added straight to editor_layout with a
+        stretch factor — it's the main element here, so it should fill whatever space
+        the (already-Expanding, see __init__) editor_container is given, not be clipped
+        to its own small sizeHint the way Band's fixed-height content would clip it.
+        """
         # Clear container
         while self.editor_layout.count():
             item = self.editor_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+        self.face_stack = None
 
-        # Create JSON editor group
-        json_group = QGroupBox(tr("CARD_DATA_JSON"))
-        json_layout = QVBoxLayout()
-
-        # Info
+        # Header: title + info text (compact, fixed height)
+        json_group = Band(tr("CARD_DATA_JSON"))
         info = QLabel(tr("HELP_EDIT_CARD_JSON"))
         info.setWordWrap(True)
-        info.setStyleSheet("color: #666; padding: 5px;")
-        json_layout.addWidget(info)
+        json_group.content_layout.addWidget(info)
+        self.editor_layout.addWidget(json_group)
 
-        # JSON editor
-        self.json_editor = ArkhamTextEdit()
+        # JSON editor — the main element, expands to fill the rest of the pane
+        self.json_editor = ArkhamTextEdit(monospace=True)
         self.json_editor.textChanged.connect(self.on_json_changed)
-        json_layout.addWidget(self.json_editor)
+        self.editor_layout.addWidget(self.json_editor, 1)
 
         # Status
         self.json_status = QLabel("")
-        json_layout.addWidget(self.json_status)
+        self.editor_layout.addWidget(self.json_status)
 
         # Buttons
         button_row = QHBoxLayout()
@@ -201,42 +197,38 @@ class CardEditor(QWidget):
         button_row.addWidget(validate_btn)
 
         button_row.addStretch()
-        json_layout.addLayout(button_row)
-
-        json_group.setLayout(json_layout)
-        self.editor_layout.addWidget(json_group)
+        button_widget = QWidget()
+        button_widget.setLayout(button_row)
+        self.editor_layout.addWidget(button_widget)
 
         # Load current card data
         self.load_json_data()
 
-    def toggle_json_view(self):
-        """Toggle between form editors and JSON editor"""
-        self.showing_json = not self.showing_json
+        # Load current card data
+        self.load_json_data()
+
+    def _on_view_toggle_changed(self, value):
+        """Handle the Front / Back / {} Json toggle.
+
+        Switching to Front or Back also flips the live preview to that side — one-way:
+        the preview dock's own Front/Back tabs can still be clicked independently
+        without moving this toggle back.
+        """
+        if value == 'json':
+            if not self.showing_json:
+                self.showing_json = True
+                self.create_json_editor()
+            return
 
         if self.showing_json:
-            self.json_view_btn.setText(tr("BTN_VIEW_FORM"))
-            self.create_json_editor()
+            self.showing_json = False
+            self.create_form_editors()  # ends by showing view_toggle's current face
         else:
-            self.json_view_btn.setText(tr("BTN_VIEW_JSON"))
-            self.create_form_editors()
+            self._show_face(value)
 
-    def toggle_basic_info(self, checked):
-        """Toggle visibility of basic info fields with animation"""
-        # Update arrow icon
-        self.basic_toggle_btn.setText("\u25bc" if checked else "\u25b6")  # Down / Right arrow
-
-        # Animate the content height
-        self.basic_info_animation.stop()
-        if checked:
-            # Expanding: animate from 0 to full height
-            target_height = self.basic_info_content.sizeHint().height()
-            self.basic_info_animation.setStartValue(0)
-            self.basic_info_animation.setEndValue(target_height)
-        else:
-            # Collapsing: animate from current height to 0
-            self.basic_info_animation.setStartValue(self.basic_info_content.height())
-            self.basic_info_animation.setEndValue(0)
-        self.basic_info_animation.start()
+        preview = getattr(shoggoth.app, 'card_preview', None)
+        if preview is not None:
+            preview.show_front() if value == 'front' else preview.show_back()
 
     def load_json_data(self):
         """Load card data into JSON editor"""
@@ -244,10 +236,10 @@ class CardEditor(QWidget):
             json_text = json.dumps(self.card.data, indent=2)
             self.json_editor.setPlainText(json_text)
             self.json_status.setText(tr("STATUS_JSON_LOADED"))
-            self.json_status.setStyleSheet("color: green; padding: 5px;")
+            self.json_status.setStyleSheet("color: green;")
         except Exception as e:
             self.json_status.setText(tr("STATUS_LOAD_ERROR").format(error=e))
-            self.json_status.setStyleSheet("color: red; padding: 5px;")
+            self.json_status.setStyleSheet("color: red;")
 
     def on_json_changed(self):
         """Handle JSON editor changes"""
@@ -280,11 +272,11 @@ class CardEditor(QWidget):
             self.data_changed.emit()
 
             self.json_status.setText(tr("STATUS_JSON_SAVED"))
-            self.json_status.setStyleSheet("color: green; padding: 5px;")
+            self.json_status.setStyleSheet("color: green;")
 
         except json.JSONDecodeError as e:
             self.json_status.setText(tr("STATUS_JSON_INVALID").format(error=str(e)[:50]))
-            self.json_status.setStyleSheet("color: red; padding: 5px;")
+            self.json_status.setStyleSheet("color: red;")
 
     def format_json(self):
         """Format the JSON"""
@@ -295,10 +287,10 @@ class CardEditor(QWidget):
                 formatted = json.dumps(data, indent=2)
                 self.json_editor.setPlainText(formatted)
                 self.json_status.setText(tr("STATUS_JSON_FORMATTED"))
-                self.json_status.setStyleSheet("color: green; padding: 5px;")
+                self.json_status.setStyleSheet("color: green;")
         except json.JSONDecodeError as e:
             self.json_status.setText(tr("STATUS_JSON_INVALID").format(error=e))
-            self.json_status.setStyleSheet("color: red; padding: 5px;")
+            self.json_status.setStyleSheet("color: red;")
 
     def validate_json(self):
         """Validate the JSON"""
@@ -307,39 +299,47 @@ class CardEditor(QWidget):
             if text.strip():
                 json.loads(text)
                 self.json_status.setText(tr("STATUS_JSON_VALID"))
-                self.json_status.setStyleSheet("color: green; padding: 5px;")
+                self.json_status.setStyleSheet("color: green;")
             else:
                 self.json_status.setText(tr("STATUS_JSON_EMPTY"))
-                self.json_status.setStyleSheet("color: orange; padding: 5px;")
+                self.json_status.setStyleSheet("color: orange;")
         except json.JSONDecodeError as e:
             self.json_status.setText(tr("STATUS_JSON_INVALID").format(error=e))
-            self.json_status.setStyleSheet("color: red; padding: 5px;")
+            self.json_status.setStyleSheet("color: red;")
 
     def create_front_editor(self):
         """Create/recreate front face editor"""
-        # Remove old editor if exists
         if self.front_editor:
-            self.front_layout.removeWidget(self.front_editor)
+            self.face_stack.removeWidget(self.front_editor)
             self.front_editor.setParent(None)
             self.front_editor.deleteLater()
 
-        # Create new editor
         self.front_editor = get_editor_for_face(self.card.front)
         self.front_editor.type_changed.connect(lambda: self.on_type_changed('front'))
-        self.front_layout.addWidget(self.front_editor)
+        if self._translation_active:
+            self.front_editor.enter_translation_mode()
+        self.face_stack.addWidget(self.front_editor)
 
     def create_back_editor(self):
         """Create/recreate back face editor"""
-        # Remove old editor if exists
         if self.back_editor:
-            self.back_layout.removeWidget(self.back_editor)
+            self.face_stack.removeWidget(self.back_editor)
             self.back_editor.setParent(None)
             self.back_editor.deleteLater()
 
-        # Create new editor
         self.back_editor = get_editor_for_face(self.card.back)
         self.back_editor.type_changed.connect(lambda: self.on_type_changed('back'))
-        self.back_layout.addWidget(self.back_editor)
+        if self._translation_active:
+            self.back_editor.enter_translation_mode()
+        self.face_stack.addWidget(self.back_editor)
+
+    def _show_face(self, value):
+        """Switch the visible face in the stack ('front' or 'back')"""
+        if not self.face_stack:
+            return
+        target = self.front_editor if value == 'front' else self.back_editor
+        if target:
+            self.face_stack.setCurrentWidget(target)
 
     def on_type_changed(self, which_face):
         """Handle face type change - recreate the appropriate editor"""
@@ -347,6 +347,7 @@ class CardEditor(QWidget):
             self.create_front_editor()
         else:
             self.create_back_editor()
+        self._show_face(self.view_toggle.current_value())
 
     def setup_card_fields(self):
         """Setup bindings for card-level fields"""
@@ -418,14 +419,18 @@ class CardEditor(QWidget):
         self.data_changed.emit()
 
     def enter_translation_mode(self):
-        """Switch both face editors into translation mode."""
+        """Switch both face editors into translation mode and show a translation notice."""
+        self._translation_active = True
+        self.translation_notice.setVisible(True)
         if self.front_editor:
             self.front_editor.enter_translation_mode()
         if self.back_editor:
             self.back_editor.enter_translation_mode()
 
     def exit_translation_mode(self):
-        """Restore both face editors to normal editing mode."""
+        """Restore both face editors to normal editing mode and hide the translation notice."""
+        self._translation_active = False
+        self.translation_notice.setVisible(False)
         if self.front_editor:
             self.front_editor.exit_translation_mode()
         if self.back_editor:

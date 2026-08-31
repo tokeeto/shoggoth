@@ -158,13 +158,13 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
     return tr(key).format(path=path)
 
 
-def _run_arkham_build(project, d):
+def _run_arkham_build(project, renderer, d):
     from shoggoth import arkham_build
     # d['export_thumbnails'] is a placeholder for a not-yet-implemented
     # feature and has no effect yet. arkham.build always exports the whole
     # project's JSON regardless of the profile's card scope -- the schema
     # describes the full project, not a card subset.
-    data = arkham_build.export_project(project, image_pattern=d['url_pattern'])
+    data = arkham_build.export_project(project, renderer, image_pattern=d['url_pattern'])
     output_path = project.folder / f"{project.name}_arkham_build.json"
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -214,7 +214,7 @@ def run_profile(parent, project, renderer, profile_data):
 
     if sections['arkham_build']['enabled']:
         try:
-            path = _run_arkham_build(project, sections['arkham_build'])
+            path = _run_arkham_build(project, renderer, sections['arkham_build'])
             results.append(tr("PE_RESULT_ARKHAM_BUILD").format(path=path))
         except Exception as e:
             errors.append(tr("PE_RESULT_ERROR_ARKHAM_BUILD").format(error=e))

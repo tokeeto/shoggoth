@@ -1,13 +1,11 @@
 """
 Encounter card editors for Shoggoth (enemy, treachery, location)
 """
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel
-)
+from PySide6.QtWidgets import QLabel
 
 from shoggoth.ui.face_editor import FaceEditor
-from shoggoth.ui.editor_widgets import IconComboBox
-from shoggoth.ui.field_widgets import LabeledLineEdit
+from shoggoth.ui.compact_widgets import ConnectionSymbolField, ENCOUNTER_CLASSES
+from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
 
 
@@ -15,63 +13,31 @@ class EnemyEditor(FaceEditor):
     """Editor for enemy cards"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
+        self.add_class_field(default_classes=ENCOUNTER_CLASSES)
 
-        # Attack, Health, Evade on one row (1/3 each)
-        combat_widget = QWidget()
-        combat_layout = QHBoxLayout()
-        combat_layout.setContentsMargins(0, 0, 0, 0)
-        combat_layout.setSpacing(4)
-        for field, label in [
-            ("attack", tr("FIELD_ATTACK")),
-            ("health", tr("FIELD_HEALTH")),
-            ("evade", tr("FIELD_EVADE")),
-        ]:
-            widget = LabeledLineEdit(label)
-            self.fields[field] = widget.input
-            def make_callback(field_name):
-                return lambda: self.on_field_changed(field_name)
-            widget.input.textChanged.connect(make_callback(field))
-            combat_layout.addWidget(widget)
-        combat_widget.setLayout(combat_layout)
-        self.main_layout.addWidget(combat_widget)
+        self.start_band(tr("BAND_NUMBERS"))
+        self.add_numbers_panel([
+            (tr("FIELD_ATTACK") + " / " + tr("FIELD_HEALTH") + " / " + tr("FIELD_EVADE"),
+             self.add_icon_stat_row(
+                 (overlay_dir / 'svg' / 'skill_icon_C.svg', "attack"),
+                 (overlay_dir / 'damage.png', "health"),
+                 (overlay_dir / 'svg' / 'skill_icon_A.svg', "evade"),
+             )),
+            (tr("FIELD_DAMAGE") + " / " + tr("FIELD_HORROR"),
+             self.add_icon_count_row(
+                 (overlay_dir / 'damage.png', "damage"),
+                 (overlay_dir / 'horror.png', "horror"),
+             )),
+        ])
 
-        # Traits with autocomplete
-        self.add_trait_field()
-        self.add_class_field()
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-
-        # Flavor text at reduced height (2 lines)
-        flavor_widget = self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
-        flavor_widget.input.setMinimumHeight(58)
-        flavor_widget.input.setMaximumHeight(58)
-
-        # Damage and Horror on one row
-        dmg_widget = QWidget()
-        dmg_layout = QHBoxLayout()
-        dmg_layout.setContentsMargins(0, 0, 0, 0)
-        dmg_layout.setSpacing(4)
-        for field, label in [
-            ("damage", tr("FIELD_DAMAGE")),
-            ("horror", tr("FIELD_HORROR")),
-        ]:
-            widget = LabeledLineEdit(label)
-            self.fields[field] = widget.input
-            def make_callback(field_name):
-                return lambda: self.on_field_changed(field_name)
-            widget.input.textChanged.connect(make_callback(field))
-            dmg_layout.addWidget(widget)
-        dmg_widget.setLayout(dmg_layout)
-        self.main_layout.addWidget(dmg_widget)
-
-        self.add_victory_field()
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
 
@@ -79,156 +45,75 @@ class TreacheryEditor(FaceEditor):
     """Editor for treachery cards"""
 
     def setup_ui(self):
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
-        self.add_trait_field()
-        self.add_class_field()
-        self.add_victory_field()
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
+        self.add_class_field(default_classes=ENCOUNTER_CLASSES)
 
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
+
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
 
 class LocationEditor(FaceEditor):
     """Editor for location cards"""
 
-    # Available connection symbols
-    CONNECTION_SYMBOLS = [
-        'None',
-        'circle', 'circle_alt',
-        'clover',
-        'cross', 'cross_alt',
-        'diamond', 'diamond_alt',
-        'equals', 'equals_alt',
-        'heart', 'heart_alt',
-        'hourglass', 'hourglass_alt',
-        'moon', 'moon_alt',
-        'spade',
-        'square', 'square_alt',
-        'squiggle', 'squiggle_alt',
-        'star', 'star_alt',
-        't', 't_alt',
-        'tear',
-        'triangle', 'triangle_alt',
-    ]
-
     def setup_ui(self):
-        # Connection symbol (this location's own symbol)
-        conn_layout = QHBoxLayout()
-        conn_label = QLabel(tr("FIELD_CONNECTION_SYMBOL"))
-        conn_label.setMinimumWidth(110)
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
 
-        self.connection_combo = IconComboBox()
-        self.connection_combo.currentIndexChanged.connect(lambda: self.on_connection_changed())
-        self.fields['connection'] = self.connection_combo
-
-        conn_layout.addWidget(conn_label)
-        conn_layout.addWidget(self.connection_combo)
-        conn_layout.addStretch()  # Push to left
-        conn_widget = QWidget()
-        conn_widget.setLayout(conn_layout)
-        self.main_layout.addWidget(conn_widget)
-
-        # Basic fields
-        self.add_labeled_line(tr("FIELD_NAME"), "name")
-        self.add_labeled_line(tr("FIELD_SUBTITLE"), "subtitle")
-
-        self.add_labeled_line(tr("FIELD_SHROUD"), "shroud")
-        self.add_trait_field()
-        self.add_labeled_line(tr("FIELD_CLUES"), "clues")
-        self.add_victory_field()
-
-        # Connections section - single row of icon dropdowns
-        connections_row = QHBoxLayout()
+        # Connections: this location's own symbol, then the (up to 6) symbols it
+        # connects to — see ConnectionSymbolField for the icon-grid popover this
+        # replaced (one 1-column IconComboBox per slot, unusable at 32 symbols).
         connections_label = QLabel(tr("FIELD_CONNECTIONS"))
-        connections_label.setMinimumWidth(110)
-        connections_row.addWidget(connections_label)
+        connections_label.setProperty("role", "field-label")
+        self._target_layout().addWidget(connections_label)
 
-        # Store connection combos for easy access
-        self.connection_combos = []
+        self.connection_field = ConnectionSymbolField()
+        self.connection_field.changed.connect(self._on_connection_field_changed)
+        self._target_layout().addWidget(self.connection_field)
 
-        for i in range(6):
-            combo = IconComboBox()
-            combo.currentIndexChanged.connect(lambda: self.on_connections_changed())
-            self.connection_combos.append(combo)
-            connections_row.addWidget(combo)
+        self.start_band(tr("BAND_NUMBERS"))
+        self.add_numbers_panel([
+            (tr("FIELD_SHROUD") + " / " + tr("FIELD_CLUES"), ["shroud", "clues"]),
+        ])
 
-        connections_row.addStretch()  # Push to left
-        connections_widget = QWidget()
-        connections_widget.setLayout(connections_row)
-        self.main_layout.addWidget(connections_widget)
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
 
-        # Text fields
-        self.add_labeled_text(tr("FIELD_TEXT"), "text", use_arkham=True)
-        self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
+        self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
-
-        # Copyright and extra text fields
         self.add_footer_row()
-
         self.main_layout.addStretch()
 
-    def on_connection_changed(self):
-        """Handle connection symbol change"""
+    def _on_connection_field_changed(self):
+        """connection/connections live on one composite widget spanning two face keys,
+        so (like the mask-template combo in investigator_editors.py) it's wired by hand
+        rather than through the generic self.fields dispatch."""
         if self.updating:
             return
-
-        value = self.connection_combo.currentSymbol()
-        self.face.set('connection', value)
-
-    def on_connections_changed(self):
-        """Handle connections list change"""
-        if self.updating:
-            return
-
-        # Collect all connection values
-        connections = []
-        for combo in self.connection_combos:
-            value = combo.currentSymbol()
-            if value:
-                connections.append(value)
-
-        # Store as list or None if empty
-        if connections:
-            self.face.set('connections', connections)
-        else:
-            self.face.set('connections', None)
+        self.face.set('connection', self.connection_field.get_connection())
+        self.face.set('connections', self.connection_field.get_connections())
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
 
     def load_data(self):
         """Load data from face into fields - override to handle connections specially"""
         self.updating = True
 
-        # Load regular fields
         for field_name, widget in self.fields.items():
-            if field_name == 'connection':
-                # Handle connection symbol
-                value = self.face.get(field_name, '')
-                self.connection_combo.setCurrentSymbol(value)
-            elif field_name != 'connections':
-                # Regular fields
-                value = self.face.get(field_name, '')
-                self.set_widget_value(widget, value)
+            value = self.face.get(field_name, '')
+            self.set_widget_value(widget, value)
 
-        # Load connections list
-        connections = self.face.get('connections', [])
-        if not connections:
-            connections = []
-        elif isinstance(connections, str):
-            # Handle comma-separated string format
-            connections = [c.strip() for c in connections.split(',') if c.strip()]
-
-        # Set combo boxes
-        for i, combo in enumerate(self.connection_combos):
-            if i < len(connections):
-                combo.setCurrentSymbol(connections[i])
-            else:
-                combo.setCurrentSymbol(None)
+        self.connection_field.set_connection(self.face.get('connection'))
+        self.connection_field.set_connections(self.face.get('connections', []))
 
         self.updating = False
 

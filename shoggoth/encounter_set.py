@@ -28,6 +28,11 @@ class EncounterSet:
         self.project = project
         if 'id' not in self.data:
             self.data['id'] = str(uuid4())
+            # A freshly-generated id only exists in memory until the project
+            # is saved - mark it dirty so an unsaved-changes prompt/save
+            # actually persists it, instead of it being silently regenerated
+            # (and no longer matching e.g. a saved session selection) next load.
+            self.dirty = True
         self.get = self.data.get
         self.__getitem__ = self.data.__getitem__
 
@@ -119,8 +124,6 @@ class EncounterSet:
         self.data['card_amount'] = max(current_number - 1, max(manual_numbers, default=0))
 
     def set(self, key, value):
-        print('encounter set, setting', key, value)
         self.data[key] = value
         self.dirty = True
-        print('is dirty', self.dirty)
 

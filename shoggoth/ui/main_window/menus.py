@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QActionGroup
 
 from shoggoth.files import translation_dir
 from shoggoth.i18n import get_available_languages, get_available_languages_from_dir, tr
-from shoggoth.ui.main_window import exports, help_dialogs, projects
+from shoggoth.ui.main_window import exports, help_dialogs, image_tools, projects
 from shoggoth.ui import snippet_loader
 
 
@@ -18,6 +18,7 @@ def create_menus(window):
     menubar = window.menuBar()
 
     _create_file_menu(window, menubar)
+    _create_edit_menu(window, menubar)
     _create_project_menu(window, menubar)
     _create_export_menu(window, menubar)
     _create_tools_menu(window, menubar)
@@ -68,6 +69,14 @@ def _create_file_menu(window, menubar):
     file_menu.addSeparator()
 
     _add_action(window, file_menu, tr("MENU_EXIT"), window.close)
+
+
+def _create_edit_menu(window, menubar):
+    edit_menu = menubar.addMenu(tr("MENU_EDIT"))
+
+    from shoggoth.ui.insert_link import insert_link_at_focus
+    _add_action(window, edit_menu, tr("MENU_INSERT_LINK"),
+                lambda: insert_link_at_focus(), shortcut="Ctrl+L")
 
 
 def _create_project_menu(window, menubar):
@@ -148,6 +157,10 @@ def _create_tools_menu(window, menubar):
     _add_action(window, tools_menu, tr("MENU_SHOGGOTH_LOCATION"),
                 lambda: help_dialogs.open_shoggoth_location(window))
 
+    tools_menu.addSeparator()
+
+    _add_action(window, tools_menu, tr("MENU_ADD_FADED_EDGE"),
+                lambda: image_tools.open_fade_edge_dialog(window))
 
 def _create_help_menu(window, menubar):
     help_menu = menubar.addMenu(tr("MENU_HELP"))
@@ -239,6 +252,7 @@ def _create_language_menu(window, menubar):
     card_lang_header.setObjectName("palette_skip")
     language_menu.addAction(card_lang_header)
 
+    window.card_lang_header = card_lang_header
     window.card_language_actions = []
     available_card_languages = get_available_languages_from_dir(translation_dir)
     current_card_lang = window.config.get('Shoggoth', 'card_language', 'en')
@@ -251,3 +265,18 @@ def _create_language_menu(window, menubar):
         action.triggered.connect(lambda checked, code=lang_code: window.change_card_language(code))
         language_menu.addAction(action)
         window.card_language_actions.append(action)
+
+
+def update_card_language_menu_state(window):
+    """Reflect the active project's language override (if any) in the Card
+    Language menu: gray it out and check the overriding language, since the
+    project setting takes precedence over the global UI card-language pick."""
+    override = window.active_project.language if window.active_project else ''
+    effective = override or window.config.get('Shoggoth', 'card_language', 'en')
+
+    tooltip = tr("HELP_CARD_LANGUAGE_LOCKED") if override else ""
+    window.card_lang_header.setToolTip(tooltip)
+    for action in window.card_language_actions:
+        action.setEnabled(not override)
+        action.setChecked(action.data() == effective)
+        action.setToolTip(tooltip)

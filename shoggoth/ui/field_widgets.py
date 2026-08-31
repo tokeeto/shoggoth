@@ -1,25 +1,20 @@
 """
 Field widgets for Shoggoth using PySide6
+
+Compact style: every field is a small static uppercase label directly above its input
+(no floating-label animation) — see compact_theme.py / the "Card Editor Style Guide" doc.
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QCompleter,
-    QLabel, QPushButton, QCheckBox, QStackedWidget, QFrame
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QLabel, QPushButton, QFrame
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
 
 from shoggoth.ui.text_editor import ArkhamTextEdit, ArkhamTextHighlighter
-from shoggoth.ui.floating_label_widget import FloatingLabelTextEdit, FloatingLabelLineEdit
-from shoggoth.ui.editor_widgets import NoScrollComboBox
+from shoggoth.ui.compact_widgets import TagChipsField, ClassChipsField
 from shoggoth.i18n import tr
 
 # Known traits for autocomplete (loaded from highlighter)
 KNOWN_TRAITS = sorted(ArkhamTextHighlighter(None).known_traits)
-
-# Known card classes for autocomplete
-KNOWN_CLASSES = [
-    "seeker", "guardian", "rogue", "mystic", "survivor", "specialist",
-    "neutral", "story", "weakness", "story weakness", "basic weakness",
-]
 
 
 class FieldWidget:
@@ -82,471 +77,210 @@ class FieldWidget:
         return ''
 
 
-class LabeledLineEdit(QWidget):
-    """A labeled line edit widget with floating label"""
+class CompactLabeledField(QWidget):
+    """Base for the compact "small uppercase label above the field" wrapper widgets.
+
+    Subclasses set self.input to the real editing widget and add it to the layout.
+    Common marker class so FaceEditor can detect "this field has a label wrapper that
+    supports placeholder-style fallback display" without knowing every concrete subclass.
+    """
+
+    def __init__(self, label_text):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        self.label = QLabel(label_text.upper())
+        self.label.setProperty("role", "field-label")
+        layout.addWidget(self.label)
+
+        self._field_layout = layout
+        self._has_placeholder = False
+
+    def _add_input(self, widget):
+        self._field_layout.addWidget(widget)
+
+
+class LabeledLineEdit(CompactLabeledField):
+    """A labeled line edit widget with a compact static label"""
 
     textChanged = Signal(str)
 
     def __init__(self, label_text):
-        super().__init__()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        self.floating_widget = FloatingLabelLineEdit(label_text)
-        self.input = self.floating_widget.input
+        super().__init__(label_text)
+        self.input = QLineEdit()
         self.input.textChanged.connect(self.textChanged.emit)
-
-        layout.addWidget(self.floating_widget)
-        self.setLayout(layout)
+        self._add_input(self.input)
 
     def text(self):
         return self.input.text()
 
     def setText(self, text):
-        self.floating_widget.setText(text)
+        self.input.setText(text)
+
+    def setPlaceholderText(self, text):
+        self.input.setPlaceholderText(text)
+        self._has_placeholder = bool(text)
 
 
-class TraitLineEdit(QLineEdit):
-    """Line edit with autocomplete for Arkham Horror traits.
+UNIQUE_TAG = "<unique>"
 
-    Supports multiple traits separated by ". " (e.g., "Humanoid. Creature. Monster.")
+
+class UniqueNameField(CompactLabeledField):
+    """Name field with a toggleable "unique" star to its left.
+
+    Many cards are unique — printed as "<unique>Count Dracula" (or "<unique><name>")
+    rather than just "Count Dracula". The star toggles that literal "<unique>" prefix
+    on the *stored* value; the display field itself only ever shows the name text.
+    No trimming beyond the exact "<unique>" tag — whatever else is in the value is
+    respected as-is.
     """
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    textChanged = Signal(str)
 
-        # Create completer with known traits
-        self.completer = QCompleter(KNOWN_TRAITS)
-        self.completer.setWidget(self)
-        self.completer.setCompletionMode(QCompleter.PopupCompletion)
-        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self.completer.setFilterMode(Qt.MatchContains)
-        self.completer.activated.connect(self.insert_completion)
+    def __init__(self, label_text):
+        super().__init__(label_text)
+        self._unique = False
+        self._updating = False
 
-        # Connect text changes to update completer
-        self.textChanged.connect(self.update_completer)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
 
-    def get_current_word_bounds(self):
-        """Get the start and end positions of the current word being typed."""
-        text = self.text()
-        cursor_pos = self.cursorPosition()
+        self.unique_btn = QPushButton("★")
+        self.unique_btn.setCheckable(True)
+        self.unique_btn.setProperty("role", "unique-btn")
+        self.unique_btn.setFixedSize(28, 28)
+        self.unique_btn.setToolTip(tr("TOOLTIP_UNIQUE"))
+        self.unique_btn.toggled.connect(self._on_toggle_unique)
+        row.addWidget(self.unique_btn)
 
-        # Find start: look for ". " or start of string
-        start = 0
-        search_pos = cursor_pos - 1
-        while search_pos >= 0:
-            if search_pos >= 1 and text[search_pos-1:search_pos+1] == '. ':
-                start = search_pos + 1
-                break
-            search_pos -= 1
+        self.input = QLineEdit()
+        self.input.textChanged.connect(self._on_changed)
+        row.addWidget(self.input)
 
-        # Skip leading whitespace
-        while start < cursor_pos and text[start] == ' ':
-            start += 1
+        row_widget = QWidget()
+        row_widget.setLayout(row)
+        self._add_input(row_widget)
 
-        return start, cursor_pos
+    def _on_changed(self, *_):
+        if not self._updating:
+            self.textChanged.emit(self.text())
 
-    def update_completer(self):
-        """Update completer prefix based on current word being typed."""
-        start, end = self.get_current_word_bounds()
-        current_word = self.text()[start:end].strip()
+    def _on_toggle_unique(self, checked):
+        """Turning the star on with no name text yet: pull in the placeholder (the
+        "<name>" render macro, or an inherited name) as real text, so the stored
+        value reads "<unique><name>" rather than just "<unique>" with nothing to show."""
+        if checked and not self.input.text() and self.input.placeholderText():
+            self._updating = True
+            self.input.setText(self.input.placeholderText())
+            self._updating = False
+        self._on_changed()
 
-        if current_word and len(current_word) >= 1:
-            self.completer.setCompletionPrefix(current_word)
-            if self.completer.completionCount() > 0:
-                self.completer.complete()
-            else:
-                self.completer.popup().hide()
-        else:
-            self.completer.popup().hide()
+    def text(self):
+        """The raw stored value: the <unique> tag (if toggled) plus the field text, verbatim."""
+        prefix = UNIQUE_TAG if self.unique_btn.isChecked() else ""
+        return prefix + self.input.text()
 
-    def insert_completion(self, completion):
-        """Insert the selected completion with proper formatting."""
-        text = self.text()
-        start, end = self.get_current_word_bounds()
+    def setText(self, value):
+        """Load a raw stored value: a literal leading "<unique>" (if present) becomes the
+        toggle state; everything else goes into the field untouched — no trimming."""
+        self._updating = True
+        value = value or ""
+        unique = value.startswith(UNIQUE_TAG)
+        self.unique_btn.setChecked(unique)
+        self.input.setText(value[len(UNIQUE_TAG):] if unique else value)
+        self._updating = False
 
-        # Format trait: capitalize first letter, add dot
-        formatted_trait = completion[0].upper() + completion[1:] + '.'
-
-        # Build new text
-        before = text[:start]
-        after = text[end:]
-
-        new_text = before + formatted_trait + after
-        self.setText(new_text)
-
-        # Position cursor after the inserted trait
-        new_cursor_pos = start + len(formatted_trait)
-        self.setCursorPosition(new_cursor_pos)
-
-    def keyPressEvent(self, event):
-        """Handle key press events for completer interaction."""
-        if self.completer.popup().isVisible():
-            if event.key() in (Qt.Key_Enter, Qt.Key_Return):
-                if self.completer.currentCompletion():
-                    self.insert_completion(self.completer.currentCompletion())
-                    self.completer.popup().hide()
-                    return
-
-        super().keyPressEvent(event)
+    def setPlaceholderText(self, text):
+        text = text or ""
+        if text.startswith(UNIQUE_TAG):
+            text = text[len(UNIQUE_TAG):]
+        self.input.setPlaceholderText(text)
+        self._has_placeholder = bool(text)
 
 
-class LabeledTraitEdit(QWidget):
-    """A labeled line edit widget with trait autocomplete and floating label."""
+class LabeledTraitEdit(CompactLabeledField):
+    """A labeled trait chip editor with autocomplete and a compact static label."""
 
     textChanged = Signal(str)
 
     def __init__(self, label_text="Traits"):
-        super().__init__()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        # Use FloatingLabelLineEdit but replace the input with TraitLineEdit
-        self.floating_widget = FloatingLabelLineEdit(label_text)
-
-        # Replace the standard QLineEdit with TraitLineEdit
-        old_input = self.floating_widget.input
-        self.floating_widget.input = TraitLineEdit()
-        self.floating_widget.input.setStyleSheet(old_input.styleSheet())
-
-        # Replace in layout
-        self.floating_widget.layout().removeWidget(old_input)
-        old_input.deleteLater()
-        self.floating_widget.layout().addWidget(self.floating_widget.input)
-
-        # Reconnect events
-        self.floating_widget.input.textChanged.connect(self.floating_widget.on_text_changed)
-        self.floating_widget.input.installEventFilter(self.floating_widget)
-
-        self.input = self.floating_widget.input
+        super().__init__(label_text)
+        self.input = TagChipsField(add_label=f"+ {tr('FIELD_TRAITS').lower()}", completions=KNOWN_TRAITS)
         self.input.textChanged.connect(self.textChanged.emit)
-
-        layout.addWidget(self.floating_widget)
-        self.setLayout(layout)
+        self._add_input(self.input)
 
     def text(self):
         return self.input.text()
 
     def setText(self, text):
-        self.floating_widget.setText(text)
+        self.input.setText(text)
 
-
-class ClassLineEdit(QLineEdit):
-    """Line edit with autocomplete for Arkham Horror card classes (comma-separated)."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self.completer = QCompleter(KNOWN_CLASSES)
-        self.completer.setWidget(self)
-        self.completer.setCompletionMode(QCompleter.PopupCompletion)
-        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self.completer.setFilterMode(Qt.MatchContains)
-        self.completer.activated.connect(self.insert_completion)
-
-        self.textChanged.connect(self.update_completer)
-
-    def _current_token_bounds(self):
-        text = self.text()
-        cursor_pos = self.cursorPosition()
-        before_cursor = text[:cursor_pos]
-        last_comma = before_cursor.rfind(',')
-        start = last_comma + 1
-        while start < cursor_pos and text[start] == ' ':
-            start += 1
-        return start, cursor_pos
-
-    def update_completer(self):
-        if not self.hasFocus():
-            return
-        start, end = self._current_token_bounds()
-        prefix = self.text()[start:end].strip()
-        if prefix:
-            self.completer.setCompletionPrefix(prefix)
-            if self.completer.completionCount() > 0:
-                self.completer.complete()
-            else:
-                self.completer.popup().hide()
-        else:
-            self.completer.popup().hide()
-
-    def insert_completion(self, completion):
-        text = self.text()
-        start, end = self._current_token_bounds()
-        new_text = text[:start] + completion + text[end:]
-        self.setText(new_text)
-        self.setCursorPosition(start + len(completion))
-
-    def keyPressEvent(self, event):
-        if self.completer.popup().isVisible():
-            if event.key() in (Qt.Key_Enter, Qt.Key_Return):
-                if self.completer.currentCompletion():
-                    self.insert_completion(self.completer.currentCompletion())
-                    self.completer.popup().hide()
-                    return
-        super().keyPressEvent(event)
-
-
-class LabeledClassEdit(QWidget):
-    """A labeled line edit with class autocomplete and floating label."""
-
-    textChanged = Signal(str)
-
-    def __init__(self, label_text="Classes"):
-        super().__init__()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        self.floating_widget = FloatingLabelLineEdit(label_text)
-
-        old_input = self.floating_widget.input
-        self.floating_widget.input = ClassLineEdit()
-        self.floating_widget.input.setStyleSheet(old_input.styleSheet())
-
-        self.floating_widget.layout().removeWidget(old_input)
-        old_input.deleteLater()
-        self.floating_widget.layout().addWidget(self.floating_widget.input)
-
-        self.floating_widget.input.textChanged.connect(self.floating_widget.on_text_changed)
-        self.floating_widget.input.installEventFilter(self.floating_widget)
-
-        self.input = self.floating_widget.input
-        self.input.textChanged.connect(self.textChanged.emit)
-
-        layout.addWidget(self.floating_widget)
-        self.setLayout(layout)
-
-    def text(self):
-        return self.input.text()
-
-    def setText(self, text):
-        self.floating_widget.setText(text)
+    def setPlaceholderText(self, text):
+        self.input.set_placeholder(text)
+        self._has_placeholder = bool(text)
 
 
 class ClassSelectorWidget(QWidget):
-    """Class selector with mode dropdown and context-specific controls.
-
-    Modes:
-      None         → classes = None
-      Player       → 5 class toggle buttons plus Specialist; none selected = ['neutral'], else selected list
-      Weakness     → Basic checkbox; ['weakness'] or ['basic weakness']
-      Custom       → free-text field (comma-separated)
+    """Class selector: colored chips (semantic per-class colors) with a "+" suggestion
+    popup offering Guardian/Seeker/Rogue/Survivor/Mystic/Neutral/Specialist/Weakness/
+    Basic Weakness. See ClassChipsField (compact_widgets.py) for the chip/popup itself —
+    this wrapper just adds the compact field label above it.
     """
 
     classesChanged = Signal()
 
-    PLAYER_CLASSES = ['guardian', 'seeker', 'rogue', 'mystic', 'survivor']
-    SPECIALIST_CLASS = 'specialist'
-
-    MODE_NONE = 0
-    MODE_PLAYER = 1
-    MODE_WEAKNESS = 2
-    MODE_CUSTOM = 3
-
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, default_classes=None):
         super().__init__(parent)
-        self._updating = False
 
-        layout = QVBoxLayout()
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        layout.setSpacing(4)
 
-        # Top row: label + mode dropdown
-        top_row = QHBoxLayout()
-        top_row.setContentsMargins(0, 0, 0, 0)
-        label = QLabel(tr("FIELD_CLASSES"))
-        label.setMinimumWidth(50)
+        label = QLabel(tr("FIELD_CLASSES").upper())
+        label.setProperty("role", "field-label")
+        layout.addWidget(label)
 
-        self.mode_combo = NoScrollComboBox()
-        self.mode_combo.addItems([
-            tr("CLASS_MODE_NONE"),
-            tr("CLASS_MODE_PLAYER"),
-            tr("CLASS_MODE_WEAKNESS"),
-            tr("CLASS_MODE_CUSTOM"),
-        ])
-
-        top_row.addWidget(label)
-        top_row.addWidget(self.mode_combo, 1)
-        top_widget = QWidget()
-        top_widget.setLayout(top_row)
-        layout.addWidget(top_widget)
-
-        # Stacked content area (hidden when mode has no extra controls)
-        self.stack = QStackedWidget()
-
-        # Page 0: None — empty
-        self.stack.addWidget(QWidget())
-
-        # Page 1: Player classes — 5 toggle buttons, separator, then Specialist
-        player_page = QWidget()
-        player_layout = QHBoxLayout()
-        player_layout.setContentsMargins(0, 0, 0, 0)
-        player_layout.setSpacing(2)
-        self._class_buttons = {}
-        for cls in self.PLAYER_CLASSES:
-            key = f"CLASS_{cls.upper()}"
-            btn = QPushButton(tr(key))
-            btn.setCheckable(True)
-            btn.setFixedHeight(26)
-            btn.clicked.connect(self._on_player_changed)
-            player_layout.addWidget(btn)
-            self._class_buttons[cls] = btn
-
-        separator = QFrame()
-        separator.setFrameShape(QFrame.VLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        player_layout.addWidget(separator)
-
-        specialist_btn = QPushButton(tr("CLASS_SPECIALIST"))
-        specialist_btn.setCheckable(True)
-        specialist_btn.setFixedHeight(26)
-        specialist_btn.clicked.connect(self._on_player_changed)
-        player_layout.addWidget(specialist_btn)
-        self._class_buttons[self.SPECIALIST_CLASS] = specialist_btn
-
-        player_page.setLayout(player_layout)
-        self.stack.addWidget(player_page)
-
-        # Page 2: Weakness — checkbox
-        weakness_page = QWidget()
-        weakness_layout = QHBoxLayout()
-        weakness_layout.setContentsMargins(0, 0, 0, 0)
-        self.basic_checkbox = QCheckBox(tr("CLASS_WEAKNESS_BASIC"))
-        self.basic_checkbox.stateChanged.connect(self._on_weakness_changed)
-        weakness_layout.addWidget(self.basic_checkbox)
-        weakness_layout.addStretch()
-        weakness_page.setLayout(weakness_layout)
-        self.stack.addWidget(weakness_page)
-
-        # Page 3: Custom — free-text input
-        custom_page = QWidget()
-        custom_layout = QVBoxLayout()
-        custom_layout.setContentsMargins(0, 0, 0, 0)
-        self.custom_input = ClassLineEdit()
-        self.custom_input.textChanged.connect(self._on_custom_changed)
-        custom_layout.addWidget(self.custom_input)
-        custom_page.setLayout(custom_layout)
-        self.stack.addWidget(custom_page)
-
-        layout.addWidget(self.stack)
-        self.setLayout(layout)
-
-        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
-        self._update_stack_visibility(self.MODE_NONE)
-
-    def _update_stack_visibility(self, index):
-        has_content = index in (self.MODE_PLAYER, self.MODE_WEAKNESS, self.MODE_CUSTOM)
-        self.stack.setVisible(has_content)
-        if has_content:
-            self.stack.setCurrentIndex(index)
-
-    def _on_mode_changed(self, index):
-        self._update_stack_visibility(index)
-        if not self._updating:
-            self.classesChanged.emit()
-
-    def _on_player_changed(self):
-        if not self._updating:
-            self.classesChanged.emit()
-
-    def _on_weakness_changed(self):
-        if not self._updating:
-            self.classesChanged.emit()
-
-    def _on_custom_changed(self):
-        if not self._updating:
-            self.classesChanged.emit()
+        self.chips = ClassChipsField(default_classes=default_classes)
+        self.chips.changed.connect(self.classesChanged.emit)
+        layout.addWidget(self.chips)
 
     def get_classes(self):
-        """Return the current classes as a list, or None."""
-        mode = self.mode_combo.currentIndex()
-        if mode == self.MODE_NONE:
-            return None
-        elif mode == self.MODE_PLAYER:
-            all_classes = self.PLAYER_CLASSES + [self.SPECIALIST_CLASS]
-            selected = [c for c in all_classes if self._class_buttons[c].isChecked()]
-            return selected if selected else ['neutral']
-        elif mode == self.MODE_WEAKNESS:
-            return ['basic weakness'] if self.basic_checkbox.isChecked() else ['weakness']
-        else:  # Custom
-            text = self.custom_input.text().strip()
-            if not text:
-                return None
-            return [v.strip() for v in text.split(',') if v.strip()]
+        return self.chips.get_classes()
 
     def set_classes(self, value):
-        """Set widget state from a classes list value (or None)."""
-        self._updating = True
-        if not value:  # None or empty string or empty list
-            self._set_mode(self.MODE_NONE)
-        elif isinstance(value, list):
-            player_set = set(self.PLAYER_CLASSES) | {self.SPECIALIST_CLASS}
-            value_set = set(value)
-            if value_set <= (player_set | {'neutral'}):
-                self._set_mode(self.MODE_PLAYER)
-                for cls, btn in self._class_buttons.items():
-                    btn.setChecked(cls in value_set)
-            elif value == ['weakness']:
-                self._set_mode(self.MODE_WEAKNESS)
-                self.basic_checkbox.setChecked(False)
-            elif value == ['basic weakness']:
-                self._set_mode(self.MODE_WEAKNESS)
-                self.basic_checkbox.setChecked(True)
-            else:
-                self._set_mode(self.MODE_CUSTOM)
-                self.custom_input.setText(', '.join(str(v) for v in value))
-        else:
-            self._set_mode(self.MODE_CUSTOM)
-            self.custom_input.setText(str(value) if value else '')
-        self._updating = False
-
-    def _set_mode(self, index):
-        self.mode_combo.setCurrentIndex(index)
-        self._update_stack_visibility(index)
+        self.chips.set_classes(value)
 
 
-class LabeledTextEdit(QWidget):
-    """A labeled text edit widget with floating label"""
+class LabeledTextEdit(CompactLabeledField):
+    """A labeled text edit widget with a compact static label"""
 
     textChanged = Signal()
 
     def __init__(self, label_text, use_arkham_editor=False):
-        super().__init__()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        super().__init__(label_text)
 
-        # For Arkham text editor, we need to replace the input after creation
-        self.floating_widget = FloatingLabelTextEdit(label_text)
-
+        self.input = ArkhamTextEdit() if use_arkham_editor else QTextEdit()
+        # Drop the native sunken scroll-area frame — it reads as a heavier box than a
+        # QLineEdit's own border, and its reserved frame width was throwing off vertical
+        # alignment against line-edit siblings in the same row (e.g. Flavor vs Victory).
+        self.input.setFrameShape(QFrame.NoFrame)
         if use_arkham_editor:
-            # Replace the standard QTextEdit with ArkhamTextEdit
-            old_input = self.floating_widget.input
-            self.floating_widget.input = ArkhamTextEdit()
-            self.floating_widget.input.setStyleSheet(old_input.styleSheet())
-            self.floating_widget.input.setMinimumHeight(136)
-            self.floating_widget.input.setMaximumHeight(176)
-
-            # Replace in layout
-            self.floating_widget.layout().removeWidget(old_input)
-            old_input.deleteLater()
-            self.floating_widget.layout().addWidget(self.floating_widget.input)
-
-            # Reconnect events
-            self.floating_widget.input.textChanged.connect(self.floating_widget.on_text_changed)
-            self.floating_widget.input.installEventFilter(self.floating_widget)
-
-        self.input = self.floating_widget.input
+            self.input.setMinimumHeight(136)
+            self.input.setMaximumHeight(176)
+        else:
+            self.input.setMinimumHeight(60)
         self.input.textChanged.connect(self.textChanged.emit)
-
-        layout.addWidget(self.floating_widget)
-        self.setLayout(layout)
+        self._add_input(self.input)
 
     def toPlainText(self):
         return self.input.toPlainText()
 
     def setPlainText(self, text):
-        self.floating_widget.setPlainText(text)
+        self.input.setPlainText(text)
+
+    def setPlaceholderText(self, text):
+        self.input.setPlaceholderText(text)
+        self._has_placeholder = bool(text)

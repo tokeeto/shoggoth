@@ -216,6 +216,46 @@ class Project:
         self.data['icon'] = value
 
     @property
+    def auto_hyphenate(self):
+        return self.data.get('meta', {}).get('auto_hyphenate', True)
+
+    @auto_hyphenate.setter
+    def auto_hyphenate(self, value):
+        if 'meta' not in self.data:
+            self.data['meta'] = {}
+        self.data['meta']['auto_hyphenate'] = value
+        self.dirty = True
+
+    @property
+    def french_punctuation(self):
+        return self.data.get('meta', {}).get('french_punctuation', False)
+
+    @french_punctuation.setter
+    def french_punctuation(self, value):
+        if 'meta' not in self.data:
+            self.data['meta'] = {}
+        self.data['meta']['french_punctuation'] = value
+        self.dirty = True
+
+    @property
+    def language(self):
+        """Card rendering language override for this project.
+
+        Empty string means "no override" — the global UI card-language
+        setting applies. A non-empty value (e.g. 'de') overrides it, so a
+        German translation project renders "GEGNER" instead of "ENEMY"
+        without the user having to flip the UI-level setting.
+        """
+        return self.data.get('meta', {}).get('language', '')
+
+    @language.setter
+    def language(self, value):
+        if 'meta' not in self.data:
+            self.data['meta'] = {}
+        self.data['meta']['language'] = value
+        self.dirty = True
+
+    @property
     def folder(self):
         return Path(self.file_path).parent
 
@@ -235,6 +275,11 @@ class Project:
 
     def get(self, key, default=None):
         return self.data.get(key, default)
+
+    @property
+    def is_translation(self):
+        """Whether this project is a translation for another project."""
+        return bool(getattr(self, '_translation', None) or self.data.get('project'))
 
     @property
     def translations(self):
@@ -342,6 +387,11 @@ class Project:
                 return guide
         return None
 
+    def get_by_id(self, id):
+        if self.id == id:
+            return self
+        return self.get_guide(id) or self.get_encounter_set(id) or self.get_card(id)
+
     def assign_card_numbers(self):
         encounter_sets = list(self.encounter_sets)
         player_cards = list(self.player_cards)
@@ -394,13 +444,16 @@ class Project:
         return self.cards
 
     def has_unsaved_changes(self):
-        """Check whether any card (or card face) has unsaved edits"""
+        """Check whether any card (or card face) or encounter set has unsaved edits"""
         for card in self.get_all_cards():
             if getattr(card, 'dirty', False):
                 return True
             for face in (getattr(card, 'front', None), getattr(card, 'back', None)):
                 if face is not None and getattr(face, 'dirty', False):
                     return True
+        for encounter_set in self.encounter_sets:
+            if encounter_set.dirty:
+                return True
         return False
 
     def set_dirty(self, id, value=True):
@@ -760,6 +813,12 @@ class Translation:
 
         # project
         self.project.data['name'] = self.data.get('project_name', self.project.name)
+
+        # Card language: default a translation project to the language it's
+        # translated into, so e.g. a German translation renders "GEGNER"
+        # instead of "ENEMY" without a manual UI-language switch. Editable
+        # afterwards via the project editor like any other project setting.
+        self.project.data.setdefault('meta', {})['language'] = self.language
 
         # encounter sets
         for encounter_id in self.data.get('encounter_sets', {}):
