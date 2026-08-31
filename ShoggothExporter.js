@@ -1107,6 +1107,7 @@ function convert_card(path, collection, image_folder) {
             settings.get("LocationIcon"),
         ).toLowerCase();
         c = c === 'moon' ? 'crescent' : c;
+        c = c === 'doubleslash' ? 'double_slash' : c;
         out["front"]["connection"] = c;
     }
 
@@ -1117,6 +1118,7 @@ function convert_card(path, collection, image_folder) {
         if (c) {
             c = String(c).toLowerCase();
             c = c === 'moon' ? 'crescent' : c;
+            c = c === 'doubleslash' ? 'double_slash' : c;
             connections.push(c);
         }
     }
@@ -1190,6 +1192,7 @@ function convert_card(path, collection, image_folder) {
         } else if (String(backLocIcon) !== "None") {
             backLocIcon = String(backLocIcon).toLowerCase();
             backLocIcon = backLocIcon === 'moon' ? 'crescent' : backLocIcon;
+            backLocIcon = backLocIcon === 'doubleslash' ? 'double_slash' : backLocIcon;
             out["back"]["connection"] = backLocIcon;
         }
     }
@@ -1208,6 +1211,7 @@ function convert_card(path, collection, image_folder) {
         }
         c = String(c).toLowerCase();
         c = c === 'moon' ? 'crescent' : c;
+        c = c === 'doubleslash' ? 'double_slash' : c;
         back_connections.push(c);
     }
     if (back_conn_count > 0 && copy_count === back_conn_count) {
