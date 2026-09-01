@@ -206,6 +206,7 @@ TYPE_TAG_MAP = {
     'player': 'PlayerCard',
     'encounter': 'ScenarioCard',
     'investigator': 'Investigator',
+    'mini_investigator': 'Minicard',
 }
 
 
@@ -234,14 +235,17 @@ def card_to_tts(card, id, number, image_folder):
             data['Tags'].append(tag)
 
     # handling for horizontal cards (since they get scaled differently by TTS)
-    if card_type in ['Act', 'Agenda', 'Investigator']:
-        data['Transform']['scaleX'] *= 0.8214
-        data['Transform']['scaleZ'] *= 0.8214
+    if front_type in ['act', 'agenda', 'investigator']:
+        data['Transform']['scaleX'] *= 0.8214 / 1.15
+        data['Transform']['scaleZ'] *= 0.8214 / 1.15
 
     # handling for investigators (since they are larger in TTS for clarity)
-    if card_type == 'Investigator':
+    if front_type == 'investigator':
         data['Transform']['scaleX'] *= 1.15
         data['Transform']['scaleZ'] *= 1.15
+    elif front_type == 'mini_investigator':
+        data['Transform']['scaleX'] *= 0.6
+        data['Transform']['scaleZ'] *= 0.6
 
     data['Description'] = card.get('subtitle')
     data['Nickname'] = remove_formatting_tags(card.name)

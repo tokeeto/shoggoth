@@ -203,6 +203,7 @@ _TYPE_TO_SCED = {
     'skill': 'Skill',
     'customizable': 'Asset',
     'investigator': 'Investigator',
+    'mini_investigator': 'Minicard',
     'enemy': 'Enemy',
     'treachery': 'Treachery',
     'location': 'Location',
@@ -351,7 +352,13 @@ def build_gm_notes(card):
     front_type = card.front.get('type', '')
     notes = {}
 
-    notes['id'] = card.id
+    # special handling for ID since the TTS mod uses that to match mini-card and investigator
+    if front_type == 'mini_investigator':
+        notes['id'] = card.get('investigator_id', "00000") + "-m"
+        notes['shoggoth'] = card.id
+    else:
+        notes['id'] = card.id
+
     notes['type'] = _TYPE_TO_SCED.get(front_type, front_type)
 
     # class / faction
