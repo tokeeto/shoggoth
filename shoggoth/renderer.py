@@ -1252,7 +1252,6 @@ class CardRenderer:
                 token_image = self.get_resized_cached(token_path, (int(token_size), int(token_size)))
                 token_surface.paste(token_image, (0, int(token_size*1.1) * token_index), token_image)
 
-
             text_surface = Image.new('RGBA', region.size, (255, 255, 255, 0))
 
             margin_left = 0
@@ -1271,28 +1270,25 @@ class CardRenderer:
                     fill=(0,0,0),
                 )
                 margin_left = int(30*s)
-            text_kwargs = dict(
-                font=font.get('font', 'regular'),
-                font_size=int(font.get('size', 32)*s),
-                fill=font.get('color', '#231f20'),
-                outline=int(font.get('outline', 0)*s),
-                outline_fill=font.get('outline_color'),
-                alignment=font.get('alignment', 'left'),
-                scale=s,
-                project=side.card.project,
-            )
-            # Entries are laid out onto a local offscreen surface, then pasted at a
-            # position only known after every entry's rendered height is measured
-            # (see the weights/weight_pixels pass below). This raster pass always
-            # runs, even under HTML capture, purely to measure that height; once
-            # the final position is known (in the paste loop below), the text is
-            # re-rendered directly onto the card at that position so it lands in
-            # the vector text layer too instead of staying raster-only.
+
+            text_kwargs = {
+                "font": font.get('font', 'regular'),
+                "font_size": int(font.get('size', 32)*s),
+                "fill": font.get('color', '#231f20'),
+                "outline": int(font.get('outline', 0)*s),
+                "outline_fill": font.get('outline_color'),
+                "alignment": font.get('alignment', 'left'),
+                "scale": s,
+                "project": side.card.project,
+            }
+
+            # This is used for calculating the height of each entry,
+            # it's thefore done even when the output goes to html.
             with self.rich_text.html_capture_paused():
                 self.rich_text.render_text(
                     text_surface,
                     entry.get('text', ''),
-                    Region.unscaled({'x': margin_left, 'y': 0, 'height': region.height, 'width': region.width-token_size*2}),
+                    Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-(token_size*1.3)}),
                     **text_kwargs,
                 )
             surfaces.append((token_surface, text_surface, line_surface, entry.get('text', ''), margin_left, text_kwargs))
@@ -1317,7 +1313,7 @@ class CardRenderer:
                             'x': region.x + int(token_size*1.3) + margin_left,
                             'y': text_y,
                             'height': region.height,
-                            'width': region.width - token_size*2,
+                            'width': region.width - token_size*1.3,
                         }),
                         **text_kwargs,
                     )

@@ -42,6 +42,23 @@ QUOTE_BAR_SPACING = 10          # gap between the two blockquote bars
 # must not become a line-break point, so "word :" stays glued together.
 FRENCH_SPACED_PUNCT = {':', ';', '!', '?'}
 
+# Token types that actually put ink on a line. A source line that carries none
+# of these (only tag-driven control tokens) contributes no vertical space to
+# the layout — its control effects still apply, but the line is skipped as if
+# it were never typed. `break` (<br>) counts as ink here: it is a deliberate
+# blank line, not a no-op.
+_RENDERABLE_TOKEN_TYPES = frozenset({'text', 'font_icon', 'image_icon', 'hr', 'break'})
+
+# Non-rendering control tokens that may sit between a newline and an <hr> (or
+# between the <hr> and the following newline) without breaking the "rule on its
+# own line" recognition in _merge_hr_breaks. These are emitted verbatim so
+# their side effects (indent level, font, alignment, ...) still land.
+_CONTROL_TOKEN_TYPES = frozenset({
+    'format', 'align', 'story', 'indent', 'indent_push', 'indent_pop',
+    'size', 'size_pop', 'font_push', 'font_pop', 'underline', 'dbl_underline',
+    'margin', 'letter_spacing',
+})
+
 
 def _parse_tag_attributes(tag_string):
     return dict(_tag_kv.findall(tag_string))
@@ -329,10 +346,6 @@ class RichTextRenderer:
             '</left>': {'type': 'align', 'value': 'left', 'start': False},
             '<right>': {'type': 'align', 'value': 'right', 'start': True},
             '</right>': {'type': 'align', 'value': 'right', 'start': False},
-            # NOTE: 'indent' tokens have no handler in _layout, so <story>
-            # currently parses but has no layout effect.
-            '<story>': {'type': 'indent', 'value': 4, 'start': True},
-            '</story>': {'type': 'indent', 'value': 4, 'start': False},
             '<blockquote>': {'type': 'story', 'value': 'quote', 'start': True},
             '</blockquote>': {'type': 'story', 'value': 'quote', 'start': False},
             '<u>': {'type': 'underline', 'start': True},
@@ -785,6 +798,48 @@ class RichTextRenderer:
         result.extend(self._merge_last_two_words(para))
         return result
 
+    def _collapse_control_lines(self, tokens):
+        """Drop source lines that carry no ink.
+
+        A line whose only tokens are tag-driven control tokens (`</indent>`,
+        `<center>`, `<font ...>`, ...) should flow as if it were never typed:
+        its control effects still apply, but it must not add a blank line to
+        the layout. Only a bare newline or a line with at least one renderable
+        token (`_RENDERABLE_TOKEN_TYPES`) earns its vertical space.
+
+        Implemented by removing one of the two newlines that bound each
+        ink-free (but non-empty) line, so consecutive such lines and ones at
+        the very start/end of the text collapse away cleanly. A genuinely
+        empty line (an explicit blank line) is left alone.
+        """
+        # Split into newline-delimited segments; there is exactly one newline
+        # between each adjacent pair of segments.
+        segments = [[]]
+        for tok in tokens:
+            if tok['type'] == 'newline':
+                segments.append([])
+            else:
+                segments[-1].append(tok)
+
+        def is_ink_free_line(seg):
+            return len(seg) > 0 and not any(
+                t['type'] in _RENDERABLE_TOKEN_TYPES for t in seg)
+
+        result = []
+        last = len(segments) - 1
+        for idx, seg in enumerate(segments):
+            result.extend(seg)
+            if idx == last:
+                break
+            # The newline that follows this segment is dropped when either
+            # this segment is an ink-free line (collapse it forward) or the
+            # next segment is the final, ink-free one (collapse it backward).
+            drop = is_ink_free_line(seg) or (
+                idx + 1 == last and is_ink_free_line(segments[idx + 1]))
+            if not drop:
+                result.append({'type': 'newline'})
+        return result
+
     def _merge_hr_breaks(self, tokens):
         """Collapse "<newline><hr><newline>" into a single 'hr_break' token.
 
@@ -793,18 +848,46 @@ class RichTextRenderer:
         the two newlines would each add a full paragraph advance on top of
         the rule itself. Any other placement of <hr> (no newline on one or
         both sides) is left untouched and renders inline as before.
+
+        Non-rendering control tokens (`_CONTROL_TOKEN_TYPES`) are allowed to
+        sit between the bounding newlines and the rule — e.g. an `indent_pop`
+        that `</indent>` left adjacent to the `<hr>` after eating its own
+        trailing newline — so the rule after an indented block still merges.
+        They are re-emitted around the `hr_break` so their side effects still
+        apply: an `indent_push`/`indent_pop` goes *before* it (the rule is
+        then drawn at the post-pop indent, i.e. full width; `_layout` flushes
+        the pending line on the indent change so the line above keeps its own
+        indent), every other control token goes *after* it (so the line above
+        still flushes under the state it was typed with).
         """
         result = []
         i, n = 0, len(tokens)
         while i < n:
-            if (tokens[i]['type'] == 'newline' and i + 2 < n
-                    and tokens[i + 1]['type'] == 'hr'
-                    and tokens[i + 2]['type'] == 'newline'):
-                result.append({'type': 'hr_break'})
-                i += 3
-            else:
-                result.append(tokens[i])
-                i += 1
+            if tokens[i]['type'] == 'newline':
+                j = i + 1
+                lead = []
+                while j < n and tokens[j]['type'] in _CONTROL_TOKEN_TYPES:
+                    lead.append(tokens[j])
+                    j += 1
+                if j < n and tokens[j]['type'] == 'hr':
+                    k = j + 1
+                    trail = []
+                    while k < n and tokens[k]['type'] in _CONTROL_TOKEN_TYPES:
+                        trail.append(tokens[k])
+                        k += 1
+                    if k < n and tokens[k]['type'] == 'newline':
+                        indent_lead = [t for t in lead
+                                       if t['type'] in ('indent_push', 'indent_pop')]
+                        other_lead = [t for t in lead
+                                      if t['type'] not in ('indent_push', 'indent_pop')]
+                        result.extend(indent_lead)
+                        result.append({'type': 'hr_break'})
+                        result.extend(other_lead)
+                        result.extend(trail)
+                        i = k + 1
+                        continue
+            result.append(tokens[i])
+            i += 1
         return result
 
     def parse_text(self, text, project=None):
@@ -931,6 +1014,7 @@ class RichTextRenderer:
         if self.french_punctuation:
             tokens = self._merge_french_spacing(tokens)
         tokens = self._prevent_runts(tokens)
+        tokens = self._collapse_control_lines(tokens)
         tokens = self._merge_hr_breaks(tokens)
         return tokens
 
@@ -1312,9 +1396,16 @@ class RichTextRenderer:
                 y += int(token['value'] * scale)
 
             elif t == 'indent_push':
+                # A block-indent change is a line boundary: flush whatever is
+                # buffered so it keeps the indent it was typed under, before
+                # the new level takes effect.
+                if has_renderable:
+                    start_new_line(0)
                 push_scope('block_indent', token['value'])
 
             elif t == 'indent_pop':
+                if has_renderable:
+                    start_new_line(0)
                 pop_scope('block_indent', 0)
 
             elif t == 'size':

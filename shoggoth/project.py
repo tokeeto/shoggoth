@@ -217,7 +217,7 @@ class Project:
 
     @property
     def auto_hyphenate(self):
-        return self.data.get('meta', {}).get('auto_hyphenate', True)
+        return self.data.get('meta', {}).get('auto_hyphenate', False)
 
     @auto_hyphenate.setter
     def auto_hyphenate(self, value):
@@ -239,12 +239,7 @@ class Project:
 
     @property
     def language(self):
-        """Card rendering language override for this project.
-
-        Empty string means "no override" — the global UI card-language
-        setting applies. A non-empty value (e.g. 'de') overrides it, so a
-        German translation project renders "GEGNER" instead of "ENEMY"
-        without the user having to flip the UI-level setting.
+        """ Card rendering language override for this project.
         """
         return self.data.get('meta', {}).get('language', '')
 
