@@ -2,7 +2,7 @@ from PIL import Image, ImageOps, ImageDraw
 import os
 from collections import OrderedDict
 from io import BytesIO
-from shoggoth.rich_text import RichTextRenderer
+from shoggoth.renderer.richtext import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
 from shoggoth.perf import perf
 from pathlib import Path

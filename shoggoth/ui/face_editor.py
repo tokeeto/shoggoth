@@ -146,7 +146,7 @@ class FaceEditor(QWidget):
     # Cost's "-" at 0 drops to this sentinel: "cannot be played/paid for by normal means"
     # (as opposed to "0", which is free-but-payable). Enemy attack/health/evade use
     # IconStatField instead of a Stepper — their own "-" option stores the "<dash>"
-    # icon-font glyph (rich_text.py) directly, the "no value printed" dash used on enemy
+    # icon-font glyph (renderer.richtext.tags) directly, the "no value printed" dash used on enemy
     # stat lines. See renderer/defaults for the same literal strings.
     STEPPER_FLOOR_VALUES = {'cost': '---'}
 
