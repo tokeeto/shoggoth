@@ -25,7 +25,7 @@ from shoggoth.settings import EXPORT_SIZES
 from shoggoth.ui.export_widgets import resolve_scope_cards, run_image_export
 
 _MBPRINT_FORMAT, _MBPRINT_QUALITY = 'png', 100
-_AZAO_FORMAT, _AZAO_QUALITY = 'png', 100
+_AZAO_FORMAT, _AZAO_QUALITY = 'jpeg', 95
 
 
 def _resolve_size(label):

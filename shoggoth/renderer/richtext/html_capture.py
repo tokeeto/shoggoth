@@ -126,18 +126,21 @@ def emit_html(capture, commands, font_meta):
     """
     for command in commands:
         if isinstance(command, TextCommand):
-            span = _text_span(command, font_meta)
+            span = _text_span(command, font_meta, capture)
             if span:
                 capture.parts.append(span)
         elif isinstance(command, LineCommand):
             capture.parts.append(_line_box(command))
 
 
-def _text_span(command, font_meta):
+def _text_span(command, font_meta, capture):
     meta = font_meta.get(command.font)
     if meta is None:
         return ''
     family = meta['family']
+    # Record the face so its @font-face rule lands in fonts.css; without this
+    # the PDF overlay falls back to a system font.
+    capture.fonts[family] = meta['path']
 
     descent = max(0, meta['descent'])
     if family == 'shoggoth-skill':          # Bolton reports too small a descent
