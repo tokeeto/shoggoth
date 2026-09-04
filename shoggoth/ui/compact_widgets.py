@@ -33,6 +33,7 @@ CLASS_CHIP_COLORS = {
     'specialist': ('#2b2f36', '#e8e8ea'),
     'weakness': ('#ffffff', '#111111'),
     'basic weakness': ('#ffffff', '#111111'),
+    'reward': ('#8a6d1f', '#fdf6e3'),
 }
 # Per-container default toggle rows (see ClassChipsField) — each face editor passes the
 # preset that matches what its card type actually needs, rather than one shared list.
@@ -40,13 +41,16 @@ PLAYER_CLASSES = ['guardian', 'survivor', 'seeker', 'mystic', 'rogue', 'neutral'
 ENCOUNTER_CLASSES = ['weakness', 'basic weakness', 'neutral']
 # Universal pool offered by the "Special" popover, minus whatever's already in the
 # field's own default row (e.g. an encounter field only sees "specialist" there).
-SPECIAL_CANDIDATES = ['specialist', 'weakness', 'basic weakness']
+# "reward" is never a default toggle on either row — unlike weakness, it's always
+# secondary, never a card's main class — so it only ever surfaces here.
+SPECIAL_CANDIDATES = ['specialist', 'weakness', 'basic weakness', 'reward']
 _DEFAULT_CLASS_CHIP_COLOR = ('#5a5f66', '#f2f2f3')
 
 _CLASS_LABEL_KEYS = {
     'guardian': 'CLASS_GUARDIAN', 'seeker': 'CLASS_SEEKER', 'rogue': 'CLASS_ROGUE',
     'survivor': 'CLASS_SURVIVOR', 'mystic': 'CLASS_MYSTIC', 'neutral': 'CLASS_NEUTRAL',
     'specialist': 'CLASS_SPECIALIST', 'weakness': 'CLASS_WEAKNESS', 'basic weakness': 'CLASS_BASIC_WEAKNESS',
+    'reward': 'CLASS_REWARD',
 }
 
 
