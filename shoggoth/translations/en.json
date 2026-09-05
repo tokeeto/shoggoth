@@ -341,6 +341,7 @@
   "FIELD_TOKEN_AREA_TITLE": "Title",
   "GROUP_CUSTOMIZATION_OPTIONS": "Customization Options",
   "GROUP_DECK_BUILDING_OPTIONS": "Deck Building Options",
+  "BUTTON_ADD_ENTRY": "+ add entry",
   "PLACEHOLDER_EFFECT_TEXT": "Effect text...",
   "PLACEHOLDER_OPTION_EFFECT": "Option effect...",
   "PLACEHOLDER_OPTION_NAME": "Option name...",

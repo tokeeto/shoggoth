@@ -42,6 +42,25 @@ QLineEdit, QTextEdit, QPlainTextEdit, QComboBox {
     font-size: 12.5px;
 }
 
+/* QLineEdit/QComboBox get their box + focus glow from native style painting (no
+   border/background set above, so Qt leaves that alone). ArkhamTextEdit/NbspTextEdit
+   run frameless (QFrame.NoFrame, set in code) since QTextEdit's native frame reads as a
+   heavier box than a QLineEdit's — but that also drops the native focus indication, so
+   it's redrawn here. The transparent resting border reserves the same 1px so focusing
+   doesn't shift layout by growing the border from 0 to 1px. `background` has to be set
+   explicitly too: the padding above is otherwise painted with the surrounding window's
+   background (there's no frame left to imply "this rect is the editor"), leaving a ring
+   in a visibly different color between the border and the actual (palette-base) viewport. */
+QTextEdit, QPlainTextEdit {
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: palette(base);
+}
+
+QTextEdit:focus, QPlainTextEdit:focus {
+    border: 1px solid palette(highlight);
+}
+
 QCheckBox {
     spacing: 6px;
 }

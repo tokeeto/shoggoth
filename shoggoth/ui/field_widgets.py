@@ -5,11 +5,11 @@ Compact style: every field is a small static uppercase label directly above its 
 (no floating-label animation) — see compact_theme.py / the "Card Editor Style Guide" doc.
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QLabel, QPushButton, QFrame
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QLabel, QPushButton
 )
 from PySide6.QtCore import Signal
 
-from shoggoth.ui.text_editor import ArkhamTextEdit, ArkhamTextHighlighter
+from shoggoth.ui.text_editor import ArkhamTextEdit, ArkhamTextHighlighter, NbspTextEdit
 from shoggoth.ui.compact_widgets import TagChipsField, ClassChipsField
 from shoggoth.i18n import tr
 
@@ -262,11 +262,7 @@ class LabeledTextEdit(CompactLabeledField):
     def __init__(self, label_text, use_arkham_editor=False):
         super().__init__(label_text)
 
-        self.input = ArkhamTextEdit() if use_arkham_editor else QTextEdit()
-        # Drop the native sunken scroll-area frame — it reads as a heavier box than a
-        # QLineEdit's own border, and its reserved frame width was throwing off vertical
-        # alignment against line-edit siblings in the same row (e.g. Flavor vs Victory).
-        self.input.setFrameShape(QFrame.NoFrame)
+        self.input = ArkhamTextEdit() if use_arkham_editor else NbspTextEdit()
         if use_arkham_editor:
             self.input.setMinimumHeight(136)
             self.input.setMaximumHeight(176)
