@@ -138,7 +138,7 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
             parent, renderer, cards, folder,
             size=tts_lib.TTS_IMAGE_SIZE, bleed=False, separate_versions=False,
             format=tts_lib.TTS_IMAGE_FORMAT, quality=tts_lib.TTS_IMAGE_QUALITY,
-            include_backs=False,
+            include_backs=False, rotate=True
         )
     sync = d['sync']
     # 'campaign'/'all' keep tts_lib's dedicated bag structure (grouped by

@@ -135,6 +135,24 @@ class _Line:
         self.line_width = 0.0        # scratch, used only while building
         self.hang = False            # continuation line of a bullet paragraph
 
+    def pop_unspaced_tail(self):
+        """If this line has any items after its last plain space, remove that
+        trailing run (the space itself included, same as a line-leading space)
+        and return it so the caller can seed the next line with it -- this is
+        what keeps e.g. an icon and the word glued to it (no space, possibly a
+        non-breaking space) from ever being wrapped apart. Returns None if
+        there is no space to roll back to, or nothing follows it."""
+        for index in range(len(self.items) - 1, -1, -1):
+            item = self.items[index]
+            if item.kind is PieceType.TEXT and item.text == ' ':
+                tail = self.items[index + 1:]
+                if not tail:
+                    return None
+                self.line_width -= sum(popped.width for popped in self.items[index:])
+                self.items = self.items[:index]
+                return tail
+        return None
+
     def render(self, context):
         if self.is_rule:
             left, width = context.content_bounds(self.y, self.block_indent, self.size_px)
@@ -433,6 +451,21 @@ class _LayoutPass:
             line.text_indent = 0
         self.lines.append(line)
 
+    def _wrap_line(self, style):
+        """Close the current line because the next piece doesn't fit, and open
+        a fresh one to keep placing into. If the current line ends in a run
+        with no space in it (an icon glued to its neighbours, say), that run
+        is rolled back onto the new line first, so the wrap lands at the last
+        real space instead of splitting the glued run apart."""
+        tail = self._line.pop_unspaced_tail()
+        self._close_line(style)
+        self.y += self._size_px(style)
+        self._first_of_paragraph = False
+        self._open_line()
+        if tail:
+            self._line.items = tail
+            self._line.line_width = sum(item.width for item in tail)
+
     def _overflowed(self, piece_index):
         """A non-forced overflow: record how far we got, tell the caller to stop."""
         if self.forced:
@@ -526,10 +559,7 @@ class _LayoutPass:
             text_indent = self._text_indent(style, size_px)
             if self._line.line_width + item.width > self._wrap_width(
                     self.y, style.indent, text_indent, size_px):
-                self._close_line(style)
-                self.y += size_px
-                self._first_of_paragraph = False
-                self._open_line()
+                self._wrap_line(style)
                 if self.y > self.y_limit and self._overflowed(piece_index):
                     return None, False, self._fraction
 
@@ -572,12 +602,16 @@ class _LayoutPass:
                     return True
                 break
             if split is not None:
+                # The hyphen point already decides where this word breaks;
+                # `head` stays on the closing line as-is, no rollback.
                 head, text = split
                 self._line.items.extend(self._text_items(head, font, style))
-            self._close_line(style)
-            self.y += size_px
-            self._first_of_paragraph = False
-            self._open_line()
+                self._close_line(style)
+                self.y += size_px
+                self._first_of_paragraph = False
+                self._open_line()
+            else:
+                self._wrap_line(style)
             if self.y > self.y_limit and self._overflowed(piece_index):
                 return True
 
