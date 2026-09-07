@@ -405,6 +405,7 @@ function translate_text(value) {
     if (!value) return value;
     value = String(value);
     value = value.replace(/^\n/, "");  // remove empty first lines
+    value = value.replace(/<[^>]+>/g, (match) => match.toLowerCase()); //make all tags lowercase since they are case sensitive in Shoggoth.
     value = translate_tags(value);
     let match = value.match(/\n+$/);
     let trailing = match ? match[0] : "";
@@ -846,6 +847,7 @@ function convert_card(path, collection, image_folder) {
             if (header) parts.push("<b>" + String(header) + "</b>");
             if (story) parts.push("<blockquote>" + String(story) + "</blockquote>");
             if (rules) parts.push(String(rules));
+            if ( "C" !== s && (header || story || rules )) parts.push("<hr>");
         }
         if (parts.length > 0) {
             out["front"]["text"] = parts.join("\n");
@@ -861,6 +863,7 @@ function convert_card(path, collection, image_folder) {
             if (header) parts.push("<b>" + String(header) + "</b>");
             if (story) parts.push("<blockquote>" + String(story) + "</blockquote>");
             if (rules) parts.push(String(rules));
+            if ( "C" !== s && (header || story || rules )) parts.push("<hr>");
         }
         if (parts.length > 0) {
             out["back"]["text"] = parts.join("\n");
