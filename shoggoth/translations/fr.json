@@ -344,6 +344,7 @@
   "TAB_INFO": "Info",
   "TAB_CARDS": "Cartes",
   "TAB_TTS": "TTS",
+  "TRAITS_COUNT": "Nombre de traits sur les cartes Rencontre :",
   "TTS_INCLUDED_SETS_LABEL": "Sets inclus",
   "TTS_INCLUDED_SETS_DESC": "Lorsque ce set est exporté vers TTS, inclure aussi les cartes de ces sets :",
   "STATUS_EDITING_ENCOUNTER_SET": "Modification du set de rencontre : {name}",
