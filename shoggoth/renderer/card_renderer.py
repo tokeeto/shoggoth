@@ -2,7 +2,7 @@ from PIL import Image, ImageOps, ImageDraw
 import os
 from collections import OrderedDict
 from io import BytesIO
-from shoggoth.rich_text import RichTextRenderer
+from shoggoth.renderer.richtext import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
 from shoggoth.perf import perf
 from pathlib import Path
@@ -796,7 +796,17 @@ class CardRenderer:
                 font = side.get(f'{field}_font', {})
                 polygon = side.get(f'{field}_polygon', None)
                 if polygon:
-                    polygon = [(point[0]*s, point[1]*s) for point in polygon]
+                    # Round to the same integer pixel grid as Region (and thus
+                    # as every sampled y _poly_bounds_at ever gets called
+                    # with -- line positions are always whole pixels). Left
+                    # as exact floats, a polygon vertex at an odd nominal y
+                    # could land on a half-pixel boundary at some render
+                    # resolutions (e.g. 1327 -> 663.5 at half scale) but not
+                    # others, so a sample that's supposed to sit right at that
+                    # edge could fall a hair outside it purely from the
+                    # scaling arithmetic -- resolution-dependent, and not
+                    # reproducible at full resolution where 1500px == 1x.
+                    polygon = [(int(point[0]*s), int(point[1]*s)) for point in polygon]
 
                 if font.get('rotation'):
                     # Arbitrary rotation can't be expressed in the HTML text
@@ -1242,7 +1252,6 @@ class CardRenderer:
                 token_image = self.get_resized_cached(token_path, (int(token_size), int(token_size)))
                 token_surface.paste(token_image, (0, int(token_size*1.1) * token_index), token_image)
 
-
             text_surface = Image.new('RGBA', region.size, (255, 255, 255, 0))
 
             margin_left = 0
@@ -1261,38 +1270,55 @@ class CardRenderer:
                     fill=(0,0,0),
                 )
                 margin_left = int(30*s)
-            # Entries are laid out onto a local offscreen surface, then pasted at a
-            # position only known after every entry's rendered height is measured
-            # (see the weights/weight_pixels pass below). The HTML text layer can't
-            # express that two-pass, surface-relative placement, so it stays raster.
+
+            text_kwargs = {
+                "font": font.get('font', 'regular'),
+                "font_size": int(font.get('size', 32)*s),
+                "fill": font.get('color', '#231f20'),
+                "outline": int(font.get('outline', 0)*s),
+                "outline_fill": font.get('outline_color'),
+                "alignment": font.get('alignment', 'left'),
+                "scale": s,
+                "project": side.card.project,
+            }
+
+            # This is used for calculating the height of each entry,
+            # it's thefore done even when the output goes to html.
             with self.rich_text.html_capture_paused():
                 self.rich_text.render_text(
                     text_surface,
                     entry.get('text', ''),
-                    Region.unscaled({'x': margin_left, 'y': 0, 'height': region.height, 'width': region.width-token_size*2}),
-                    font=font.get('font', 'regular'),
-                    font_size=int(font.get('size', 32)*s),
-                    fill=font.get('color', '#231f20'),
-                    outline=int(font.get('outline', 0)*s),
-                    outline_fill=font.get('outline_color'),
-                    alignment=font.get('alignment', 'left'),
-                    scale=s,
-                    project=side.card.project,
+                    Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-(token_size*1.3)}),
+                    **text_kwargs,
                 )
-            surfaces.append((token_surface, text_surface, line_surface))
+            surfaces.append((token_surface, text_surface, line_surface, entry.get('text', ''), margin_left, text_kwargs))
 
-        weights = [max(n.getbbox()[3] if n.getbbox() else 0, m.getbbox()[3]if m.getbbox() else 0) for n, m, _ in surfaces]
+        weights = [max(n.getbbox()[3] if n.getbbox() else 0, m.getbbox()[3]if m.getbbox() else 0) for n, m, *_ in surfaces]
         weight_pixels = region.height/sum(weights)
 
         for index, weight in enumerate(weights):
-            chaos, text, lines = surfaces[index]
+            chaos, text, lines, entry_text, margin_left, text_kwargs = surfaces[index]
             height = weight_pixels * weight
             y = region.y + int(sum(weights[:index]) * weight_pixels)
 
             if chaos.getbbox():
                 card_image.paste(chaos, (region.x, y + int(height/2 - chaos.getbbox()[3]/2)), chaos)
             if text.getbbox():
-                card_image.paste(text, (region.x + int(token_size*1.3), y + int(height/2 - text.getbbox()[3]/2)), text)
+                text_y = y + int(height/2 - text.getbbox()[3]/2)
+                if self.rich_text.is_html_capturing:
+                    self.rich_text.render_text(
+                        card_image,
+                        entry_text,
+                        Region.unscaled({
+                            'x': region.x + int(token_size*1.3) + margin_left,
+                            'y': text_y,
+                            'height': region.height,
+                            'width': region.width - token_size*1.3,
+                        }),
+                        **text_kwargs,
+                    )
+                else:
+                    card_image.paste(text, (region.x + int(token_size*1.3), text_y), text)
             if lines:
                 card_image.paste(lines, (region.x + int(token_size*1.3), y + int(height/2 - chaos.getbbox()[3]/2)), lines)
 

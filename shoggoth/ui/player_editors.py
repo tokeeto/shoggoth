@@ -13,7 +13,7 @@ from shoggoth.i18n import tr
 
 # Level selector shared by Asset/Event/Skill: en-dash (no level) / 0-5 / C (custom).
 # Values are literal strings the renderer sentinel-checks for ('None'/'Custom') — see
-# renderer.py:render_level.
+# renderer/card_renderer.py:render_level.
 LEVEL_LABELS = ['–', '0', '1', '2', '3', '4', '5', 'C']
 LEVEL_VALUES = ['None', '0', '1', '2', '3', '4', '5', 'Custom']
 

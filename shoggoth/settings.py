@@ -42,10 +42,11 @@ def apply_appearance(color_scheme: str, ui_style: str):
 
 # Available export sizes: (display label, size dict). 'width' is the render
 # resolution driver render_card_side expects (it derives the true trimmed
-# pixel size internally, see TRIM_SIZES/trim_dimensions in renderer.py); the
+# pixel size internally, see TRIM_SIZES/trim_dimensions in
+# renderer/card_renderer.py); the
 # labels below show that true size. FFG trim (61.5x88mm) is narrower than the
 # MTG trim (63.5x88mm, the convention most third-party print vendors use) --
-# see TRIM_SIZES in renderer.py. Neither is a valid Tabletop Simulator card
+# see TRIM_SIZES in renderer/card_renderer.py. Neither is a valid Tabletop Simulator card
 # image size (TTS wants the untrimmed canvas at an exact multiple of
 # 750x1050 -- see tts_lib.TTS_IMAGE_SIZE, which the dedicated TTS export
 # section uses instead of this list).
@@ -105,6 +106,7 @@ class SettingsManager:
             'cmyk_profile': '',
             'show_bleed': True,
             'show_regions': False,
+            'preview_resolution': 0,
             'enable_ligatures': True,
             # Appearance
             'color_scheme': 'system',
@@ -305,6 +307,12 @@ class SettingsDialog(QDialog):
         preview_group = QGroupBox(tr("GROUP_PREVIEW_SETTINGS"))
         preview_layout = QFormLayout()
 
+        # Preview resolution dropdown
+        self.preview_resolution_combo = QComboBox()
+        self.preview_resolution_combo.addItems([label for label, _ in EXPORT_SIZES])
+        self.preview_resolution_combo.setToolTip(tr("HELP_PREVIEW_RESOLUTION"))
+        preview_layout.addRow(tr("LABEL_PREVIEW_RESOLUTION"), self.preview_resolution_combo)
+
         # Show bleed checkbox
         self.show_bleed_checkbox = QCheckBox(tr("OPT_SHOW_BLEED"))
         self.show_bleed_checkbox.setToolTip(
@@ -488,6 +496,9 @@ class SettingsDialog(QDialog):
         self.cmyk_profile_input.setText(
             self.settings.get('Shoggoth', 'cmyk_profile', '')
         )
+        self.preview_resolution_combo.setCurrentIndex(
+            self.settings.getint('Shoggoth', 'preview_resolution', 0)
+        )
         self.show_bleed_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_bleed', True)
         )
@@ -541,6 +552,7 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
         self.settings.set('Shoggoth', 'prince_dir', self.prince_dir_input.text())
         self.settings.set('Shoggoth', 'cmyk_profile', self.cmyk_profile_input.text())
+        self.settings.set('Shoggoth', 'preview_resolution', self.preview_resolution_combo.currentIndex())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
         self.settings.set('Shoggoth', 'show_regions', self.show_regions_checkbox.isChecked())
         self.settings.set('Shoggoth', 'enable_ligatures', self.enable_ligatures_checkbox.isChecked())
@@ -559,6 +571,10 @@ class SettingsDialog(QDialog):
         main_window = self.parent()
         if main_window and hasattr(main_window, 'refresh_tree'):
             main_window.refresh_tree()
+
+        # Re-render the preview at the (possibly new) preview resolution
+        if main_window and hasattr(main_window, 'preview'):
+            main_window.preview.rerender_now()
 
         # Export settings
         self.settings.set('Shoggoth', 'export_size', self.export_size_combo.currentIndex())

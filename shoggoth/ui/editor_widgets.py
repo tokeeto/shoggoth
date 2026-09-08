@@ -90,7 +90,7 @@ class SlotChipsField(QWidget):
     reserving width for two side-by-side comboboxes regardless of how many are used.
 
     Stores/returns the raw ordered slot-name list the renderer expects directly (index 0
-    -> slot_1_region, index 1 -> slot_2_region — see renderer.py:render_slots); chip order
+    -> slot_1_region, index 1 -> slot_2_region — see renderer/card_renderer.py:render_slots); chip order
     is simply pick order, no positional relabeling.
     """
 

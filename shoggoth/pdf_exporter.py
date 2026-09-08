@@ -172,11 +172,11 @@ def _azao_html(cards, folder, size, side='front'):
     for card in cards:
         w_mm, h_mm = _card_mm(card)
         if not card.has_versions:
-            path = CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)[offset::2]
+            path = CardRenderer.expected_export_paths(card, folder, size, format='jpeg', include_backs=False)[offset::2]
             for _ in range(card.amount):
                 yield _card_page(path[0], w_mm, h_mm)
         else:
-            for path in CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)[offset::2]:
+            for path in CardRenderer.expected_export_paths(card, folder, size, format='jpeg', include_backs=False)[offset::2]:
                 yield _card_page(path, w_mm, h_mm)
     yield "</body>"
 
@@ -325,7 +325,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None
     print(f"Azao front html time: {time()-start_time}")
 
     subprocess.run(
-        [prince_cmd, temp_file, *color_args, '-o', Path(target_file_front)],
+        [prince_cmd, temp_file, *color_args, '--pdf-profile=PDF/X-4', '-o', Path(target_file_front)],
         cwd=prince_cwd,
     )
     print(f"Azao pdf front time: {time()-start_time}")

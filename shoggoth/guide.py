@@ -130,7 +130,7 @@ _DEFAULT_MARKDOWN = {
     'blank': "",
 }
 
-# Icon tag → AHLCGSymbol glyph character (from rich_text.py font_icon_tags).
+# Icon tag → AHLCGSymbol glyph character (from renderer.richtext.tags FONT_ICON_TAGS).
 # Bracket-style tags must be pre-processed before markdown sees them as links.
 _ICON_TAGS: dict[str, str] = {
     '<codex>': '#',

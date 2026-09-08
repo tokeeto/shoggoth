@@ -25,7 +25,7 @@ from shoggoth.settings import EXPORT_SIZES
 from shoggoth.ui.export_widgets import resolve_scope_cards, run_image_export
 
 _MBPRINT_FORMAT, _MBPRINT_QUALITY = 'png', 100
-_AZAO_FORMAT, _AZAO_QUALITY = 'png', 100
+_AZAO_FORMAT, _AZAO_QUALITY = 'jpeg', 95
 
 
 def _resolve_size(label):
@@ -138,7 +138,7 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
             parent, renderer, cards, folder,
             size=tts_lib.TTS_IMAGE_SIZE, bleed=False, separate_versions=False,
             format=tts_lib.TTS_IMAGE_FORMAT, quality=tts_lib.TTS_IMAGE_QUALITY,
-            include_backs=False,
+            include_backs=False, rotate=True
         )
     sync = d['sync']
     # 'campaign'/'all' keep tts_lib's dedicated bag structure (grouped by

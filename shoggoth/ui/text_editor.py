@@ -1,7 +1,7 @@
 """
 Custom text editor widget for Arkham Horror card text with syntax highlighting and autocomplete
 """
-from PySide6.QtWidgets import QTextEdit, QCompleter, QToolTip
+from PySide6.QtWidgets import QTextEdit, QCompleter, QToolTip, QFrame
 from PySide6.QtCore import Qt, QStringListModel, QRect, QPoint
 from PySide6.QtGui import (
     QSyntaxHighlighter, QTextCharFormat, QColor, QFont,
@@ -269,12 +269,109 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
                 self.setFormat(start, length, self.formats['unknown'])
 
 
-class ArkhamTextEdit(QTextEdit):
+# Live-editing <-> stored-text translation ------------------------------------------
+#
+# Two of Qt's QTextDocument round-trips lose information the card markup actually
+# cares about, so ArkhamTextEdit/NbspTextEdit translate at the toPlainText()/
+# setPlainText() boundary rather than storing the app's real format live:
+#
+# 1. Non-breaking space (U+00A0): QTextDocument stores it fine (insertText/
+#    setPlainText/insertPlainText all keep it verbatim -- confirmed via
+#    document().toRawText(), which reflects the real stored characters), but
+#    QTextDocument.toPlainText() (and QTextEdit.toPlainText(), and QTextBlock.text())
+#    silently downgrades it to a regular U+0020 space on the way out, for reasons
+#    undocumented but easy to reproduce with a bare vanilla QTextEdit. toRawText()
+#    doesn't do this, hence using it below.
+#
+# 2. Paragraph vs. line break: Qt's Return already inserts a real paragraph break
+#    (a new QTextBlock, U+2029 between blocks in toRawText()) and Shift+Return
+#    already inserts a soft line break within the same block (U+2028) -- this is
+#    native QTextEdit behavior, nothing we wire up ourselves. But toPlainText()
+#    collapses *both* down to a plain '\n', losing the distinction the card markup
+#    depends on: a literal '\n' in a card's text is a full paragraph break (extra
+#    vertical space -- PieceType.PAR in renderer/richtext/layout.py), while a
+#    literal '<br>' tag is a tight same-paragraph line break (PieceType.BREAK, no
+#    extra space). So here U+2029 maps to '\n' and U+2028 maps to the literal
+#    '<br>' tag text, each way, keeping Enter == paragraph break and
+#    Shift+Enter == '<br>' consistent with how the renderer already reads them.
+NBSP = ' '
+_PARAGRAPH_SEPARATOR = ' '
+_LINE_SEPARATOR = ' '
+_BREAK_TAG = '<br>'
+
+
+class _LiveTextEditMixin:
+    """Shared Shift+Space / Enter / toPlainText / setPlainText handling -- see the
+    module note above. Mixed into both ArkhamTextEdit and NbspTextEdit."""
+
+    # Extra top margin (px) on a real paragraph break, so it's visually
+    # distinguishable at a glance from a same-paragraph Shift+Enter line break --
+    # otherwise both look identical while editing even though the renderer spaces
+    # them very differently (PieceType.PAR vs PieceType.BREAK).
+    _PARAGRAPH_SPACING_PX = 10
+
+    def _handle_nbsp_shortcut(self, event):
+        """Insert a real non-breaking space and return True if this event was
+        Shift+Space."""
+        if event.key() == Qt.Key_Space and event.modifiers() == Qt.ShiftModifier:
+            cursor = self.textCursor()
+            cursor.insertText(NBSP)
+            self.setTextCursor(cursor)
+            return True
+        return False
+
+    def _handle_paragraph_break_shortcut(self, event):
+        """Let Qt insert its native paragraph break for a plain Return/Enter (no
+        Shift -- Shift+Return's same-paragraph line break is left to Qt's own
+        default handling), then mark the new block. Returns True if handled."""
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter) and not event.modifiers() & Qt.ShiftModifier:
+            super(_LiveTextEditMixin, self).keyPressEvent(event)
+            self._mark_paragraph_break(self.textCursor())
+            return True
+        return False
+
+    def _mark_paragraph_break(self, cursor):
+        fmt = cursor.blockFormat()
+        fmt.setTopMargin(self._PARAGRAPH_SPACING_PX)
+        cursor.setBlockFormat(fmt)
+
+    def _mark_all_paragraph_breaks(self):
+        """Apply _mark_paragraph_break retroactively to every block after the
+        first. Needed once after bulk-loading content (setPlainText) since that
+        doesn't go through keyPressEvent's per-Enter marking."""
+        cursor = QTextCursor(self.document())
+        block = self.document().begin().next()
+        while block.isValid():
+            cursor.setPosition(block.position())
+            self._mark_paragraph_break(cursor)
+            block = block.next()
+
+    def toPlainText(self):
+        raw = self.document().toRawText()
+        return raw.replace(_PARAGRAPH_SEPARATOR, '\n').replace(_LINE_SEPARATOR, _BREAK_TAG)
+
+    def setPlainText(self, text):
+        # '\n' already becomes a real paragraph break via Qt's own setPlainText; only
+        # '<br>' needs translating up front so it displays as a soft break in place.
+        super().setPlainText(text.replace(_BREAK_TAG, _LINE_SEPARATOR) if text else text)
+        self._mark_all_paragraph_breaks()
+
+
+class ArkhamTextEdit(_LiveTextEditMixin, QTextEdit):
     """Custom text edit widget with autocomplete for Arkham Horror card text"""
 
     def __init__(self, parent=None, monospace=False):
         super().__init__(parent)
         self.monospace = monospace
+
+        # Drop the native sunken scroll-area frame — it reads as a heavier box than
+        # sibling QLineEdit-style fields and throws off alignment against them; every
+        # caller wants this, so it belongs here rather than repeated at each call site.
+        self.setFrameShape(QFrame.NoFrame)
+        # QTextDocument's own margin (default 4px) would stack on top of the compact
+        # editor theme's own CSS padding, double-padding the text. The CSS padding
+        # alone is the intended inset, so this is zeroed out for the same reason.
+        self.document().setDocumentMargin(0)
 
         # ShoggothEditorFont's ligatures render markup tags as icon glyphs, which is
         # what card text fields want — but that same substitution obfuscates raw JSON
@@ -397,6 +494,10 @@ class ArkhamTextEdit(QTextEdit):
 
     def keyPressEvent(self, event):
         """Handle key press events for autocomplete and formatting shortcuts"""
+        # Shift+Space inserts a non-breaking space - see _LiveTextEditMixin above.
+        if self._handle_nbsp_shortcut(event):
+            return
+
         # Handle formatting shortcuts
         if event.modifiers() & Qt.ControlModifier:
             if event.key() == Qt.Key_B:
@@ -414,6 +515,10 @@ class ArkhamTextEdit(QTextEdit):
             if event.key() in (Qt.Key_Enter, Qt.Key_Return, Qt.Key_Tab):
                 event.ignore()
                 return
+
+        # A plain Return/Enter creates a new paragraph - see _LiveTextEditMixin above.
+        if self._handle_paragraph_break_shortcut(event):
+            return
 
         # Handle normal key press
         super().keyPressEvent(event)
@@ -466,6 +571,26 @@ class ArkhamTextEdit(QTextEdit):
         if self.completer:
             self.completer.setWidget(self)
         super().focusInEvent(event)
+
+
+class NbspTextEdit(_LiveTextEditMixin, QTextEdit):
+    """A plain QTextEdit (no Arkham syntax highlighting/autocomplete) that still
+    supports Shift+Space to insert a non-breaking space (see _LiveTextEditMixin), for
+    fields like flavor text that use a bare QTextEdit rather than ArkhamTextEdit."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # See ArkhamTextEdit.__init__ — same reasoning for dropping the native frame
+        # and zeroing the document margin (avoids double-padding with the CSS padding).
+        self.setFrameShape(QFrame.NoFrame)
+        self.document().setDocumentMargin(0)
+
+    def keyPressEvent(self, event):
+        if self._handle_nbsp_shortcut(event):
+            return
+        if self._handle_paragraph_break_shortcut(event):
+            return
+        super().keyPressEvent(event)
 
 
 class LabeledArkhamTextEdit(QTextEdit):
