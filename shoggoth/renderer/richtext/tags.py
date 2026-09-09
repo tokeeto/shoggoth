@@ -139,6 +139,13 @@ FONT_FILES = {
     'skill': {'path': font_dir / "Bolton.ttf"},
 }
 
+# Per-locale face overrides on top of FONT_FILES: locale -> face name -> file.
+LOCALE_FONT_OVERRIDES = {
+    'ru': {
+        'title': font_dir / "Conkordia.ttf",
+    },
+}
+
 # Parametric tags (the rare ones that carry arguments).
 SIZE_RE = re.compile(r'<size (\d+)>', flags=re.IGNORECASE)
 MARGIN_RE = re.compile(r'<margin (\d+)(\s\d+)*>', flags=re.IGNORECASE)  # only the first number is used

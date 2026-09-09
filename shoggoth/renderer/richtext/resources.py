@@ -15,7 +15,7 @@ from PIL import Image, ImageColor, ImageFont, ImageOps
 
 from shoggoth.perf import perf
 from shoggoth.renderer.richtext.constants import GLYPH_RUN_CACHE_MAXSIZE
-from shoggoth.renderer.richtext.tags import FONT_FILES
+from shoggoth.renderer.richtext.tags import FONT_FILES, LOCALE_FONT_OVERRIDES
 
 
 def colorize_icon(icon, color):
@@ -112,6 +112,7 @@ class ResourceCache:
         # face name -> {'path': ...}; seeded from the static set, extended by
         # resolve_font() with '__user__<name>' entries for <font "..."> tags.
         self.fonts = dict(FONT_FILES)
+        self.apply_locale_fonts(card_renderer.locale)
 
         self.font_cache = {}          # size -> {face name: ImageFont}
         self._user_font_keys = {}     # <font> name -> face name (or None if unresolved)
@@ -120,6 +121,14 @@ class ResourceCache:
         self.width_cache = WidthCache()
         self.glyph_run_cache = GlyphRunCache()
         self._hyphenators = {}        # locale -> pyphen.Pyphen or None
+
+
+    def apply_locale_fonts(self, locale):
+        """Swap base font files for faces the locale overrides (for example,
+        Russian titles render in Conkordia instead of Arkhamic)."""
+        for face_name, path in LOCALE_FONT_OVERRIDES.get(locale, {}).items():
+            if face_name in self.fonts:
+                self.fonts[face_name] = {**self.fonts[face_name], 'path': path}
 
     def load_fonts(self, size):
         if size in self.font_cache:
