@@ -198,9 +198,7 @@ class EncounterSetEditor(QWidget):
                 
 
         if len(treachery_card_traits) > 0:
-            print (treachery_card_traits)
             treachery_counts = Counter(treachery_card_traits)
-            print (treachery_counts)
             trait_list = "<b>" + tr("TRAITS_COUNT") + "</b> <ul>"
             for trait, count in treachery_counts.items():
                 trait_list += "<li>" + str(trait) + ": " + str(count) + "</li>"
