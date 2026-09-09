@@ -50,7 +50,7 @@ The built app will be in `dist/Shoggoth.app` (macOS) or `dist/Shoggoth` (Windows
 (Changes to card layouts, font sizes, etc.)
 
 While not technically this repo, the asset repo is best tested running Shoggoth.
-To avoid overwriting your local changes, place a .env file in the shoggoth directory
+To avoid overwriting your local changes, place a .env file in the shoggoth directory or set them as environment variables.
 ```
 SHOGGOTH_ASSET_DIR="/path/to/shoggoth_assets/"
 SHOGGOTH_UNMANAGED_ASSETS=1
