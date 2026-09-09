@@ -339,6 +339,7 @@
   "TAB_INFO": "Info",
   "TAB_CARDS": "Cartas",
   "TAB_TTS": "TTS",
+  "TRAITS_COUNT": "Recuento de rasgos en las cartas de encuentro:",
   "TTS_INCLUDED_SETS_LABEL": "Conjuntos incluidos",
   "TTS_INCLUDED_SETS_DESC": "Al exportar este conjunto a TTS, incluir también las cartas de estos conjuntos:",
   "STATUS_EDITING_ENCOUNTER_SET": "Editando conjunto de encuentro: {name}",

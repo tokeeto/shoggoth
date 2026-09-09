@@ -339,6 +339,7 @@
   "TAB_INFO": "Info",
   "TAB_CARDS": "Karten",
   "TAB_TTS": "TTS",
+  "TRAITS_COUNT": "Anzahl der Eigenschaften auf Begegnungskarten:",
   "TTS_INCLUDED_SETS_LABEL": "Enthaltene Sets",
   "TTS_INCLUDED_SETS_DESC": "Beim TTS-Export dieses Sets auch Karten dieser Sets einbeziehen:",
   "STATUS_EDITING_ENCOUNTER_SET": "Bearbeite Begegnungsset: {name}",

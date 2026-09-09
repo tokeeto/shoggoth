@@ -388,6 +388,7 @@
   "TAB_INFO": "Info",
   "TAB_CARDS": "Cards",
   "TAB_TTS": "TTS",
+  "TRAITS_COUNT": "Count of Traits in Encounter Cards:",
   "TTS_INCLUDED_SETS_LABEL": "Included Sets",
   "TTS_INCLUDED_SETS_DESC": "When this set is exported to TTS, also include cards from these sets:",
   "STATUS_EDITING_ENCOUNTER_SET": "Editing encounter set: {name}",

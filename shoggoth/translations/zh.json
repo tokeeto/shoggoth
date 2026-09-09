@@ -341,6 +341,7 @@
   "TAB_INFO": "信息",
   "TAB_CARDS": "卡牌",
   "TAB_TTS": "TTS",
+  "TRAITS_COUNT": "遭遇卡中的特征数量：",
   "TTS_INCLUDED_SETS_LABEL": "包含的套组",
   "TTS_INCLUDED_SETS_DESC": "将此套组导出到 TTS 时，同时包含以下套组的卡牌：",
   "STATUS_EDITING_ENCOUNTER_SET": "正在编辑遭遇套组：{name}",

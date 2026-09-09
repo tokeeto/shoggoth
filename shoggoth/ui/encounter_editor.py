@@ -14,6 +14,7 @@ import shoggoth
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog
 from PIL.ImageQt import ImageQt
+from collections import Counter
 
 THUMBNAIL_BATCH_SIZE = 10
 
@@ -183,6 +184,27 @@ class EncounterSetEditor(QWidget):
         stats_label = QLabel(tr("STATS_CARDS_IN_SET").format(unique=cards_count, total=total_amount))
         stats_label.setStyleSheet("color: #666; font-style: italic;")
         layout.addWidget(stats_label)
+
+        # Add code to count traits here.
+        treachery_card_traits = []
+        for card in self.encounter_set.cards:
+            group = card.front.get('grouping', card.front.get('type'))
+            if (group == 'treachery' or group == 'enemy'):
+                card_traits = card.front.get('traits').split('.')
+                for trait in card_traits:
+                    if trait != '':
+                        for copy in range(card.amount): treachery_card_traits.append(trait)
+                
+
+        if len(treachery_card_traits) > 0:
+            treachery_counts = Counter(treachery_card_traits)
+            trait_list = "<b>" + tr("TRAITS_COUNT") + "</b> <ul>"
+            for trait, count in treachery_counts.items():
+                trait_list += "<li>" + str(trait) + ": " + str(count) + "</li>"
+            trait_list += "</ul>"
+            treachery_label = QLabel(trait_list)
+            treachery_label.setStyleSheet("color: #666; list-style-type: '- '")
+            layout.addWidget(treachery_label)
 
         layout.addStretch()
 
