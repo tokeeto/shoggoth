@@ -364,6 +364,7 @@ const TAG_MAP = {
     "<spa>": "<spawn>",
     "<gbul>": "<bullet>",
     "<bul>": "<bullet>",
+    "<pre>": "<prey>",
     "<dmg>": "<damage>",
     "<hor>": "<horror>",
     "<rec>": "<resource>",
@@ -389,6 +390,7 @@ const TAG_MAP = {
     "<shs>": "",
     "<lhs>": "",
     "<vh>": "",
+    "< >": "",
     // Resolution tags
     "<res>": "<resolution><b>R",
     "</res>": "</b>"
