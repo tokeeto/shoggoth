@@ -274,6 +274,15 @@ class ProjectExportDialog(QDialog):
         size_form.addRow(tr("LABEL_EXPORT_SIZE"), self._pdf_size_combo)
         layout.addLayout(size_form)
 
+        # Format/quality widgets are shared between the 'pdf' and 'azao'
+        # flavors (mbprint is always fixed png/100, no controls shown); each
+        # flavor keeps its own remembered format+quality in
+        # `_pdf_format_by_flavor`, swapped into these widgets on flavor
+        # change (see `_sync_format_quality_widgets`), so azao can default to
+        # jpeg/95 (its file-size-constrained sweet spot) without disturbing
+        # plain PDF's png/100 default.
+        self._pdf_format_by_flavor = {'pdf': ('png', 100), 'azao': ('jpeg', 95)}
+
         self._pdf_format_frame = QFrame()
         pf_form = QFormLayout(self._pdf_format_frame)
         pf_form.setContentsMargins(0, 0, 0, 0)
@@ -347,11 +356,30 @@ class ProjectExportDialog(QDialog):
         flavor = self._pdf_flavor_key()
         is_azao = flavor == 'azao'
         is_plain = flavor == 'pdf'
-        self._pdf_format_frame.setVisible(is_plain)
-        self._pdf_info_label.setVisible(not is_plain)
+        has_format_controls = is_plain or is_azao
+        self._sync_format_quality_widgets(flavor)
+        self._pdf_format_frame.setVisible(has_format_controls)
+        self._pdf_format_frame.layout().setRowVisible(self._pdf_backs, is_plain)
+        self._pdf_info_label.setVisible(not has_format_controls)
         self._pdf_output_single.setVisible(not is_azao)
         self._pdf_output_azao.setVisible(is_azao)
         self._update_pdf_format_info()
+
+    def _sync_format_quality_widgets(self, new_flavor):
+        """Stash the outgoing flavor's format+quality (if it had controls
+        showing) and load the incoming flavor's remembered values, so 'pdf'
+        and 'azao' each keep their own format/quality independently while
+        sharing one pair of widgets."""
+        prev_flavor = getattr(self, '_pdf_format_flavor', None)
+        if prev_flavor in self._pdf_format_by_flavor:
+            self._pdf_format_by_flavor[prev_flavor] = (
+                self._pdf_format_combo.currentText(), self._pdf_quality_spin.value()
+            )
+        self._pdf_format_flavor = new_flavor
+        if new_flavor in self._pdf_format_by_flavor:
+            fmt, quality = self._pdf_format_by_flavor[new_flavor]
+            self._pdf_format_combo.setCurrentText(fmt)
+            self._pdf_quality_spin.setValue(quality)
 
     def _update_pdf_format_info(self):
         from shoggoth.renderer import trim_dimensions
@@ -369,6 +397,11 @@ class ProjectExportDialog(QDialog):
 
     def _apply_pdf(self, d):
         self._pdf_section.set_enabled_checked(d['enabled'])
+        self._pdf_format_by_flavor = {
+            'pdf': (d.get('format', 'png'), d.get('quality', 100)),
+            'azao': (d.get('azao_format', 'jpeg'), d.get('azao_quality', 95)),
+        }
+        self._pdf_format_flavor = None
         for i, (key, _) in enumerate(PDF_FLAVORS):
             if key == d.get('flavor', 'pdf'):
                 self._pdf_flavor_combo.setCurrentIndex(i)
@@ -376,10 +409,9 @@ class ProjectExportDialog(QDialog):
         self._pdf_export_images_cb.setChecked(d.get('export_images', True))
         self._pdf_folder.set_folder(d.get('folder'))
         self._pdf_size_combo.setCurrentIndex(_size_combo_index(self._pdf_size_combo, d.get('size_label')))
-        self._pdf_format_combo.setCurrentText(d.get('format', 'png'))
-        self._pdf_quality_spin.setValue(d.get('quality', 100))
         self._pdf_backs.setChecked(d.get('include_backs', False))
         self._pdf_vector_text.setChecked(d.get('vector_text', True))
+        self._on_pdf_flavor_changed()
 
         flavor = d.get('flavor', 'pdf')
         default_path = str(self.project.folder / self._pdf_default_filename(flavor))
@@ -391,14 +423,19 @@ class ProjectExportDialog(QDialog):
 
     def _read_pdf(self):
         flavor = self._pdf_flavor_key()
+        self._sync_format_quality_widgets(flavor)
+        pdf_format, pdf_quality = self._pdf_format_by_flavor['pdf']
+        azao_format, azao_quality = self._pdf_format_by_flavor['azao']
         return {
             'enabled': self._pdf_section.is_enabled(),
             'flavor': flavor,
             'folder': self._pdf_folder.folder_setting(),
             'export_images': self._pdf_export_images_cb.isChecked(),
             'size_label': self._pdf_size_combo.currentText(),
-            'format': self._pdf_format_combo.currentText(),
-            'quality': self._pdf_quality_spin.value(),
+            'format': pdf_format,
+            'quality': pdf_quality,
+            'azao_format': azao_format,
+            'azao_quality': azao_quality,
             'include_backs': self._pdf_backs.isChecked(),
             'vector_text': self._pdf_vector_text.isChecked(),
             'output_path': self._pdf_front_path_input.text().strip() if flavor == 'azao'

@@ -46,6 +46,12 @@ class DraggableTreeWidget(QTreeWidget):
         self.setAcceptDrops(True)
         self.setDragDropMode(QTreeWidget.DragDrop)
         self.setDefaultDropAction(Qt.MoveAction)
+        # Extended selection lets the user ctrl/shift-click multiple cards;
+        # Qt's built-in startDrag() calls mimeData(self.selectedItems()), so
+        # this alone makes mimeData()/dropEvent() below handle multi-card
+        # drags with no further wiring. Doesn't affect single-click editor
+        # navigation - that's driven by currentItemChanged, not selection.
+        self.setSelectionMode(QTreeWidget.ExtendedSelection)
 
     def _get_item_data(self, item):
         """Get the user data from a tree item"""
@@ -61,6 +67,25 @@ class DraggableTreeWidget(QTreeWidget):
                 return True
             parent = parent.parent()
         return False
+
+    def _resolve_target_project(self, item):
+        """Walk up to the top-level (project root) item and return its Project,
+        or None if item isn't inside a project subtree."""
+        if item is None:
+            return None
+        while item.parent() is not None:
+            item = item.parent()
+        data = self._get_item_data(item)
+        if data and data.get('type') == 'project':
+            return data.get('data')
+        return None
+
+    def _source_project_for_card(self, card_id):
+        """Find which open project currently owns *card_id*."""
+        for project in self.file_browser._projects:
+            if project.get_card(card_id):
+                return project
+        return None
 
     def _get_drop_target_type(self, target_item):
         """Determine what kind of drop target this is and return relevant info"""
@@ -145,28 +170,56 @@ class DraggableTreeWidget(QTreeWidget):
         else:
             event.ignore()
 
+    def _dragged_cards(self, event):
+        """Resolve the dragged card ids to (card, source_project) pairs,
+        dropping any that no longer exist or fail the ancestor guard."""
+        target_item = self.itemAt(event.position().toPoint())
+        node_map = self.file_browser.sync.node_map
+        card_ids = event.mimeData().data('application/x-shoggoth-card').data().decode().split(',')
+
+        result = []
+        for card_id in card_ids:
+            source_project = self._source_project_for_card(card_id)
+            if not source_project:
+                continue
+            card = source_project.get_card(card_id)
+            if not card:
+                continue
+
+            node_id = f'card:{card_id}'
+            if node_id in node_map and self._is_ancestor_of(target_item, node_map[node_id]):
+                continue
+
+            result.append((card, source_project))
+        return target_item, result
+
     def dragMoveEvent(self, event):
         if not event.mimeData().hasFormat('application/x-shoggoth-card'):
             event.ignore()
             return
 
         target_item = self.itemAt(event.position().toPoint())
-        drop_type, _ = self._get_drop_target_type(target_item)
-
-        if drop_type is None:
+        target_project = self._resolve_target_project(target_item)
+        if target_project is None:
             event.ignore()
             return
 
-        # Check if dragging onto ancestor
-        node_map = self.file_browser.sync.node_map
-        card_ids = event.mimeData().data('application/x-shoggoth-card').data().decode().split(',')
-        for card_id in card_ids:
-            node_id = f'card:{card_id}'
-            if node_id in node_map:
-                dragged_item = node_map[node_id]
-                if self._is_ancestor_of(target_item, dragged_item):
-                    event.ignore()
-                    return
+        _, dragged = self._dragged_cards(event)
+        if not dragged:
+            event.ignore()
+            return
+
+        cross_project = any(source is not target_project for _, source in dragged)
+        if cross_project:
+            # Cross-project drops always open the transfer dialog on drop,
+            # so any project-tree target is a valid drop target.
+            event.acceptProposedAction()
+            return
+
+        drop_type, _ = self._get_drop_target_type(target_item)
+        if drop_type is None:
+            event.ignore()
+            return
 
         event.acceptProposedAction()
 
@@ -176,33 +229,34 @@ class DraggableTreeWidget(QTreeWidget):
             return
 
         target_item = self.itemAt(event.position().toPoint())
-        drop_type, drop_data = self._get_drop_target_type(target_item)
-
-        if drop_type is None:
+        target_project = self._resolve_target_project(target_item)
+        if target_project is None:
             event.ignore()
             return
 
-        node_map = self.file_browser.sync.node_map
-        card_ids = event.mimeData().data('application/x-shoggoth-card').data().decode().split(',')
+        target_item, dragged = self._dragged_cards(event)
+        if not dragged:
+            event.ignore()
+            return
 
-        for card_id in card_ids:
-            # Find the project that contains this card
-            card = None
-            for project in self.file_browser._projects:
-                card = project.get_card(card_id)
-                if card:
-                    break
+        cross_project = any(source is not target_project for _, source in dragged)
 
-            if not card:
-                continue
+        # We set IgnoreAction before accepting so that QAbstractItemView::startDrag
+        # sees a non-MoveAction result and skips its internal clearOrRemove() call.
+        # Without this, Qt removes the dragged items AFTER our refresh_tree() has
+        # already rebuilt the tree correctly, causing items to go missing.
+        event.setDropAction(Qt.IgnoreAction)
+        event.accept()
 
-            # Check ancestor constraint
-            node_id = f'card:{card_id}'
-            if node_id in node_map:
-                dragged_item = node_map[node_id]
-                if self._is_ancestor_of(target_item, dragged_item):
-                    continue
+        if cross_project:
+            self._open_cross_project_dialog(dragged, target_project, target_item)
+            return
 
+        drop_type, drop_data = self._get_drop_target_type(target_item)
+        if drop_type is None:
+            return
+
+        for card, _ in dragged:
             # Apply the drop action
             if drop_type == 'encounter':
                 # Moving to an encounter set
@@ -229,11 +283,28 @@ class DraggableTreeWidget(QTreeWidget):
                 card.set('encounter_set', None)
                 card.set('investigator', drop_data)
 
-        # Refresh the tree to reflect changes.
-        # We set IgnoreAction before accepting so that QAbstractItemView::startDrag
-        # sees a non-MoveAction result and skips its internal clearOrRemove() call.
-        # Without this, Qt removes the dragged items AFTER our refresh_tree() has
-        # already rebuilt the tree correctly, causing items to go missing.
-        event.setDropAction(Qt.IgnoreAction)
-        event.accept()
         shoggoth.app.refresh_tree()
+
+    def _open_cross_project_dialog(self, dragged, target_project, target_item):
+        """Open the Transfer Cards dialog pre-filled from a cross-project drag.
+
+        Only cards from the *first* dragged card's source project are
+        pre-checked if the drag happened to span multiple source projects at
+        once - a rare edge case not worth a multi-source picker for.
+        """
+        source_project = dragged[0][1]
+        prefill_cards = [card for card, source in dragged if source is source_project]
+
+        drop_type, drop_data = self._get_drop_target_type(target_item)
+        target_encounter = drop_data if drop_type == 'encounter' else None
+
+        from shoggoth.ui.transfer_dialog import TransferCardsDialog
+        dialog = TransferCardsDialog(
+            shoggoth.app,
+            source_project=source_project,
+            selected_cards=prefill_cards,
+            destination_project=target_project,
+            target_encounter=target_encounter,
+            move=True,
+        )
+        dialog.exec()

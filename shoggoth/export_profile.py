@@ -35,6 +35,8 @@ DEFAULT_SECTIONS = {
         'size_label': None,  # resolved to EXPORT_SIZES[0][0] (FFG 100%) lazily, see default_sections()
         'format': 'png',
         'quality': 100,
+        'azao_format': 'jpeg',
+        'azao_quality': 95,
         'include_backs': False,
         'vector_text': True,
         'export_images': True,

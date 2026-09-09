@@ -99,6 +99,11 @@ def _create_project_menu(window, menubar):
 
     project_menu.addSeparator()
 
+    _add_action(window, project_menu, tr("MENU_TRANSFER_CARDS"),
+                lambda: projects.open_transfer_cards_dialog(window))
+
+    project_menu.addSeparator()
+
     _add_action(window, project_menu, tr("MENU_ADD_TRANSLATION"),
                 lambda: projects.add_translation_dialog(window))
     _add_action(window, project_menu, tr("MENU_LOAD_TRANSLATION"),

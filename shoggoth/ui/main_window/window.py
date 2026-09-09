@@ -252,6 +252,9 @@ class ShoggothMainWindow(QMainWindow):
     def add_investigator_template(self):
         projects.add_investigator_template(self)
 
+    def open_transfer_cards_dialog(self):
+        projects.open_transfer_cards_dialog(self)
+
     def export_encounter_set(self, encounter_set):
         exports.export_encounter_set(self, encounter_set)
 

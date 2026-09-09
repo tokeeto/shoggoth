@@ -1,16 +1,16 @@
-"""Layout: attributed pieces -> draw commands, in three phases.
+""" Layout
+    Where we fit the tokens onto the allotted space.
+    We build lines (since lines have formatting attributed to them),
+    but might have to rebuild them if we need to change the font size.
 
-1. `_LayoutPass.build()` walks the pieces, fitting each onto the current line;
-   a finished line is frozen as a `_Line`. It produces a line list and nothing
-   else.
-2. `LayoutEngine._fit` runs phase 1 at decreasing font sizes until the text
-   fits (the search is done in nominal, scale-1 units so the choice does not
-   drift with export resolution), then one real-scale pass.
-3. `_Line.render` turns one finished line into commands. Called once per line
-   at the end; the results are concatenated.
+    The idea here is that we can go back and forth and edit previous or
+    next elements as needed without having to re-parse the tokens.
+
+    TODO:
+    Make lines act as linked-lists, grabbing text from the next line,
+    or pushing text to the next line as needed.
 """
 
-from types import SimpleNamespace
 from typing import NamedTuple
 
 from shoggoth.renderer.richtext.constants import (
@@ -44,38 +44,31 @@ class LayoutEngine:
     def run(self, pieces, region, polygon, font_size, *, min_font_size,
             fill='#231f20', outline=0, outline_fill=None, scale=1.0,
             letter_spacing=1.0, valignment='top'):
-        lines, size = self._fit(pieces, region, polygon, font_size,
-                                min_font_size, scale, letter_spacing)
-        context = _RenderContext(size, scale, fill, outline, outline_fill, region, polygon)
+        """`region`/`polygon`/`font_size`/`min_font_size`/`outline` must be
+        nominal (pre-scale) values -- see the module docstring. `scale` is
+        applied only at the very end, to the finished commands."""
+        lines, size = self._fit(pieces, region, polygon, font_size, min_font_size,
+                                letter_spacing)
+        context = _RenderContext(size, 1.0, fill, outline, outline_fill, region, polygon)
         commands = []
         for line in lines:
             commands.extend(line.render(context))
         if valignment == 'center':
             commands = _center_vertically(commands, region, size)
+        if scale and scale != 1.0:
+            commands = _scale_commands(commands, scale)
         return commands
 
-    def _fit(self, pieces, region, polygon, font_size, min_font_size, scale,
-             letter_spacing):
-        """Returns (list[_Line], final_size_px)."""
-        rescale = scale and scale != 1.0
-        if rescale:
-            search_region = SimpleNamespace(
-                x=region.x / scale, y=region.y / scale,
-                width=region.width / scale, height=region.height / scale)
-            search_polygon = [(x / scale, y / scale) for x, y in polygon] if polygon else None
-            search_size = font_size / scale
-            search_min = min_font_size / scale
-            search_scale = 1.0
-        else:
-            search_region, search_polygon = region, polygon
-            search_size, search_min, search_scale = font_size, min_font_size, scale
-
-        size = round(search_size)
+    def _fit(self, pieces, region, polygon, font_size, min_font_size, letter_spacing):
+        """Search for a fitting size and build its lines, always at the
+        nominal (scale-1) size the caller passed in. Returns
+        (list[_Line], final_size_px)."""
+        size = round(font_size)
         while True:
-            forced = size <= search_min
+            forced = size <= min_font_size
             lines, fits, fraction = _LayoutPass(
-                self.resources, pieces, search_region, search_polygon, size,
-                search_scale, letter_spacing, forced).build()
+                self.resources, pieces, region, polygon, size,
+                1.0, letter_spacing, forced).build()
             if fits or forced:
                 break
             # Step down faster the earlier the overflow started.
@@ -87,12 +80,37 @@ class LayoutEngine:
             if 0 < fraction < 0.3:
                 size -= 1
 
-        if rescale:
-            size = max(min_font_size, round(size * scale))
-            lines, _, _ = _LayoutPass(
-                self.resources, pieces, region, polygon, size, scale,
-                letter_spacing, True).build()
         return lines, size
+
+
+def _scale_commands(commands, scale):
+    """Scale a full-size command list down (or up) to the caller's real
+    `scale`, as the final step of layout -- see the module docstring. Text
+    keeps its full-size measured position (just multiplied by `scale`) but is
+    re-rendered with a font loaded at the scaled size, since only the glyphs
+    need to look right at the target resolution, not the wrap decisions that
+    already happened at full size."""
+    scaled = []
+    for command in commands:
+        if isinstance(command, TextCommand):
+            font = command.font.font_variant(size=max(1, round(command.font.size * scale)))
+            outline = max(0, round(command.outline * scale)) if command.outline else command.outline
+            scaled.append(command._replace(x=command.x * scale, y=command.y * scale,
+                                           font=font, outline=outline))
+        elif isinstance(command, LineCommand):
+            scaled.append(command._replace(
+                x1=command.x1 * scale, y1=command.y1 * scale,
+                x2=command.x2 * scale, y2=command.y2 * scale,
+                width=max(1, round(command.width * scale))))
+        elif isinstance(command, ImageCommand):
+            width = max(1, round(command.icon.width * scale))
+            height = max(1, round(command.icon.height * scale))
+            scaled.append(command._replace(
+                x=round(command.x * scale), y=round(command.y * scale),
+                icon=command.icon.resize((width, height))))
+        else:
+            scaled.append(command)
+    return scaled
 
 
 def _center_vertically(commands, region, size):

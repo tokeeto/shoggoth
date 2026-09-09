@@ -199,6 +199,25 @@ def auto_enumerate(window):
     window.status_bar.showMessage(tr("STATUS_PROJECT_ENUMERATED"))
 
 
+def open_transfer_cards_dialog(window):
+    """Open the Transfer Cards dialog, pre-filled from the tree's current
+    multi-selection (if any cards are selected) in the active project."""
+    project = _require_project(window)
+    if not project:
+        return
+
+    from PySide6.QtCore import Qt
+    selected = []
+    for item in window.file_browser.tree.selectedItems():
+        data = item.data(0, Qt.UserRole)
+        if data and data.get('type') == 'card':
+            selected.append(data.get('data'))
+
+    from shoggoth.ui.transfer_dialog import TransferCardsDialog
+    dialog = TransferCardsDialog(window, source_project=project, selected_cards=selected)
+    dialog.exec()
+
+
 def add_encounter_set(window):
     project = _require_project(window)
     if not project:

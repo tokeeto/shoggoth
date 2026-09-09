@@ -161,7 +161,7 @@ def _mbprint_html(cards, folder, size):
     yield "</body>"
 
 
-def _azao_html(cards, folder, size, side='front'):
+def _azao_html(cards, folder, size, side='front', format='jpeg'):
     """ Simple document template for azao output """
     yield _CARD_PAGE_HEAD
     yield _size_css(cards)
@@ -172,11 +172,11 @@ def _azao_html(cards, folder, size, side='front'):
     for card in cards:
         w_mm, h_mm = _card_mm(card)
         if not card.has_versions:
-            path = CardRenderer.expected_export_paths(card, folder, size, format='jpeg', include_backs=False)[offset::2]
+            path = CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=False)[offset::2]
             for _ in range(card.amount):
                 yield _card_page(path[0], w_mm, h_mm)
         else:
-            for path in CardRenderer.expected_export_paths(card, folder, size, format='jpeg', include_backs=False)[offset::2]:
+            for path in CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=False)[offset::2]:
                 yield _card_page(path, w_mm, h_mm)
     yield "</body>"
 
@@ -242,6 +242,7 @@ def _pdf_html(cards, folder, size, format='png', include_backs=False):
             path = CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=include_backs)
             for _ in range(card.amount):
                 yield _pdf_card_box(path[0], w_mm, h_mm)
+                yield _pdf_card_box(path[1], w_mm, h_mm)
         else:
             for path in CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=include_backs):
                 yield _pdf_card_box(path, w_mm, h_mm)
@@ -303,7 +304,7 @@ def create_mbprint_pdf(cards, target_file, image_folder, size=None, cmyk_profile
     print(f"MBPrint pdf time: {time()-start_time}")
 
 
-def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None, cmyk_profile=None):
+def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None, format='jpeg', cmyk_profile=None):
     prince_cmd, prince_cwd = _resolve_prince()
     if prince_cmd is None:
         raise Exception("can't export without prince")
@@ -320,7 +321,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None
 
     start_time = time()
     with open(temp_file, 'w', encoding='utf-8') as html_file:
-        for txt in _azao_html(cards, image_folder, size, 'front'):
+        for txt in _azao_html(cards, image_folder, size, 'front', format=format):
             html_file.write(txt)
     print(f"Azao front html time: {time()-start_time}")
 
@@ -332,7 +333,7 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None
 
     start_time = time()
     with open(temp_file, 'w', encoding='utf-8') as html_file:
-        for txt in _azao_html(cards, image_folder, size, 'back'):
+        for txt in _azao_html(cards, image_folder, size, 'back', format=format):
             html_file.write(txt)
     print(f"Azao front html time: {time()-start_time}")
 

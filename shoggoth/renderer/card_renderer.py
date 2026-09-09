@@ -794,19 +794,15 @@ class CardRenderer:
 
             try:
                 font = side.get(f'{field}_font', {})
+                # Nominal (pre-scale) values, not the real/rounded `region` --
+                # LayoutEngine fits at nominal size itself and scales the
+                # result down to `s` as its last step; handing it an
+                # already-scaled-and-rounded region/font_size and asking it to
+                # divide back out doesn't recover the true nominal value (the
+                # rounding error varies with `s`), which used to make the same
+                # text wrap differently at different render/preview sizes.
+                nominal_region = side.get(f'{field}_region', None) or {}
                 polygon = side.get(f'{field}_polygon', None)
-                if polygon:
-                    # Round to the same integer pixel grid as Region (and thus
-                    # as every sampled y _poly_bounds_at ever gets called
-                    # with -- line positions are always whole pixels). Left
-                    # as exact floats, a polygon vertex at an odd nominal y
-                    # could land on a half-pixel boundary at some render
-                    # resolutions (e.g. 1327 -> 663.5 at half scale) but not
-                    # others, so a sample that's supposed to sit right at that
-                    # edge could fall a hair outside it purely from the
-                    # scaling arithmetic -- resolution-dependent, and not
-                    # reproducible at full resolution where 1500px == 1x.
-                    polygon = [(int(point[0]*s), int(point[1]*s)) for point in polygon]
 
                 if font.get('rotation'):
                     # Arbitrary rotation can't be expressed in the HTML text
@@ -817,12 +813,14 @@ class CardRenderer:
                             self.rich_text.render_text(
                                 temp_image,
                                 value,
-                                Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width}),
+                                Region.unscaled({'x': 0, 'y': 0,
+                                                 'height': nominal_region.get('height', 0),
+                                                 'width': nominal_region.get('width', 0)}),
                                 font=font.get('font', 'regular'),
-                                font_size=scale(font.get('size', 20), s),
-                                min_font_size=scale(font.get('min_size', None), s),
+                                font_size=font.get('size', 20),
+                                min_font_size=font.get('min_size', None),
                                 fill=font.get('color', '#231f20'),
-                                outline=scale(font.get('outline', None), s),
+                                outline=font.get('outline', None),
                                 outline_fill=font.get('outline_color'),
                                 alignment=font.get('alignment', 'left'),
                                 valignment=font.get('valignment', valign),
@@ -837,12 +835,12 @@ class CardRenderer:
                         self.rich_text.render_text(
                             card_image,
                             value,
-                            region,
+                            Region.unscaled(nominal_region),
                             font=font.get('font', 'regular'),
-                            font_size=scale(font.get('size', 20), s),
-                            min_font_size=scale(font.get('min_size', None), s),
+                            font_size=font.get('size', 20),
+                            min_font_size=font.get('min_size', None),
                             fill=font.get('color', '#231f20'),
-                            outline=scale(font.get('outline'), s),
+                            outline=font.get('outline'),
                             outline_fill=font.get('outline_color'),
                             alignment=font.get('alignment', 'left'),
                             valignment=font.get('valignment', valign),
@@ -1273,12 +1271,17 @@ class CardRenderer:
 
             text_kwargs = {
                 "font": font.get('font', 'regular'),
-                "font_size": int(font.get('size', 32)*s),
+                # Already real (scale-`s`) values matching the real region
+                # below, not nominal ones -- so `scale` is left at its
+                # LayoutEngine default of 1.0 (no further rescaling): this
+                # path's second call site positions text from real pixel
+                # measurements of already-rendered surfaces, which has no
+                # clean nominal equivalent to hand the layout engine instead.
+                "font_size": int(font.get('size', 32) * s),
                 "fill": font.get('color', '#231f20'),
-                "outline": int(font.get('outline', 0)*s),
+                "outline": int(font.get('outline', 0) * s),
                 "outline_fill": font.get('outline_color'),
                 "alignment": font.get('alignment', 'left'),
-                "scale": s,
                 "project": side.card.project,
             }
 
@@ -1288,7 +1291,7 @@ class CardRenderer:
                 self.rich_text.render_text(
                     text_surface,
                     entry.get('text', ''),
-                    Region.unscaled({'x': 0, 'y': 0, 'height': region.height, 'width': region.width-(token_size*1.3)}),
+                    Region.unscaled({'x': margin_left, 'y': 0, 'height': region.height, 'width': region.width-(token_size*1.3)}),
                     **text_kwargs,
                 )
             surfaces.append((token_surface, text_surface, line_surface, entry.get('text', ''), margin_left, text_kwargs))

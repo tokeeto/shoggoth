@@ -25,7 +25,6 @@ from shoggoth.settings import EXPORT_SIZES
 from shoggoth.ui.export_widgets import resolve_scope_cards, run_image_export
 
 _MBPRINT_FORMAT, _MBPRINT_QUALITY = 'png', 100
-_AZAO_FORMAT, _AZAO_QUALITY = 'jpeg', 95
 
 
 def _resolve_size(label):
@@ -89,11 +88,16 @@ def _run_images(parent, project, renderer, cards, d):
     folder = _folder_from(project, d['folder'])
     folder.mkdir(parents=True, exist_ok=True)
     size = _resolve_size(d['size_label'])
-    kwargs = dict(
-        size=size, bleed=d['bleed'], format=d['format'], quality=d['quality'],
-        include_backs=d['include_backs'], separate_versions=d['separate_versions'],
-        rotate=d['rotate'], filename_format=d['filename_format'],
-    )
+    kwargs = {
+        "size": size,
+        "bleed": d['bleed'],
+        "format": d['format'],
+        "quality": d['quality'],
+        "include_backs": d['include_backs'],
+        "separate_versions": d['separate_versions'],
+        "rotate": d['rotate'],
+        "filename_format": d['filename_format'],
+    }
     _export_numbered_cards(parent, renderer, cards, folder, kwargs)
 
 
@@ -106,13 +110,14 @@ def _run_pdf(parent, project, renderer, cards, d):
     back_output_path = str(_resolve_path(project, d['back_output_path'])) if d.get('back_output_path') else None
     cmyk_profile = shoggoth.app.config.get('Shoggoth', 'cmyk_profile') or None
 
+    if d['flavor'] == 'pdf':
+        fmt, quality, backs = d['format'], d['quality'], d['include_backs']
+    elif d['flavor'] == 'azao':
+        fmt, quality, backs = d.get('azao_format', 'jpeg'), d.get('azao_quality', 95), False
+    else:
+        fmt, quality, backs = _MBPRINT_FORMAT, _MBPRINT_QUALITY, False
+
     if d['export_images']:
-        if d['flavor'] == 'pdf':
-            fmt, quality, backs = d['format'], d['quality'], d['include_backs']
-        else:
-            fmt = _AZAO_FORMAT if d['flavor'] == 'azao' else _MBPRINT_FORMAT
-            quality = _AZAO_QUALITY if d['flavor'] == 'azao' else _MBPRINT_QUALITY
-            backs = False
         run_image_export(
             parent, renderer, cards, folder,
             size=size, bleed=True, format=fmt, quality=quality,
@@ -120,7 +125,8 @@ def _run_pdf(parent, project, renderer, cards, d):
         )
 
     if d['flavor'] == 'azao':
-        pdf_exporter.azao_pdf(cards, output_path, back_output_path, folder, size=size, cmyk_profile=cmyk_profile)
+        pdf_exporter.azao_pdf(cards, output_path, back_output_path, folder, size=size,
+                               format=fmt, cmyk_profile=cmyk_profile)
         return f"{output_path}, {back_output_path}"
     if d['flavor'] == 'mbprint':
         pdf_exporter.create_mbprint_pdf(cards, output_path, folder, size=size, cmyk_profile=cmyk_profile)
