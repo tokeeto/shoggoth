@@ -829,6 +829,8 @@ class Translation:
             if not card:
                 continue
             card.data['name'] = card_data.get('name', card.name)
+            if 'language' in card_data:
+                card.data['language'] = card_data['language']
             for field, value in card_data.get('front', {}).items():
                 card.data['front'][field] = value
             for field, value in card_data.get('back', {}).items():

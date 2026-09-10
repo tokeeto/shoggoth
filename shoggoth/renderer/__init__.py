@@ -16,6 +16,7 @@ from shoggoth.renderer.card_renderer import (
     Region,
     _ImgDims,
     scale,
+    renderer_for_card,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     'Region',
     '_ImgDims',
     'scale',
+    'renderer_for_card',
 ]

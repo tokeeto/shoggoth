@@ -14,6 +14,7 @@ fully finishes before the next starts.
 import json
 import multiprocessing
 import threading
+import traceback
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import QProgressDialog
 
 from shoggoth.files import default_export_folder, safe_filename
 from shoggoth.i18n import tr
+from shoggoth.renderer import renderer_for_card
 from shoggoth.settings import EXPORT_SIZES
 from shoggoth.ui.export_widgets import resolve_scope_cards, run_image_export
 
@@ -70,7 +72,7 @@ def _export_numbered_cards(parent, renderer, cards, folder, kwargs):
             progress.setValue(i - cores)
         progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
         t = threading.Thread(
-            target=renderer.export_card_images,
+            target=renderer_for_card(renderer, card).export_card_images,
             args=(card, str(folder)),
             kwargs={**kwargs, 'number': number},
         )
@@ -213,6 +215,8 @@ def run_profile(parent, project, renderer, profile_data):
             msg = _run_tts(parent, project, renderer, cards, scope.get('type', 'all'), sections['tts'])
             results.append(msg)
         except Exception as e:
+            traceback.print_exc()
+            print(e)
             errors.append(tr("PE_RESULT_ERROR_TTS").format(error=e))
 
     if sections['arkham_build']['enabled']:

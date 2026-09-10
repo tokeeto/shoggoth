@@ -276,6 +276,24 @@ class Card:
         return self.data.get('name', 'Unnamed card')
 
     @property
+    def language(self):
+        """ Per-card card-rendering language override."""
+        return self.data.get('language', '')
+
+    @language.setter
+    def language(self, value):
+        if value:
+            self.data['language'] = value
+        else:
+            self.data.pop('language', None)
+        self.dirty = True
+
+    @property
+    def effective_language(self):
+        """ The language this card actually renders in """
+        return self.language or self.project.language
+
+    @property
     def amount(self):
         return self.data.get('amount', 1)
 
@@ -390,7 +408,6 @@ class Card:
         }
 
     def save(self):
-        print('Saving card', self.id)
         self.project.writer.save_card(self)
         self.dirty = False
         # Update tree to remove dirty indicator

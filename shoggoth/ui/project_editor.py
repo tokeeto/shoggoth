@@ -16,6 +16,7 @@ import threading
 import shoggoth
 from shoggoth.files import translation_dir
 from shoggoth.i18n import tr, get_available_languages_from_dir
+from shoggoth.renderer import renderer_for_card
 
 
 class ProjectEditor(QWidget):
@@ -288,11 +289,10 @@ class ProjectEditor(QWidget):
         elif field_name == 'language':
             self.project.language = self.language_combo.currentData() or ''
             if shoggoth.app and shoggoth.app.active_project is self.project:
-                effective = self.project.language or shoggoth.app.config.get('Shoggoth', 'card_language', 'en')
+                from shoggoth.ui.main_window.views import resolve_language
+                effective = resolve_language(shoggoth.app, self.project)
                 shoggoth.app.card_renderer.set_locale(effective)
                 shoggoth.app.schedule_preview_update()
-                from shoggoth.ui.main_window import menus
-                menus.update_card_language_menu_state(shoggoth.app)
         elif field_name == 'auto_hyphenate':
             self.project.auto_hyphenate = self.auto_hyphenate_checkbox.isChecked()
             if shoggoth.app and shoggoth.app.active_project is self.project:
@@ -375,7 +375,8 @@ class ProjectEditor(QWidget):
             if self._stop_thumbnails:
                 break
             try:
-                front_image, _ = self.card_renderer.get_card_textures(card, {'width': 375, 'height': 519, 'bleed': 18}, bleed=False)
+                renderer = renderer_for_card(self.card_renderer, card)
+                front_image, _ = renderer.get_card_textures(card, {'width': 375, 'height': 519, 'bleed': 18}, bleed=False)
 
                 pixmap = QPixmap.fromImage(ImageQt(front_image))
 

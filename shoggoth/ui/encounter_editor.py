@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QPixmap, QImage, QCursor
 from shoggoth.i18n import tr
+from shoggoth.renderer import renderer_for_card
 from shoggoth.ui.field_widgets import LabeledLineEdit, FieldWidget
 import shoggoth
 from pathlib import Path
@@ -104,7 +105,7 @@ class ThumbnailGenerator(QThread):
                 if self._stop:
                     break
                 try:
-                    thumbnail = self.renderer.get_thumbnail(card)
+                    thumbnail = renderer_for_card(self.renderer, card).get_thumbnail(card)
                     if not self._stop:
                         self.thumbnail_ready.emit(card.id, thumbnail)
                 except Exception as e:

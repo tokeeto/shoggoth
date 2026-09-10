@@ -743,7 +743,7 @@ class CardRenderer:
             value = side.get(field)
             if value and not isinstance(value, str):
                 value = str(value)
-            region = Region(side.get(f'{field}_region', None), s)
+            region = Region(side.get(f'{field}_region', None), 1)
 
             if region.is_attached or not region:
                 # this field is part of another block, and doesn't render on its own.
@@ -769,7 +769,7 @@ class CardRenderer:
                 if cb_value:
                     lines = ''
                     for slots, name, text in cb_value:
-                        lines += '\n' + '☐'*slots + f' <b>{name}.</b> {text}'
+                        lines += '☐'*slots + f' <b>{name}.</b> {text}\n'
                     value += lines
 
             if not value:
@@ -794,14 +794,6 @@ class CardRenderer:
 
             try:
                 font = side.get(f'{field}_font', {})
-                # Nominal (pre-scale) values, not the real/rounded `region` --
-                # LayoutEngine fits at nominal size itself and scales the
-                # result down to `s` as its last step; handing it an
-                # already-scaled-and-rounded region/font_size and asking it to
-                # divide back out doesn't recover the true nominal value (the
-                # rounding error varies with `s`), which used to make the same
-                # text wrap differently at different render/preview sizes.
-                nominal_region = side.get(f'{field}_region', None) or {}
                 polygon = side.get(f'{field}_polygon', None)
 
                 if font.get('rotation'):
@@ -813,9 +805,7 @@ class CardRenderer:
                             self.rich_text.render_text(
                                 temp_image,
                                 value,
-                                Region.unscaled({'x': 0, 'y': 0,
-                                                 'height': nominal_region.get('height', 0),
-                                                 'width': nominal_region.get('width', 0)}),
+                                region,
                                 font=font.get('font', 'regular'),
                                 font_size=font.get('size', 20),
                                 min_font_size=font.get('min_size', None),
@@ -829,13 +819,13 @@ class CardRenderer:
                                 project=side.card.project,
                             )
                         temp_image = temp_image.rotate(font.get('rotation'), expand=True)
-                        card_image.paste(temp_image, (region.x, region.y), temp_image)
+                        card_image.paste(temp_image, (int(region.x*s), int(region.y*s)), temp_image)
                 else:
                     with perf.span('rich_text.render_text'):
                         self.rich_text.render_text(
                             card_image,
                             value,
-                            Region.unscaled(nominal_region),
+                            region,
                             font=font.get('font', 'regular'),
                             font_size=font.get('size', 20),
                             min_font_size=font.get('min_size', None),
@@ -1271,12 +1261,6 @@ class CardRenderer:
 
             text_kwargs = {
                 "font": font.get('font', 'regular'),
-                # Already real (scale-`s`) values matching the real region
-                # below, not nominal ones -- so `scale` is left at its
-                # LayoutEngine default of 1.0 (no further rescaling): this
-                # path's second call site positions text from real pixel
-                # measurements of already-rendered surfaces, which has no
-                # clean nominal equivalent to hand the layout engine instead.
                 "font_size": int(font.get('size', 32) * s),
                 "fill": font.get('color', '#231f20'),
                 "outline": int(font.get('outline', 0) * s),
@@ -1412,3 +1396,21 @@ class CardRenderer:
         if region.width / illustration.width > illustration_scale:
             illustration_scale = region.width / illustration.width
         return illustration_scale
+
+
+def renderer_for_card(base_renderer, card):
+    """A CardRenderer honoring `card`'s own language override, if any.
+
+    Reuses `base_renderer` unchanged when the card has no override or it
+    already matches the renderer's locale (the common case, since callers
+    normally build `base_renderer` from the project's language already) --
+    no extra allocation on that path. Only spawns a throwaway CardRenderer
+    scoped to the override otherwise, so a handful of per-card overrides in
+    a batch/export run don't require mutating (and restoring) a renderer
+    shared across the whole run or its worker threads.
+    """
+    lang = card.language
+    if not lang or lang == base_renderer.locale:
+        return base_renderer
+    return CardRenderer(locale=lang, hyphenation_enabled=base_renderer.hyphenation_enabled,
+                         french_punctuation=base_renderer.french_punctuation)

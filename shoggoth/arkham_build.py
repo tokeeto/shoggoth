@@ -11,6 +11,7 @@ from shoggoth.export_helpers import (
     get_card_export_type, get_skill_icons,
     is_player_card, is_investigator_card
 )
+from shoggoth.renderer import renderer_for_card
 
 
 AB_IMAGE_FORMAT = 'webp'
@@ -381,7 +382,7 @@ def _image_url(card, renderer, pattern, back=False):
     if stored:
         return stored
     face = card.back if back else card.front
-    image = renderer.render_card_side(card, face, include_bleed=False, **AB_IMAGE_SIZE)
+    image = renderer_for_card(renderer, card).render_card_side(card, face, include_bleed=False, **AB_IMAGE_SIZE)
     buffer = BytesIO()
     image.save(buffer, format=AB_IMAGE_FORMAT, quality=AB_IMAGE_QUALITY)
     encoded = base64.b64encode(buffer.getvalue()).decode('ascii')

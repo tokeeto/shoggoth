@@ -29,7 +29,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from shoggoth.project import Project
-from shoggoth.renderer import CardRenderer
+from shoggoth.renderer import CardRenderer, renderer_for_card
 
 RENDER_SIZE = {'width': 750, 'height': 1039, 'bleed': 36}
 FACE_GAP = 24  # pixels between front and back in the composed image
@@ -144,6 +144,9 @@ class DisplayApp(FileSystemEventHandler):
             self.status = f'waiting for a valid save ({e.__class__.__name__})'
             return False
         self.project = project
+        effective_language = project.language or 'en'
+        if self.renderer.locale != effective_language:
+            self.renderer.set_locale(effective_language)
         return True
 
     def _take_snapshot(self):
@@ -206,7 +209,8 @@ class DisplayApp(FileSystemEventHandler):
             self._print_header()
             return
         try:
-            front, back = self.renderer.get_card_textures(card, RENDER_SIZE, bleed=False)
+            renderer = renderer_for_card(self.renderer, card)
+            front, back = renderer.get_card_textures(card, RENDER_SIZE, bleed=False)
             image = compose_faces(front, back)
             self.status = ''
         except Exception as e:

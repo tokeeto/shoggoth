@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from shoggoth.i18n import tr
+from shoggoth.renderer import renderer_for_card
 
 
 class FolderPicker(QGroupBox):
@@ -301,7 +302,7 @@ def run_image_export(parent, renderer, cards, folder, **export_kwargs):
         progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
 
         t = threading.Thread(
-            target=renderer.export_card_images,
+            target=renderer_for_card(renderer, card).export_card_images,
             args=(card, str(folder)),
             kwargs=export_kwargs,
         )

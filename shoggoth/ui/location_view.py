@@ -20,6 +20,7 @@ from pathlib import Path
 from uuid import uuid4
 from shoggoth import files
 from shoggoth.files import overlay_dir
+from shoggoth.renderer import renderer_for_card
 
 
 class ConnectionArrow(QGraphicsPathItem):
@@ -303,7 +304,7 @@ class LocationNode(QGraphicsItem):
     def _generate_thumbnail(self):
         """Generate a thumbnail of the location card"""
         try:
-            image = self.renderer.render_card_side(
+            image = renderer_for_card(self.renderer, self.card).render_card_side(
                 self.card, self.face, include_bleed=False,
                 width=self.THUMBNAIL_RENDER_WIDTH, height=self.THUMBNAIL_RENDER_HEIGHT, bleed=18,
             )

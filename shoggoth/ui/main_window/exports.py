@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
 from shoggoth.files import default_export_folder
 from shoggoth.i18n import tr
+from shoggoth.renderer import renderer_for_card
 
 
 def get_export_size(window):
@@ -72,7 +73,7 @@ def _export_card_images(window, cards, prefs):
         progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
 
         thread = threading.Thread(
-            target=window.card_renderer.export_card_images,
+            target=renderer_for_card(window.card_renderer, card).export_card_images,
             args=(card, str(export_folder)),
             kwargs=prefs,
         )
@@ -128,7 +129,8 @@ def export_current(window, bleed=None, format=None, quality=None, separate_versi
     prefs = _read_export_prefs(window, bleed, format, quality, separate_versions)
     try:
         export_folder = _export_folder(window)
-        window.card_renderer.export_card_images(window.current_card, str(export_folder), **prefs)
+        renderer_for_card(window.card_renderer, window.current_card).export_card_images(
+            window.current_card, str(export_folder), **prefs)
         QMessageBox.information(
             window,
             tr("DLG_EXPORT_COMPLETE"),

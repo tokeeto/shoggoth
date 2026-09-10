@@ -231,7 +231,8 @@ class ThumbnailLoader(QObject):
             renderer = getattr(app, 'card_renderer', None) if app else None
             if renderer is None:
                 return None
-            return renderer.get_thumbnail(entry.obj)
+            from shoggoth.renderer import renderer_for_card
+            return renderer_for_card(renderer, entry.obj).get_thumbnail(entry.obj)
 
         if entry.kind in (KIND_ENCOUNTER, KIND_PROJECT):
             path = _resolve_icon_path(self.project, getattr(entry.obj, 'icon', ''))

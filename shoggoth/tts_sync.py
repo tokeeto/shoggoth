@@ -39,7 +39,7 @@ def _extract_cards(objects: list, lookup: dict):
                 card_id = gm.get("id")
                 if card_id:
                     # Get the CustomDeck entry (there's exactly one per card)
-                    deck_key = list(obj["CustomDeck"].keys())[0]
+                    deck_key = next(iter(obj["CustomDeck"].keys()))
                     deck = obj["CustomDeck"][deck_key]
                     lookup[card_id] = {
                         "face": deck["FaceURL"],
@@ -57,17 +57,21 @@ def _extract_cards(objects: list, lookup: dict):
 
 def _build_cards_lua_table(cards_lookup: dict) -> str:
     """Build a native Lua table literal from the cards lookup."""
+
+    def escape(string):
+        # Escape backslashes and quotes in string values
+        if not string:
+            return ''
+        return string.replace("\\", "\\\\").replace('"', '\\"')
+
     lines = ["{"]
     for card_id, info in cards_lookup.items():
-        # Escape backslashes and quotes in string values
-        def esc(s):
-            return s.replace("\\", "\\\\").replace('"', '\\"')
-        lines.append(f'  ["{esc(card_id)}"] = {{')
-        lines.append(f'    face = "{esc(info["face"])}",')
-        lines.append(f'    back = "{esc(info["back"])}",')
-        lines.append(f'    nickname = "{esc(info["nickname"])}",')
-        lines.append(f'    description = "{esc(info["description"])}",')
-        lines.append(f'    gmnotes = "{esc(info["gmnotes"])}",')
+        lines.append(f'  ["{escape(card_id)}"] = {{')
+        lines.append(f'    face = "{escape(info["face"])}",')
+        lines.append(f'    back = "{escape(info["back"])}",')
+        lines.append(f'    nickname = "{escape(info["nickname"])}",')
+        lines.append(f'    description = "{escape(info["description"])}",')
+        lines.append(f'    gmnotes = "{escape(info["gmnotes"])}",')
         lines.append("  },")
     lines.append("}")
     return "\n".join(lines)
@@ -127,5 +131,5 @@ def _send_lua(lua_code: str) -> bool:
             s.connect((TTS_HOST, TTS_PORT))
             s.sendall(payload.encode("utf-8"))
         return True
-    except (ConnectionRefusedError, socket.timeout, OSError):
+    except (TimeoutError, ConnectionRefusedError, OSError):
         return False

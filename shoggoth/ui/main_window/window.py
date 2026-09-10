@@ -394,27 +394,6 @@ class ShoggothMainWindow(QMainWindow):
             tr("MSG_RESTART_FOR_LANGUAGE")
         )
 
-    def change_card_language(self, lang_code: str):
-        """Change the card rendering language.
-
-        No-ops while the active project has its own language override (the
-        menu is grayed out in that case, but guard here too in case this is
-        reached some other way) — the project setting takes precedence.
-        """
-        if self.active_project and self.active_project.language:
-            menus.update_card_language_menu_state(self)
-            return
-
-        self.config.set('Shoggoth', 'card_language', lang_code)
-        self.config.save()
-
-        hyphenation_enabled = self.active_project.auto_hyphenate if self.active_project else True
-        french_punctuation = self.active_project.french_punctuation if self.active_project else False
-        self.card_renderer = CardRenderer(locale=lang_code, hyphenation_enabled=hyphenation_enabled,
-                                           french_punctuation=french_punctuation)
-        self.preview.rerender_now()
-        menus.update_card_language_menu_state(self)
-
     # ── File monitoring ───────────────────────────────────────────────────
 
     def setup_file_monitoring(self):
@@ -450,7 +429,6 @@ class ShoggothMainWindow(QMainWindow):
         self.active_project = project
         if project:
             self.status_bar.showMessage(tr("STATUS_ACTIVE").format(name=project['name']))
-        menus.update_card_language_menu_state(self)
 
     def _on_layout_changed(self, *args):
         self.session.schedule_layout_save()

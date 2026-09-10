@@ -15,7 +15,8 @@ from shoggoth.ui.compact_widgets import Band, SegmentedToggle
 from shoggoth.ui import compact_theme
 from shoggoth.ui.text_editor import ArkhamTextEdit
 from shoggoth.ui.face_editor_factory import get_editor_for_face
-from shoggoth.i18n import tr
+from shoggoth.files import translation_dir
+from shoggoth.i18n import get_available_languages_from_dir, tr
 import shoggoth
 
 
@@ -82,6 +83,22 @@ class CardEditor(QWidget):
 
         self.investigator_input = LabeledLineEdit(tr("FIELD_INVESTIGATOR_LINK"))
         self.basic_info_band.content_layout.addWidget(self.investigator_input)
+
+        # Per-card language override
+        language_row = QHBoxLayout()
+        language_row.setContentsMargins(0, 0, 0, 0)
+        language_label = QLabel(tr("FIELD_CARD_LANGUAGE_OVERRIDE"))
+        language_label.setToolTip(tr("HELP_CARD_LANGUAGE_OVERRIDE"))
+        language_row.addWidget(language_label)
+        self.language_combo = NoScrollComboBox()
+        self.language_combo.setToolTip(tr("HELP_CARD_LANGUAGE_OVERRIDE"))
+        self.language_combo.addItem(tr("OPT_LANGUAGE_PROJECT_DEFAULT"), "")
+        for lang_code, lang_name in get_available_languages_from_dir(translation_dir).items():
+            self.language_combo.addItem(lang_name, lang_code)
+        language_row.addWidget(self.language_combo, 1)
+        self.basic_info_band.content_layout.addLayout(language_row)
+        self._loading_language = False
+        self.language_combo.currentIndexChanged.connect(self.on_language_changed)
 
         self.id_input = LabeledLineEdit(tr("ID"))
         self.id_input.input.setReadOnly(True)
@@ -381,6 +398,11 @@ class CardEditor(QWidget):
         self.enumerated_combo.setCurrentIndex(index if index >= 0 else 0)
         self._loading_enumerated = False
 
+        self._loading_language = True
+        index = self.language_combo.findData(self.card.language)
+        self.language_combo.setCurrentIndex(index if index >= 0 else 0)
+        self._loading_language = False
+
     def on_field_changed(self, field, value):
         """Handle field value changes"""
         if field.update_card(self.card, value):
@@ -416,6 +438,18 @@ class CardEditor(QWidget):
                 return
 
         self.card.set('enumerated', new_mode or None)
+        self.data_changed.emit()
+
+    def on_language_changed(self, index):
+        """Handle a change to the per-card language override."""
+        if self._loading_language:
+            return
+
+        self.card.language = self.language_combo.currentData() or ''
+        if shoggoth.app and shoggoth.app.current_card is self.card:
+            from shoggoth.ui.main_window.views import resolve_language
+            effective = resolve_language(shoggoth.app, self.card.project, self.card)
+            shoggoth.app.card_renderer.set_locale(effective)
         self.data_changed.emit()
 
     def enter_translation_mode(self):

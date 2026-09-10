@@ -186,7 +186,7 @@ class CustomizableEditor(FaceEditor):
             self.set_widget_value(widget, value)
 
         # Load entries
-        entries = self.face.get('entries', [])
+        entries = self.face.get('checkbox_entries', [])
         if not entries:
             entries = []
 
@@ -217,9 +217,9 @@ class CustomizableEditor(FaceEditor):
                 entries.append([cost, name, text])
 
         if entries:
-            self.face.set('entries', entries)
+            self.face.set('checkbox_entries', entries)
         else:
-            self.face.set('entries', None)
+            self.face.set('checkbox_entries', None)
 
         # Emit data_changed signal
         parent = self.parent()

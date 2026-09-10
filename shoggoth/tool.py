@@ -69,11 +69,12 @@ def run():
     if args.render:
         from time import time
         t = time()
-        from shoggoth.renderer import CardRenderer
+        from shoggoth.renderer import CardRenderer, renderer_for_card
         from shoggoth.project import Project
 
         p = Project.load(args.render)
-        r = CardRenderer(hyphenation_enabled=p.auto_hyphenate, french_punctuation=p.french_punctuation)
+        r = CardRenderer(locale=p.language, hyphenation_enabled=p.auto_hyphenate,
+                          french_punctuation=p.french_punctuation)
         if args.card_id:
             cards = [p.get_card(args.card_id)]
         else:
@@ -81,7 +82,7 @@ def run():
 
         target_folder = args.out or p.folder
         for card in cards:
-            r.export_card_images(
+            renderer_for_card(r, card).export_card_images(
                 card,
                 target_folder,
                 EXPORT_SIZES[args.size][1],
@@ -97,11 +98,11 @@ def run():
     if args.test:
         from time import time
         t = time()
-        from shoggoth.renderer import CardRenderer
+        from shoggoth.renderer import CardRenderer, renderer_for_card
         from shoggoth.project import Project
 
         p = Project.load('./test_case/test_case.json')
-        r = CardRenderer()
+        r = CardRenderer(locale=p.language)
         if args.card_id:
             cards = [p.get_card(args.card_id)]
         else:
@@ -114,7 +115,7 @@ def run():
         for card in cards:
             # Export in thread
             thread = threading.Thread(
-                target=r.export_card_images,
+                target=renderer_for_card(r, card).export_card_images,
                 args=(
                     card,
                     target_folder,

@@ -45,12 +45,20 @@ def _cleanup_widget(widget):
                 print(f"Error during child cleanup: {e}")
 
 
-def _begin_view(window, project, nav_type, nav_id, remember=True):
+def resolve_language(window, project, card=None):
+    """The effective card-rendering language: `card`'s own override if set,
+    else the project's, else the app-wide default."""
+    if card and card.language:
+        return card.language
+    return project.language or window.config.get('Shoggoth', 'card_language', 'en')
+
+
+def _begin_view(window, project, nav_type, nav_id, card=None, remember=True):
     """Common preamble for every view switch"""
     window.file_browser.set_active_project(project)
     window.card_renderer.set_hyphenation_enabled(project.auto_hyphenate)
     window.card_renderer.set_french_punctuation(project.french_punctuation)
-    effective_language = project.language or window.config.get('Shoggoth', 'card_language', 'en')
+    effective_language = resolve_language(window, project, card)
     if window.card_renderer.locale != effective_language:
         window.card_renderer.set_locale(effective_language)
     window.nav.push(nav_type, nav_id)
@@ -71,7 +79,7 @@ def _mount(window, widget, scroll=True):
 
 def show_card(window, card):
     """Display a card in the card editor with live preview"""
-    _begin_view(window, card.project, 'card', card.id)
+    _begin_view(window, card.project, 'card', card.id, card=card)
 
     window.current_card = card
     window.current_editor = None

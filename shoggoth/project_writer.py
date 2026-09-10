@@ -84,6 +84,8 @@ class TranslationWriter(Writer):
 
         orig_data['cards'][card.id] = {}
         orig_data['cards'][card.id]['name'] = card.name
+        if card.language:
+            orig_data['cards'][card.id]['language'] = card.language
 
         for side in ('front', 'back'):
             orig_data['cards'][card.id][side] = {}
