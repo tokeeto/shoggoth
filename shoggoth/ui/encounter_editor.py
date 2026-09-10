@@ -192,6 +192,7 @@ class EncounterSetEditor(QWidget):
             if (group == 'treachery' or group == 'enemy'):
                 card_traits = card.front.get('traits').split('.')
                 for trait in card_traits:
+                    trait = trait.strip()
                     if trait != '':
                         for copy in range(card.amount): treachery_card_traits.append(trait)
                 
