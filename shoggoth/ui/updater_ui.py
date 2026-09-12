@@ -29,7 +29,7 @@ from shoggoth.i18n import tr
 from shoggoth.updater import (
     InstallationType, VersionInfo,
     get_current_version, detect_installation_type, compare_versions,
-    GITHUB_API_URL, PYPI_API_URL,
+    GITHUB_RELEASES_LIST_URL, PYPI_API_URL,
     download_full_assets, reset_assets, _get_remote_asset_sha, _save_local_asset_state, ASSET_BRANCH,
 )
 
@@ -309,16 +309,37 @@ class UpdateChecker(QObject):
             raise
 
     def _check_github_releases(self) -> Optional[VersionInfo]:
-        """Query GitHub Releases API for latest version"""
+        """Query GitHub Releases API for the latest version, aggregating patch
+        notes for every published release newer than the installed version
+        (newest first) so the update dialog shows the full changelog, not
+        just the newest entry."""
         try:
             response = requests.get(
-                GITHUB_API_URL,
+                GITHUB_RELEASES_LIST_URL,
                 headers={'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'Shoggoth-Updater'}
             )
-            data = response.json()
+            response.raise_for_status()
+            releases = response.json()
 
+            # The API returns releases newest-first already; keep that order.
+            newer_releases = [
+                r for r in releases
+                if not r.get('draft') and not r.get('prerelease')
+                and compare_versions(self.current_version, r.get('tag_name', '').lstrip('v'))
+            ]
+            if not newer_releases:
+                return None
+
+            notes_parts = []
+            for r in newer_releases:
+                version = r.get('tag_name', '').lstrip('v')
+                body = (r.get('body') or '').strip()
+                notes_parts.append(f"## {version}\n\n{body}" if body else f"## {version}")
+            combined_notes = "\n\n---\n\n".join(notes_parts)
+
+            latest = newer_releases[0]
             download_url = None
-            assets = data.get('assets', [])
+            assets = latest.get('assets', [])
             system = platform.system().lower()
             machine = platform.machine().lower()
 
@@ -336,10 +357,10 @@ class UpdateChecker(QObject):
                         break
 
             return VersionInfo(
-                version=data.get('tag_name', '').lstrip('v'),
+                version=latest.get('tag_name', '').lstrip('v'),
                 download_url=download_url,
-                release_notes=data.get('body', ''),
-                published_at=data.get('published_at', ''),
+                release_notes=combined_notes,
+                published_at=latest.get('published_at', ''),
             )
         except Exception as e:
             logger.warning(f"GitHub check failed: {e}")

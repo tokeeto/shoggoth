@@ -14,6 +14,7 @@ from shoggoth.files import asset_dir
 
 # App update API endpoints
 GITHUB_API_URL = "https://api.github.com/repos/tokeeto/shoggoth/releases/latest"
+GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/tokeeto/shoggoth/releases?per_page=100"
 PYPI_API_URL = "https://pypi.org/pypi/shoggoth/json"
 
 # Asset pack constants

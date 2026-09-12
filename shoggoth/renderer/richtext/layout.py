@@ -56,7 +56,7 @@ class LayoutEngine:
         if valignment == 'center':
             commands = _center_vertically(commands, region, size)
         if scale and scale != 1.0:
-            commands = _scale_commands(commands, scale)
+            commands = _scale_commands(commands, scale, self.resources)
         return commands
 
     def _fit(self, pieces, region, polygon, font_size, min_font_size, letter_spacing):
@@ -83,7 +83,7 @@ class LayoutEngine:
         return lines, size
 
 
-def _scale_commands(commands, scale):
+def _scale_commands(commands, scale, resources):
     """Scale a full-size command list down (or up) to the caller's real
     `scale`, as the final step of layout -- see the module docstring. Text
     keeps its full-size measured position (just multiplied by `scale`) but is
@@ -94,6 +94,7 @@ def _scale_commands(commands, scale):
     for command in commands:
         if isinstance(command, TextCommand):
             font = command.font.font_variant(size=max(1, round(command.font.size * scale)))
+            _register_scaled_font_meta(resources, font, command.font)
             outline = max(0, round(command.outline * scale)) if command.outline else command.outline
             scaled.append(command._replace(x=command.x * scale, y=command.y * scale,
                                            font=font, outline=outline))
@@ -111,6 +112,21 @@ def _scale_commands(commands, scale):
         else:
             scaled.append(command)
     return scaled
+
+
+def _register_scaled_font_meta(resources, font, base_font):
+    """`font_variant()` returns a new ImageFont instance, keyed nowhere --
+    `resources.font_meta` is keyed by identity (see ResourceCache.load_fonts),
+    so without this the HTML-capture text-span lookup (`font_meta.get(command
+    .font)`) misses and silently drops the span, leaving a correctly
+    positioned but empty text layer in the PDF overlay."""
+    if font in resources.font_meta:
+        return
+    base_meta = resources.font_meta.get(base_font)
+    if base_meta is None:
+        return
+    ascent, descent = font.getmetrics()
+    resources.font_meta[font] = {**base_meta, 'size': font.size, 'ascent': ascent, 'descent': descent}
 
 
 def _center_vertically(commands, region, size):

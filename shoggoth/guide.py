@@ -382,8 +382,6 @@ def _render_block(block_type: str, inner_html: str) -> str:
             '<img class="glyph bottom" src="file://{{text_glyph_bottom}}">\n'
             '</div>'
         )
-    if block_type == 'indent':
-        return f'<div style="margin-left: 1.4em;">\n{inner_html}\n</div>'
     return f'<div class="{block_type}">\n{inner_html}\n</div>'
 
 

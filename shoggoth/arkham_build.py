@@ -28,31 +28,23 @@ def export_project(project, renderer, image_pattern=None):
     when image_pattern is not given (see _image_url).
     image_pattern: URL template with {code} placeholder, e.g. "https://example.com/cards/{code}.jpg"
     """
-    # TODO: These fields should be editable in a project settings UI
-    # - author: Currently uses project author field
-    # - banner_url: Image URL for project banner
-    # - external_link: Link to project website/documentation
-    # - status: Project status (draft/alpha/beta/complete/final)
-    # - tags: Comma-separated tags for searchability
-    # - types: What content types the project includes
-    # - url: URL where the project JSON is hosted
 
     data = {
         "meta": {
             # Required fields
-            "author": project.data.get('author', 'Unknown'),  # TODO: Add author field to project editor
+            "author": project.data.get('meta', {}).get('author', 'Unknown'),
             "code": project.data.get('code', project.id),
-            "language": project.data.get('language', 'en'),  # TODO: Add language field to project editor
+            "language": project.data.get('language', 'en'),
             "name": project.name,
 
             # Optional fields
-            "description": project.data.get('description', ''),
+            "description": project.data.get('meta', {}).get('description', ''),
             "date_updated": datetime.date.today().isoformat(),
-            "banner_url": project.data.get('banner_url'),  # TODO: Add to project editor
-            "external_link": project.data.get('website_url'),  # TODO: Add to project editor
+            "banner_url": project.data.get('meta', {}).get('banner_url'),
+            "external_link": project.data.get('meta', {}).get('website_url'),
             "generator": "Shoggoth",
-            "status": project.data.get('status', 'draft'),  # TODO: Add status dropdown to project editor
-            "tags": project.data.get('tags', []),  # TODO: Add tags field to project editor
+            "status": project.data.get('meta', {}).get('status', 'draft'),
+            "tags": project.data.get('meta', {}).get('tags', []),
             "types": _determine_project_types(project),
             "url": project.data.get('hosting_url'),  # TODO: Add to project editor
         },
@@ -382,7 +374,7 @@ def _image_url(card, renderer, pattern, back=False):
     if stored:
         return stored
     face = card.back if back else card.front
-    image = renderer_for_card(renderer, card).render_card_side(card, face, include_bleed=False, **AB_IMAGE_SIZE)
+    image = renderer_for_card(renderer, card).render_card_side(card, face, include_bleed=False, rounded=True, **AB_IMAGE_SIZE)
     buffer = BytesIO()
     image.save(buffer, format=AB_IMAGE_FORMAT, quality=AB_IMAGE_QUALITY)
     encoded = base64.b64encode(buffer.getvalue()).decode('ascii')

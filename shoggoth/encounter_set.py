@@ -127,3 +127,20 @@ class EncounterSet:
         self.data[key] = value
         self.dirty = True
 
+    def get_meta(self, key, default=None):
+        """ Reads a designer-facing metadata field (tags/...), stored under
+            data['meta'] rather than as a top-level key. Required sets are a
+            separate, pre-existing field at data['meta']['tts']['included_sets']
+            (see EncounterSetEditor._get_required_sets/_set_required_sets).
+        """
+        return self.data.get('meta', {}).get(key, default)
+
+    def set_meta(self, key, value):
+        meta = self.data.setdefault('meta', {})
+        if meta.get(key) != value:
+            self.dirty = True
+        if value is None:
+            meta.pop(key, None)
+        else:
+            meta[key] = value
+

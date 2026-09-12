@@ -70,7 +70,7 @@ class ShoggothMainWindow(QMainWindow):
         self.current_editor = None
         self.current_guide = None
         self.current_guide_editor = None
-        card_lang = self.config.get('Shoggoth', 'card_language', 'en')
+        card_lang = self.config.get('Shoggoth', 'language', 'en')
         self.card_renderer = CardRenderer(locale=card_lang, hyphenation_enabled=True)
         self.card_file_monitor = None
 

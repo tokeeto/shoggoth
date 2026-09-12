@@ -3,11 +3,14 @@ Shared searchable element picker.
 
 Lists every ID-bearing project element - cards, encounter sets, guides and the
 project itself - with fuzzy search, keyboard navigation and lazily-rendered
-thumbnails. Two callers share it:
+thumbnails. Callers share it:
 
 * the Go-to dialog (Ctrl+R) - selecting an entry navigates to it;
 * the Insert Link action (Ctrl+L, see ``insert_link.py``) - selecting an entry
-  inserts a ``<:{id} >`` text reference at the cursor.
+  inserts a ``<:{id} >`` text reference at the cursor;
+* the card editor's Meta tab "Bonded to" picker (see ``card_editor.py``) -
+  selecting an entry (restricted to ``kinds=[KIND_CARD]``, with the current
+  card excluded via ``exclude_ids``) sets the card's bonded-to reference.
 
 Thumbnails are rendered on daemon threads by :class:`ThumbnailLoader`, which only
 ever works on the handful of rows that matter right now (the current selection
@@ -86,32 +89,41 @@ def _card_path(project, card) -> str:
     return "Player Cards / Other"
 
 
-def collect_elements(project, kinds=None) -> list[ElementEntry]:
+def collect_elements(project, kinds=None, exclude_ids=None) -> list[ElementEntry]:
     """All ID-bearing elements of ``project``. ``kinds`` optionally filters to a
-    subset of the KIND_* constants."""
+    subset of the KIND_* constants; ``exclude_ids`` optionally drops specific
+    element ids (e.g. the card a "pick a different card" dialog was opened from)."""
     entries: list[ElementEntry] = []
+    exclude_ids = exclude_ids or ()
 
     def want(kind):
         return kinds is None or kind in kinds
 
     if want(KIND_CARD):
         for card in project.cards:
+            if card.id in exclude_ids:
+                continue
             entries.append(ElementEntry(card.id, card.name, KIND_CARD,
                                         _card_path(project, card), card))
 
     if want(KIND_ENCOUNTER):
         for es in project.encounter_sets:
+            if es.id in exclude_ids:
+                continue
             entries.append(ElementEntry(es.id, es.name, KIND_ENCOUNTER,
                                         "Campaign Cards", es))
 
     if want(KIND_GUIDE):
         for guide in project.guides:
+            if guide.id in exclude_ids:
+                continue
             entries.append(ElementEntry(guide.id, guide.name, KIND_GUIDE,
                                         "Guides", guide))
 
     if want(KIND_PROJECT):
-        entries.append(ElementEntry(project.id, project.name, KIND_PROJECT,
-                                    "", project))
+        if project.id not in exclude_ids:
+            entries.append(ElementEntry(project.id, project.name, KIND_PROJECT,
+                                        "", project))
 
     return entries
 
@@ -323,11 +335,11 @@ class ElementSelectorDialog(QDialog):
 
     element_chosen = Signal(object)  # ElementEntry
 
-    def __init__(self, project, *, title=None, kinds=None, instructions=None,
-                 parent=None):
+    def __init__(self, project, *, title=None, kinds=None, exclude_ids=None,
+                 instructions=None, parent=None):
         super().__init__(parent)
         self.project = project
-        self.entries = collect_elements(project, kinds)
+        self.entries = collect_elements(project, kinds, exclude_ids)
 
         self.setWindowTitle(title or tr("DLG_GOTO_CARD"))
         self.setModal(True)

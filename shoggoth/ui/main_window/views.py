@@ -50,7 +50,7 @@ def resolve_language(window, project, card=None):
     else the project's, else the app-wide default."""
     if card and card.language:
         return card.language
-    return project.language or window.config.get('Shoggoth', 'card_language', 'en')
+    return project.language or window.config.get('Shoggoth', 'language', 'en')
 
 
 def _begin_view(window, project, nav_type, nav_id, card=None, remember=True):

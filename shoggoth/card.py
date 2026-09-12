@@ -390,6 +390,21 @@ class Card:
             return self.project.get('default_copyright', default)
         return self.data.get(key, default)
 
+    def get_meta(self, key, default=None):
+        """ Reads a designer-facing metadata field (bonded/set_aside/description/
+            notes/tags/...), stored under data['meta'] rather than as a top-level key.
+        """
+        return self.data.get('meta', {}).get(key, default)
+
+    def set_meta(self, key, value):
+        meta = self.data.setdefault('meta', {})
+        if meta.get(key) != value:
+            self.dirty = True
+        if value is None:
+            meta.pop(key, None)
+        else:
+            meta[key] = value
+
     @staticmethod
     def is_valid(data):
         return 'front' in data and 'back' in data

@@ -1,10 +1,13 @@
 from PIL import Image, ImageOps, ImageDraw
+import numpy as np
 import os
 from collections import OrderedDict
 from io import BytesIO
 from shoggoth.renderer.richtext import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
 from shoggoth.perf import perf
+from shoggoth.util.shape_alpha import apply_shape_mask, subject_mask
+from shoggoth.util.class_icon import tint_icon
 from pathlib import Path
 import pyvips
 import pypdfium2 as pdfium
@@ -188,8 +191,6 @@ class CardRenderer:
     """Renders card images based on card data"""
 
     # Standard card dimensions
-    #CARD_WIDTH = 375
-    #CARD_HEIGHT = 524
     CARD_WIDTH = 750
     CARD_HEIGHT = 1050
     CARD_BLEED = 72
@@ -208,6 +209,7 @@ class CardRenderer:
         self._illus_resized_lru = OrderedDict()  # (path, size) → PIL Image; bounded LRU
         self.translations = {}
         self.locale = locale
+        self.mask_cache = {}
         self.set_locale(locale)
 
         # Initialize rich text renderer
@@ -373,21 +375,49 @@ class CardRenderer:
             self.cache = {}
             self.resized_cache = {}
 
+    def get_rounded_mask(self, size, radius):
+        key = (size, radius)
+        if key in self.mask_cache:
+            return self.mask_cache[key]
+
+        mask = Image.new("L", size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rounded_rectangle(
+            (0, 0, size[0] - 1, size[1] - 1),
+            radius=radius,
+            fill=255,
+        )
+        self.mask_cache[key] = mask
+        return self.mask_cache[key]
+
+    def add_rounded_corners(self, img, radius):
+        img = img.convert("RGBA")
+        img.putalpha(self.get_rounded_mask(img.size, radius))
+        return img
+
     def get_thumbnail(self, card):
         """ Renders a low res version of the front of a card """
-        image = self.render_card_side(card, card.front, include_bleed=False, width=375, height=519, bleed=18)
+        image = self.render_card_side(
+            card,
+            card.front,
+            include_bleed=False,
+            width=375,
+            height=519,
+            bleed=18,
+            rounded=True
+        )
         return image
 
-    def get_card_textures(self, card, size, bleed=True, format='jpeg', quality=80, show_regions=False):
+    def get_card_textures(self, card, size, bleed=True, format='jpeg', quality=80, show_regions=False, rounded=False):
         """Render both sides of a card"""
         import time
         t = time.time()
         perf.reset()
         with perf.span('render_card_side'):
-            front = self.render_card_side(card, card.front, include_bleed=bleed, show_regions=show_regions, **size)
+            front = self.render_card_side(card, card.front, include_bleed=bleed, show_regions=show_regions, rounded=rounded, **size)
         print('render front in', time.time()-t)
         with perf.span('render_card_side'):
-            back = self.render_card_side(card, card.back, include_bleed=bleed, show_regions=show_regions, **size)
+            back = self.render_card_side(card, card.back, include_bleed=bleed, show_regions=show_regions, rounded=rounded, **size)
         print('render back in', time.time()-t)
         if perf.enabled:
             print(perf.report(title='--- get_card_textures breakdown ---'))
@@ -418,7 +448,7 @@ class CardRenderer:
         # abcd-012345-abcde-02442_cardname_back_0.png
         return f'{variant.id}_{safe(variant.name)}_{{face}}_{{index}}.{{format}}'
 
-    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0, text_as_html=False):
+    def export_card_images(self, card, folder, size, include_backs=False, bleed=True, format='png', quality=100, separate_versions=True, rotate=False, filename_format='id', number=0, text_as_html=False, rounded=False):
         try:
             lossless = quality == 100
             outputs = []
@@ -435,12 +465,12 @@ class CardRenderer:
                     if face['type'] in ('player', 'encounter') and not include_backs:
                         file_path = Path(folder) / f'{face["type"]}.{format}'
                         if not file_path.exists():
-                            self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html)
+                            self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, rounded)
                         outputs.append(str(file_path))
                     else:
                         face_letter = 'a' if name == 'front' else 'b'
                         file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter, index=index)
-                        self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html)
+                        self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, rounded)
                         outputs.append(str(file_path))
             return outputs
         except Exception as e:
@@ -448,7 +478,7 @@ class CardRenderer:
             print(e)
             logger.error('failed to export card', card, exc_info=True)
 
-    def _export_side(self, variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html):
+    def _export_side(self, variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, rounded=False):
         """Render one face and save it, optionally writing an HTML text sidecar.
 
         With text_as_html, rich text is captured as a vector HTML overlay
@@ -461,7 +491,7 @@ class CardRenderer:
         if text_as_html:
             self.rich_text.start_html_capture()
         try:
-            image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, **size)
+            image = self.render_card_side(variant, face, include_bleed=bleed, rotation=rotate, rounded=rounded, **size)
         finally:
             capture = self.rich_text.finish_html_capture() if text_as_html else None
 
@@ -573,21 +603,25 @@ class CardRenderer:
         self.card_wo_illus_cache[card] = self.render_card_side(c, side, include_bleed)
         return self.card_wo_illus_cache[card]
 
-    def render_card_side(self, card, side, include_bleed=True, width=1500, height=2100, bleed=72, rotation=False, show_regions=False, trim='mtg'):
+    def render_card_side(
+        self,
+        card,
+        side,
+        include_bleed=True,
+        width=1500,
+        height=2100,
+        bleed=72,
+        rotation=False,
+        show_regions=False,
+        trim='mtg',
+        rounded=False,
+    ):
         """Render one side of a card.
 
-        `trim` selects which physical trim size (see TRIM_SIZES) the final
-        image is centered-cropped down to -- 'mtg' (default, matches
-        CARD_SIZES width so it never needs a width crop) or 'ffg' (narrower).
-        Pass None to skip the crop and export the raw CARD_SIZES canvas.
+        `trim` selects which physical trim size (see TRIM_SIZES).
         """
         s = width / 1500
 
-        # Faces may declare a named card size ("card_size" in the type
-        # defaults): mini investigators and concealed cards are 41x63mm
-        # instead of 61.5x88mm. All sizes use the same px/mm density
-        # (1500px = 61.5mm), so s is unchanged and the requested width only
-        # sets the render resolution.
         size_px = CARD_SIZES.get(side.get('card_size', 'standard'), CARD_SIZES['standard'])
         width = int(size_px['width'] * s)
         height = int(size_px['height'] * s)
@@ -603,19 +637,13 @@ class CardRenderer:
             with perf.span('render_illustration (base layer)'):
                 self.render_illustration(card_image, side, s)
         except Exception as e:
-            logger.error('Failed to render Illustration', e, exc_info=True)
+            logger.exception('Failed to render Illustration')
 
         try:
             with perf.span('render_template'):
                 self.render_template(card_image, side, bleed, template_bleed)
         except Exception as e:
-            logger.error('Failed to render Template', e, exc_info=True)
-        if side['type'] == 'investigator' or side.get('illustration_above_template', False):
-            try:
-                with perf.span('render_illustration (over-template layer)'):
-                    self.render_illustration(card_image, side, s)
-            except Exception as e:
-                logger.error('Failed to render Illustration second layer', e, exc_info=True)
+            logger.exception('Failed to render Template')
 
         if not template_bleed:
             with perf.span('Generate mirrored fake bleed'):
@@ -659,6 +687,13 @@ class CardRenderer:
             except Exception as e:
                 logging.debug(f'Failed in {func}:', e, exc_info=True)
                 print(f'Failed in {func}: {e}')
+
+        if side['type'] == 'investigator' or side.get('illustration_on_top', False):
+            try:
+                with perf.span('render_illustration (over-template layer)'):
+                    self.render_illustration(card_image, side, s)
+            except Exception as e:
+                logger.exception('Failed to render Illustration second layer')
 
         # debug regions
         if show_regions:
@@ -723,6 +758,10 @@ class CardRenderer:
             if card.back == side:
                 degrees = 90
             card_image = card_image.rotate(degrees, expand=True)
+
+        # Round corners only when no bleed margin remains in the image
+        if rounded and not include_bleed:
+            card_image = self.add_rounded_corners(card_image, round(72 * s))
         return card_image
 
     def render_images(self, card_image, side, s: float = 1.0):
@@ -1149,8 +1188,9 @@ class CardRenderer:
         else:
             pan_y = int(side.get('illustration_pan_y', 0) * s)
 
-        mask_template = side.get('mask_template', False)
-        if mask_template:
+        # Masks (mainly intended for investigator fronts)
+        mask_mode = side.get('mask_template', None)
+        if mask_mode == 'simple' or mask_mode is True:
             temp = Image.new('RGBA', card_image.size, (0,0,0,0))
             filter = self.get_resized_cached(overlay_dir/'investigator_filter_1.png', card_image.size)
             temp.paste(illustration, (pan_x, pan_y))
@@ -1158,6 +1198,46 @@ class CardRenderer:
             temp2.paste(temp, (0, 0), filter)
             card_image.paste(temp2, (0, 0), temp2)
             return
+
+        shape = None
+        shape_value = side.get('illustration_shape', None) if mask_mode != 'none' else None
+        if shape_value:
+            shape_path = Path(shape_value)
+            if not shape_path.is_absolute():
+                shape_path = side.card.project.find_file(shape_path)
+            if shape_path:
+                shape = self.get_illustration_resized_cached(shape_path, (new_width, new_height))
+                if side.get('illustration_mirror', False):
+                    shape = ImageOps.mirror(shape)
+                if rotation:
+                    shape = shape.rotate(float(rotation))
+                illustration = apply_shape_mask(
+                    illustration, shape,
+                    region.x - pan_x, region.y - pan_y, region.width, region.height,
+                    allow_overflow=side.get('illustration_shape_overflow', False),
+                )
+
+        # Apply class icon
+        if side.get('illustration_class_icon', False):
+            card_class = side.get_class()
+            icon_path = asset_dir / 'set_icons' / f'{card_class}.svg'
+            if icon_path.exists():
+                icon_width = max(1, int(region.width * 0.8))
+                icon = self.get_resized_cached(icon_path, (icon_width, icon_width * 100))
+                icon = tint_icon(icon, card_class)
+
+                icon_layer = Image.new('RGBA', illustration.size, (0, 0, 0, 0))
+                icon_x = (region.x - pan_x) + (region.width - icon.width) // 2
+                icon_y = (region.y - pan_y) + (region.height - icon.height) // 2
+                icon_layer.paste(icon, (icon_x, icon_y), icon)
+
+                if shape is not None:
+                    subject = subject_mask(shape)
+                    icon_alpha = np.array(icon_layer.getchannel('A'))
+                    icon_alpha[subject] = 0
+                    icon_layer.putalpha(Image.fromarray(icon_alpha, 'L'))
+
+                illustration = Image.alpha_composite(illustration.convert('RGBA'), icon_layer)
 
         # Position and paste
         card_image.paste(
@@ -1355,7 +1435,7 @@ class CardRenderer:
         font = side.get("text_font", {})
         parsed_text = ""
         for entry in entries:
-            parsed_text += '\n' + int(entry[0])*'☐'
+            parsed_text += '\n' + int(entry[0]) * '☐'
             parsed_text += f' <b>{entry[1]}.</b> '
             parsed_text += entry[2]
 
@@ -1392,9 +1472,10 @@ class CardRenderer:
         region = Region(side.get('illustration_region'), 1)
 
         # Calculate scaling
-        illustration_scale = region.height / illustration.height
-        if region.width / illustration.width > illustration_scale:
-            illustration_scale = region.width / illustration.width
+        illustration_scale = max(
+            region.height / illustration.height,
+            region.width / illustration.width
+        )
         return illustration_scale
 
 
@@ -1402,15 +1483,12 @@ def renderer_for_card(base_renderer, card):
     """A CardRenderer honoring `card`'s own language override, if any.
 
     Reuses `base_renderer` unchanged when the card has no override or it
-    already matches the renderer's locale (the common case, since callers
-    normally build `base_renderer` from the project's language already) --
-    no extra allocation on that path. Only spawns a throwaway CardRenderer
-    scoped to the override otherwise, so a handful of per-card overrides in
-    a batch/export run don't require mutating (and restoring) a renderer
-    shared across the whole run or its worker threads.
+    already matches the renderer's locale.
     """
-    lang = card.language
-    if not lang or lang == base_renderer.locale:
+    if not card.language or card.language == base_renderer.locale:
         return base_renderer
-    return CardRenderer(locale=lang, hyphenation_enabled=base_renderer.hyphenation_enabled,
-                         french_punctuation=base_renderer.french_punctuation)
+    return CardRenderer(
+        locale=card.language,
+        hyphenation_enabled=base_renderer.hyphenation_enabled,
+        french_punctuation=base_renderer.french_punctuation
+    )

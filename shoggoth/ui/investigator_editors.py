@@ -1,14 +1,16 @@
 """
 Investigator card editors for Shoggoth
 """
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QLabel, QPushButton
+    QLineEdit, QLabel, QPushButton, QFileDialog, QCheckBox
 )
 from PySide6.QtCore import Qt
 
 from shoggoth.ui.face_editor import FaceEditor
-from shoggoth.ui.field_widgets import ClassSelectorWidget
+from shoggoth.ui.field_widgets import ClassSelectorWidget, LabeledLineEdit
 from shoggoth.ui.text_editor import ArkhamTextEdit
 from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.ui.compact_widgets import PLAYER_CLASSES
@@ -44,6 +46,27 @@ class InvestigatorEditor(FaceEditor):
         self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
 
+        # Shape image: drives the render-time distance fade in
+        # render_illustration() (renderer/card_renderer.py) - black over the
+        # subject, white/transparent elsewhere, same pixel dimensions as the
+        # illustration so it stays aligned through the same pan/scale/mirror.
+        shape_row = QWidget()
+        shape_layout = QHBoxLayout()
+        shape_layout.setContentsMargins(0, 0, 0, 0)
+        self._shape_input = LabeledLineEdit(tr("FIELD_ILLUSTRATION_SHAPE"))
+        self._shape_input.input.textChanged.connect(lambda: self.on_field_changed('illustration_shape'))
+        shape_browse_btn = QPushButton(tr("BTN_BROWSE"))
+        shape_browse_btn.clicked.connect(self._browse_shape_image)
+        self._shape_overflow_checkbox = QCheckBox(tr("FIELD_SHAPE_OVERFLOW"))
+        self._shape_overflow_checkbox.toggled.connect(lambda: self.on_field_changed('illustration_shape_overflow'))
+        shape_layout.addWidget(self._shape_input, 1)
+        shape_layout.addWidget(shape_browse_btn)
+        shape_layout.addWidget(self._shape_overflow_checkbox)
+        shape_row.setLayout(shape_layout)
+        self._target_layout().addWidget(shape_row)
+        self.fields['illustration_shape'] = self._shape_input.input
+        self.fields['illustration_shape_overflow'] = self._shape_overflow_checkbox
+
         # Mask template dropdown
         mask_row = QWidget()
         mask_layout = QHBoxLayout()
@@ -52,18 +75,39 @@ class InvestigatorEditor(FaceEditor):
         mask_label.setProperty("role", "field-label")
         mask_label.setMinimumWidth(80)
         self._mask_combo = NoScrollComboBox()
-        self._mask_combo.addItem(tr("OPTION_DEFAULT"), userData=None)
-        self._mask_combo.addItem(tr("OPTION_TRUE"), userData=True)
-        self._mask_combo.addItem(tr("OPTION_FALSE"), userData=False)
+        self._mask_combo.addItem(tr("OPTION_MASK_SHAPED"), userData=None)
+        self._mask_combo.addItem(tr("OPTION_MASK_SIMPLE"), userData='simple')
+        self._mask_combo.addItem(tr("OPTION_MASK_NONE"), userData='none')
         self._mask_combo.currentIndexChanged.connect(self._on_mask_changed)
+        self._class_icon_checkbox = QCheckBox(tr("FIELD_CLASS_ICON"))
+        self._class_icon_checkbox.toggled.connect(lambda: self.on_field_changed('illustration_class_icon'))
         mask_layout.addWidget(mask_label)
         mask_layout.addWidget(self._mask_combo)
+        mask_layout.addWidget(self._class_icon_checkbox)
         mask_layout.addStretch()
         mask_row.setLayout(mask_layout)
         self._target_layout().addWidget(mask_row)
+        self.fields['illustration_class_icon'] = self._class_icon_checkbox
 
         self.add_footer_row()
         self.main_layout.addStretch()
+
+    def _browse_shape_image(self):
+        project = self.face.card.project
+        current = self._shape_input.text().strip()
+        if current:
+            p = Path(current)
+            if not p.is_absolute() and project:
+                p = project.folder / p
+            start_dir = str(p.parent) if p.parent.exists() else str(project.folder) if project else str(Path.home())
+        else:
+            start_dir = str(project.folder) if project else str(Path.home())
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, tr("DLG_SELECT_IMAGE"), start_dir, tr("FILTER_IMAGES")
+        )
+        if file_path:
+            self._shape_input.setText(file_path)
 
     def _on_mask_changed(self):
         if self.updating:
@@ -81,9 +125,12 @@ class InvestigatorEditor(FaceEditor):
         super().load_data()
         self.updating = True
         value = self.face.get('mask_template')
-        if value is True:
+        # `True` is the old boolean value for "Simple" (pre-dating the
+        # Shaped/Simple/None dropdown); `False` and unset both mean "Shaped"
+        # (renderer already treated them the same way).
+        if value is True or value == 'simple':
             self._mask_combo.setCurrentIndex(1)
-        elif value is False:
+        elif value == 'none':
             self._mask_combo.setCurrentIndex(2)
         else:
             self._mask_combo.setCurrentIndex(0)

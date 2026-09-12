@@ -127,6 +127,7 @@ class EncounterSetEditor(QWidget):
         self.thumbnail_widgets = {}
         self.thumbnail_thread = None
         self._thumbnails_started = False
+        self._loading_meta = False
 
         self.setup_ui()
         self.load_data()
@@ -139,7 +140,7 @@ class EncounterSetEditor(QWidget):
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_info_tab(), tr("TAB_INFO"))
         self.tabs.addTab(self._build_cards_tab(), tr("TAB_CARDS"))
-        self.tabs.addTab(self._build_tts_tab(), tr("TAB_TTS"))
+        self.tabs.addTab(self._build_meta_tab(), tr("TAB_META"))
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
         main_layout.addWidget(self.tabs)
@@ -254,29 +255,42 @@ class EncounterSetEditor(QWidget):
         tab.setLayout(layout)
         return tab
 
-    def _build_tts_tab(self):
+    def _build_meta_tab(self):
         tab = QWidget()
         layout = QVBoxLayout()
 
-        label = QLabel(tr("TTS_INCLUDED_SETS_LABEL"))
+        note = QLabel(tr("META_TAB_NOTE"))
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #888; font-style: italic;")
+        layout.addWidget(note)
+
+        self.tags_input = LabeledLineEdit(tr("FIELD_TAGS"))
+        self.tags_input.setPlaceholderText(tr("PLACEHOLDER_TAGS"))
+        self.tags_input.input.textChanged.connect(self.on_tags_changed)
+        layout.addWidget(self.tags_input)
+
+        label = QLabel(tr("FIELD_REQUIRED_SETS"))
         label.setStyleSheet("font-size: 14pt; font-weight: bold;")
         layout.addWidget(label)
 
-        desc = QLabel(tr("TTS_INCLUDED_SETS_DESC"))
+        desc = QLabel(tr("HELP_REQUIRED_SETS"))
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #666; font-style: italic;")
         layout.addWidget(desc)
 
-        self.included_sets_list = QListWidget()
-        self._populate_included_sets_list()
-        self.included_sets_list.itemChanged.connect(self._on_included_set_toggled)
-        layout.addWidget(self.included_sets_list)
+        # Kept at data['meta']['tts']['included_sets'] for backwards compatibility —
+        # this list used to live on its own TTS tab (see guide_editor.py, which also
+        # reads that path) before becoming a first-class "required sets" meta field.
+        self.required_sets_list = QListWidget()
+        self._populate_required_sets_list()
+        self.required_sets_list.itemChanged.connect(self._on_required_set_toggled)
+        layout.addWidget(self.required_sets_list)
 
         tab.setLayout(layout)
         return tab
 
-    def _get_tts_included_sets(self):
-        """Return the list of included set IDs for this encounter set."""
+    def _get_required_sets(self):
+        """Return the list of required/included set IDs for this encounter set."""
         return (
             self.encounter_set.data
             .setdefault('meta', {})
@@ -284,21 +298,21 @@ class EncounterSetEditor(QWidget):
             .get('included_sets', [])
         )
 
-    def _set_tts_included_sets(self, set_ids):
-        """Persist the list of included set IDs for this encounter set."""
+    def _set_required_sets(self, set_ids):
+        """Persist the list of required/included set IDs for this encounter set."""
         tts = (
             self.encounter_set.data
             .setdefault('meta', {})
             .setdefault('tts', {})
         )
-        tts.setdefault('included_sets', set_ids)
+        tts['included_sets'] = set_ids
         self.encounter_set.dirty = True
 
-    def _populate_included_sets_list(self):
-        self.included_sets_list.blockSignals(True)
-        self.included_sets_list.clear()
+    def _populate_required_sets_list(self):
+        self.required_sets_list.blockSignals(True)
+        self.required_sets_list.clear()
         current_id = self.encounter_set.id
-        selected_ids = self._get_tts_included_sets()
+        selected_ids = self._get_required_sets()
         for es in self.encounter_set.project.encounter_sets:
             if es.id == current_id:
                 continue
@@ -306,19 +320,25 @@ class EncounterSetEditor(QWidget):
             item.setData(Qt.UserRole, es.id)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked if es.id in selected_ids else Qt.Unchecked)
-            self.included_sets_list.addItem(item)
-        self.included_sets_list.blockSignals(False)
+            self.required_sets_list.addItem(item)
+        self.required_sets_list.blockSignals(False)
 
-    def _on_included_set_toggled(self, item):
+    def _on_required_set_toggled(self, item):
         set_id = item.data(Qt.UserRole)
-        current = list(self._get_tts_included_sets())
+        current = list(self._get_required_sets())
         if item.checkState() == Qt.Checked:
             if set_id not in current:
                 current.append(set_id)
         else:
             if set_id in current:
                 current.remove(set_id)
-        self._set_tts_included_sets(current)
+        self._set_required_sets(current)
+
+    def on_tags_changed(self, text):
+        if self._loading_meta:
+            return
+        tags = [t.strip() for t in text.split(',') if t.strip()]
+        self.encounter_set.set_meta('tags', tags or None)
 
     def _on_tab_changed(self, index):
         """Start thumbnail generation when the Cards tab is first shown"""
@@ -340,6 +360,10 @@ class EncounterSetEditor(QWidget):
     def load_data(self):
         for field in self.fields:
             field.update_from_card(self.encounter_set)
+
+        self._loading_meta = True
+        self.tags_input.setText(', '.join(self.encounter_set.get_meta('tags') or []))
+        self._loading_meta = False
 
     def on_field_changed(self, field, value):
         field.update_card(self.encounter_set, value)

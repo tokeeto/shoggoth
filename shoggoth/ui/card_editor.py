@@ -4,16 +4,16 @@ Card editor widget for Shoggoth using PySide6
 import json
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QLabel,
-    QScrollArea, QStackedWidget, QMessageBox, QSizePolicy
+    QLineEdit, QPushButton, QLabel, QCheckBox,
+    QScrollArea, QStackedWidget, QMessageBox, QSizePolicy, QDialog
 )
 from PySide6.QtCore import Signal
 
-from shoggoth.ui.field_widgets import LabeledLineEdit, FieldWidget
+from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTextEdit, FieldWidget
 from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.ui.compact_widgets import Band, SegmentedToggle
 from shoggoth.ui import compact_theme
-from shoggoth.ui.text_editor import ArkhamTextEdit
+from shoggoth.ui.text_editor import PlainJsonTextEdit
 from shoggoth.ui.face_editor_factory import get_editor_for_face
 from shoggoth.files import translation_dir
 from shoggoth.i18n import get_available_languages_from_dir, tr
@@ -110,8 +110,8 @@ class CardEditor(QWidget):
         header_row = QHBoxLayout()
         header_row.setContentsMargins(0, 0, 0, 0)
         self.view_toggle = SegmentedToggle(
-            [tr("TAB_FRONT"), tr("TAB_BACK"), tr("TAB_JSON")],
-            values=['front', 'back', 'json'],
+            [tr("TAB_FRONT"), tr("TAB_BACK"), tr("TAB_META"), tr("TAB_JSON")],
+            values=['front', 'back', 'meta', 'json'],
         )
         self.view_toggle.valueChanged.connect(self._on_view_toggle_changed)
         header_row.addWidget(self.view_toggle)
@@ -132,8 +132,9 @@ class CardEditor(QWidget):
         self.editor_container.setLayout(self.editor_layout)
         layout.addWidget(self.editor_container, 1)
 
-        # Track whether showing JSON
-        self.showing_json = False
+        # Track which "extra" (non front/back) view is showing, if any: None, 'json' or 'meta'
+        self.extra_view = None
+        self._loading_meta = False
         self.face_stack = None
         self.front_editor = None
         self.back_editor = None
@@ -195,7 +196,7 @@ class CardEditor(QWidget):
         self.editor_layout.addWidget(json_group)
 
         # JSON editor — the main element, expands to fill the rest of the pane
-        self.json_editor = ArkhamTextEdit(monospace=True)
+        self.json_editor = PlainJsonTextEdit(monospace=True)
         self.json_editor.textChanged.connect(self.on_json_changed)
         self.editor_layout.addWidget(self.json_editor, 1)
 
@@ -224,21 +225,159 @@ class CardEditor(QWidget):
         # Load current card data
         self.load_json_data()
 
+    def create_meta_editor(self):
+        """Create the Meta tab: designer-facing metadata not used by rendering, stored
+        under card.data['meta'] (bonded/set aside/description/notes/tags) and mainly
+        consumed by exports and design-phase communication.
+        """
+        # Clear container
+        while self.editor_layout.count():
+            item = self.editor_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.face_stack = None
+
+        note = QLabel(tr("META_TAB_NOTE"))
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #888; font-style: italic;")
+        self.editor_layout.addWidget(note)
+
+        meta_band = Band(tr("BAND_META"))
+        content = meta_band.content_layout
+
+        bonded_col = QVBoxLayout()
+        bonded_col.setContentsMargins(0, 0, 0, 0)
+        bonded_col.setSpacing(4)
+        bonded_field_label = QLabel(tr("FIELD_BONDED_TO").upper())
+        bonded_field_label.setProperty("role", "field-label")
+        bonded_field_label.setToolTip(tr("HELP_BONDED_TO"))
+        bonded_col.addWidget(bonded_field_label)
+
+        bonded_row = QHBoxLayout()
+        bonded_row.setContentsMargins(0, 0, 0, 0)
+        bonded_row.setSpacing(8)
+        self.bonded_value_label = QLabel()
+        self.bonded_value_label.setToolTip(tr("HELP_BONDED_TO"))
+        bonded_row.addWidget(self.bonded_value_label, 1)
+        change_bonded_btn = QPushButton(tr("BTN_CHANGE"))
+        change_bonded_btn.clicked.connect(self.on_change_bonded)
+        bonded_row.addWidget(change_bonded_btn)
+        self.clear_bonded_btn = QPushButton(tr("BTN_CLEAR"))
+        self.clear_bonded_btn.clicked.connect(self.on_clear_bonded)
+        bonded_row.addWidget(self.clear_bonded_btn)
+        bonded_col.addLayout(bonded_row)
+
+        bonded_widget = QWidget()
+        bonded_widget.setLayout(bonded_col)
+        content.addWidget(bonded_widget)
+
+        self.set_aside_checkbox = QCheckBox(tr("FIELD_SET_ASIDE"))
+        self.set_aside_checkbox.setToolTip(tr("HELP_SET_ASIDE"))
+        self.set_aside_checkbox.toggled.connect(self.on_set_aside_changed)
+        content.addWidget(self.set_aside_checkbox)
+
+        self.tags_input = LabeledLineEdit(tr("FIELD_TAGS"))
+        self.tags_input.setPlaceholderText(tr("PLACEHOLDER_TAGS"))
+        self.tags_input.input.textChanged.connect(self.on_tags_changed)
+        content.addWidget(self.tags_input)
+
+        self.description_input = LabeledTextEdit(tr("FIELD_DESCRIPTION"))
+        self.description_input.textChanged.connect(self.on_description_changed)
+        content.addWidget(self.description_input)
+
+        self.notes_input = LabeledTextEdit(tr("FIELD_NOTES"))
+        self.notes_input.input.setToolTip(tr("HELP_NOTES"))
+        self.notes_input.textChanged.connect(self.on_notes_changed)
+        content.addWidget(self.notes_input)
+
+        self.editor_layout.addWidget(meta_band)
+        self.editor_layout.addStretch(1)
+
+        self.load_meta_data()
+
+    def _refresh_bonded_label(self):
+        bonded_id = self.card.get_meta('bonded')
+        bonded_card = self.card.project.get_card(bonded_id) if bonded_id else None
+        self.bonded_value_label.setText(bonded_card.name if bonded_card else tr("OPT_BONDED_NONE"))
+        self.clear_bonded_btn.setEnabled(bonded_card is not None)
+
+    def load_meta_data(self):
+        """Load card.data['meta'] into the Meta tab fields"""
+        self._loading_meta = True
+        self._refresh_bonded_label()
+        self.set_aside_checkbox.setChecked(bool(self.card.get_meta('set_aside', False)))
+        self.tags_input.setText(', '.join(self.card.get_meta('tags') or []))
+        self.description_input.setPlainText(self.card.get_meta('description', '') or '')
+        self.notes_input.setPlainText(self.card.get_meta('notes', '') or '')
+        self._loading_meta = False
+
+    def on_change_bonded(self):
+        """Open the shared element picker (see element_selector.py), restricted to
+        this project's cards minus this one, to choose the card this one is bonded to."""
+        from shoggoth.ui.element_selector import ElementSelectorDialog, KIND_CARD
+
+        dialog = ElementSelectorDialog(
+            self.card.project,
+            title=tr("DLG_SELECT_BONDED_CARD"),
+            kinds=[KIND_CARD],
+            exclude_ids=[self.card.id],
+            instructions=tr("HELP_BONDED_TO"),
+            parent=self,
+        )
+        chosen = {}
+        dialog.element_chosen.connect(lambda entry: chosen.update(entry=entry))
+        if dialog.exec() == QDialog.Accepted and 'entry' in chosen:
+            self.card.set_meta('bonded', chosen['entry'].id)
+            self._refresh_bonded_label()
+            self.data_changed.emit()
+
+    def on_clear_bonded(self):
+        if self._loading_meta:
+            return
+        self.card.set_meta('bonded', None)
+        self._refresh_bonded_label()
+        self.data_changed.emit()
+
+    def on_set_aside_changed(self, checked):
+        if self._loading_meta:
+            return
+        self.card.set_meta('set_aside', checked)
+        self.data_changed.emit()
+
+    def on_tags_changed(self, text):
+        if self._loading_meta:
+            return
+        tags = [t.strip() for t in text.split(',') if t.strip()]
+        self.card.set_meta('tags', tags or None)
+        self.data_changed.emit()
+
+    def on_description_changed(self):
+        if self._loading_meta:
+            return
+        self.card.set_meta('description', self.description_input.toPlainText() or None)
+        self.data_changed.emit()
+
+    def on_notes_changed(self):
+        if self._loading_meta:
+            return
+        self.card.set_meta('notes', self.notes_input.toPlainText() or None)
+        self.data_changed.emit()
+
     def _on_view_toggle_changed(self, value):
-        """Handle the Front / Back / {} Json toggle.
+        """Handle the Front / Back / Meta / {} Json toggle.
 
         Switching to Front or Back also flips the live preview to that side — one-way:
         the preview dock's own Front/Back tabs can still be clicked independently
         without moving this toggle back.
         """
-        if value == 'json':
-            if not self.showing_json:
-                self.showing_json = True
-                self.create_json_editor()
+        if value in ('json', 'meta'):
+            if self.extra_view != value:
+                self.extra_view = value
+                self.create_json_editor() if value == 'json' else self.create_meta_editor()
             return
 
-        if self.showing_json:
-            self.showing_json = False
+        if self.extra_view is not None:
+            self.extra_view = None
             self.create_form_editors()  # ends by showing view_toggle's current face
         else:
             self._show_face(value)

@@ -99,6 +99,7 @@ def _run_images(parent, project, renderer, cards, d):
         "separate_versions": d['separate_versions'],
         "rotate": d['rotate'],
         "filename_format": d['filename_format'],
+        "rounded": d.get('rounded', False),
     }
     _export_numbered_cards(parent, renderer, cards, folder, kwargs)
 
@@ -119,11 +120,16 @@ def _run_pdf(parent, project, renderer, cards, d):
     else:
         fmt, quality, backs = _MBPRINT_FORMAT, _MBPRINT_QUALITY, False
 
+    # Rounded corners only apply to the plain flavor, and only make sense
+    # without a bleed margin/cut guides -- a rounded, exact-size card is an
+    # alternative to trimming, not an addition to it.
+    rounded = d['flavor'] == 'pdf' and d.get('rounded', False)
     if d['export_images']:
         run_image_export(
             parent, renderer, cards, folder,
-            size=size, bleed=True, format=fmt, quality=quality,
+            size=size, bleed=not rounded, format=fmt, quality=quality,
             include_backs=backs, rotate=True, text_as_html=d['vector_text'],
+            rounded=rounded,
         )
 
     if d['flavor'] == 'azao':
@@ -146,7 +152,7 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
             parent, renderer, cards, folder,
             size=tts_lib.TTS_IMAGE_SIZE, bleed=False, separate_versions=False,
             format=tts_lib.TTS_IMAGE_FORMAT, quality=tts_lib.TTS_IMAGE_QUALITY,
-            include_backs=False, rotate=True
+            include_backs=False, rotate=True, rounded=True,
         )
     sync = d['sync']
     # 'campaign'/'all' keep tts_lib's dedicated bag structure (grouped by

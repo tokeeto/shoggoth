@@ -213,6 +213,9 @@ class ProjectExportDialog(QDialog):
         options_form.addRow(tr("IMG_EXPORT_ROTATE_LABEL"), self._img_rotate)
         self._img_bleed = QCheckBox(tr("OPT_INCLUDE_BLEED"))
         options_form.addRow(tr("LABEL_INCLUDE_BLEED"), self._img_bleed)
+        self._img_rounded = QCheckBox(tr("OPT_ROUNDED_CORNERS"))
+        self._img_rounded.setToolTip(tr("HELP_ROUNDED_CORNERS"))
+        options_form.addRow(tr("LABEL_ROUNDED_CORNERS"), self._img_rounded)
         self._img_separate = QCheckBox(tr("OPT_SEPARATE_VERSIONS"))
         options_form.addRow(tr("LABEL_SEPARATE_VERSIONS"), self._img_separate)
         self._img_backs = QCheckBox(tr("OPT_INCLUDE_BACKS"))
@@ -231,6 +234,7 @@ class ProjectExportDialog(QDialog):
                 break
         self._img_rotate.setChecked(d.get('rotate', False))
         self._img_bleed.setChecked(d.get('bleed', True))
+        self._img_rounded.setChecked(d.get('rounded', False))
         self._img_separate.setChecked(d.get('separate_versions', False))
         self._img_backs.setChecked(d.get('include_backs', False))
 
@@ -244,6 +248,7 @@ class ProjectExportDialog(QDialog):
             'filename_format': FILENAME_FORMATS[self._img_filename_combo.currentIndex()][0],
             'rotate': self._img_rotate.isChecked(),
             'bleed': self._img_bleed.isChecked(),
+            'rounded': self._img_rounded.isChecked(),
             'separate_versions': self._img_separate.isChecked(),
             'include_backs': self._img_backs.isChecked(),
         }
@@ -308,6 +313,10 @@ class ProjectExportDialog(QDialog):
         self._pdf_vector_text.setToolTip(tr("PDF_VECTOR_TEXT_TOOLTIP"))
         layout.addWidget(self._pdf_vector_text)
 
+        self._pdf_rounded = QCheckBox(tr("PDF_ROUNDED_CORNERS_CHECK"))
+        self._pdf_rounded.setToolTip(tr("PDF_ROUNDED_CORNERS_TOOLTIP"))
+        layout.addWidget(self._pdf_rounded)
+
         self._pdf_output_single = QFrame()
         row = QHBoxLayout(self._pdf_output_single)
         row.setContentsMargins(0, 0, 0, 0)
@@ -360,6 +369,7 @@ class ProjectExportDialog(QDialog):
         self._sync_format_quality_widgets(flavor)
         self._pdf_format_frame.setVisible(has_format_controls)
         self._pdf_format_frame.layout().setRowVisible(self._pdf_backs, is_plain)
+        self._pdf_rounded.setVisible(is_plain)
         self._pdf_info_label.setVisible(not has_format_controls)
         self._pdf_output_single.setVisible(not is_azao)
         self._pdf_output_azao.setVisible(is_azao)
@@ -410,6 +420,7 @@ class ProjectExportDialog(QDialog):
         self._pdf_folder.set_folder(d.get('folder'))
         self._pdf_size_combo.setCurrentIndex(_size_combo_index(self._pdf_size_combo, d.get('size_label')))
         self._pdf_backs.setChecked(d.get('include_backs', False))
+        self._pdf_rounded.setChecked(d.get('rounded', False))
         self._pdf_vector_text.setChecked(d.get('vector_text', True))
         self._on_pdf_flavor_changed()
 
@@ -437,6 +448,7 @@ class ProjectExportDialog(QDialog):
             'azao_format': azao_format,
             'azao_quality': azao_quality,
             'include_backs': self._pdf_backs.isChecked(),
+            'rounded': self._pdf_rounded.isChecked(),
             'vector_text': self._pdf_vector_text.isChecked(),
             'output_path': self._pdf_front_path_input.text().strip() if flavor == 'azao'
                            else self._pdf_path_input.text().strip(),

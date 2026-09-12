@@ -262,10 +262,15 @@ def export_all(project, image_folder, sync=True):
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
         encounter_wrapper['DeckIDs'] = []
         encounter_wrapper['Nickname'] = encounter.name
-        for card in encounter.cards:
-            encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
-            current_id += 1
-            encounter_wrapper['DeckIDs'].append(current_id)
+
+        other_sets = encounter.data.get('meta', {}).get('tts', {}).get('included_sets', [])
+        for enc_set in [encounter] + other_sets:
+            for card in enc_set.cards:
+                for _ in range(card.amount):
+                    encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
+                    current_id += 1
+                    encounter_wrapper['DeckIDs'].append(current_id)
+
     for card in project.player_cards:
         wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
         current_id += 1
@@ -309,10 +314,14 @@ def export_campaign(project, image_folder, sync=True):
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
         encounter_wrapper['DeckIDs'] = []
         encounter_wrapper['Nickname'] = encounter.name
-        for card in encounter.cards:
-            encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
-            current_id += 1
-            encounter_wrapper['DeckIDs'].append(current_id)
+
+        other_sets = encounter.data.get('meta', {}).get('tts', {}).get('included_sets', [])
+        for enc_set in [encounter] + other_sets:
+            for card in enc_set.cards:
+                for _ in range(card.amount):
+                    encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
+                    current_id += 1
+                    encounter_wrapper['DeckIDs'].append(current_id)
 
     return_status = 0
     if files.tts_dir:
@@ -333,8 +342,9 @@ def export_player_cards(cards, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
     current_id = 6000
     for card in cards:
-        wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
-        current_id += 1
+        for _ in range(card.amount):
+            wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
+            current_id += 1
 
     return_status = 0
     if files.tts_dir:

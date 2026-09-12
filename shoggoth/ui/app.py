@@ -89,6 +89,11 @@ def main():
     ).start()
 
     window.show()
+
+    if window._snippet_filter.load_errors:
+        from shoggoth.ui.snippet_loader import report_load_errors
+        report_load_errors(window, window._snippet_filter.load_errors)
+
     sys.exit(app.exec())
 
 

@@ -21,7 +21,8 @@ class SnippetSequenceFilter(QObject):
         super().__init__(parent)
         self.overlay = SnippetOverlay()
         self._reset()
-        merge_snippets(ROOT, load_user_snippets())
+        entries, self.load_errors = load_user_snippets()
+        merge_snippets(ROOT, entries)
 
     def _reset(self):
         self._active = False

@@ -7,8 +7,8 @@ tree state and TreeSync diffs them against the live QTreeWidget.
 """
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtCore import Qt, QPointF
+from PySide6.QtGui import QIcon, QImage, QPixmap, QPainter, QPen, QColor, QPolygonF
 
 from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
@@ -34,6 +34,43 @@ def make_inverted_icon(icon_path, project_file_path, size=16):
         size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
     )
     return QIcon(pixmap)
+
+
+_warning_triangle_icon = None
+
+
+def warning_triangle_icon(size=16):
+    """A red warning-triangle icon for card nodes that couldn't be placed
+    in their proper collection (e.g. an orphaned/unknown encounter set)."""
+    global _warning_triangle_icon
+    if _warning_triangle_icon is not None:
+        return _warning_triangle_icon
+
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    margin = size * 0.08
+    triangle = QPolygonF([
+        QPointF(size / 2, margin),
+        QPointF(size - margin, size - margin),
+        QPointF(margin, size - margin),
+    ])
+    painter.setPen(QPen(QColor('#7a0000'), max(1.0, size * 0.06)))
+    painter.setBrush(QColor('#e53935'))
+    painter.drawPolygon(triangle)
+
+    pen = QPen(QColor('white'), max(1.0, size * 0.09))
+    pen.setCapStyle(Qt.RoundCap)
+    painter.setPen(pen)
+    x = size / 2
+    painter.drawLine(QPointF(x, size * 0.42), QPointF(x, size * 0.66))
+    painter.drawPoint(QPointF(x, size * 0.78))
+    painter.end()
+
+    _warning_triangle_icon = QIcon(pixmap)
+    return _warning_triangle_icon
 
 
 def card_display_name(card, include_level=False):
@@ -86,9 +123,25 @@ def build_tree_spec(project):
         'children': []
     }
 
+    # project.encounter_sets is a generator - materialize once so it can be
+    # iterated/inspected more than once below (bool() on the generator itself
+    # is always truthy, regardless of whether it yields anything).
+    encounter_sets = list(project.encounter_sets)
+    known_encounter_ids = {encounter_set.id for encounter_set in encounter_sets}
+
+    # A card with a truthy encounter_set id that doesn't match any known
+    # encounter set (deleted set, or a stale id left over from a copy/move
+    # between projects) would otherwise silently vanish: it's excluded from
+    # player_cards (which only wants cards with no encounter_set) and never
+    # matches any EncounterSet.cards filter either. Surface those instead.
+    orphan_cards = [
+        card for card in project.cards
+        if card.data.get('encounter_set') and card.data.get('encounter_set') not in known_encounter_ids
+    ]
+
     # Determine if we need campaign/player split
-    has_encounters = bool(project.encounter_sets)
-    has_player_cards = any(c for c in project.cards if not c.encounter)
+    has_encounters = bool(encounter_sets) or bool(orphan_cards)
+    has_player_cards = any(not c.data.get('encounter_set') for c in project.cards)
 
     if has_encounters and has_player_cards:
         campaign_spec = {
@@ -113,7 +166,7 @@ def build_tree_spec(project):
         campaign_spec = player_spec = root_spec
 
     # Add encounter sets
-    for encounter_set in project.encounter_sets:
+    for encounter_set in encounter_sets:
         e_icon = None
         if encounter_set.icon:
             e_icon = make_inverted_icon(encounter_set.icon, project.file_path)
@@ -172,6 +225,21 @@ def build_tree_spec(project):
             e_spec['children'] = [story_spec, location_spec, encounter_cat_spec]
 
         campaign_spec['children'].append(e_spec)
+
+    # Orphaned cards: a card that references an encounter set id which no
+    # longer exists in this project. Give them a fake "Unknown set"
+    # collection instead of letting them disappear from the tree entirely.
+    if orphan_cards:
+        unknown_spec = {
+            'node_id': f'category:unknown_set:{project.file_path}',
+            'text': tr('TREE_UNKNOWN_SET'),
+            'type': 'category',
+            'data': project,
+            'icon': warning_triangle_icon(),
+            'children': [build_card_spec(card) for card in orphan_cards]
+        }
+        unknown_spec['children'].sort(key=lambda s: s['text'].lower())
+        campaign_spec['children'].append(unknown_spec)
 
     # Add player cards
     class_labels = {

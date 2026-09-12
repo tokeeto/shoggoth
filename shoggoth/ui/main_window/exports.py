@@ -23,7 +23,7 @@ def get_export_size(window):
     return EXPORT_SIZES[index][1]
 
 
-def _read_export_prefs(window, bleed=None, format=None, quality=None, separate_versions=None):
+def _read_export_prefs(window, bleed=None, format=None, quality=None, separate_versions=None, rounded=None):
     """Collect image export options, falling back to preferences for any not given."""
     config = window.config
     if bleed is None:
@@ -34,6 +34,8 @@ def _read_export_prefs(window, bleed=None, format=None, quality=None, separate_v
         quality = config.getint('Shoggoth', 'export_quality', 95)
     if separate_versions is None:
         separate_versions = config.getboolean('Shoggoth', 'export_separate_versions', False)
+    if rounded is None:
+        rounded = config.getboolean('Shoggoth', 'export_rounded', False)
     return {
         'size': get_export_size(window),
         'include_backs': config.getboolean('Shoggoth', 'export_include_backs', False),
@@ -41,6 +43,7 @@ def _read_export_prefs(window, bleed=None, format=None, quality=None, separate_v
         'format': format,
         'quality': quality,
         'separate_versions': separate_versions,
+        'rounded': rounded,
     }
 
 
@@ -93,13 +96,13 @@ def _export_card_images(window, cards, prefs):
     )
 
 
-def export_all(window, bleed=None, format=None, quality=None, separate_versions=None):
+def export_all(window, bleed=None, format=None, quality=None, separate_versions=None, rounded=None):
     """Export all cards in the project using settings from preferences"""
     if not window.active_project:
         QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_LOADED"))
         return
 
-    prefs = _read_export_prefs(window, bleed, format, quality, separate_versions)
+    prefs = _read_export_prefs(window, bleed, format, quality, separate_versions, rounded)
     try:
         _export_card_images(window, window.active_project.get_all_cards(), prefs)
     except Exception as e:
@@ -120,13 +123,13 @@ def export_encounter_set(window, encounter_set):
         QMessageBox.critical(window, tr("DLG_EXPORT_ERROR"), tr("ERR_EXPORT_CARDS").format(error=e))
 
 
-def export_current(window, bleed=None, format=None, quality=None, separate_versions=None):
+def export_current(window, bleed=None, format=None, quality=None, separate_versions=None, rounded=None):
     """Export the current card using settings from preferences"""
     if not window.current_card:
         QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_CARD_SELECTED"))
         return
 
-    prefs = _read_export_prefs(window, bleed, format, quality, separate_versions)
+    prefs = _read_export_prefs(window, bleed, format, quality, separate_versions, rounded)
     try:
         export_folder = _export_folder(window)
         renderer_for_card(window.card_renderer, window.current_card).export_card_images(

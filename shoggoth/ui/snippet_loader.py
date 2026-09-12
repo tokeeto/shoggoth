@@ -23,14 +23,16 @@ Define SNIPPETS as a list of (keys, function) pairs:
     Ctrl+Space then X then Y triggers this entry. If that key path already
     exists in the built-in snippet tree, this overwrites it; unknown paths
     are created as new branches off the root.
-  - function: called as function(face, card, project) when the entry is
-    reached. face/card/project are the Face/Card/Project currently being
-    edited (whichever owns the focused text field) and may be None if that
-    can't be determined (e.g. no card is open).
+  - function: a callable, called as function(face, card, project) when the
+    entry is reached - NOT a plain string. face/card/project are the
+    Face/Card/Project currently being edited (whichever owns the focused
+    text field) and may be None if that can't be determined (e.g. no card
+    is open).
 
     Return a string to insert it at the cursor, or return None and make
     your own changes to face/card/project directly for snippets that do
-    more than insert text.
+    more than insert text. For a snippet that just inserts fixed text,
+    write a one-line function that returns it (see hello_world below).
 
 There is no sandboxing here - these functions run with full Python access,
 same as any other code you run. Be as careful with this file as you would
@@ -75,30 +77,61 @@ def open_snippet_file():
 
 
 def load_user_snippets():
-    """Load (keys, function) pairs from the user snippet file, if present."""
+    """Load (keys, function) pairs from the user snippet file, if present.
+
+    Returns (entries, errors): entries is the list of successfully parsed
+    (keys, function) pairs, ready for merge_snippets(); errors is a list of
+    human-readable strings describing anything that failed to load (a
+    compile/exec error in the file, or an individual malformed SNIPPETS
+    entry), for the caller to surface to the user - loading errors are
+    silent otherwise, since this file is exec'd outside of any terminal
+    the user may be watching.
+    """
     path = snippet_file_path()
     if not path.exists():
-        return []
+        return [], []
 
     source = path.read_text(encoding='utf-8')
     namespace = {}
     try:
         exec(compile(source, str(path), 'exec'), namespace)
     except Exception as exc:
-        print(f'Failed to load snippet file {path}: {exc}')
-        return []
+        message = f'Failed to load snippet file: {exc}'
+        print(message)
+        return [], [message]
 
-    result = []
+    entries = []
+    errors = []
     for entry in namespace.get('SNIPPETS', []):
         try:
             keys, fn = entry
             keys = tuple(k.lower() for k in keys)
             if not keys or not callable(fn):
                 raise ValueError('expected (keys, function)')
-            result.append((keys, fn))
+            entries.append((keys, fn))
         except (ValueError, TypeError) as exc:
-            print(f'Skipping malformed snippet entry {entry!r}: {exc}')
-    return result
+            message = f'Skipping malformed snippet entry {entry!r}: {exc}'
+            print(message)
+            errors.append(message)
+    return entries, errors
+
+
+def report_load_errors(parent, errors):
+    """Show a warning dialog listing snippet-file load problems, if any."""
+    if not errors:
+        return
+
+    from PySide6.QtWidgets import QMessageBox
+    from shoggoth.i18n import tr
+
+    QMessageBox.warning(
+        parent,
+        tr('DLG_WARNING'),
+        tr('ERR_SNIPPET_FILE_LOAD').format(
+            errors='\n'.join(errors),
+            path=snippet_file_path(),
+        ),
+    )
 
 
 def _label_for(fn):

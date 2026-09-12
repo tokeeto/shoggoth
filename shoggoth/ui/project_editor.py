@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QPushButton, QLabel, QFileDialog,
     QScrollArea, QGridLayout, QGroupBox, QInputDialog,
-    QMessageBox, QCheckBox, QComboBox
+    QMessageBox, QCheckBox, QComboBox, QTabWidget, QTextEdit
 )
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QPixmap, QImage
@@ -63,6 +63,17 @@ class ProjectEditor(QWidget):
 
     def _setup_project_ui(self):
         """Full editor for normal projects"""
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._build_info_tab(), tr("TAB_INFO"))
+        self.tabs.addTab(self._build_meta_tab(), tr("TAB_META"))
+
+        outer_layout = QVBoxLayout()
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.addWidget(self.tabs)
+        self.setLayout(outer_layout)
+
+    def _build_info_tab(self):
+        tab = QWidget()
         layout = QVBoxLayout()
 
         # Project info section
@@ -179,7 +190,46 @@ class ProjectEditor(QWidget):
         thumbnails_group.setLayout(thumbnails_layout)
         layout.addWidget(thumbnails_group)
 
-        self.setLayout(layout)
+        tab.setLayout(layout)
+        return tab
+
+    def _build_meta_tab(self):
+        tab = QWidget()
+        layout = QFormLayout()
+
+        note = QLabel(tr("META_TAB_NOTE"))
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #888; font-style: italic;")
+        layout.addRow(note)
+
+        self.author_input = QLineEdit()
+        self.author_input.textChanged.connect(lambda: self.on_field_changed('author'))
+        layout.addRow(tr("FIELD_AUTHOR"), self.author_input)
+
+        self.banner_url_input = QLineEdit()
+        self.banner_url_input.textChanged.connect(lambda: self.on_field_changed('banner_url'))
+        layout.addRow(tr("FIELD_BANNER_URL"), self.banner_url_input)
+
+        self.website_url_input = QLineEdit()
+        self.website_url_input.textChanged.connect(lambda: self.on_field_changed('website_url'))
+        layout.addRow(tr("FIELD_WEBSITE_URL"), self.website_url_input)
+
+        self.status_input = QLineEdit()
+        self.status_input.textChanged.connect(lambda: self.on_field_changed('status'))
+        layout.addRow(tr("FIELD_STATUS"), self.status_input)
+
+        self.tags_input = QLineEdit()
+        self.tags_input.setPlaceholderText(tr("PLACEHOLDER_TAGS"))
+        self.tags_input.textChanged.connect(lambda: self.on_field_changed('tags'))
+        layout.addRow(tr("FIELD_TAGS"), self.tags_input)
+
+        self.description_input = QTextEdit()
+        self.description_input.setMinimumHeight(100)
+        self.description_input.textChanged.connect(lambda: self.on_field_changed('description'))
+        layout.addRow(tr("FIELD_DESCRIPTION"), self.description_input)
+
+        tab.setLayout(layout)
+        return tab
 
     def _setup_translation_ui(self):
         """Simplified view for translation projects"""
@@ -249,6 +299,13 @@ class ProjectEditor(QWidget):
             self.auto_hyphenate_checkbox.setChecked(self.project.auto_hyphenate)
             self.french_punctuation_checkbox.setChecked(self.project.french_punctuation)
 
+            self.author_input.setText(self.project.get_meta('author', ''))
+            self.banner_url_input.setText(self.project.get_meta('banner_url', ''))
+            self.website_url_input.setText(self.project.get_meta('website_url', ''))
+            self.status_input.setText(self.project.get_meta('status', ''))
+            self.tags_input.setText(', '.join(self.project.get_meta('tags') or []))
+            self.description_input.setPlainText(self.project.get_meta('description', '') or '')
+
             # Update statistics
             encounter_sets = list(self.project.encounter_sets)
             self.encounter_count_label.setText(str(len(encounter_sets)))
@@ -303,6 +360,19 @@ class ProjectEditor(QWidget):
             if shoggoth.app and shoggoth.app.active_project is self.project:
                 shoggoth.app.card_renderer.set_french_punctuation(self.project.french_punctuation)
                 shoggoth.app.schedule_preview_update()
+        elif field_name == 'author':
+            self.project.set_meta('author', self.author_input.text() or None)
+        elif field_name == 'banner_url':
+            self.project.set_meta('banner_url', self.banner_url_input.text() or None)
+        elif field_name == 'website_url':
+            self.project.set_meta('website_url', self.website_url_input.text() or None)
+        elif field_name == 'status':
+            self.project.set_meta('status', self.status_input.text() or None)
+        elif field_name == 'tags':
+            tags = [t.strip() for t in self.tags_input.text().split(',') if t.strip()]
+            self.project.set_meta('tags', tags or None)
+        elif field_name == 'description':
+            self.project.set_meta('description', self.description_input.toPlainText() or None)
 
         self.project.dirty = True
         self.data_changed.emit()

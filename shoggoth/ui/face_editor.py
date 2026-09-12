@@ -365,7 +365,7 @@ class FaceEditor(QWidget):
     FLOAT_FIELDS = {'illustration_scale', 'illustration_pan_x', 'illustration_pan_y'}
     LIST_FIELDS = set()  # Fields stored as lists but displayed as comma-separated
     # Fields stored as True when set, and removed (None) rather than False when unset
-    BOOL_FIELDS = {'illustration_mirror'}
+    BOOL_FIELDS = {'illustration_mirror', 'illustration_shape_overflow', 'illustration_class_icon'}
 
     def on_field_changed(self, field_name):
         """Handle field change"""

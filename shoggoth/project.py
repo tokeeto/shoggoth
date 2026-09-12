@@ -69,7 +69,6 @@ def sort_cards(cards):
             #TODO ^ This can be cleaned up once meta tags are implemented (assuming the linking will be a part of the meta tags)
             linked.append(card)
         elif card.get('meta', {}).get('bonded', card.get('bonded')):
-            #TODO ^ This can be cleaned up once meta tags are implemented
             bonded.append(card)
         else:
             rest.append(card)
@@ -111,7 +110,7 @@ def sort_cards(cards):
     # Group bonded cards together by the first ID of their parent
     bonded_groups = {}
     for card in bonded:
-        bonded_val = card.get('bonded')
+        bonded_val = card.get('meta', {}).get('bonded', card.get('bonded'))
         first_id = bonded_val[0] if isinstance(bonded_val, list) else bonded_val
         bonded_groups.setdefault(first_id, []).append(card)
 
@@ -249,6 +248,22 @@ class Project:
             self.data['meta'] = {}
         self.data['meta']['language'] = value
         self.dirty = True
+
+    def get_meta(self, key, default=None):
+        """ Reads a designer-facing metadata field (author/banner_url/website_url/
+            tags/status/description/...), stored under data['meta'] rather than
+            as a top-level key.
+        """
+        return self.data.get('meta', {}).get(key, default)
+
+    def set_meta(self, key, value):
+        meta = self.data.setdefault('meta', {})
+        if meta.get(key) != value:
+            self.dirty = True
+        if value is None:
+            meta.pop(key, None)
+        else:
+            meta[key] = value
 
     @property
     def folder(self):

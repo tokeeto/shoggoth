@@ -152,9 +152,10 @@ def _mbprint_html(cards, folder, size):
     for card in cards:
         w_mm, h_mm = _card_mm(card)
         if not card.has_versions:
-            path = CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)
+            paths = CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False)
             for _ in range(card.amount):
-                yield _card_page(path[0], w_mm, h_mm)
+                for path in paths:
+                    yield _card_page(path, w_mm, h_mm)
         else:
             for path in CardRenderer.expected_export_paths(card, folder, size, format='png', include_backs=False):
                 yield _card_page(path, w_mm, h_mm)

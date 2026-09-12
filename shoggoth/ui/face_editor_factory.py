@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from shoggoth.ui.face_editor import FaceEditor
-from shoggoth.ui.text_editor import ArkhamTextEdit
+from shoggoth.ui.text_editor import PlainJsonTextEdit
 from shoggoth.ui.player_editors import AssetEditor, EventEditor, SkillEditor, CustomizableEditor
 from shoggoth.ui.encounter_editors import EnemyEditor, TreacheryEditor, LocationEditor, LocationBackEditor
 from shoggoth.ui.campaign_editors import (
@@ -41,7 +41,7 @@ class JsonEditor(FaceEditor):
         self.main_layout.addWidget(info)
 
         # Create the JSON editor
-        self.json_editor = ArkhamTextEdit(monospace=True)
+        self.json_editor = PlainJsonTextEdit(monospace=True)
         self.json_editor.setPlaceholderText("{\n  \"type\": \"asset\",\n  \"name\": \"Card Name\"\n}")
         self.json_editor.textChanged.connect(self.on_json_changed)
         self.main_layout.addWidget(self.json_editor)

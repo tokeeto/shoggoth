@@ -59,7 +59,8 @@ class PreviewController(QObject):
         config = self.window.config
         bleed = 'mark' if config.getboolean('Shoggoth', 'show_bleed', True) else False
         show_regions = config.getboolean('Shoggoth', 'show_regions', False)
-        return bleed, show_regions
+        rounded = config.getboolean('Shoggoth', 'show_rounded', False)
+        return bleed, show_regions, rounded
 
     def _start_background_render(self):
         """Start rendering in background thread"""
@@ -70,7 +71,7 @@ class PreviewController(QObject):
         # Capture current state for the background thread
         card = window.current_card
         version = self.render_version
-        bleed, show_regions = self._render_options()
+        bleed, show_regions, rounded = self._render_options()
         renderer = window.card_renderer
 
         size = self._preview_size()
@@ -78,7 +79,7 @@ class PreviewController(QObject):
         def render_task():
             try:
                 front_image, back_image = renderer.get_card_textures(
-                    card, size, bleed=bleed, show_regions=show_regions
+                    card, size, bleed=bleed, show_regions=show_regions, rounded=rounded
                 )
                 # Emit result signal (will be handled on main thread)
                 self.render_result.emit(version, front_image, back_image)
@@ -109,9 +110,9 @@ class PreviewController(QObject):
             return
 
         try:
-            bleed, show_regions = self._render_options()
+            bleed, show_regions, rounded = self._render_options()
             front_image, back_image = window.card_renderer.get_card_textures(
-                window.current_card, self._preview_size(), bleed=bleed, show_regions=show_regions
+                window.current_card, self._preview_size(), bleed=bleed, show_regions=show_regions, rounded=rounded
             )
             window.card_preview.set_card_images(front_image, back_image)
         except Exception as e:

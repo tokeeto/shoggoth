@@ -282,3 +282,4 @@ class FadeEdgeDialog(QDialog):
             return
 
         self.status_label.setText(tr("STATUS_FADED_EDGE_SAVED").format(path=str(target)))
+

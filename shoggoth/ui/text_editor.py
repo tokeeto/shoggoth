@@ -1,7 +1,7 @@
 """
 Custom text editor widget for Arkham Horror card text with syntax highlighting and autocomplete
 """
-from PySide6.QtWidgets import QTextEdit, QCompleter, QToolTip, QFrame
+from PySide6.QtWidgets import QTextEdit, QPlainTextEdit, QCompleter, QToolTip, QFrame
 from PySide6.QtCore import Qt, QStringListModel, QRect, QPoint
 from PySide6.QtGui import (
     QSyntaxHighlighter, QTextCharFormat, QColor, QFont,
@@ -589,6 +589,48 @@ class NbspTextEdit(_LiveTextEditMixin, QTextEdit):
         if self._handle_nbsp_shortcut(event):
             return
         if self._handle_paragraph_break_shortcut(event):
+            return
+        super().keyPressEvent(event)
+
+
+class PlainJsonTextEdit(QPlainTextEdit):
+    """Plain-spacing text box for editing raw JSON (JsonEditor's fallback face
+    editor). Deliberately does NOT mix in _LiveTextEditMixin: JSON has no notion
+    of "paragraph vs. same-paragraph line break", so the card-text paragraph
+    spacing and the Enter/Shift+Enter -> '\\n'/'<br>' translation are actively
+    wrong here -- both keys should just insert Qt's normal newline, at default
+    document spacing.
+
+    The one thing worth keeping is a way to type a non-breaking space, since
+    card data can legitimately contain one (see the module note above
+    _LiveTextEditMixin). But a raw NBSP character in a JSON text box is
+    invisible -- indistinguishable from a plain space -- which is exactly what
+    you don't want while eyeballing/editing JSON. json.dumps() (JsonEditor.
+    load_data) already renders any NBSP already present in the data as the
+    literal 6-character escape sequence '\\u00a0' (its default ensure_ascii=True
+    escapes non-ASCII characters), and json.loads() decodes that escape back to
+    a real NBSP on save -- so Shift+Enter here inserts that same literal escape
+    text rather than an actual space-like character, keeping the round trip
+    consistent with how the rest of the JSON already represents it.
+    """
+
+    NBSP_ESCAPE = '\\u00a0'
+
+    def __init__(self, parent=None, monospace=False):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.NoFrame)
+        self.document().setDocumentMargin(0)
+
+        if monospace:
+            editor_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+            editor_font.setPointSize(self.font().pointSize())
+            self.setFont(editor_font)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter) and event.modifiers() & Qt.ShiftModifier:
+            cursor = self.textCursor()
+            cursor.insertText(self.NBSP_ESCAPE)
+            self.setTextCursor(cursor)
             return
         super().keyPressEvent(event)
 

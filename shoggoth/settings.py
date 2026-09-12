@@ -105,6 +105,7 @@ class SettingsManager:
             'prince_dir': '',
             'cmyk_profile': '',
             'show_bleed': True,
+            'show_rounded': False,
             'show_regions': False,
             'preview_resolution': 0,
             'enable_ligatures': True,
@@ -116,6 +117,7 @@ class SettingsManager:
             'export_format': 'png',
             'export_quality': 95,
             'export_bleed': True,
+            'export_rounded': False,
             'export_separate_versions': False,
             'export_include_backs': False,
             # Update settings
@@ -320,6 +322,13 @@ class SettingsDialog(QDialog):
         )
         preview_layout.addRow(tr("LABEL_BLEED_DISPLAY"), self.show_bleed_checkbox)
 
+        # Show rounded corners checkbox
+        self.show_rounded_checkbox = QCheckBox(tr("OPT_SHOW_ROUNDED"))
+        self.show_rounded_checkbox.setToolTip(
+            tr("HELP_ROUNDED_CORNERS")
+        )
+        preview_layout.addRow(tr("LABEL_ROUNDED_CORNERS"), self.show_rounded_checkbox)
+
         # Show regions checkbox (debug)
         self.show_regions_checkbox = QCheckBox(tr("OPT_SHOW_REGIONS"))
         self.show_regions_checkbox.setToolTip(tr("HELP_SHOW_REGIONS"))
@@ -393,6 +402,13 @@ class SettingsDialog(QDialog):
             tr("HELP_INCLUDE_BLEED")
         )
         options_layout.addRow(tr("LABEL_INCLUDE_BLEED"), self.export_bleed_checkbox)
+
+        # Rounded corners checkbox
+        self.export_rounded_checkbox = QCheckBox(tr("OPT_ROUNDED_CORNERS"))
+        self.export_rounded_checkbox.setToolTip(
+            tr("HELP_ROUNDED_CORNERS")
+        )
+        options_layout.addRow(tr("LABEL_ROUNDED_CORNERS"), self.export_rounded_checkbox)
 
         # Separate versions checkbox
         self.export_separate_versions_checkbox = QCheckBox(tr("OPT_SEPARATE_VERSIONS"))
@@ -502,6 +518,9 @@ class SettingsDialog(QDialog):
         self.show_bleed_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_bleed', True)
         )
+        self.show_rounded_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'show_rounded', False)
+        )
         self.show_regions_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'show_regions', False)
         )
@@ -535,6 +554,9 @@ class SettingsDialog(QDialog):
         self.export_bleed_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'export_bleed', True)
         )
+        self.export_rounded_checkbox.setChecked(
+            self.settings.getboolean('Shoggoth', 'export_rounded', False)
+        )
         self.export_separate_versions_checkbox.setChecked(
             self.settings.getboolean('Shoggoth', 'export_separate_versions', False)
         )
@@ -554,6 +576,7 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'cmyk_profile', self.cmyk_profile_input.text())
         self.settings.set('Shoggoth', 'preview_resolution', self.preview_resolution_combo.currentIndex())
         self.settings.set('Shoggoth', 'show_bleed', self.show_bleed_checkbox.isChecked())
+        self.settings.set('Shoggoth', 'show_rounded', self.show_rounded_checkbox.isChecked())
         self.settings.set('Shoggoth', 'show_regions', self.show_regions_checkbox.isChecked())
         self.settings.set('Shoggoth', 'enable_ligatures', self.enable_ligatures_checkbox.isChecked())
 
@@ -581,6 +604,7 @@ class SettingsDialog(QDialog):
         self.settings.set('Shoggoth', 'export_format', self.export_format_combo.currentText())
         self.settings.set('Shoggoth', 'export_quality', self.export_quality_spin.value())
         self.settings.set('Shoggoth', 'export_bleed', self.export_bleed_checkbox.isChecked())
+        self.settings.set('Shoggoth', 'export_rounded', self.export_rounded_checkbox.isChecked())
         self.settings.set('Shoggoth', 'export_separate_versions', self.export_separate_versions_checkbox.isChecked())
         self.settings.set('Shoggoth', 'export_include_backs', self.export_include_backs_checkbox.isChecked())
 
