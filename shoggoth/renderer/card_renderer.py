@@ -844,7 +844,7 @@ class CardRenderer:
                             self.rich_text.render_text(
                                 temp_image,
                                 value,
-                                region,
+                                Region({'x':0, 'y':0, 'width': region.width, 'height': region.height}),
                                 font=font.get('font', 'regular'),
                                 font_size=font.get('size', 20),
                                 min_font_size=font.get('min_size', None),
