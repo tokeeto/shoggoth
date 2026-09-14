@@ -7,7 +7,7 @@ from PIL import Image
 # boundary. Deliberately not exposed as a parameter anywhere - the whole
 # point of this formula is a single answer that looks reasonable for any
 # illustration/region combination without per-card tuning.
-_EASE_POWER = 1.2
+_EASE_POWER = 1.01
 
 # Flat alpha applied to the non-subject area of the region, as a floor
 # beneath the distance fade - covers user-supplied art that doesn't fit the
@@ -80,7 +80,9 @@ def shape_mask_alpha(mask, region_x, region_y, region_width, region_height, thre
         d_shape = distance_transform_edt(~subject)
         d_edge_clamped = np.clip(d_edge, 0, None)
         t = d_shape / np.maximum(d_shape + d_edge_clamped, 1e-6)
-        background = np.clip(1 - t, 0, 1) ** _EASE_POWER
+        edge_fade = np.clip(d_edge / 150, 0, 1)
+        background = np.clip(1 - t, .6, 1)
+        background *= edge_fade
     else:
         edge_fade = np.clip(d_edge / _EDGE_FADE_WIDTH, 0, 1)
         background = _BACKGROUND_ALPHA * edge_fade
