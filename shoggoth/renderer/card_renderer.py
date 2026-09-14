@@ -6,7 +6,7 @@ from io import BytesIO
 from shoggoth.renderer.richtext import RichTextRenderer
 from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
 from shoggoth.perf import perf
-from shoggoth.util.shape_alpha import apply_shape_mask, subject_mask
+from shoggoth.util.shape_alpha import apply_shape_mask, subject_mask, FADE_FLAT
 from shoggoth.util.class_icon import tint_icon
 from pathlib import Path
 import pyvips
@@ -857,6 +857,7 @@ class CardRenderer:
                                 scale=s,
                                 project=side.card.project,
                             )
+                        temp_image = temp_image.crop((0, 0, int(region.width*s), int(region.height*s)))
                         temp_image = temp_image.rotate(font.get('rotation'), expand=True)
                         card_image.paste(temp_image, (int(region.x*s), int(region.y*s)), temp_image)
                 else:
@@ -1215,6 +1216,7 @@ class CardRenderer:
                     illustration, shape,
                     region.x - pan_x, region.y - pan_y, region.width, region.height,
                     allow_overflow=side.get('illustration_shape_overflow', False),
+                    fade_mode=side.get('illustration_fade_mode', None) or FADE_FLAT,
                 )
 
         # Apply class icon

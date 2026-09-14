@@ -1,6 +1,6 @@
 [project]
 name = "shoggoth"
-version = "0.10.2"
+version = "0.10.3"
 authors = [{ name = "Toke Ivø", email = "toke.ivo@gmail.com" }]
 description = "A card creator for Arkham Horror: The Card Game"
 readme = "README.md"
@@ -24,6 +24,7 @@ dependencies = [
     "pyphen>=0.17.2",
     "pypdfium2>=5.11.0",
     "numpy>=2.0.0",
+    "scipy>=1.14.0",
 ]
 
 [project.urls]

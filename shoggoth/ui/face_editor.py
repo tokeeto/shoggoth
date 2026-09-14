@@ -51,7 +51,7 @@ class FaceEditor(QWidget):
     type_changed = Signal(object)  # Emits the face object
 
     # Fields that carry translatable prose content
-    TRANSLATABLE_FIELDS = frozenset({'name', 'subtitle', 'text', 'flavor_text', 'traits', 'label'})
+    TRANSLATABLE_FIELDS = frozenset({'name', 'text', 'flavor_text', 'subtitle', 'victory', 'traits', 'entries', 'difficulty', 'chaos_extra', 'tracking', 'checkbox_entries'})
 
     def __init__(self, face, parent=None):
         super().__init__(parent)

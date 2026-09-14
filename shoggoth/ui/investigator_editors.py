@@ -13,7 +13,8 @@ from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.field_widgets import ClassSelectorWidget, LabeledLineEdit
 from shoggoth.ui.text_editor import ArkhamTextEdit
 from shoggoth.ui.editor_widgets import NoScrollComboBox
-from shoggoth.ui.compact_widgets import PLAYER_CLASSES
+from shoggoth.ui.compact_widgets import PLAYER_CLASSES, SegmentedToggle
+from shoggoth.util.shape_alpha import FADE_DISTANCE
 from shoggoth.i18n import tr
 
 
@@ -66,6 +67,27 @@ class InvestigatorEditor(FaceEditor):
         self._target_layout().addWidget(shape_row)
         self.fields['illustration_shape'] = self._shape_input.input
         self.fields['illustration_shape_overflow'] = self._shape_overflow_checkbox
+
+        # Shape fade style: FADE_FLAT mirrors official card art (uniform,
+        # subtle); FADE_DISTANCE tends to look better on user-supplied art
+        # that doesn't fit the shape cleanly. `None` (unset) means FADE_FLAT.
+        fade_row = QWidget()
+        fade_layout = QHBoxLayout()
+        fade_layout.setContentsMargins(0, 0, 0, 0)
+        fade_label = QLabel(tr("FIELD_SHAPE_FADE"))
+        fade_label.setProperty("role", "field-label")
+        fade_label.setMinimumWidth(80)
+        self._fade_toggle = SegmentedToggle(
+            [tr("OPTION_FADE_FLAT"), tr("OPTION_FADE_DISTANCE")],
+            values=[None, FADE_DISTANCE],
+        )
+        self._fade_toggle.valueChanged.connect(lambda: self.on_field_changed('illustration_fade_mode'))
+        fade_layout.addWidget(fade_label)
+        fade_layout.addWidget(self._fade_toggle)
+        fade_layout.addStretch()
+        fade_row.setLayout(fade_layout)
+        self._target_layout().addWidget(fade_row)
+        self.fields['illustration_fade_mode'] = self._fade_toggle
 
         # Mask template dropdown
         mask_row = QWidget()
