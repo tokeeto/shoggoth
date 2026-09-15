@@ -369,6 +369,8 @@
   "TAB_INFO": "Informação",
   "TAB_CARDS": "Cartas",
   "TAB_TTS": "TTS",
+  "CARDS_COUNT": "{count} total {type} cartões",
+  "TRAITS_COUNT": "que apresenta as seguintes características:",
   "TRAITS_COUNT": "Contagem de Características nas Cartas de Encontro:",
   "TTS_INCLUDED_SETS_LABEL": "Conjuntos Incluídos",
   "TTS_INCLUDED_SETS_DESC": "Quando este conjunto for exportado para o TTS, incluir também cartas destes conjuntos:",

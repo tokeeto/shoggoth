@@ -388,6 +388,8 @@
   "TAB_INFO": "Информация",
   "TAB_CARDS": "Карты",
   "TAB_TTS": "TTS",
+  "CARDS_COUNT": "{count} общий {type} карты",
+  "TRAITS_COUNT": "обладающий следующими характеристиками:",
   "TTS_INCLUDED_SETS_LABEL": "Включённые наборы",
   "TTS_INCLUDED_SETS_DESC": "При экспорте этого набора в TTS также включить карты из этих наборов:",
   "STATUS_EDITING_ENCOUNTER_SET": "Редактирование набора контактов: {name}",

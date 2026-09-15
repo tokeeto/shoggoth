@@ -438,7 +438,7 @@
   "TAB_INFO": "Info",
   "TAB_CARDS": "Cards",
   "CARDS_COUNT": "{count} total {type} cards",
-  "TRAITS_COUNT": "containting the following traits:",
+  "TRAITS_COUNT": "containing the following traits:",
   "STATUS_EDITING_ENCOUNTER_SET": "Editing encounter set: {name}",
   "STATS_CARDS_IN_SET": "{unique} unique cards, {total} total cards in set",
   "STATUS_LOADING": "Loading...",
