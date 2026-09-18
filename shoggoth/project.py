@@ -270,12 +270,64 @@ class Project:
         return Path(self.file_path).parent
 
     def find_file(self, path):
-        path = Path(path)
+        """Resolves a local path or a `cloud://<storage_project_id>/<rel/path>`
+        resource reference (see shoggoth.cloud.storage_cache). `path` is
+        checked for the `cloud://` scheme as a raw string *before* ever being
+        wrapped in `Path(...)` -- `Path("cloud://x/y")` would collapse the
+        `//` and silently corrupt the reference otherwise.
+
+        A plain relative path that doesn't exist locally, on a project whose
+        `cloud_storage_location` meta is set (opened from/synced with a cloud
+        storage project -- see shoggoth.cloud.sync), falls back to resolving
+        it under that location -- this is how a shared project's resources
+        get found without every path needing to be rewritten to cloud://
+        explicitly."""
+        from shoggoth.cloud import storage_cache
+
+        path_str = str(path)
+        if storage_cache.is_cloud_uri(path_str):
+            return storage_cache.get_cached(path_str)
+
+        path = Path(path_str)
         if path.exists():
             return path.resolve()
         if (self.folder / path).exists():
             return (self.folder / path).resolve()
+
+        location = self.get_meta('cloud_storage_location')
+        if location:
+            return storage_cache.get_cached(f"{location.rstrip('/')}/{path_str}")
         return None
+
+    def apply_remote_patch(self, patch):
+        """Merges a live-sync patch from shoggoth.cloud.sync.CloudSyncController
+        into this project's own data. `patch['cards']` is a dict of
+        card_id -> card JSON (set) or null (delete) -- the wire/storage shape
+        a cloud storage project uses (see shoggoth.cloud.sync's module
+        docstring) -- translated here into this project's native list-shaped
+        `data['cards']`. Every other top-level key in `patch`
+        wholesale-replaces that same key in `data`, mirroring
+        shoggoth_web's own apply_patch.
+
+        Deliberately does not set `self.dirty` -- this is a remote change
+        landing locally, not an edit that should prompt a "save before
+        closing" dialog. The caller (CloudSyncController) still needs to
+        write it to disk itself if persistence across restarts matters."""
+        cards_patch = patch.get('cards')
+        if cards_patch is not None:
+            cards = self.data.setdefault('cards', [])
+            by_id = {c.get('id'): c for c in cards}
+            for card_id, card_data in cards_patch.items():
+                if card_data is None:
+                    cards[:] = [c for c in cards if c.get('id') != card_id]
+                elif card_id in by_id:
+                    by_id[card_id].clear()
+                    by_id[card_id].update(card_data)
+                else:
+                    cards.append(card_data)
+        for key, value in patch.items():
+            if key != 'cards':
+                self.data[key] = value
 
     def __eq__(self, other):
         return self.data == other.data
@@ -817,6 +869,23 @@ class Translation:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         return cls(file_path, data)
+
+    def get_meta(self, key, default=None):
+        """Designer-facing metadata for this translation itself (currently
+        just `cloud_translation_id`) -- stored under the sidecar's own
+        data['meta'], separate from the overlaid project's own meta, and
+        persisted by TranslationWriter.save_project."""
+        return self.data.get('meta', {}).get(key, default)
+
+    def set_meta(self, key, value):
+        meta = self.data.setdefault('meta', {})
+        if value is None:
+            meta.pop(key, None)
+        else:
+            meta[key] = value
+
+    def save_all(self):
+        self.project.writer.save_all()
 
     def apply(self):
         """ Translates the project and overwrites the Writer of the project """

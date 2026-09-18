@@ -35,6 +35,7 @@ from shoggoth.ui.element_selector import (
 )
 from shoggoth.ui.command_palette import CommandPaletteDialog
 from shoggoth.ui.main_window import commands, exports, menus, projects, views
+from shoggoth.cloud.sync import CloudSyncController
 from shoggoth.ui.main_window.navigation import NavigationHistory
 from shoggoth.ui.main_window.preview import PreviewController
 from shoggoth.ui.main_window.session import SessionManager
@@ -78,6 +79,7 @@ class ShoggothMainWindow(QMainWindow):
         self.session = SessionManager(self)
         self.nav = NavigationHistory(self)
         self.preview = PreviewController(self)
+        self.cloud = CloudSyncController(self)
 
         # Connect file change signal to handler (for thread-safe UI updates)
         self.file_changed_signal.connect(self._handle_file_changed)
@@ -265,6 +267,7 @@ class ShoggothMainWindow(QMainWindow):
 
     def schedule_preview_update(self):
         self.preview.schedule_update()
+        self.cloud.schedule_push()
 
     def on_assets_updated(self):
         """Called (on the main thread) after a background asset update writes new files.
@@ -460,6 +463,7 @@ class ShoggothMainWindow(QMainWindow):
         """Handle window close event - check for unsaved changes"""
         if self.card_file_monitor:
             self.card_file_monitor.stop()
+        self.cloud.stop_all()
         self.session.capture_layout()
         self.session.save()
 

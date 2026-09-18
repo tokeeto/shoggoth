@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
-    QSizePolicy
+    QSizePolicy, QToolTip
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QPointF, QRectF, QSize
 from PySide6.QtGui import (
@@ -184,6 +184,13 @@ class IllustrationPositionView(QWidget):
     `illustration_region` and the pan/scale fields are defined in). Committed
     values are absolute, seeded from the same effective pan/scale the renderer
     uses, so the first interaction never makes the illustration jump.
+
+    The view starts locked (so an incidental scroll over it moves the
+    surrounding page instead of zooming the art, and a mousewheel event
+    handed off to a parent still scrolls it normally). A left-click selects
+    it (outlined while selected) and unlocks drag/scroll; losing focus
+    re-locks it. Scrolling while locked shows a small hint instead of
+    zooming/consuming the event.
     """
 
     pan_committed = Signal(float, float)  # absolute pan_x, pan_y
@@ -198,6 +205,11 @@ class IllustrationPositionView(QWidget):
         self.setFixedHeight(220)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip(tr("TOOLTIP_POSITION_VIEW"))
+        self.setFocusPolicy(Qt.ClickFocus)
+
+        # Selection: locked by default; a left-click selects (outline shown)
+        # and unlocks drag/scroll, losing focus re-locks it
+        self._unlocked = False
 
         # Artwork
         self._art = None            # display QPixmap (possibly downscaled)
@@ -292,9 +304,19 @@ class IllustrationPositionView(QWidget):
             self._region.y() if pan_y is None else pan_y,
         )
 
-        self.setCursor(Qt.OpenHandCursor if self._art else Qt.ArrowCursor)
+        self._update_cursor()
         self._refit()
         self.update()
+
+    def _update_cursor(self):
+        if not self._art:
+            self.setCursor(Qt.ArrowCursor)
+        elif self._dragging:
+            self.setCursor(Qt.ClosedHandCursor)
+        elif self._unlocked:
+            self.setCursor(Qt.OpenHandCursor)
+        else:
+            self.setCursor(Qt.PointingHandCursor)
 
     def _load_pdf_art(self, path):
         """Load a PDF illustration with the renderer's reference dimensions.
@@ -409,10 +431,19 @@ class IllustrationPositionView(QWidget):
         self._refit()
 
     def mousePressEvent(self, event):
-        if self._art and event.button() in (Qt.LeftButton, Qt.MiddleButton):
+        if not self._art:
+            return
+        if not self._unlocked:
+            if event.button() == Qt.LeftButton:
+                self._unlocked = True
+                self.setFocus(Qt.MouseFocusReason)
+                self._update_cursor()
+                self.update()
+            return
+        if event.button() in (Qt.LeftButton, Qt.MiddleButton):
             self._dragging = True
             self._drag_pos = event.position()
-            self.setCursor(Qt.ClosedHandCursor)
+            self._update_cursor()
 
     def mouseMoveEvent(self, event):
         if not self._dragging or self._view_scale <= 0:
@@ -428,19 +459,37 @@ class IllustrationPositionView(QWidget):
         if self._dragging and event.button() in (Qt.LeftButton, Qt.MiddleButton):
             self._dragging = False
             self._commit()
-            self.setCursor(Qt.OpenHandCursor)
+            self._update_cursor()
             self._refit()
             self.update()
 
     def mouseDoubleClickEvent(self, event):
-        if self._art and event.button() == Qt.LeftButton:
+        if self._art and self._unlocked and event.button() == Qt.LeftButton:
             self._commit_timer.stop()
             self._pan_dirty = self._scale_dirty = False
             self.reset_requested.emit()
 
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        if not self._unlocked:
+            return
+        self._unlocked = False
+        if self._dragging:
+            self._dragging = False
+            self._commit()
+        self._update_cursor()
+        self.update()
+
     def wheelEvent(self, event):
         if not self._art:
             event.ignore()
+            return
+        if not self._unlocked:
+            event.ignore()
+            QToolTip.showText(
+                event.globalPosition().toPoint(),
+                tr("MSG_POSITION_VIEW_LOCKED"), self
+            )
             return
         event.accept()
 
@@ -504,6 +553,13 @@ class IllustrationPositionView(QWidget):
             painter.fillPath(outside - inner, QColor(0, 0, 0, 140))
             painter.setPen(QPen(QColor(74, 158, 255), 1.5))
             painter.drawRect(region_rect)
+
+        # Selection outline: shown while unlocked for drag/scroll
+        if self._unlocked:
+            pen = QPen(QColor(74, 158, 255), 2)
+            painter.setPen(pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(self.rect().adjusted(1, 1, -2, -2))
 
     def _mirrored_art(self):
         if self._art_mirrored is None and self._art is not None:
@@ -633,6 +689,14 @@ class IllustrationWidget(QWidget):
             raw = self.face.get('illustration') or ''
         if not raw:
             return None
+        # A cloud:// reference must reach find_file() as the raw string --
+        # Path("cloud://x/y") collapses the "//" and silently corrupts it,
+        # same pitfall as Project.find_file() itself guards against.
+        from shoggoth.cloud import storage_cache
+        if storage_cache.is_cloud_uri(raw):
+            if self.project is None:
+                return None
+            return self.project.find_file(raw)
         path = Path(raw)
         if not path.is_absolute():
             if self.project is None:

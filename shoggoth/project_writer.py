@@ -59,6 +59,11 @@ class TranslationWriter(Writer):
             orig_data = json.load(f)
         orig_data["project_name"] = project.name
         orig_data['guides'] = project.data['guides']
+        # The translation's own metadata (currently just cloud_translation_id,
+        # see Translation.get_meta/set_meta) -- deliberately not project.data
+        # ['meta'], which belongs to the overlaid *base* project and isn't
+        # this writer's to persist.
+        orig_data['meta'] = self.translation.data.get('meta', {})
 
         project.dirty = False
         atomic_write(self.translation.file_path, json.dumps(orig_data, indent=4))

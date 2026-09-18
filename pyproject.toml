@@ -25,6 +25,7 @@ dependencies = [
     "pypdfium2>=5.11.0",
     "numpy>=2.0.0",
     "scipy>=1.14.0",
+    "websocket-client>=1.9.2",
 ]
 
 [project.urls]

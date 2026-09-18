@@ -1,8 +1,8 @@
 """
 Shared building blocks for the Project Export dialog: the folder-picker and
-profile-scope widgets, a collapsible section container, scope-to-card-list
-resolution, and the threaded "render N cards with a progress dialog" runner
-used by every section that exports card images.
+per-entry scope widgets, scope-to-card-list resolution, and the threaded
+"render N cards with a progress dialog" runner used by every entry kind that
+exports card images.
 """
 import threading
 import multiprocessing
@@ -10,8 +10,8 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QRadioButton, QButtonGroup,
-    QLabel, QLineEdit, QPushButton, QFileDialog, QToolButton,
-    QCheckBox, QProgressDialog, QFrame, QListWidget, QListWidgetItem,
+    QLabel, QLineEdit, QPushButton, QFileDialog,
+    QCheckBox, QProgressDialog, QListWidget, QListWidgetItem,
 )
 from PySide6.QtCore import Qt
 
@@ -219,64 +219,16 @@ class ProfileScopeSelector(QGroupBox):
         return resolve_scope_cards(project, self.read_scope())
 
 
-class CollapsibleSection(QWidget):
-    """A toggleable header (title + enabled checkbox + expand arrow) over a body widget."""
-
-    def __init__(self, title, expanded=True, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        header = QHBoxLayout()
-        self._toggle_btn = QToolButton()
-        self._toggle_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self._toggle_btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
-        self._toggle_btn.setText(title)
-        self._toggle_btn.setCheckable(True)
-        self._toggle_btn.setChecked(expanded)
-        self._toggle_btn.setStyleSheet("QToolButton { border: none; font-weight: bold; }")
-        self._toggle_btn.clicked.connect(self._on_toggle_clicked)
-        header.addWidget(self._toggle_btn)
-        header.addStretch()
-
-        self._enabled_checkbox = QCheckBox(tr("PE_SECTION_INCLUDE"))
-        header.addWidget(self._enabled_checkbox)
-        layout.addLayout(header)
-
-        self.body = QWidget()
-        self.body_layout = QVBoxLayout(self.body)
-        self.body_layout.setContentsMargins(20, 4, 0, 4)
-        self.body.setVisible(expanded)
-        layout.addWidget(self.body)
-
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("color: #444;")
-        layout.addWidget(line)
-
-    def _on_toggle_clicked(self, checked):
-        self.set_expanded(checked)
-
-    def set_expanded(self, expanded):
-        self._toggle_btn.setChecked(expanded)
-        self._toggle_btn.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
-        self.body.setVisible(expanded)
-
-    def is_enabled(self):
-        return self._enabled_checkbox.isChecked()
-
-    def set_enabled_checked(self, value):
-        self._enabled_checkbox.setChecked(value)
-
-
 def run_image_export(parent, renderer, cards, folder, **export_kwargs):
     """Render `cards` to `folder` on a small thread pool with a progress dialog.
 
-    Returns False if the user cancelled, True otherwise (including when
-    `cards` is empty).
+    Returns `(cancelled, paths)`: `cancelled` is True if the user cancelled;
+    `paths` is every file path `export_card_images` reported writing (may
+    contain duplicates when several cards share one output file, e.g. generic
+    player/encounter backs -- callers that need a clean set should dedupe).
     """
     if not cards:
-        return True
+        return False, []
 
     folder.mkdir(parents=True, exist_ok=True)
 
@@ -288,6 +240,7 @@ def run_image_export(parent, renderer, cards, folder, **export_kwargs):
 
     cores = max(4, multiprocessing.cpu_count() - 1)
     threads = []
+    paths = []
     cancelled = False
 
     for i, card in enumerate(cards):
@@ -301,11 +254,12 @@ def run_image_export(parent, renderer, cards, folder, **export_kwargs):
 
         progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
 
-        t = threading.Thread(
-            target=renderer_for_card(renderer, card).export_card_images,
-            args=(card, str(folder)),
-            kwargs=export_kwargs,
-        )
+        def _target(card=card, kw=dict(export_kwargs)):
+            outputs = renderer_for_card(renderer, card).export_card_images(card, str(folder), **kw)
+            if outputs:
+                paths.extend(outputs)
+
+        t = threading.Thread(target=_target)
         threads.append(t)
         t.start()
 
@@ -313,4 +267,4 @@ def run_image_export(parent, renderer, cards, folder, **export_kwargs):
         t.join()
 
     progress.setValue(len(cards))
-    return not cancelled
+    return cancelled, paths

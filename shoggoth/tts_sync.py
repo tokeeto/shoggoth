@@ -5,16 +5,65 @@ TTS_HOST = "127.0.0.1"
 TTS_PORT = 39999
 
 
+def rewrite_urls(wrapper: dict, path_to_url: dict) -> int:
+    """Rewrite FaceURL/BackURL entries that point at a local file:/// path in
+    `path_to_url` to the corresponding cloud URL, in place. `path_to_url`
+    keys are local filesystem paths (as passed to publish_client.upload_file,
+    i.e. os.-native separators); Windows paths are normalized to forward
+    slashes before matching, since that's how they appear inside a
+    file:///... URL. Returns how many URLs were changed."""
+    normalized = {str(p).replace('\\', '/'): url for p, url in path_to_url.items()}
+    changed = 0
+
+    def _rewrite(url: str) -> str:
+        nonlocal changed
+        if not url.startswith('file:///'):
+            return url
+        local = url[len('file:///'):].replace('\\', '/')
+        new_url = normalized.get(local)
+        if new_url is None:
+            return url
+        changed += 1
+        return new_url
+
+    def _walk(objects: list):
+        for obj in objects:
+            deck = obj.get("CustomDeck")
+            if isinstance(deck, dict):
+                for entry in deck.values():
+                    if "FaceURL" in entry:
+                        entry["FaceURL"] = _rewrite(entry["FaceURL"])
+                    if "BackURL" in entry:
+                        entry["BackURL"] = _rewrite(entry["BackURL"])
+            if "ContainedObjects" in obj:
+                _walk(obj["ContainedObjects"])
+
+    _walk(wrapper.get("ObjectStates", []))
+    return changed
+
+
 def push_to_tts(saved_object: dict) -> bool:
     """Push updated cards to TTS after export. Returns False if TTS isn't running."""
     timestamp = int(time.time())
 
     # Cache-bust all image URLs so TTS re-fetches updated files
     bag_json_str = json.dumps(saved_object)
-    # Append ?v=timestamp to all file:// URLs (replacing any existing ?v=...)
+    # Append a v=timestamp marker to every file:// and http(s):// URL
+    # (replacing any existing one), so TTS re-fetches instead of using a
+    # cached texture. The https branch matters once publish rewrites
+    # FaceURL/BackURL to cloud URLs, which still need cache-busting on
+    # re-push (PUT overwrites the same URL, it doesn't get a fresh one) --
+    # unlike a bare file:/// path, a cloud URL already has its own query
+    # string (?path=...), so the marker needs '&' there instead of '?'.
+
+    def _cache_bust(match):
+        url, quote = match.group(1), match.group(2)
+        sep = '&' if '?' in url else '?'
+        return f'{url}{sep}v={timestamp}{quote}'
+
     bag_json_str = re.sub(
-        r'(file:///[^"]+?)(\?v=\d+)?(")',
-        rf'\1?v={timestamp}\3',
+        r'((?:file:///|https?://)[^"]+?)(?:[?&]v=\d+)?(")',
+        _cache_bust,
         bag_json_str
     )
 

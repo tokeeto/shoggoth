@@ -8,7 +8,7 @@ group, language checkmarks) are stored as attributes on the window.
 from PySide6.QtGui import QAction, QActionGroup
 
 from shoggoth.i18n import get_available_languages, tr
-from shoggoth.ui.main_window import exports, help_dialogs, image_tools, projects
+from shoggoth.ui.main_window import cloud, exports, help_dialogs, image_tools, projects
 from shoggoth.ui import snippet_loader
 
 
@@ -21,6 +21,7 @@ def create_menus(window):
     _create_project_menu(window, menubar)
     _create_export_menu(window, menubar)
     _create_tools_menu(window, menubar)
+    _create_cloud_menu(window, menubar)
     _create_help_menu(window, menubar)
     _create_view_menu(window, menubar)
     _create_language_menu(window, menubar)
@@ -165,6 +166,45 @@ def _create_tools_menu(window, menubar):
 
     _add_action(window, tools_menu, tr("MENU_ADD_FADED_EDGE"),
                 lambda: image_tools.open_fade_edge_dialog(window))
+
+def _create_cloud_menu(window, menubar):
+    """Contents depend on sign-in state, re-read from window.config every
+    time the menu is opened (aboutToShow), the same lazy-rebuild idiom the
+    Export menu's Setups submenu uses -- sidesteps needing a dedicated
+    sign-in-state signal entirely. Also populated once eagerly right after
+    (not just on first open) so the command palette -- which walks
+    menuBar().actions() without ever triggering aboutToShow -- sees its
+    actions from the start."""
+    cloud_menu = menubar.addMenu(tr("MENU_CLOUD"))
+    cloud_menu.aboutToShow.connect(lambda: _populate_cloud_menu(window, cloud_menu))
+    _populate_cloud_menu(window, cloud_menu)
+
+
+def _populate_cloud_menu(window, menu):
+    menu.clear()
+    config = window.config
+    token = config.get('Shoggoth', 'publish_token', '')
+
+    if not token:
+        _add_action(window, menu, tr("MENU_CLOUD_SIGN_IN"),
+                    lambda: cloud.open_sign_in_dialog(window))
+        return
+
+    email = config.get('Shoggoth', 'publish_email', '')
+    header = menu.addAction(tr("MENU_CLOUD_ACCOUNT").format(email=email))
+    header.setEnabled(False)
+    header.setObjectName("palette_skip")
+
+    _add_action(window, menu, tr("MENU_CLOUD_MANAGE_ACCOUNT"),
+                lambda: cloud.open_account_page(window))
+    _add_action(window, menu, tr("MENU_CLOUD_OPEN_SHARED"),
+                lambda: cloud.open_shared_project_dialog(window))
+    _add_action(window, menu, tr("MENU_CLOUD_NEW_PROJECT"),
+                lambda: cloud.new_storage_project(window))
+
+    menu.addSeparator()
+    _add_action(window, menu, tr("MENU_CLOUD_SIGN_OUT"), lambda: cloud.sign_out(window))
+
 
 def _create_help_menu(window, menubar):
     help_menu = menubar.addMenu(tr("MENU_HELP"))

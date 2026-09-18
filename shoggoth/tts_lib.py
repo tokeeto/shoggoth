@@ -254,6 +254,15 @@ def card_to_tts(card, id, number, image_folder):
     return data
 
 
+def _resolve_included_sets(project, encounter):
+    """encounter.data['meta']['tts']['included_sets'] stores other encounter
+    sets' *ids* (see ui/encounter_editor.py's "required sets" field), not
+    EncounterSet objects -- resolve them, dropping any that no longer exist."""
+    ids = encounter.data.get('meta', {}).get('tts', {}).get('included_sets', [])
+    resolved = [project.get_encounter_set(i) for i in ids]
+    return [es for es in resolved if es is not None]
+
+
 def export_all(project, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
     current_id = 6000
@@ -263,7 +272,7 @@ def export_all(project, image_folder, sync=True):
         encounter_wrapper['DeckIDs'] = []
         encounter_wrapper['Nickname'] = encounter.name
 
-        other_sets = encounter.data.get('meta', {}).get('tts', {}).get('included_sets', [])
+        other_sets = _resolve_included_sets(project, encounter)
         for enc_set in [encounter] + other_sets:
             for card in enc_set.cards:
                 for _ in range(card.amount):
@@ -315,7 +324,7 @@ def export_campaign(project, image_folder, sync=True):
         encounter_wrapper['DeckIDs'] = []
         encounter_wrapper['Nickname'] = encounter.name
 
-        other_sets = encounter.data.get('meta', {}).get('tts', {}).get('included_sets', [])
+        other_sets = _resolve_included_sets(project, encounter)
         for enc_set in [encounter] + other_sets:
             for card in enc_set.cards:
                 for _ in range(card.amount):

@@ -146,6 +146,13 @@ class TreeContextMenu:
         new_player_action.triggered.connect(lambda: self.new_player_card(project))
         menu.addAction(new_player_action)
 
+        # Share (only for a project backed by a cloud storage project)
+        if project.get_meta('cloud_storage_location'):
+            menu.addSeparator()
+            share_action = QAction(tr("CTX_SHARE_PROJECT"), self.parent)
+            share_action.triggered.connect(lambda: self.share_project(project))
+            menu.addAction(share_action)
+
         menu.addSeparator()
 
         # Close Project
@@ -659,3 +666,10 @@ class TreeContextMenu:
         import shoggoth
         if shoggoth.app:
             shoggoth.app.close_project(project)
+
+    def share_project(self, project):
+        """Open the share-grants dialog for a cloud-storage-backed project"""
+        from shoggoth.ui.cloud.share_dialog import ShareProjectDialog
+        import shoggoth
+        dialog = ShareProjectDialog(project, shoggoth.app.config, self.parent)
+        dialog.exec()

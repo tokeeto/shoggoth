@@ -171,14 +171,10 @@ def open_encounter_set_export_dialog(window, encounter_set=None):
         return
     from shoggoth.ui.project_export_dialog import ProjectExportDialog
     dialog = ProjectExportDialog(window.active_project, window.card_renderer, window, persist=False)
-    dialog._images_section.set_enabled_checked(True)
-    dialog._pdf_section.set_enabled_checked(False)
-    dialog._tts_section.set_enabled_checked(False)
-    dialog._ab_section.set_enabled_checked(False)
-    dialog._guides_section.set_enabled_checked(False)
+    scope = None
     if encounter_set is not None:
-        dialog._scope_selector.set_scope({'type': 'encounter_sets', 'encounter_set_ids': [encounter_set.id]})
-        dialog._images_section.set_expanded(True)
+        scope = {'type': 'encounter_sets', 'encounter_set_ids': [encounter_set.id], 'card_ids': []}
+    dialog.seed_single_entry('images', scope=scope)
     dialog.exec()
 
 

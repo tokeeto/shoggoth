@@ -6,10 +6,13 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QPushButton, QCheckBox, QLabel,
     QFileDialog, QTabWidget, QWidget, QDialogButtonBox,
-    QGroupBox, QComboBox, QSpinBox
+    QGroupBox, QComboBox, QSpinBox,
+    QMessageBox,
 )
 from PySide6.QtCore import Qt
 from pathlib import Path
+from shoggoth.cloud import auth as cloud_auth
+from shoggoth.cloud import client as publish_client
 from shoggoth.i18n import tr, get_available_languages
 
 
@@ -129,6 +132,11 @@ class SettingsManager:
             # Sidebar view
             'sidebar_view': 'tree',
             'card_sort_order': 'project_number',
+            # Publishing (Library of Celaeno / Shoggoth Cloud)
+            'publish_base_url': 'https://celaeno.cards',
+            'publish_email': '',
+            'publish_token': '',
+            'publish_has_access': False,
         }
         
         for key, value in defaults.items():
@@ -211,6 +219,10 @@ class SettingsDialog(QDialog):
         # Updates tab
         updates_tab = self.create_updates_tab()
         tabs.addTab(updates_tab, tr("TAB_UPDATES"))
+
+        # Publishing tab
+        publishing_tab = self.create_publishing_tab()
+        tabs.addTab(publishing_tab, tr("TAB_PUBLISHING"))
 
         layout.addWidget(tabs)
         
@@ -467,6 +479,94 @@ class SettingsDialog(QDialog):
         widget.setLayout(layout)
         return widget
 
+    def create_publishing_tab(self):
+        """Create the Shoggoth Cloud publishing settings tab"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        intro = QLabel(tr("MSG_PUBLISHING_TAB_INTRO"))
+        intro.setWordWrap(True)
+        intro.setStyleSheet("color: #888;")
+        layout.addWidget(intro)
+
+        # Cloud connection group
+        conn_group = QGroupBox(tr("GROUP_CLOUD_CONNECTION"))
+        conn_layout = QFormLayout()
+        self.publish_base_url_input = QLineEdit()
+        conn_layout.addRow(tr("LABEL_CLOUD_BASE_URL"), self.publish_base_url_input)
+        conn_group.setLayout(conn_layout)
+        layout.addWidget(conn_group)
+
+        # Login group
+        login_group = QGroupBox(tr("GROUP_CLOUD_LOGIN"))
+        login_layout = QVBoxLayout()
+
+        password_layout = QFormLayout()
+        self.publish_email_input = QLineEdit()
+        password_layout.addRow(tr("LABEL_CLOUD_EMAIL"), self.publish_email_input)
+        self.publish_password_input = QLineEdit()
+        self.publish_password_input.setEchoMode(QLineEdit.Password)
+        password_layout.addRow(tr("LABEL_CLOUD_PASSWORD"), self.publish_password_input)
+        login_btn = QPushButton(tr("BTN_CLOUD_LOG_IN"))
+        login_btn.clicked.connect(self._log_in_with_password)
+        password_layout.addRow("", login_btn)
+        login_layout.addLayout(password_layout)
+
+        self._publish_status_label = QLabel()
+        login_layout.addWidget(self._publish_status_label)
+
+        logout_btn = QPushButton(tr("BTN_CLOUD_LOG_OUT"))
+        logout_btn.clicked.connect(self._log_out_of_cloud)
+        login_layout.addWidget(logout_btn)
+
+        login_group.setLayout(login_layout)
+        layout.addWidget(login_group)
+
+        layout.addStretch()
+        widget.setLayout(layout)
+        return widget
+
+    def _refresh_publish_status(self):
+        """Update the publishing status label from the currently stored settings."""
+        token = self.settings.get('Shoggoth', 'publish_token', '')
+        email = self.settings.get('Shoggoth', 'publish_email', '')
+        has_access = self.settings.getboolean('Shoggoth', 'publish_has_access', False)
+        if not token:
+            self._publish_status_label.setText(tr("STATUS_NOT_LOGGED_IN"))
+            self._publish_status_label.setStyleSheet("color: #888;")
+        elif has_access:
+            self._publish_status_label.setText(tr("STATUS_LOGGED_IN_WITH_ACCESS", email=email))
+            self._publish_status_label.setStyleSheet("color: #2e7d32;")
+        else:
+            self._publish_status_label.setText(tr("STATUS_LOGGED_IN_NO_ACCESS", email=email))
+            self._publish_status_label.setStyleSheet("color: #b26a00;")
+
+    def _store_login(self, token, email, has_access):
+        self.settings.set('Shoggoth', 'publish_token', token)
+        self.settings.set('Shoggoth', 'publish_email', email)
+        self.settings.set('Shoggoth', 'publish_has_access', has_access)
+        self.settings.save()
+        self._refresh_publish_status()
+
+    def _log_in_with_password(self):
+        base_url = self.publish_base_url_input.text().strip()
+        email = self.publish_email_input.text().strip()
+        password = self.publish_password_input.text()
+        try:
+            token, user = cloud_auth.login(base_url, email, password)
+        except publish_client.PublishError as exc:
+            QMessageBox.warning(self, tr("DLG_SETTINGS"), str(exc))
+            return
+        except Exception as exc:
+            QMessageBox.warning(self, tr("DLG_SETTINGS"), str(exc))
+            return
+        self._store_login(token, user.get('email') or email, bool(user.get('has_access')))
+        QMessageBox.information(self, tr("DLG_SETTINGS"), tr("MSG_LOGIN_SUCCESS"))
+
+    def _log_out_of_cloud(self):
+        self._store_login('', '', False)
+        self.publish_password_input.clear()
+
     def _check_for_updates_now(self):
         """Trigger manual update check from settings"""
         import shoggoth
@@ -569,6 +669,13 @@ class SettingsDialog(QDialog):
             self.settings.getboolean('Shoggoth', 'auto_check_updates', True)
         )
 
+        # Publishing settings
+        self.publish_base_url_input.setText(
+            self.settings.get('Shoggoth', 'publish_base_url', 'https://celaeno.cards')
+        )
+        self.publish_email_input.setText(self.settings.get('Shoggoth', 'publish_email', ''))
+        self._refresh_publish_status()
+
     def save_settings(self):
         """Save settings and close dialog"""
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
@@ -610,6 +717,10 @@ class SettingsDialog(QDialog):
 
         # Update settings
         self.settings.set('Shoggoth', 'auto_check_updates', self.auto_check_updates_checkbox.isChecked())
+
+        # Publishing settings (token/email/has_access are persisted immediately
+        # by the login/logout button handlers, not staged here)
+        self.settings.set('Shoggoth', 'publish_base_url', self.publish_base_url_input.text().strip())
 
         self.settings.save()
         self.accept()

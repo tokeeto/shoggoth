@@ -174,7 +174,9 @@ class Face:
     def get_path(self, key, default=''):
         res = self.get(key, default)
         if res:
-            return self.card.project.find_file(Path(res))
+            # find_file() must see a cloud:// reference as the raw string --
+            # Path(...) would collapse the "//" and silently corrupt it.
+            return self.card.project.find_file(res)
 
     def set(self, key, value):
         # invalidate cached fallback if fallback should change

@@ -28,6 +28,7 @@ translation_dir = asset_dir / "translations"
 
 tts_dir = None
 prince_dir = root_dir / "prince"
+cloud_cache_dir = root_dir / "cloud_cache"
 
 # TTS Output folder
 if platform.system() == "Windows":
