@@ -104,16 +104,24 @@ class PreviewController(QObject):
             self.window.status_bar.showMessage(tr("ERR_RENDER_CARD"))
 
     def render_current_sync(self):
-        """Render the current card synchronously (used on initial card load)"""
+        """Render the current card synchronously (used on initial card load).
+
+        Runs on the main thread, so a cold cloud:// cache miss must not
+        block on a network download here -- prefer_async makes it return
+        without that image instead; CloudSyncController's download-complete
+        listener triggers a follow-up re-render once it lands (see
+        shoggoth.cloud.storage_cache's module docstring)."""
         window = self.window
         if not window.current_card:
             return
 
         try:
+            from shoggoth.cloud.storage_cache import prefer_async
             bleed, show_regions, rounded = self._render_options()
-            front_image, back_image = window.card_renderer.get_card_textures(
-                window.current_card, self._preview_size(), bleed=bleed, show_regions=show_regions, rounded=rounded
-            )
+            with prefer_async():
+                front_image, back_image = window.card_renderer.get_card_textures(
+                    window.current_card, self._preview_size(), bleed=bleed, show_regions=show_regions, rounded=rounded
+                )
             window.card_preview.set_card_images(front_image, back_image)
         except Exception as e:
             window.status_bar.showMessage(tr("ERR_RENDER_CARD_DETAIL").format(error=e))

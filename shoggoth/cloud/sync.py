@@ -22,8 +22,10 @@ import json
 import threading
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
+from PySide6.QtWidgets import QMessageBox
 
-from shoggoth.cloud import client
+from shoggoth.cloud import client, storage_cache
+from shoggoth.i18n import tr
 
 _PUSH_DEBOUNCE_MS = 1500
 
@@ -62,6 +64,9 @@ def _storage_project_id(project) -> str | None:
 class CloudSyncController(QObject):
     # Emitted from a websocket thread; Qt queues delivery onto the main thread.
     update_received = Signal(str, dict)  # storage_project_id, message
+    # Emitted from a storage_cache background download thread (see
+    # storage_cache.on_download_complete) -- also cross-thread-safe the same way.
+    resource_ready = Signal()
 
     def __init__(self, window):
         super().__init__(window)
@@ -71,6 +76,8 @@ class CloudSyncController(QObject):
         self._push_timers = {}   # storage_project_id -> QTimer
         self._last_version = {}  # storage_project_id -> int, our own last-known version
         self.update_received.connect(self._handle_update)
+        self.resource_ready.connect(self._handle_resource_ready)
+        storage_cache.on_download_complete(self.resource_ready.emit)
 
     # ── Connection lifecycle ────────────────────────────────────────────
 
@@ -149,7 +156,7 @@ class CloudSyncController(QObject):
         if project is None:
             return
 
-        patch = message.get('patch', {})
+        patch = self._resolve_conflicts(storage_project_id, message.get('patch', {}))
         project.apply_remote_patch(patch)
 
         if window.active_project is project:
@@ -157,6 +164,59 @@ class CloudSyncController(QObject):
             changed_cards = patch.get('cards') or {}
             if window.current_card and window.current_card.id in changed_cards:
                 window.show_card(window.current_card)
+
+    def _resolve_conflicts(self, storage_project_id, patch):
+        """Checks the incoming patch's card ids against our own
+        not-yet-flushed local edits (self._pending, populated by
+        schedule_push below) -- a genuine collision: the server already has
+        a newer version of a card we've also changed but haven't sent yet
+        (normally within the ~1.5s push debounce window). Asks the user
+        which to keep; returns a patch with conflicting card entries
+        resolved (dropped, if the user kept their own version -- it'll
+        still reach the server normally on its own debounced push) or the
+        patch unchanged if nothing's pending."""
+        cards_patch = patch.get('cards')
+        pending = self._pending.get(storage_project_id)
+        if not cards_patch or not pending:
+            return patch
+
+        conflicting_ids = [card_id for card_id in cards_patch if card_id in pending]
+        if not conflicting_ids:
+            return patch
+
+        names = ', '.join(
+            (cards_patch[card_id] or {}).get('name') or card_id for card_id in conflicting_ids
+        )
+        box = QMessageBox(self.window)
+        box.setWindowTitle(tr("DLG_CLOUD_CONFLICT"))
+        box.setText(tr("MSG_CLOUD_CONFLICT").format(cards=names))
+        keep_btn = box.addButton(tr("BTN_KEEP_MINE"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("BTN_USE_THEIRS"), QMessageBox.ButtonRole.DestructiveRole)
+        box.exec()
+        keep_mine = box.clickedButton() is keep_btn
+
+        resolved_cards = dict(cards_patch)
+        if keep_mine:
+            for card_id in conflicting_ids:
+                resolved_cards.pop(card_id, None)
+        else:
+            for card_id in conflicting_ids:
+                pending.pop(card_id, None)  # accept theirs -- drop our now-stale queued edit
+        return {**patch, 'cards': resolved_cards}
+
+    @Slot()
+    def _handle_resource_ready(self):
+        """A cloud:// download (kicked off by any find_file() call resolving
+        an illustration/image while inside storage_cache.prefer_async, e.g.
+        the synchronous first-paint render) has finished -- refresh the
+        preview so it now picks up the cached file instead of staying blank
+        until some unrelated re-render happens to fire. Debounced (not
+        rerender_now()) since several resources for the same card can land
+        in a short burst. Calls preview.schedule_update() directly (not the
+        window.schedule_preview_update() facade) -- a resource finishing
+        download isn't a card edit, so it must not also re-schedule a push
+        of the current card's (unchanged) data."""
+        self.window.preview.schedule_update()
 
     # ── Local -> remote ──────────────────────────────────────────────────
 

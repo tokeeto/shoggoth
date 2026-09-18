@@ -199,8 +199,13 @@ def _populate_cloud_menu(window, menu):
                 lambda: cloud.open_account_page(window))
     _add_action(window, menu, tr("MENU_CLOUD_OPEN_SHARED"),
                 lambda: cloud.open_shared_project_dialog(window))
+
+    menu.addSeparator()
+
     _add_action(window, menu, tr("MENU_CLOUD_NEW_PROJECT"),
-                lambda: cloud.new_storage_project(window))
+                lambda: cloud.new_cloud_project(window))
+    _add_action(window, menu, tr("MENU_CLOUD_SAVE_TO_CLOUD"),
+                lambda: cloud.save_active_project_to_cloud(window))
 
     menu.addSeparator()
     _add_action(window, menu, tr("MENU_CLOUD_SIGN_OUT"), lambda: cloud.sign_out(window))

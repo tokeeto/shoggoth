@@ -683,25 +683,34 @@ class IllustrationWidget(QWidget):
             return None
 
     def _resolve_image_path(self):
-        """Resolve the illustration path the same way the renderer does."""
+        """Resolve the illustration path the same way the renderer does.
+
+        Runs synchronously on the main thread (called while building/
+        syncing this widget), so a cold cloud:// cache miss must not block
+        on a network download here -- prefer_async makes find_file() return
+        None instead and kicks off a background fetch; the pan/zoom preview
+        just stays blank until the next sync_viewport() call, same as any
+        other unresolved path."""
         raw = self.path_input.text().strip()
         if not raw and self.face is not None:
             raw = self.face.get('illustration') or ''
         if not raw:
             return None
+        from shoggoth.cloud.storage_cache import is_cloud_uri, prefer_async
         # A cloud:// reference must reach find_file() as the raw string --
         # Path("cloud://x/y") collapses the "//" and silently corrupts it,
         # same pitfall as Project.find_file() itself guards against.
-        from shoggoth.cloud import storage_cache
-        if storage_cache.is_cloud_uri(raw):
+        if is_cloud_uri(raw):
             if self.project is None:
                 return None
-            return self.project.find_file(raw)
+            with prefer_async():
+                return self.project.find_file(raw)
         path = Path(raw)
         if not path.is_absolute():
             if self.project is None:
                 return None
-            return self.project.find_file(path)
+            with prefer_async():
+                return self.project.find_file(path)
         return path if path.exists() else None
 
     def sync_viewport(self):
