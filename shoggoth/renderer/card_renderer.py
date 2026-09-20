@@ -8,7 +8,6 @@ from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defau
 from shoggoth.perf import perf
 from shoggoth.util.shape_alpha import apply_shape_mask, subject_mask, FADE_FLAT
 from shoggoth.util.class_icon import tint_icon
-from shoggoth.cloud import storage_cache
 from pathlib import Path
 import pyvips
 import pypdfium2 as pdfium
@@ -1148,14 +1147,9 @@ class CardRenderer:
         illustration_path = side.get('illustration', None)
         if not illustration_path:
             return
-        # A cloud:// reference must reach find_file() as the raw string --
-        # Path(...) collapses the "//" and silently corrupts it.
-        if storage_cache.is_cloud_uri(illustration_path):
+        illustration_path = Path(illustration_path)
+        if not illustration_path.is_absolute():
             illustration_path = side.card.project.find_file(illustration_path)
-        else:
-            illustration_path = Path(illustration_path)
-            if not illustration_path.is_absolute():
-                illustration_path = side.card.project.find_file(illustration_path)
         if not illustration_path:
             return
 
@@ -1209,12 +1203,9 @@ class CardRenderer:
         shape = None
         shape_value = side.get('illustration_shape', None) if mask_mode != 'none' else None
         if shape_value:
-            if storage_cache.is_cloud_uri(shape_value):
-                shape_path = side.card.project.find_file(shape_value)
-            else:
-                shape_path = Path(shape_value)
-                if not shape_path.is_absolute():
-                    shape_path = side.card.project.find_file(shape_path)
+            shape_path = Path(shape_value)
+            if not shape_path.is_absolute():
+                shape_path = side.card.project.find_file(shape_path)
             if shape_path:
                 shape = self.get_illustration_resized_cached(shape_path, (new_width, new_height))
                 if side.get('illustration_mirror', False):
@@ -1473,14 +1464,9 @@ class CardRenderer:
         illustration_path = side.get('illustration')
         if not illustration_path:
             return None
-        # A cloud:// reference must reach find_file() as the raw string --
-        # Path(...) collapses the "//" and silently corrupts it.
-        if storage_cache.is_cloud_uri(illustration_path):
+        illustration_path = Path(illustration_path)
+        if not illustration_path.is_absolute():
             illustration_path = side.card.project.find_file(illustration_path)
-        else:
-            illustration_path = Path(illustration_path)
-            if not illustration_path.is_absolute():
-                illustration_path = side.card.project.find_file(illustration_path)
         if not illustration_path:
             return None
 

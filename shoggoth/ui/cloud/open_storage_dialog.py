@@ -1,23 +1,23 @@
-"""Dialog for opening a cloud storage project (owned, or shared-with-me) as
-a local project file. Only fetches the project's JSON blob here -- its
-images/fonts resources are never downloaded eagerly, they resolve lazily via
-cloud:// the first time something actually renders them (see
-shoggoth.cloud.storage_cache) -- so this is a single small network call, no
-progress dialog needed."""
-import json
-from pathlib import Path
+"""Dialog for opening a cloud project (owned, or shared with you).
 
-from PySide6.QtCore import Qt
+The project list is fetched on a background thread so the dialog appears
+instantly. Picking one just opens it from the cloud folder (see
+ui/main_window/cloud.py::open_cloud_project) -- no download happens here at
+all; sync fills the project in after it's open."""
+import threading
+
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QDialogButtonBox,
-    QMessageBox, QFileDialog, QLabel,
+    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QDialogButtonBox, QLabel,
 )
 
-from shoggoth.cloud import client, sync
+from shoggoth.cloud import client
 from shoggoth.i18n import tr
 
 
 class OpenStorageProjectDialog(QDialog):
+    _loaded = Signal(object, str)  # projects (or None), error message
+
     def __init__(self, window, config, parent=None):
         super().__init__(parent or window)
         self.window = window
@@ -25,6 +25,7 @@ class OpenStorageProjectDialog(QDialog):
         self.setWindowTitle(tr("DLG_OPEN_SHARED_PROJECT"))
         self.setMinimumSize(420, 320)
         self._setup_ui()
+        self._loaded.connect(self._show_projects)
         self._load_projects()
 
     def _setup_ui(self):
@@ -34,59 +35,49 @@ class OpenStorageProjectDialog(QDialog):
         self.list_widget = QListWidget()
         self.list_widget.itemDoubleClicked.connect(lambda _: self._on_open())
         layout.addWidget(self.list_widget)
+        self._set_placeholder(tr("MSG_LOADING_CLOUD_PROJECTS"))
 
         buttons = QDialogButtonBox(QDialogButtonBox.Open | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Open).clicked.connect(self._on_open)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def _base_url_token(self):
-        base_url = self.config.get('Shoggoth', 'publish_base_url', '')
-        token = self.config.get('Shoggoth', 'publish_token', '')
-        return base_url, token
+    def _set_placeholder(self, text):
+        self.list_widget.clear()
+        item = QListWidgetItem(text)
+        item.setFlags(Qt.NoItemFlags)
+        self.list_widget.addItem(item)
 
     def _load_projects(self):
-        base_url, token = self._base_url_token()
-        try:
-            projects = client.list_storage_projects(base_url, token)
-        except client.PublishError as exc:
-            QMessageBox.warning(self, tr("DLG_OPEN_SHARED_PROJECT"), str(exc))
-            projects = []
+        base_url = self.config.get('Shoggoth', 'publish_base_url', '')
+        token = self.config.get('Shoggoth', 'publish_token', '')
+
+        def task():
+            try:
+                self._loaded.emit(client.list_storage_projects(base_url, token), '')
+            except client.PublishError as exc:
+                self._loaded.emit(None, str(exc))
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def _show_projects(self, projects, error):
+        if projects is None:
+            self._set_placeholder(error)
+            return
+        if not projects:
+            self._set_placeholder(tr("MSG_NO_CLOUD_PROJECTS"))
+            return
+        self.list_widget.clear()
         for project in projects:
             item = QListWidgetItem(f"{project['title']}  ({project['role']})")
-            item.setData(Qt.UserRole, project['id'])
+            item.setData(Qt.UserRole, project)
             self.list_widget.addItem(item)
-        if not projects:
-            placeholder = QListWidgetItem(tr("MSG_NO_CLOUD_PROJECTS"))
-            placeholder.setFlags(Qt.NoItemFlags)
-            self.list_widget.addItem(placeholder)
 
     def _on_open(self):
         item = self.list_widget.currentItem()
-        if item is None or item.data(Qt.UserRole) is None:
+        project = item.data(Qt.UserRole) if item else None
+        if not project:
             return
-        storage_project_id = item.data(Qt.UserRole)
-        base_url, token = self._base_url_token()
-        try:
-            detail = client.get_storage_project(base_url, token, storage_project_id)
-        except client.PublishError as exc:
-            QMessageBox.warning(self, tr("DLG_OPEN_SHARED_PROJECT"), str(exc))
-            return
-
-        default_name = f"{detail['title']}.shoggoth"
-        path_str, _ = QFileDialog.getSaveFileName(
-            self, tr("DLG_SAVE_CLOUD_PROJECT_AS"), default_name, "Shoggoth Project (*.shoggoth)"
-        )
-        if not path_str:
-            return
-
-        data = sync.project_data_from_wire(detail['data'])
-        data.setdefault('encounter_sets', [])
-        data.setdefault('meta', {})['cloud_storage_location'] = f"cloud://{storage_project_id}"
-
-        path = Path(path_str)
-        path.write_text(json.dumps(data, indent=2), encoding='utf-8')
-
-        self.window.open_project(str(path))
-        self.window.cloud.start(storage_project_id)
+        from shoggoth.ui.main_window import cloud
+        cloud.open_cloud_project(self.window, project['id'], project['title'], project['role'])
         self.accept()

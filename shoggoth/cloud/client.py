@@ -12,6 +12,7 @@ app/storage_projects.py and CLOUD.md for the full picture.
 """
 import io
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
@@ -345,19 +346,42 @@ def list_storage_projects(base_url: str, token: str) -> list[dict]:
     return resp.json()
 
 
-def get_storage_project(base_url: str, token: str, storage_project_id: str) -> dict:
-    """Full StorageProjectDetail (including `data`, the whole project blob)."""
+def get_storage_project(
+    base_url: str, token: str, storage_project_id: str, since_version: int | None = None
+) -> dict | None:
+    """Full StorageProjectDetail (including `data`, the whole project blob),
+    or None if `since_version` is given and the cloud copy hasn't moved past
+    it (a 304) -- the cheap "anything new?" check sync runs on open."""
+    params = {"since_version": since_version} if since_version is not None else None
     try:
         resp = requests.get(
             f"{base_url}/storage/projects/{storage_project_id}",
+            params=params,
             headers=_auth_headers(token),
             timeout=_METADATA_TIMEOUT,
         )
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
+    if resp.status_code == 304:
+        return None
     _raise_for_status(
         resp, "Get storage project", {404: "Project not found, or you don't have access to it."}
     )
+    return resp.json()
+
+
+def list_storage_files(base_url: str, token: str, storage_project_id: str) -> list[dict]:
+    """Every resource file in the cloud project: [{kind, path, size_bytes,
+    content_hash, updated_at}], `path` relative to the project folder."""
+    try:
+        resp = requests.get(
+            f"{base_url}/storage/projects/{storage_project_id}/files",
+            headers=_auth_headers(token),
+            timeout=_METADATA_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        raise PublishError(f"Could not reach {base_url}: {exc}") from exc
+    _raise_for_status(resp, "List project files")
     return resp.json()
 
 
@@ -383,27 +407,25 @@ def upload_storage_file(
     base_url: str,
     token: str,
     storage_project_id: str,
-    kind: str,
-    filename: str,
+    rel_path: str,
     path,
     progress_cb=None,
 ) -> dict:
-    """Stream-upload the local file at `path` into a storage project's
-    `kind` bucket ('images' | 'fonts' | 'other')."""
+    """Stream-upload the local file at `path` to `rel_path` (a '/'-separated
+    path relative to the project folder) in the cloud project."""
     path = Path(path)
     size = path.stat().st_size
-    url = f"{base_url}/storage/projects/{storage_project_id}/files/{kind}/{filename}"
+    url = f"{base_url}/storage/projects/{storage_project_id}/files/{quote(rel_path, safe='/')}"
     with open(path, "rb") as f:
-        return _do_upload(url, token, size, f, filename, progress_cb)
+        return _do_upload(url, token, size, f, rel_path, progress_cb)
 
 
 def download_storage_file(base_url: str, token: str, storage_project_id: str, rel_path: str, dest_path) -> Path:
     """GET .../files/{rel_path} (a 307 redirect to a presigned Nextcloud
     link -- `requests` follows it automatically, dropping the bearer header
     on that cross-host hop, which is fine since the presigned link needs no
-    auth of its own) and stream the bytes to `dest_path`. Used by
-    shoggoth.cloud.storage_cache to resolve a cloud:// resource reference."""
-    url = f"{base_url}/storage/projects/{storage_project_id}/files/{rel_path}"
+    auth of its own) and stream the bytes to `dest_path`."""
+    url = f"{base_url}/storage/projects/{storage_project_id}/files/{quote(rel_path, safe='/')}"
     try:
         resp = requests.get(
             url, headers=_auth_headers(token), timeout=_UPLOAD_TIMEOUT, stream=True

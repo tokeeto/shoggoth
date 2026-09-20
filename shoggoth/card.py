@@ -174,25 +174,24 @@ class Face:
     def get_path(self, key, default=''):
         res = self.get(key, default)
         if res:
-            # find_file() must see a cloud:// reference as the raw string --
-            # Path(...) would collapse the "//" and silently corrupt it.
-            return self.card.project.find_file(res)
+            return self.card.project.find_file(Path(res))
 
     def set(self, key, value):
         # invalidate cached fallback if fallback should change
         if key == 'type':
             self._fallback = None
 
-        if self.data.get(key) != value:
-            self.card.dirty = True
+        changed = self.data.get(key) != value
 
         self.data[key] = value
         if value is None and key != 'type':
             del self.data[key]
 
-        if shoggoth.app:
-            shoggoth.app.schedule_preview_update()
-            shoggoth.app.update_card_in_tree(self.card.id)
+        # Marking dirty (after the data is in place) notifies the project's
+        # change listeners -- that's how the UI learns it should re-render/
+        # refresh the tree, rather than this model code calling into the app.
+        if changed:
+            self.card.dirty = True
 
     def get_class(self):
         cls = self._resolved_classes()
@@ -377,15 +376,14 @@ class Card:
             return classes[0]
 
     def set(self, key, value):
-        if self.data.get(key) != value:
-            self.dirty = True
+        changed = self.data.get(key) != value
 
         self.data[key] = value
         if key in self.data and value is None:
             del self.data[key]
 
-        if shoggoth.app:
-            shoggoth.app.update_card_in_tree(self.id)
+        if changed:
+            self.dirty = True
 
     def get(self, key, default=None):
         if key == 'copyright' and 'copyright' not in self.data:
@@ -427,9 +425,6 @@ class Card:
     def save(self):
         self.project.writer.save_card(self)
         self.dirty = False
-        # Update tree to remove dirty indicator
-        if shoggoth.app:
-            shoggoth.app.update_card_in_tree(self.id)
 
 
 # templates

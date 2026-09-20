@@ -342,6 +342,7 @@ class TransferCardsDialog(QDialog):
                     self._apply_encounter_policy(card.data, source_project, destination_project)
                 else:
                     source_project.data['cards'].remove(card.data)
+                    source_project.note_deleted('cards', card.id)
                     self._apply_encounter_policy(card.data, source_project, destination_project)
                     destination_project.add_card(card.data)
                     _touch(source_project)

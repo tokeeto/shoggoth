@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from uuid import uuid4
 from pathlib import Path
 from itertools import combinations
@@ -189,6 +190,11 @@ class Project:
         Projects are ultimately just representations of json files.
     """
 
+    # Observers of element changes -- see add_change_listener. Class-level
+    # (not per-instance) so the UI registers once and hears about every open
+    # project, instead of being wired up project by project.
+    _change_listeners = []
+
     def __init__(self, file_path, data):
         self.file_path = file_path
         self.data = data
@@ -196,6 +202,49 @@ class Project:
             self.data['id'] = str(uuid4())
         self.id = data['id']
         self.writer = Writer(self)
+
+    @classmethod
+    def add_change_listener(cls, callback):
+        """ Registers `callback(project, kind, element_id, changed)`, called
+            whenever an element's dirty state is set: `changed` is True for an
+            edit, False once it's saved. `kind` is 'project', 'cards',
+            'encounter_sets' or 'guides'. This is how the model tells the UI
+            (preview, tree) and the cloud sync that something changed, without
+            model code ever reaching into `shoggoth.app` itself.
+        """
+        cls._change_listeners.append(callback)
+
+    def _locate(self, element_id):
+        """ Returns (kind, element dict) for an id, or (None, None). The
+            project itself is ('project', self.data). """
+        if element_id == self.id:
+            return 'project', self.data
+        for kind in ('cards', 'encounter_sets', 'guides'):
+            for entry in self.data.get(kind, []):
+                if entry.get('id') == element_id:
+                    return kind, entry
+        return None, None
+
+    @property
+    def is_cloud_project(self):
+        return bool(self.data.get('meta', {}).get('celaeno_id'))
+
+    def stamp(self, element):
+        """ Records "last edited now" in an element's meta -- the timestamp
+            cloud sync compares to decide which side changed (see
+            shoggoth.cloud.merge). Only cloud projects carry timestamps, so
+            ordinary local project files aren't touched. """
+        if self.is_cloud_project:
+            element.setdefault('meta', {})['modified'] = time.time()
+
+    def note_deleted(self, kind, element_id):
+        """ Remembers that an element was removed, so cloud sync can tell
+            "deleted here" from "never existed here". No-op for local projects. """
+        if self.is_cloud_project:
+            deleted = self.data['meta'].setdefault('celaeno_deleted', {})
+            deleted[element_id] = {'kind': kind, 'at': time.time()}
+            for listener in self._change_listeners:
+                listener(self, kind, element_id, True)
 
     @property
     def dirty(self):
@@ -270,64 +319,12 @@ class Project:
         return Path(self.file_path).parent
 
     def find_file(self, path):
-        """Resolves a local path or a `cloud://<storage_project_id>/<rel/path>`
-        resource reference (see shoggoth.cloud.storage_cache). `path` is
-        checked for the `cloud://` scheme as a raw string *before* ever being
-        wrapped in `Path(...)` -- `Path("cloud://x/y")` would collapse the
-        `//` and silently corrupt the reference otherwise.
-
-        A plain relative path that doesn't exist locally, on a project whose
-        `cloud_storage_location` meta is set (opened from/synced with a cloud
-        storage project -- see shoggoth.cloud.sync), falls back to resolving
-        it under that location -- this is how a shared project's resources
-        get found without every path needing to be rewritten to cloud://
-        explicitly."""
-        from shoggoth.cloud import storage_cache
-
-        path_str = str(path)
-        if storage_cache.is_cloud_uri(path_str):
-            return storage_cache.get_cached(path_str)
-
-        path = Path(path_str)
+        path = Path(path)
         if path.exists():
             return path.resolve()
         if (self.folder / path).exists():
             return (self.folder / path).resolve()
-
-        location = self.get_meta('cloud_storage_location')
-        if location:
-            return storage_cache.get_cached(f"{location.rstrip('/')}/{path_str}")
         return None
-
-    def apply_remote_patch(self, patch):
-        """Merges a live-sync patch from shoggoth.cloud.sync.CloudSyncController
-        into this project's own data. `patch['cards']` is a dict of
-        card_id -> card JSON (set) or null (delete) -- the wire/storage shape
-        a cloud storage project uses (see shoggoth.cloud.sync's module
-        docstring) -- translated here into this project's native list-shaped
-        `data['cards']`. Every other top-level key in `patch`
-        wholesale-replaces that same key in `data`, mirroring
-        shoggoth_web's own apply_patch.
-
-        Deliberately does not set `self.dirty` -- this is a remote change
-        landing locally, not an edit that should prompt a "save before
-        closing" dialog. The caller (CloudSyncController) still needs to
-        write it to disk itself if persistence across restarts matters."""
-        cards_patch = patch.get('cards')
-        if cards_patch is not None:
-            cards = self.data.setdefault('cards', [])
-            by_id = {c.get('id'): c for c in cards}
-            for card_id, card_data in cards_patch.items():
-                if card_data is None:
-                    cards[:] = [c for c in cards if c.get('id') != card_id]
-                elif card_id in by_id:
-                    by_id[card_id].clear()
-                    by_id[card_id].update(card_data)
-                else:
-                    cards.append(card_data)
-        for key, value in patch.items():
-            if key != 'cards':
-                self.data[key] = value
 
     def __eq__(self, other):
         return self.data == other.data
@@ -501,6 +498,9 @@ class Project:
             else:
                 card['copyright'] = self.data['default_copyright']
         self.dirty = True
+        card_id = card.id if isinstance(card, Card) else card.get('id')
+        if card_id:
+            self.set_dirty(card_id)
 
     def get_all_cards(self):
         return self.cards
@@ -527,6 +527,14 @@ class Project:
             self.data['meta']['dirty'].append(id)
         elif not value and id in self.data['meta']['dirty']:
             self.data['meta']['dirty'].remove(id)
+
+        kind, element = self._locate(id)
+        if kind is None:
+            return  # e.g. a card whose fresh id isn't in the project yet
+        if value:
+            self.stamp(element)
+        for listener in self._change_listeners:
+            listener(self, kind, id, bool(value))
 
     def clear_dirty(self):
         if 'meta' not in self.data:
@@ -570,10 +578,13 @@ class Project:
         self.data['encounter_sets'].append(encounter_data)
         shoggoth.app.refresh_tree()
         self.dirty = True
-        return EncounterSet(encounter_data, project=self)
+        encounter_set = EncounterSet(encounter_data, project=self)
+        self.set_dirty(encounter_set.id)
+        return encounter_set
 
     def remove_encounter_set(self, index):
-        self.data['encounter_sets'].pop(index)
+        removed = self.data['encounter_sets'].pop(index)
+        self.note_deleted('encounter_sets', removed.get('id'))
 
     def gather_images(self, update=False):
         """ Walks through the project and copies to all relevant images to a nearby folder for easier distribution.
@@ -660,11 +671,13 @@ class Project:
     def add_guide(self, name='Guide', file_location=None):
         if 'guides' not in self.data:
             self.data['guides'] = []
+        guide_id = str(uuid4())
         self.data['guides'].append({
-            'id': str(uuid4()),
+            'id': guide_id,
             'name': name,
             'sections': [],
         })
+        self.set_dirty(guide_id)
         shoggoth.app.refresh_tree()
 
     def add_investigator_set(self, name):

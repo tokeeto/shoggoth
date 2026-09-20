@@ -16,7 +16,7 @@ class ShareProjectDialog(QDialog):
         super().__init__(parent)
         self.project = project
         self.config = config
-        self.storage_project_id = project.get_meta('cloud_storage_location', '').split('cloud://', 1)[-1]
+        self.storage_project_id = project.data['meta']['celaeno_id']
         self.setWindowTitle(tr("DLG_SHARE_PROJECT"))
         self.setMinimumWidth(420)
         self._setup_ui()

@@ -147,7 +147,7 @@ class TreeContextMenu:
         menu.addAction(new_player_action)
 
         # Share (only for a project backed by a cloud storage project)
-        if project.get_meta('cloud_storage_location'):
+        if project.is_cloud_project:
             menu.addSeparator()
             share_action = QAction(tr("CTX_SHARE_PROJECT"), self.parent)
             share_action.triggered.connect(lambda: self.share_project(project))
@@ -381,6 +381,7 @@ class TreeContextMenu:
         if reply == QMessageBox.Yes:
             # Remove from project
             card.project.data['cards'].remove(card.data)
+            card.project.note_deleted('cards', card.id)
             
             print(f"Deleted card: {card.name}")
             
@@ -523,9 +524,11 @@ class TreeContextMenu:
             cards_to_remove = [c for c in project.data['cards'] if c.get('encounter_set') == encounter.id]
             for card in cards_to_remove:
                 project.data['cards'].remove(card)
+                project.note_deleted('cards', card.get('id'))
             
             # Remove encounter set
             project.data['encounter_sets'].remove(encounter.data)
+            project.note_deleted('encounter_sets', encounter.id)
             
             print(f"Deleted encounter set: {encounter.name}")
 
@@ -643,6 +646,7 @@ class TreeContextMenu:
         if reply == QMessageBox.Yes:
             guides = guide.project.data.get('guides', [])
             guide.project.data['guides'] = [g for g in guides if g['id'] != guide.id]
+            guide.project.note_deleted('guides', guide.id)
             guide.project.save_all()
             import shoggoth
             shoggoth.app.refresh_tree()

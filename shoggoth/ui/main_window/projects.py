@@ -62,6 +62,9 @@ def open_project(window, file_path):
         # Clear navigation history for new project
         window.nav.clear()
         window.status_bar.showMessage(tr("STATUS_OPENED").format(name=project['name']))
+        # A project living in the cloud folder syncs in the background --
+        # opening it above was purely local, so this never delays the open.
+        window.cloud.attach(project)
     except Exception as e:
         QMessageBox.critical(window, tr("DLG_ERROR"), tr("ERR_OPEN_PROJECT").format(error=e))
 
@@ -89,6 +92,8 @@ def close_project(window, project=None):
             project.save()
         elif msg_box.clickedButton() == cancel_btn:
             return
+
+    window.cloud.detach(project)
 
     # Remove from open projects
     if project in window.open_projects:

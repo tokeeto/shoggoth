@@ -36,6 +36,7 @@ from shoggoth.ui.element_selector import (
 from shoggoth.ui.command_palette import CommandPaletteDialog
 from shoggoth.ui.main_window import commands, exports, menus, projects, views
 from shoggoth.cloud.sync import CloudSyncController
+from shoggoth.project import Project
 from shoggoth.ui.main_window.navigation import NavigationHistory
 from shoggoth.ui.main_window.preview import PreviewController
 from shoggoth.ui.main_window.session import SessionManager
@@ -80,6 +81,11 @@ class ShoggothMainWindow(QMainWindow):
         self.nav = NavigationHistory(self)
         self.preview = PreviewController(self)
         self.cloud = CloudSyncController(self)
+
+        # The model tells us when an element's dirty state changes (see
+        # Project.add_change_listener); re-rendering and tree refreshes are
+        # decided here, in the UI, rather than by card.py reaching into the app.
+        Project.add_change_listener(self._on_element_changed)
 
         # Connect file change signal to handler (for thread-safe UI updates)
         self.file_changed_signal.connect(self._handle_file_changed)
@@ -267,7 +273,16 @@ class ShoggothMainWindow(QMainWindow):
 
     def schedule_preview_update(self):
         self.preview.schedule_update()
-        self.cloud.schedule_push()
+
+    def _on_element_changed(self, project, kind, element_id, changed):
+        """Project change-listener. Only the card being shown needs a
+        re-render, and only when it actually changed -- so editing (or
+        bulk-changing) other cards doesn't trigger a render at all."""
+        if kind != 'cards':
+            return
+        self.update_card_in_tree(element_id)
+        if changed and self.current_card and self.current_card.id == element_id:
+            self.preview.schedule_update()
 
     def on_assets_updated(self):
         """Called (on the main thread) after a background asset update writes new files.
