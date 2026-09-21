@@ -25,8 +25,8 @@ from PySide6.QtGui import QIcon
 
 import shoggoth
 from shoggoth.renderer import CardRenderer
-from shoggoth.file_monitor import CardFileMonitor
-from shoggoth.files import asset_dir
+from shoggoth.file_monitor import FileWatcher
+from shoggoth.files import asset_dir, path_key
 from shoggoth.i18n import load_language, tr
 from shoggoth.ui.browser import FileBrowser
 from shoggoth.ui.preview_widget import ImprovedCardPreview
@@ -46,7 +46,7 @@ class ShoggothMainWindow(QMainWindow):
     """Main window for Shoggoth application"""
 
     # Signal for file changes (emitted from background thread, handled on main thread)
-    file_changed_signal = Signal(str)
+    file_changed_signal = Signal(object)  # set of changed paths
 
     def __init__(self):
         super().__init__()
@@ -74,7 +74,7 @@ class ShoggothMainWindow(QMainWindow):
         self.current_guide_editor = None
         card_lang = self.config.get('Shoggoth', 'language', 'en')
         self.card_renderer = CardRenderer(locale=card_lang, hyphenation_enabled=True)
-        self.card_file_monitor = None
+        self.file_watcher = None
 
         # Subsystems
         self.session = SessionManager(self)
@@ -293,6 +293,17 @@ class ShoggothMainWindow(QMainWindow):
         self.card_renderer.clear_asset_caches()
         self.schedule_preview_update()
 
+    def clear_cache(self):
+        """Tools -> Clear Cache: drop renderer image/font caches and the
+        current card's cached defaults (fallback), then redraw the preview.
+        Other cards need no reset: Project.cards builds fresh Card objects
+        (and so fresh fallbacks) on every access."""
+        self.card_renderer.clear_asset_caches()
+        self.card_renderer.clear_illustration_caches()
+        if self.current_card:
+            self.current_card.reload_fallback()
+        self.preview.rerender_now()
+
     def on_location_connections_changed(self, affected_cards):
         """Refresh preview if the currently-selected card was affected by a connection change"""
         if self.current_card and any(c.id == self.current_card.id for c in affected_cards):
@@ -415,24 +426,42 @@ class ShoggothMainWindow(QMainWindow):
     # ── File monitoring ───────────────────────────────────────────────────
 
     def setup_file_monitoring(self):
-        """Setup file system monitoring for assets and card files"""
-        self.card_file_monitor = CardFileMonitor(asset_dir, self.on_file_changed)
-        self.card_file_monitor.start()
+        """Watch the asset pack for good; the files the shown card uses are added
+        as it renders (PreviewController) and dropped when the view changes."""
+        self.file_watcher = FileWatcher(self.on_files_changed, trees=[asset_dir])
+        self.file_watcher.start()
 
-    def on_file_changed(self, file_path):
-        """Called from file monitor (background thread) - emit signal for main thread handling"""
-        self.file_changed_signal.emit(file_path)
+    def watch_project_file(self, project):
+        """Watch an open project's file for outside changes, for as long as it stays open"""
+        if project.is_file_backed:
+            self.file_watcher.watch_file(project.file_path, pinned=True)
 
-    @Slot(str)
-    def _handle_file_changed(self, file_path):
+    def unwatch_project_file(self, project):
+        if project.is_file_backed:
+            self.file_watcher.unwatch_file(project.file_path)
+
+    def on_files_changed(self, paths):
+        """Called from the file watcher (background thread) - emit signal for main thread handling"""
+        self.file_changed_signal.emit(paths)
+
+    @Slot(object)
+    def _handle_file_changed(self, paths):
         """Handle file system changes on main thread - refresh preview when relevant files change"""
+        # Project files aren't render inputs; they're checked for outside edits
+        project_files = {path_key(p.file_path): p for p in self.open_projects if p.is_file_backed}
+        changed_projects = [project_files[k] for k in {path_key(p) for p in paths} if k in project_files]
+        if changed_projects:
+            paths = {p for p in paths if path_key(p) not in project_files}
+            for project in changed_projects:
+                projects.check_external_change(self, project)
+            if not paths:
+                return
+        # Read via self: the renderer is replaced on language change
+        self.card_renderer.invalidate_files(paths)
         if self.current_card:
-            # Invalidate the renderer cache for the changed file
-            self.card_renderer.invalidate_cache(file_path)
-
-            # Reload fallback data (for template/defaults changes)
-            self.current_card.reload_fallback()
-
+            if any(str(p).lower().endswith('.json') for p in paths):
+                # template/defaults changes
+                self.current_card.reload_fallback()
             self.preview.rerender_now()
 
     def _check_for_updates_startup(self):
@@ -476,8 +505,8 @@ class ShoggothMainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event - check for unsaved changes"""
-        if self.card_file_monitor:
-            self.card_file_monitor.stop()
+        if self.file_watcher:
+            self.file_watcher.stop()
         self.cloud.stop_all()
         self.session.capture_layout()
         self.session.save()

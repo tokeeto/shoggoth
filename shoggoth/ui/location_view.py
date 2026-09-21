@@ -207,9 +207,14 @@ class ConnectionArrow(QGraphicsPathItem):
         fill_path.addPolygon(QPolygonF(points))
         fill_path.closeSubpath()
 
-        self._fill_path = fill_path
-        self.setPath(fill_path)
+        # boundingRect() is derived from _fill_path, so Qt must be told *before*
+        # it changes: prepareGeometryChange() removes the item from the scene's
+        # BSP index using the current (old) rect. Calling it afterwards (or via
+        # setPath(), which reads our already-updated boundingRect()) leaves a
+        # stale entry in the index, and the next scene query after the arrow is
+        # deleted walks a dangling pointer -> segfault. Hence no setPath() here.
         self.prepareGeometryChange()
+        self._fill_path = fill_path
 
     def boundingRect(self):
         margin = self.OUTLINE_WIDTH + 1

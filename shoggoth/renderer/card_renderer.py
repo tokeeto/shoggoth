@@ -1,10 +1,12 @@
 from PIL import Image, ImageOps, ImageDraw
 import numpy as np
 import os
+import threading
 from collections import OrderedDict
+from contextlib import contextmanager
 from io import BytesIO
 from shoggoth.renderer.richtext import RichTextRenderer
-from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir
+from shoggoth.files import template_dir, overlay_dir, icon_dir, asset_dir, defaults_dir, translation_dir, path_key
 from shoggoth.perf import perf
 from shoggoth.util.shape_alpha import apply_shape_mask, subject_mask, FADE_FLAT
 from shoggoth.util.class_icon import tint_icon
@@ -207,6 +209,7 @@ class CardRenderer:
         self.card_wo_illus_cache = {}
         self._illus_dims_cache = {}      # path → _ImgDims; cheap, never evicted
         self._illus_resized_lru = OrderedDict()  # (path, size) → PIL Image; bounded LRU
+        self._file_tracking = threading.local()  # per-thread sink, see track_files()
         self.translations = {}
         self.locale = locale
         self.mask_cache = {}
@@ -230,6 +233,11 @@ class CardRenderer:
                         self.translations = json.load(file)
             except Exception as e:
                 print('error while loading translation for renderer:', e)
+        # Absent during __init__: the rich-text renderer is built afterwards
+        # and reads the translations/locale itself.
+        if hasattr(self, 'rich_text'):
+            self.rich_text.set_locale(locale)
+            self.card_wo_illus_cache = {}
 
     def set_hyphenation_enabled(self, enabled: bool):
         """Update hyphenation on the fly (e.g. when the user toggles the setting)."""
@@ -241,18 +249,44 @@ class CardRenderer:
         self.french_punctuation = enabled
         self.rich_text.french_punctuation = enabled
 
+    @contextmanager
+    def track_files(self, listener):
+        """Report every file this renderer reads, on the calling thread, to
+        `listener(path_str)` while the block runs.
+
+        The report fires on cache hits too, so a fresh listener always learns
+        the full set of files a card depends on. Scoped to a thread (and to the
+        block) so background renders of *other* cards (thumbnails, exports)
+        don't leak into the listener. `listener` runs on the rendering thread
+        and must be cheap and thread-safe.
+        """
+        previous = getattr(self._file_tracking, 'listener', None)
+        self._file_tracking.listener = listener
+        try:
+            yield
+        finally:
+            self._file_tracking.listener = previous
+
+    def notify_file_used(self, path):
+        """Tell the active track_files() listener (if any) that `path` was used.
+        Also called by the rich-text renderer for inline images and fonts."""
+        listener = getattr(self._file_tracking, 'listener', None)
+        if listener is not None and path:
+            listener(str(path))
+
     def get_illustration_cached(self, path) -> _ImgDims:
         """Return illustration dimensions without decoding pixels.
 
         Only .width and .height are meaningful on the returned object.
         pyvips reads just the image header, so this is cheap even for large JPEGs.
         """
+        self.notify_file_used(path)
         if path not in self._illus_dims_cache:
             with perf.span('Read illustration dims (header only)'):
                 if str(path).lower().endswith('.pdf'):
                     self._illus_dims_cache[path] = _pdf_page_dims(path)
                 else:
-                    vips_image = pyvips.Image.new_from_file(str(path))
+                    vips_image = pyvips.Image.new_from_file(str(path), revalidate=True)
                     self._illus_dims_cache[path] = _ImgDims(vips_image.width, vips_image.height)
         return self._illus_dims_cache[path]
 
@@ -264,6 +298,7 @@ class CardRenderer:
         hit the cache while old entries are evicted to keep RAM bounded.
         Full-resolution illustrations are never stored in self.cache.
         """
+        self.notify_file_used(path)
         if size[0] * size[1] > 24_000_000:
             raise Exception('image too big, dangerous')
         key = (path, size)
@@ -276,11 +311,11 @@ class CardRenderer:
                 image = _render_pdf_page(path, size)
         elif str(path).endswith('.svg'):
             with perf.span('Load+rasterize SVG (vips)'):
-                vips_image = pyvips.Image.new_from_file(str(path))
+                vips_image = pyvips.Image.new_from_file(str(path), revalidate=True)
                 svg_scale = size[0] / vips_image.width
                 if svg_scale > (size[1] / vips_image.height):
                     svg_scale = size[1] / vips_image.height
-                vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
+                vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale, revalidate=True)
             with perf.span('Convert vips buffer to PIL'):
                 image = Image.frombytes('RGBA', (vips_image.width, vips_image.height), vips_image.write_to_memory())
         else:
@@ -299,6 +334,7 @@ class CardRenderer:
         return image
 
     def get_cached(self, path) -> Image.Image:
+        self.notify_file_used(path)
         if path not in self.cache:
             if str(path).lower().endswith('.pdf'):
                 with perf.span('Render PDF page to bitmap'):
@@ -306,7 +342,7 @@ class CardRenderer:
                     self.cache[path] = _render_pdf_page(path, (dims.width, dims.height))
             else:
                 with perf.span('Load template/overlay from disk (vips)'):
-                    vips_image = pyvips.Image.new_from_file(str(path))
+                    vips_image = pyvips.Image.new_from_file(str(path), revalidate=True)
                 with perf.span('Convert vips buffer to PIL'):
                     bands = vips_image.bands
                     mode = 'RGBA' if bands == 4 else 'RGB'
@@ -314,17 +350,18 @@ class CardRenderer:
         return self.cache[path]
 
     def get_resized_cached(self, path, size) -> Image.Image:
+        self.notify_file_used(path)
         if (path, size) not in self.resized_cache:
             if str(path).lower().endswith('.pdf'):
                 with perf.span('Render PDF page to bitmap'):
                     self.resized_cache[(path, size)] = _render_pdf_page(path, size)
             elif str(path).endswith('.svg'):
                 with perf.span('Load+rasterize SVG (vips)'):
-                    vips_image = pyvips.Image.new_from_file(str(path))
+                    vips_image = pyvips.Image.new_from_file(str(path), revalidate=True)
                     svg_scale = size[0]/vips_image.width
                     if svg_scale > (size[1]/vips_image.height):
                         svg_scale = size[1]/vips_image.height
-                    vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale)
+                    vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale, revalidate=True)
                 with perf.span('Convert vips buffer to PIL'):
                     image = Image.frombytes(
                         'RGBA',
@@ -364,16 +401,32 @@ class CardRenderer:
                   If None, clear the entire cache.
         """
         if path:
-            if path not in self.cache:
-                return
-            del self.cache[path]
-
-            keys_to_remove = [k for k in self.resized_cache if k[0] == path]
-            for k in keys_to_remove:
-                del self.resized_cache[k]
+            self.invalidate_files([path])
         else:
-            self.cache = {}
-            self.resized_cache = {}
+            self.clear_asset_caches()
+            self.clear_illustration_caches()
+
+    def invalidate_files(self, paths):
+        """Drop everything cached from the given files (images, icons, fonts,
+        cached card layers) so the next render re-reads them from disk."""
+        keys = {path_key(p) for p in paths}
+        if not keys:
+            return
+        if len(keys) > 50:
+            # e.g. an asset-pack update: cheaper and safer to start over
+            self.invalidate_cache()
+            return
+
+        def stale(cache_key):
+            path = cache_key[0] if isinstance(cache_key, tuple) else cache_key
+            return path_key(path) in keys
+
+        for cache in (self.cache, self.resized_cache,
+                      self._illus_dims_cache, self._illus_resized_lru):
+            for cache_key in [k for k in cache if stale(k)]:
+                del cache[cache_key]
+        self.card_wo_illus_cache = {}
+        self.rich_text.invalidate_files(keys)
 
     def get_rounded_mask(self, size, radius):
         key = (size, radius)
@@ -620,6 +673,8 @@ class CardRenderer:
 
         `trim` selects which physical trim size (see TRIM_SIZES).
         """
+        for path in side.fallback_files:
+            self.notify_file_used(path)  # project-local defaults JSON
         s = width / 1500
 
         size_px = CARD_SIZES.get(side.get('card_size', 'standard'), CARD_SIZES['standard'])

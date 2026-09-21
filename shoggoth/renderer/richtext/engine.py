@@ -50,6 +50,17 @@ class RichTextRenderer:
     def get_help_text(self):
         return self.tags.get_help_text(font_names=self.resources.fonts.keys())
 
+    def set_locale(self, locale):
+        """Re-resolve everything language-dependent (tag translations such as
+        <for>/<obj>, locale font overrides) after `card_renderer` switched to
+        `locale` and reloaded its translations."""
+        self.tags = TagTable(self.card_renderer.translations)
+        self.resources.apply_locale_fonts(locale)
+
+    def invalidate_files(self, keys):
+        """Forget icons/fonts loaded from the files whose `path_key`s are in `keys`."""
+        self.resources.invalidate_files(keys)
+
     def clear_caches(self):
         """Drop every in-memory cache so updated assets are picked up next render."""
         self.resources.clear()

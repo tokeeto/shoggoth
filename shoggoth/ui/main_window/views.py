@@ -62,6 +62,8 @@ def _begin_view(window, project, nav_type, nav_id, card=None, remember=True):
     if window.card_renderer.locale != effective_language:
         window.card_renderer.set_locale(effective_language)
     window.nav.push(nav_type, nav_id)
+    # Stop watching the previous card's files; a card's render re-registers its own
+    window.file_watcher.clear_files()
     clear_editor(window)
     if remember:
         window.session.set_last_selected(nav_id, nav_type, project)
@@ -83,11 +85,6 @@ def show_card(window, card):
 
     window.current_card = card
     window.current_editor = None
-
-    # Update file monitoring for this card's dependencies
-    if window.card_file_monitor:
-        card_files = window.card_file_monitor.get_card_file_dependencies(card)
-        window.card_file_monitor.set_card_files(card_files)
 
     editor = CardEditor(card)
     window.current_editor = editor

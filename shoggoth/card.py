@@ -51,6 +51,7 @@ class Face:
         self.data = data
         self.card = card
         self._fallback = None
+        self._fallback_files = []
 
     def __eq__(self, other):
         return self.data == other.data
@@ -60,6 +61,7 @@ class Face:
         fallback = {}
         if path := self.card.project.find_file(name):
             defaults_path = path
+            self._fallback_files.append(path)
         else:
             defaults_path = defaults_dir / f'{name}.json'
 
@@ -86,8 +88,16 @@ class Face:
         if self._fallback is None:
             if not self.data['type']:
                 return {}
+            self._fallback_files = []
             self._fallback = self.__build_fallback(self.data['type'])
         return self._fallback
+
+    @property
+    def fallback_files(self):
+        """Project-local defaults files this face's fallback chain was loaded
+        from (the asset pack's own defaults are not listed)."""
+        self.fallback
+        return tuple(self._fallback_files)
 
     def _resolved_classes(self):
         """ This face's class list, resolving a 'classes': '<copy>' fallback

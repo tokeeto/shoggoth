@@ -50,6 +50,8 @@ def _create_file_menu(window, menubar):
 
     _add_action(window, file_menu, tr("MENU_SAVE"),
                 lambda: projects.save_changes(window), shortcut="Ctrl+S")
+    _add_action(window, file_menu, tr("MENU_SAVE_AS"),
+                lambda: projects.save_project_as(window), shortcut="Ctrl+Shift+S")
     _add_action(window, file_menu, tr("MENU_NEW_CARD"),
                 lambda: projects.new_card_dialog(window), shortcut="Ctrl+N")
     _add_action(window, file_menu, tr("MENU_GOTO_CARD"),
@@ -157,6 +159,8 @@ def _create_tools_menu(window, menubar):
                 window.update_manager.check_for_updates_manual)
     _add_action(window, tools_menu, tr("MENU_RESET_ASSETS"),
                 window.reset_assets_dialog)
+    _add_action(window, tools_menu, tr("MENU_CLEAR_CACHE"),
+                window.clear_cache)
     _add_action(window, tools_menu, tr("MENU_SHOW_SNIPPET_FILE"),
                 lambda: snippet_loader.open_snippet_file())
     _add_action(window, tools_menu, tr("MENU_SHOGGOTH_LOCATION"),

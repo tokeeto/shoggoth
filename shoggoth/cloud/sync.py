@@ -15,8 +15,11 @@ brings it in step with the server in the background:
   don't (or that changed), and uploads files added/changed locally, found by a
   folder monitor (anything that isn't a file sync itself just wrote).
 * **Live**: a WebSocket per project delivers other clients' patches, merged
-  the same way; local edits are pushed as small per-element patches after a
-  short debounce.
+  the same way. Local edits are shared when the project is *saved*, not as they
+  are made: until then they exist only in memory (and can be discarded by
+  closing without saving, as for any project). The save goes through
+  `CloudWriter`, which tells us what it saved; that is pushed as small
+  per-element patches.
 
 Everything that touches project data runs on the main thread; background
 threads only do network/file I/O and hand results back through Qt Signals
@@ -37,6 +40,7 @@ from watchdog.observers import Observer
 from shoggoth.cloud import client, folder, merge
 from shoggoth.i18n import tr
 from shoggoth.project import Project
+from shoggoth.project_writer import CloudWriter
 
 _PUSH_DEBOUNCE_MS = 1500
 _UPLOAD_DEBOUNCE_MS = 1000
@@ -53,7 +57,8 @@ class _Session:
         self.id = cloud_id
         self.root = Path(project.file_path).parent
         self.project_file = Path(project.file_path).name
-        self.pending = set()        # {(kind, element_id)} edited, not yet pushed
+        self.unsaved = set()        # {(kind, element_id)} edited in memory, not saved yet
+        self.pending = set()        # {(kind, element_id)} saved, not yet pushed
         self.pushing = False
         self.pulling = False
         self.upload_queue = set()   # rel paths touched on disk, not yet uploaded
@@ -169,6 +174,15 @@ class CloudSyncController(QObject):
             timer.timeout.connect(lambda s=session, f=slot: f(s))
             setattr(session, name, timer)
 
+        # Edits made before we attached (signing in with the project already
+        # open) are just as unsaved as later ones.
+        for element_id in project.data.get('meta', {}).get('dirty', []):
+            kind, _ = project._locate(element_id)
+            if kind is not None:
+                session.unsaved.add((kind, element_id))
+        if isinstance(project.writer, CloudWriter):
+            project.writer.on_saved = self._on_saved
+
         self._start_monitor(session)
         self._start_socket(session)
         self._start_pull(session)
@@ -177,10 +191,14 @@ class CloudSyncController(QObject):
         session = self.session_for(project)
         if session is None:
             return
+        # Only what was already saved goes out: edits still unsaved at this
+        # point are being discarded, so they must not reach the cloud.
         self._flush_push(session, wait=True)
+        self._save_if_clean(session)
+        if isinstance(project.writer, CloudWriter):
+            project.writer.on_saved = None
         self._teardown(session)
         self._sessions.pop(session.id, None)
-        self._save(session)
 
     def stop_all(self):
         for session in list(self._sessions.values()):
@@ -437,19 +455,23 @@ class CloudSyncController(QObject):
 
         for kind, element_id, element in plan.take:
             merge.apply_take(project.data, kind, element_id, element)
+            session.unsaved.discard((kind, element_id))
             session.deleted.pop(element_id, None)
             session.remote_floor = max(session.remote_floor, merge.modified(element))
         for kind, element_id in plan.remove:
             merge.apply_remove(project.data, kind, element_id)
+            session.unsaved.discard((kind, element_id))
         if plan.take_project:
             merge.apply_project_fields(project.data, plan.take_project)
 
         if not session.read_only:
+            # Local changes the plan wants to send go out now only if they were
+            # saved; ones still unsaved wait for the user's save.
             for kind, elements in plan.push.items():
                 for element_id in elements:
-                    session.pending.add((kind, element_id))
+                    self._queue(session, kind, element_id)
             if plan.push_project is not None:
-                session.pending.add(('project', project.id))
+                self._queue(session, 'project', project.id)
 
         changed = bool(plan.take or plan.remove or plan.take_project)
         touched = {i for _, i, _ in plan.take} | {i for _, i in plan.remove}
@@ -484,19 +506,36 @@ class CloudSyncController(QObject):
             self._flush_push(session)
         session.save_timer.start(_SAVE_DEBOUNCE_MS)
 
+    def _queue(self, session, kind, element_id):
+        """Queues a *saved* local change for the next push."""
+        if (kind, element_id) not in session.unsaved:
+            session.pending.add((kind, element_id))
+
     # ── Push (local -> cloud) ────────────────────────────────────────────
 
     def _on_project_change(self, project, kind, element_id, changed):
-        """Project change-listener: queues edited elements for the next push.
-        Runs on the main thread, wherever the edit happened."""
+        """Project change-listener: notes which elements have been edited.
+        Nothing is sent yet -- an edit only exists in memory until the project
+        is saved (see _on_saved). Runs on the main thread, wherever the edit
+        happened."""
         if not changed:
             return
         session = self.session_for(project)
         if session is None or session.read_only:
             return
-        session.pending.add((kind, element_id))
-        session.push_timer.start(_PUSH_DEBOUNCE_MS)
-        session.save_timer.start(_SAVE_DEBOUNCE_MS)
+        session.unsaved.add((kind, element_id))
+
+    def _on_saved(self, project, ids):
+        """CloudWriter callback: the project (or, when `ids` is given, just
+        those elements) has been written to disk, so what was edited is now
+        real and goes to the cloud."""
+        session = self.session_for(project)
+        if session is None or session.read_only:
+            return
+        saved = {key for key in session.unsaved if ids is None or key[1] in ids}
+        session.unsaved -= saved
+        session.pending |= saved
+        self._flush_push(session)
 
     def _build_patch(self, session, keys):
         data = session.project.data
@@ -582,18 +621,39 @@ class CloudSyncController(QObject):
         the newest edit stamp we've taken from the cloud: those stamps come
         from other machines' clocks, and one running ahead of ours would
         otherwise keep looking "changed since the last sync" and cause
-        phantom conflicts."""
+        phantom conflicts.
+
+        Edits still unsaved are not in the cloud, so the marker never moves
+        past the oldest of them: otherwise they'd look older than the last
+        sync and never be sent."""
+        when = min([when, *self._unsaved_stamps(session)])
         session.meta['celaeno_synced_at'] = max(session.synced_at, when, session.remote_floor)
 
-    def _autosave(self, session):
-        self._save(session)
+    def _unsaved_stamps(self, session):
+        data = session.project.data
+        for kind, element_id in session.unsaved:
+            if kind == 'project':
+                yield merge.modified(merge.project_fields(data))
+            elif element_id in session.deleted:
+                yield session.deleted[element_id].get('at', 0)
+            else:
+                element = next((e for e in data.get(kind, []) if e.get('id') == element_id), None)
+                if element:
+                    yield merge.modified(element)
 
-    def _save(self, session):
-        """Cloud projects autosave: the file on disk mirrors what's been
-        merged/pushed, so reopening never starts from a stale copy. Writes the
-        meta directly (not via set_meta) so it doesn't itself count as an edit."""
+    def _autosave(self, session):
+        self._save_if_clean(session)
+
+    def _save_if_clean(self, session):
+        """Keeps the file on disk in step with what's been merged/pushed, so
+        reopening never starts from a stale copy -- but only when there are no
+        unsaved edits, because saving would persist (and so share) those too.
+        With edits pending, the sync bookkeeping is written by their save."""
+        project = session.project
+        if session.unsaved or project.dirty:
+            return
         try:
-            session.project.save_all()
+            project.save_all()
         except OSError as exc:
             self.status.emit(str(exc))
 
