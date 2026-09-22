@@ -2,6 +2,7 @@ import uuid
 import subprocess
 import sys
 import re
+import json
 import html as html_module
 from io import BytesIO
 from pathlib import Path
@@ -19,6 +20,48 @@ GUIDE_FORMATS = {
     'letter': 'US-Letter',
     '75x95': '7.5in 9.5in',
 }
+
+# guide 'chapter' field -> which asset-pack manifest (shoggoth_assets/guide/<chapter>.json)
+# supplies the HTML template and its image/font assets. Chapters are otherwise
+# interchangeable -- everything but the template and its assets (and thus the
+# resulting PDF layout) stays the same regardless of which is selected.
+CHAPTER_TYPES = ['ch1', 'ch2']
+
+# manifest keys that are consumed specially by html_format() (paper-format
+# art override, template lookup) rather than being substituted generically.
+_RESERVED_MANIFEST_KEYS = {'template', 'frontpage', 'a4_empty', 'a4_title'}
+
+
+def _load_chapter_manifest(chapter: str, locale: str) -> dict:
+    """Load a guide chapter's asset manifest: the HTML template plus a flat
+    map of placeholder-name -> file path (relative to the asset pack root)
+    for every image/font it needs. `guide/translations/<locale>.json`, if
+    present, overwrites individual values (paths or, in principle, plain
+    strings) from that base manifest for the given project language --
+    mirroring how card rendering applies a locale's translation file."""
+    manifest: dict = {}
+    try:
+        with open(files.guide_dir / f'{chapter}.json', 'r', encoding='utf-8') as f:
+            manifest = json.load(f)
+    except Exception as e:
+        print(f'error while loading guide manifest for chapter {chapter!r}:', e)
+
+    try:
+        with open(files.guide_dir / 'translations' / f'{locale}.json', 'r', encoding='utf-8') as f:
+            overrides = json.load(f)
+        manifest.update({k: v for k, v in overrides.items() if not k.startswith('_')})
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f'error while loading guide translation {locale!r}:', e)
+
+    return manifest
+
+
+def _manifest_asset_uri(rel_path: str) -> str | None:
+    if not rel_path:
+        return None
+    return (files.asset_dir / rel_path).resolve().as_uri()
 
 _SECTION_CSS = {
     'cover': 'chapter cover',
@@ -614,6 +657,15 @@ class Guide:
         self.data['format'] = value
 
     @property
+    def chapter(self) -> str:
+        value = self.data.get('chapter', 'ch1')
+        return value if value in CHAPTER_TYPES else 'ch1'
+
+    @chapter.setter
+    def chapter(self, value: str):
+        self.data['chapter'] = value
+
+    @property
     def sections(self) -> list:
         return [GuideSection.from_dict(s) for s in self.data.get('sections', [])]
 
@@ -625,9 +677,15 @@ class Guide:
     def target_path(self) -> Path:
         return self.project.folder / 'guide.pdf'
 
-    def html_format(self, html: str) -> str:
-        if self.front_page:
-            html = html.replace("file://{{frontpage}}", _image_uri(self.project, self.front_page))
+    def html_format(self, html: str, manifest: 'dict | None' = None) -> str:
+        if manifest is None:
+            manifest = _load_chapter_manifest(self.chapter, self.project.language or 'en')
+
+        frontpage_uri = _image_uri(self.project, self.front_page) if self.front_page else None
+        if not frontpage_uri:
+            frontpage_uri = _manifest_asset_uri(manifest.get('frontpage'))
+        if frontpage_uri:
+            html = html.replace("file://{{frontpage}}", frontpage_uri)
 
         # the template is written for A4; other paper sizes override @page
         # and use their own background art when the asset pack provides it
@@ -638,8 +696,8 @@ class Guide:
                 f'<style>@page {{ size: {size}; }}</style>\n</head>',
                 1,
             )
-        empty_art = files.guide_dir / 'guide_a4_empty.webp'
-        title_art = files.guide_dir / 'guide_a4_title.webp'
+        empty_art = files.asset_dir / manifest.get('a4_empty', 'guide/guide_a4_empty.webp')
+        title_art = files.asset_dir / manifest.get('a4_title', 'guide/guide_a4_title.webp')
         if self.format == 'letter':
             letter_empty = files.guide_dir / 'guide_letter_empty.png'
             letter_title = files.guide_dir / 'guide_letter_title.png'
@@ -649,17 +707,15 @@ class Guide:
                 title_art = letter_title
         html = html.replace("file://{{a4_empty}}", empty_art.as_uri())
         html = html.replace("file://{{a4_title}}", title_art.as_uri())
-        html = html.replace("file://{{arno_pro}}", (files.font_dir / 'Arno Pro/arnopro_regular.otf').as_uri())
-        html = html.replace("file://{{arno_pro_bold}}", (files.font_dir / 'Arno Pro/arnopro_bold.otf').as_uri())
-        html = html.replace("file://{{arno_pro_bolditalic}}", (files.font_dir / 'Arno Pro/arnopro_bolditalic.otf').as_uri())
-        html = html.replace("file://{{arno_pro_italic}}", (files.font_dir / 'Arno Pro/arnopro_italic.otf').as_uri())
-        html = html.replace("file://{{bolton}}", (files.font_dir / 'Bolton.ttf').as_uri())
-        html = html.replace("file://{{teutonic}}", (files.font_dir / 'Arkhamic.ttf').as_uri())
-        html = html.replace("file://{{ahlcgsymbol}}", (files.font_dir / 'AHLCGSymbol.otf').as_uri())
-        html = html.replace("file://{{resolution_glyph_top}}", (files.guide_dir / 'resolution_glyph_top.png').as_uri())
-        html = html.replace("file://{{resolution_glyph_bottom}}", (files.guide_dir / 'resolution_glyph_bottom.png').as_uri())
-        html = html.replace("file://{{text_glyph_top}}", (files.guide_dir / 'text_glyph_top.png').as_uri())
-        html = html.replace("file://{{text_glyph_bottom}}", (files.guide_dir / 'text_glyph_bottom.png').as_uri())
+
+        # remaining chapter-manifest placeholders (fonts, glyphs, and any
+        # chapter-specific extras, e.g. ch2's "fette" font) -- fully
+        # data-driven, so a new chapter type never needs a code change here.
+        for key, rel_path in manifest.items():
+            if key in _RESERVED_MANIFEST_KEYS or key.startswith('_') or not rel_path:
+                continue
+            html = html.replace(f"file://{{{{{key}}}}}", (files.asset_dir / rel_path).as_uri())
+
         html = html.replace("{{project.name}}", self.project.name)
         try:
             html = html.replace("file:///{{project.icon}}", (self.project.folder / self.project.icon).resolve().as_uri())
@@ -669,7 +725,8 @@ class Guide:
 
     def to_html(self) -> str:
         """Generate complete guide HTML from template + section content."""
-        template_path = files.guide_dir / 'guide_template.html'
+        manifest = _load_chapter_manifest(self.chapter, self.project.language or 'en')
+        template_path = files.asset_dir / manifest.get('template', 'guide/guide_template.html')
         with open(template_path, 'r', encoding='utf-8') as f:
             template = f.read()
         sections_html = '\n'.join(s.to_html(self) for s in self.sections)
@@ -679,7 +736,7 @@ class Guide:
             template,
             flags=re.DOTALL,
         )
-        return self.html_format(html)
+        return self.html_format(html, manifest)
 
     def get_page(self, page: int, html: str = '') -> Image.Image:
         prince_cmd, prince_cwd = _resolve_prince()

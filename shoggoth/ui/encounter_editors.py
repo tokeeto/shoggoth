@@ -120,3 +120,38 @@ class LocationEditor(FaceEditor):
 
 # Location back editor uses same fields as front
 LocationBackEditor = LocationEditor
+
+
+class EnemyLocationEditor(FaceEditor):
+    """Editor for enemy_location cards: an enemy that is also a location (shroud/clues),
+    usually paired with a location face on the other side. No connections here — unlike
+    LocationEditor, it's on the user to handle those on whichever face carries them."""
+
+    def setup_ui(self):
+        self.start_band(tr("BAND_IDENTITY"))
+        self.add_identity_row()
+        self.add_class_field(default_classes=ENCOUNTER_CLASSES)
+
+        self.start_band(tr("BAND_NUMBERS"))
+        self.add_numbers_panel([
+            (tr("FIELD_ATTACK") + " / " + tr("FIELD_HEALTH") + " / " + tr("FIELD_EVADE"),
+             self.add_icon_stat_row(
+                 (overlay_dir / 'svg' / 'skill_icon_C.svg', "attack"),
+                 (overlay_dir / 'damage.png', "health"),
+                 (overlay_dir / 'svg' / 'skill_icon_A.svg', "evade"),
+             )),
+            (tr("FIELD_DAMAGE") + " / " + tr("FIELD_HORROR"),
+             self.add_icon_count_row(
+                 (overlay_dir / 'damage.png', "damage"),
+                 (overlay_dir / 'horror.png', "horror"),
+             )),
+            (tr("FIELD_SHROUD") + " / " + tr("FIELD_CLUES"), ["shroud", "clues"]),
+        ])
+
+        self.start_band(tr("BAND_RULES_TEXT"))
+        self.add_rules_text_row()
+
+        self.start_band(tr("BAND_PRINT_CREDITS"))
+        self.add_illustration_widget()
+        self.add_footer_row()
+        self.main_layout.addStretch()

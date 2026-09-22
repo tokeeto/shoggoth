@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
+from shoggoth import telemetry
 from shoggoth.files import path_key
 from shoggoth.i18n import tr
 from shoggoth.project import (
@@ -388,6 +389,7 @@ def add_scenario_template(window):
         project.create_scenario(name)
         window.file_browser.refresh()
         window.status_bar.showMessage(tr("STATUS_SCENARIO_CREATED").format(name=name))
+        telemetry.record_template_created('scenario')
 
 
 def add_campaign_template(window):
@@ -398,6 +400,7 @@ def add_campaign_template(window):
     project.create_campaign()
     window.file_browser.refresh()
     window.status_bar.showMessage(tr("STATUS_CAMPAIGN_CREATED"))
+    telemetry.record_template_created('campaign')
 
 
 def add_investigator_template(window):
@@ -410,6 +413,7 @@ def add_investigator_template(window):
         project.add_investigator_set(name)
         window.file_browser.refresh()
         window.status_bar.showMessage(tr("STATUS_INVESTIGATOR_CREATED").format(name=name))
+        telemetry.record_template_created('investigator')
 
 
 def add_investigator_project_template(window):
@@ -420,6 +424,7 @@ def add_investigator_project_template(window):
     project.create_player_project()
     window.file_browser.refresh()
     window.status_bar.showMessage(tr("STATUS_PROJECT_CREATED"))
+    telemetry.record_template_created('investigator_project')
 
 
 # ── Translation management ────────────────────────────────────────────────

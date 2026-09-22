@@ -9,12 +9,14 @@ attaches sync, which does the rest in the background."""
 import copy
 import json
 import time
+from pathlib import Path
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from shoggoth.cloud import client, folder, merge, upload
+from shoggoth.files import get_last_path, set_last_path
 from shoggoth.i18n import tr
 
 
@@ -119,6 +121,42 @@ def save_active_project_to_cloud(window):
         QMessageBox.information(
             window, tr("MENU_CLOUD_SAVE_TO_CLOUD"), tr("MSG_CLOUD_PROJECT_CREATED")
         )
+
+
+def upload_new_files(window, project=None):
+    """Lets the user pick files, copies them into the cloud project's folder
+    (`images/`, or `fonts/` for fonts) and queues them for upload. `project`
+    defaults to the active one (Cloud menu); the project tree's context menu
+    passes the project that was right-clicked."""
+    project = project or window.active_project
+    if project is None:
+        QMessageBox.information(window, tr("DLG_NO_PROJECT"), tr("MSG_OPEN_PROJECT_FIRST"))
+        return
+    if not project.is_cloud_project:
+        QMessageBox.information(window, tr("MENU_CLOUD_UPLOAD_FILE"), tr("MSG_NOT_CLOUD_PROJECT"))
+        return
+    session = window.cloud.session_for(project)
+    if session is not None and session.read_only:
+        QMessageBox.information(window, tr("MENU_CLOUD_UPLOAD_FILE"), tr("MSG_CLOUD_PROJECT_READ_ONLY"))
+        return
+
+    paths, _ = QFileDialog.getOpenFileNames(
+        window, tr("DLG_UPLOAD_CLOUD_FILES"), str(get_last_path("cloud_upload_source"))
+    )
+    if not paths:
+        return
+    set_last_path("cloud_upload_source", Path(paths[0]).parent)
+
+    root = Path(project.file_path).parent
+    try:
+        rels = [upload.import_file(path, root) for path in paths]
+    except OSError as exc:
+        QMessageBox.warning(window, tr("MENU_CLOUD_UPLOAD_FILE"), str(exc))
+        return
+    window.cloud.add_files(project, rels)
+    window.status_bar.showMessage(
+        tr("MSG_CLOUD_FILES_ADDED").format(count=len(rels), files=", ".join(rels)), 8000
+    )
 
 
 def new_cloud_project(window):

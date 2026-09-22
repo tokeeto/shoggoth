@@ -22,6 +22,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QProgressDialog
 
+from shoggoth import telemetry
 from shoggoth.export_profile import ExportEntry, USES_SCOPE
 from shoggoth.files import default_export_folder, safe_filename
 from shoggoth.i18n import tr
@@ -188,7 +189,7 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
             parent, renderer, cards, folder,
             size=tts_lib.TTS_IMAGE_SIZE, bleed=False, separate_versions=False,
             format=tts_lib.TTS_IMAGE_FORMAT, quality=tts_lib.TTS_IMAGE_QUALITY,
-            include_backs=False, rotate=True, rounded=True,
+            include_backs=False, rotate=False, rounded=True,
         )
     else:
         # Images weren't (re-)rendered this run, but Publish still needs to
@@ -271,11 +272,14 @@ def run_profile(parent, project, renderer, profile_data):
     manifest_cards = []  # cards contributed by Images entries in the current window
     card_faces = {}  # {card.id: {'front', 'back'}}, for the card manifest
     tts_result = None  # {'image_paths', 'wrapper_path', 'sync'} from the most recent TTS entry this window
+    attempted_kinds = set()  # actual export kinds run this call, for telemetry ('publish' excluded)
 
     for raw_entry in profile_data.get('entries', []):
         entry = ExportEntry(raw_entry, project)
         kind, settings = entry.type, entry.settings
         cards = resolve_scope_cards(project, entry.scope) if USES_SCOPE.get(kind) else None
+        if kind != 'publish':
+            attempted_kinds.add(kind)
 
         if kind == 'pdf':
             from shoggoth.pdf_exporter import check_prince_installed
@@ -347,6 +351,9 @@ def run_profile(parent, project, renderer, profile_data):
             finally:
                 produced = {'images': [], 'pdf': [], 'data': [], 'guides': []}
                 manifest_cards, card_faces, tts_result = [], {}, None
+
+    if attempted_kinds:
+        telemetry.record_export(attempted_kinds)
 
     return results, errors
 

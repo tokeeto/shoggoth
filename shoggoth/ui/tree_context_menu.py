@@ -149,6 +149,9 @@ class TreeContextMenu:
         # Share (only for a project backed by a cloud storage project)
         if project.is_cloud_project:
             menu.addSeparator()
+            upload_action = QAction(tr("CTX_UPLOAD_FILE"), self.parent)
+            upload_action.triggered.connect(lambda: self.upload_file(project))
+            menu.addAction(upload_action)
             share_action = QAction(tr("CTX_SHARE_PROJECT"), self.parent)
             share_action.triggered.connect(lambda: self.share_project(project))
             menu.addAction(share_action)
@@ -670,6 +673,12 @@ class TreeContextMenu:
         import shoggoth
         if shoggoth.app:
             shoggoth.app.close_project(project)
+
+    def upload_file(self, project):
+        """Pick files to add to a cloud project and upload them"""
+        from shoggoth.ui.main_window import cloud
+        import shoggoth
+        cloud.upload_new_files(shoggoth.app, project)
 
     def share_project(self, project):
         """Open the share-grants dialog for a cloud-storage-backed project"""

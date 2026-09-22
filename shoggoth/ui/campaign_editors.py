@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.compact_widgets import PLAYER_CLASSES
+from shoggoth.ui.tag_buttons import STORY_TAG_BUTTONS
 from shoggoth.i18n import tr
 
 
@@ -24,7 +25,7 @@ class ActEditor(FaceEditor):
         ])
 
         self.start_band(tr("BAND_RULES_TEXT"))
-        self.add_rules_text_row(include_victory=False)
+        self.add_rules_text_row(include_victory=False, flavor_above=True)
 
         self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
@@ -41,7 +42,8 @@ class ActBackEditor(FaceEditor):
         self.add_labeled_line(tr("FIELD_INDEX"), "index")
 
         self.start_band(tr("BAND_RULES_TEXT"))
-        self.add_rules_text_row(include_victory=False)
+        self.add_rules_text_row(include_victory=False, include_flavor=False, text_lines=15,
+                                tag_buttons=STORY_TAG_BUTTONS)
 
         self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_footer_row()
@@ -62,7 +64,7 @@ class AgendaEditor(FaceEditor):
         ])
 
         self.start_band(tr("BAND_RULES_TEXT"))
-        self.add_rules_text_row(include_victory=False)
+        self.add_rules_text_row(include_victory=False, flavor_above=True)
 
         self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
@@ -79,7 +81,8 @@ class AgendaBackEditor(FaceEditor):
         self.add_labeled_line(tr("FIELD_INDEX"), "index")
 
         self.start_band(tr("BAND_RULES_TEXT"))
-        self.add_rules_text_row(include_victory=False)
+        self.add_rules_text_row(include_victory=False, include_flavor=False, text_lines=15,
+                                tag_buttons=STORY_TAG_BUTTONS)
 
         self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_footer_row()
@@ -236,7 +239,8 @@ class StoryEditor(FaceEditor):
         self.add_class_field(default_classes=PLAYER_CLASSES)
 
         self.start_band(tr("BAND_RULES_TEXT"))
-        self.add_rules_text_row(include_flavor=False)
+        self.add_rules_text_row(include_flavor=False, text_lines=15,
+                                tag_buttons=STORY_TAG_BUTTONS)
 
         self.add_token_area_widget()
 

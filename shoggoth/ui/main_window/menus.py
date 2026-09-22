@@ -210,6 +210,8 @@ def _populate_cloud_menu(window, menu):
                 lambda: cloud.new_cloud_project(window))
     _add_action(window, menu, tr("MENU_CLOUD_SAVE_TO_CLOUD"),
                 lambda: cloud.save_active_project_to_cloud(window))
+    _add_action(window, menu, tr("MENU_CLOUD_UPLOAD_FILE"),
+                lambda: cloud.upload_new_files(window))
 
     menu.addSeparator()
     _add_action(window, menu, tr("MENU_CLOUD_SIGN_OUT"), lambda: cloud.sign_out(window))

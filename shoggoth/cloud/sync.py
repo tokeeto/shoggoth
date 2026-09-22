@@ -349,6 +349,18 @@ class CloudSyncController(QObject):
         session.upload_queue.add(rel)
         session.upload_timer.start(_UPLOAD_DEBOUNCE_MS)
 
+    def add_files(self, project, rels):
+        """Queues files just copied into a cloud project's folder for upload,
+        without waiting for the folder monitor to notice them. (Not signed in:
+        nothing to do -- the next sync after signing in uploads them.)"""
+        session = self.session_for(project)
+        if session is None or session.read_only:
+            return
+        for rel in rels:
+            if not folder.is_ignored(rel, session.project_file):
+                session.upload_queue.add(rel)
+        session.upload_timer.start(_UPLOAD_DEBOUNCE_MS)
+
     def _flush_uploads(self, session):
         queue, session.upload_queue = session.upload_queue, set()
         if not queue:

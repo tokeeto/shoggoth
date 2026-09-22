@@ -71,3 +71,25 @@ def relocate_resources(project, dest_dir: Path) -> dict:
                 if face.get(key):
                     face[key] = relocate(face[key])
     return data
+
+
+FONT_SUFFIXES = ('.ttf', '.otf')
+
+
+def import_file(source, dest_dir: Path) -> str:
+    """Copies a user-picked file into a cloud project folder and returns its
+    project-relative path (e.g. `images/foo.png`) -- the form cards reference.
+    Fonts go to `fonts/`, everything else to `images/`. A name that's already
+    taken gets a counter appended rather than overwriting the existing file.
+    Sync picks the new file up from there (see `CloudSyncController.add_files`)."""
+    source, dest_dir = Path(source), Path(dest_dir)
+    subdir = 'fonts' if source.suffix.lower() in FONT_SUFFIXES else 'images'
+    target_dir = dest_dir / subdir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / source.name
+    counter = 1
+    while target.exists():
+        target = target_dir / f'{source.stem}_{counter}{source.suffix}'
+        counter += 1
+    shutil.copy2(source, target)
+    return f'{subdir}/{target.name}'

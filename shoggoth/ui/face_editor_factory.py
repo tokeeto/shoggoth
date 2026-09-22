@@ -10,7 +10,9 @@ from PySide6.QtWidgets import (
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.text_editor import PlainJsonTextEdit
 from shoggoth.ui.player_editors import AssetEditor, EventEditor, SkillEditor, CustomizableEditor
-from shoggoth.ui.encounter_editors import EnemyEditor, TreacheryEditor, LocationEditor, LocationBackEditor
+from shoggoth.ui.encounter_editors import (
+    EnemyEditor, TreacheryEditor, LocationEditor, LocationBackEditor, EnemyLocationEditor
+)
 from shoggoth.ui.campaign_editors import (
     ActEditor, ActBackEditor, AgendaEditor, AgendaBackEditor, ChaosEditor, StoryEditor
 )
@@ -149,6 +151,7 @@ EDITOR_MAPPING = {
     'location_back': LocationBackEditor,
     'treachery': TreacheryEditor,
     'enemy': EnemyEditor,
+    'enemy_location': EnemyLocationEditor,
     'act': ActEditor,
     'act_back': ActBackEditor,
     'agenda': AgendaEditor,

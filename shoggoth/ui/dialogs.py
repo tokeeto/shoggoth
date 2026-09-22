@@ -12,6 +12,7 @@ import json
 from uuid import uuid4
 
 import shoggoth
+from shoggoth import telemetry
 from shoggoth.card import Card, TEMPLATES
 from shoggoth.project import Project
 from shoggoth.i18n import tr
@@ -120,7 +121,8 @@ class NewCardDialog(QDialog):
             
             # Add to project
             project.add_card(new_card)
-            
+            telemetry.record_card_created(self.selected_template)
+
             # Refresh tree and navigate to new card
             shoggoth.app.refresh_tree()
             shoggoth.app.show_card(new_card)

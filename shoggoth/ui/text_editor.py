@@ -12,25 +12,53 @@ import re
 from shoggoth.files import font_dir
 
 _editor_font_family = None
+_editor_font_choice = None
+
+# 'editor_font' setting -> (regular file, italic file or None, point-size scale). Maple is
+# larger than Arno at the same point size (x-height 550 vs 450, and monospace), so its
+# scale brings the two to a similar apparent size.
+_EDITOR_FONTS = {
+    'maple': ("ShoggothEditorMaple-Regular.ttf", "ShoggothEditorMaple-Italic.ttf", 0.85),
+    'arno': ("ShoggothEditorFont.otf", None, 1.0),
+}
+
+
+def _editor_font_setting():
+    """The 'editor_font' setting ('maple' or 'arno'), defaulting to Maple."""
+    import shoggoth
+    config = getattr(getattr(shoggoth, 'app', None), 'config', None)
+    value = config.get('Shoggoth', 'editor_font', 'maple') if config is not None else 'maple'
+    return value if value in _EDITOR_FONTS else 'maple'
 
 
 def _load_editor_font():
-    """Register ShoggothEditorFont.otf (built by scripts/build_editor_font.py) and
-    return its family name. The font's 'calt' ligature rules render markup tags like
-    "<action>" as their icon glyph while leaving the underlying characters editable
-    one at a time, so backspace still un-types the tag letter by letter."""
-    global _editor_font_family
+    """Register the editor font (built by scripts/build_editor_font.py) and return its
+    family name. The font's 'calt' ligature rules render markup tags like "<action>" as
+    their icon glyph while leaving the underlying characters editable one at a time, so
+    backspace still un-types the tag letter by letter.
+
+    Uses the 'editor_font' setting's choice, falling back to the other font when the
+    asset pack doesn't have it yet, and finally to the system font. Registered once per
+    run, so changing the setting takes effect after a restart."""
+    global _editor_font_family, _editor_font_choice
     if _editor_font_family is not None:
         return _editor_font_family
 
-    path = font_dir / "ShoggothEditorFont.otf"
-    families = []
-    if path.exists():
-        font_id = QFontDatabase.addApplicationFont(str(path))
-        if font_id != -1:
-            families = QFontDatabase.applicationFontFamilies(font_id)
+    preferred = _editor_font_setting()
+    for choice in (preferred, *(c for c in _EDITOR_FONTS if c != preferred)):
+        regular, italic, _scale = _EDITOR_FONTS[choice]
+        families = []
+        for name in (regular, italic):
+            path = font_dir / name if name else None
+            if path and path.exists():
+                font_id = QFontDatabase.addApplicationFont(str(path))
+                if font_id != -1 and not families:
+                    families = QFontDatabase.applicationFontFamilies(font_id)
+        if families:
+            _editor_font_family, _editor_font_choice = families[0], choice
+            return _editor_font_family
 
-    _editor_font_family = families[0] if families else QFont().defaultFamily()
+    _editor_font_family, _editor_font_choice = QFont().defaultFamily(), None
     return _editor_font_family
 
 
@@ -45,10 +73,36 @@ def _ligatures_enabled():
 
 
 def _resolve_editor_font_family():
-    """Family name for non-monospace text edits: ShoggothEditorFont when
+    """Family name for non-monospace text edits: the editor font when
     ligatures are enabled, otherwise the plain system font so markup tags
     like "<action>" stay literal characters instead of being drawn as icons."""
     return _load_editor_font() if _ligatures_enabled() else QFont().defaultFamily()
+
+
+def editor_font_scale():
+    """Point-size multiplier for the active editor font (see _EDITOR_FONTS)."""
+    _load_editor_font()
+    return _EDITOR_FONTS[_editor_font_choice][2] if _editor_font_choice else 1.0
+
+
+def _editor_size_scale():
+    """Size scale for whichever family _resolve_editor_font_family() currently returns
+    (the system font used when ligatures are off needs no correction)."""
+    return editor_font_scale() if _ligatures_enabled() else 1.0
+
+
+def flavor_editor_font(point_size):
+    """Italic font for flavor-text fields, or None when the active editor font has no
+    italic face (the caller then falls back to Arno Pro Italic). Honors the ligature
+    setting via the 'calt' feature, since the family stays the same either way."""
+    _load_editor_font()
+    if _editor_font_choice is None or _EDITOR_FONTS[_editor_font_choice][1] is None:
+        return None
+    font = QFont(_editor_font_family)
+    font.setItalic(True)
+    font.setPointSizeF(point_size * editor_font_scale())
+    font.setFeature(QFont.Tag("calt"), 1 if _ligatures_enabled() else 0)
+    return font
 
 
 def refresh_ligature_setting():
@@ -60,10 +114,12 @@ def refresh_ligature_setting():
     if not app:
         return
     family = _resolve_editor_font_family()
+    scale = _editor_size_scale()
     for widget in app.allWidgets():
         if isinstance(widget, ArkhamTextEdit) and not widget.monospace:
             font = widget.font()
             font.setFamily(family)
+            font.setPointSizeF(widget._base_point_size * scale)
             widget.setFont(font)
 
 
@@ -378,11 +434,13 @@ class ArkhamTextEdit(_LiveTextEditMixin, QTextEdit):
         # (e.g. a "<action>" inside a text value stops looking like the literal
         # characters being edited). Callers displaying raw data (JSON editors) should
         # pass monospace=True for a plain, readable fixed-pitch font instead.
+        self._base_point_size = self.font().pointSize()
         if monospace:
             editor_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+            editor_font.setPointSize(self._base_point_size)
         else:
             editor_font = QFont(_resolve_editor_font_family())
-        editor_font.setPointSize(self.font().pointSize())
+            editor_font.setPointSizeF(self._base_point_size * _editor_size_scale())
         self.setFont(editor_font)
 
         # Enable syntax highlighting
@@ -549,22 +607,33 @@ class ArkhamTextEdit(_LiveTextEditMixin, QTextEdit):
 
     def insert_formatting_tag(self, tag):
         """Insert a formatting tag pair around selected text or at cursor"""
+        self.insert_tag_pair(f'<{tag}>', f'</{tag}>')
+
+    def insert_tag_pair(self, start_tag, end_tag):
+        """Wrap the selection in start_tag/end_tag; with no selection, insert the pair
+        and leave the cursor between them."""
         cursor = self.textCursor()
 
         if cursor.hasSelection():
-            # Get selected text
-            selected_text = cursor.selectedText()
-
-            # Replace with tagged version
-            tagged_text = f'<{tag}>{selected_text}</{tag}>'
-            cursor.insertText(tagged_text)
+            cursor.insertText(f'{start_tag}{cursor.selectedText()}{end_tag}')
         else:
-            # No selection - just insert the tag pair at cursor
-            cursor.insertText(f'<{tag}></{tag}>')
-
+            cursor.insertText(f'{start_tag}{end_tag}')
             # Move cursor between the tags
-            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, len(f'</{tag}>'))
-            self.setTextCursor(cursor)
+            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, len(end_tag))
+        self.setTextCursor(cursor)
+
+    def insert_single_tag(self, tag, select=None):
+        """Insert a standalone tag after the cursor / after the current selection (the
+        selection is left alone, unlike paste, which would replace it). `select` is a
+        substring of the tag to leave selected afterwards so it can be typed over."""
+        cursor = self.textCursor()
+        cursor.setPosition(cursor.selectionEnd())
+        start = cursor.position()
+        cursor.insertText(tag)
+        if select and select in tag:
+            cursor.setPosition(start + tag.index(select))
+            cursor.setPosition(start + tag.index(select) + len(select), QTextCursor.KeepAnchor)
+        self.setTextCursor(cursor)
 
     def focusInEvent(self, event):
         """Handle focus in event"""

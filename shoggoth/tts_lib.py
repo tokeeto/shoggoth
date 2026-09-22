@@ -234,6 +234,12 @@ def card_to_tts(card, id, number, image_folder):
         if tag:
             data['Tags'].append(tag)
 
+    # Handle rotated cards and cards with different orientation
+    if card.front.get('orientation', 'vertical') == 'horizontal':
+        data['Tags'].append('Sideways')
+    if card.front.get('orientation', 'vertical') != card.back.get('orientation', 'vertical'):
+        data['Tags'].append('DynamicAltView')
+
     # handling for horizontal cards (since they get scaled differently by TTS)
     if front_type in ['act', 'agenda', 'investigator']:
         data['Transform']['scaleX'] *= 0.8214 / 1.15

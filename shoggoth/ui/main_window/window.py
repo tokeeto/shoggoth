@@ -24,6 +24,7 @@ from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QIcon
 
 import shoggoth
+from shoggoth import telemetry
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import FileWatcher
 from shoggoth.files import asset_dir, path_key
@@ -97,6 +98,11 @@ class ShoggothMainWindow(QMainWindow):
         self.setup_ui()
         self.setup_file_monitoring()
         self.session.restore()
+
+        # Opt-in usage data collection: report the projects restored above
+        # (no-ops unless a telemetry session is already running -- see
+        # ui/app.py, which starts one before this window is constructed).
+        telemetry.record_startup(self.open_projects)
 
         # Check for updates after UI is ready (deferred)
         QTimer.singleShot(2000, self._check_for_updates_startup)
@@ -508,6 +514,7 @@ class ShoggothMainWindow(QMainWindow):
         if self.file_watcher:
             self.file_watcher.stop()
         self.cloud.stop_all()
+        telemetry.stop_session()
         self.session.capture_layout()
         self.session.save()
 

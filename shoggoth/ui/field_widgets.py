@@ -101,6 +101,10 @@ class CompactLabeledField(QWidget):
     def _add_input(self, widget):
         self._field_layout.addWidget(widget)
 
+    def insert_toolbar(self, widget):
+        """Put a row of controls between the label and the input."""
+        self._field_layout.insertWidget(1, widget)
+
 
 class LabeledLineEdit(CompactLabeledField):
     """A labeled line edit widget with a compact static label"""

@@ -15,7 +15,7 @@ from shoggoth.i18n import tr
 ALL_CARD_TYPES = [
     'asset', 'event', 'skill',
     'investigator', 'investigator_back',
-    'enemy', 'treachery', 'location', 'location_back',
+    'enemy', 'enemy_location', 'treachery', 'location', 'location_back',
     'act', 'act_back', 'agenda', 'agenda_back',
     'scenario', 'chaos',
     'customizable', 'story',

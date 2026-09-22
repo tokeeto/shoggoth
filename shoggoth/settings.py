@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QCheckBox, QLabel,
     QFileDialog, QTabWidget, QWidget, QDialogButtonBox,
     QGroupBox, QComboBox, QSpinBox,
-    QMessageBox,
+    QMessageBox, QRadioButton, QButtonGroup,
 )
 from PySide6.QtCore import Qt
 from pathlib import Path
@@ -137,6 +137,10 @@ class SettingsManager:
             'publish_email': '',
             'publish_token': '',
             'publish_has_access': False,
+            # Opt-in usage data collection (see shoggoth/telemetry.py). Off
+            # unless the user explicitly turns it on in Settings -> Privacy.
+            'telemetry_level': 'off',  # off | basic | extended | personal
+            'telemetry_notice_shown': False,
         }
         
         for key, value in defaults.items():
@@ -223,6 +227,10 @@ class SettingsDialog(QDialog):
         # Publishing tab
         publishing_tab = self.create_publishing_tab()
         tabs.addTab(publishing_tab, tr("TAB_PUBLISHING"))
+
+        # Privacy tab
+        privacy_tab = self.create_privacy_tab()
+        tabs.addTab(privacy_tab, tr("TAB_PRIVACY"))
 
         layout.addWidget(tabs)
         
@@ -526,6 +534,45 @@ class SettingsDialog(QDialog):
         widget.setLayout(layout)
         return widget
 
+    def create_privacy_tab(self):
+        """Opt-in usage data collection (see shoggoth/telemetry.py). Off by
+        default; nothing is gathered or sent unless a level below is picked."""
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        intro = QLabel(tr("MSG_TELEMETRY_TAB_INTRO"))
+        intro.setWordWrap(True)
+        intro.setStyleSheet("color: #888;")
+        layout.addWidget(intro)
+
+        group = QGroupBox(tr("GROUP_TELEMETRY"))
+        group_layout = QVBoxLayout()
+
+        self._telemetry_group = QButtonGroup(widget)
+        self._telemetry_radios = {}
+        for level, opt_key, help_key in (
+            ('off', 'OPT_TELEMETRY_OFF', 'HELP_TELEMETRY_OFF'),
+            ('basic', 'OPT_TELEMETRY_BASIC', 'HELP_TELEMETRY_BASIC'),
+            ('extended', 'OPT_TELEMETRY_EXTENDED', 'HELP_TELEMETRY_EXTENDED'),
+            ('personal', 'OPT_TELEMETRY_PERSONAL', 'HELP_TELEMETRY_PERSONAL'),
+        ):
+            radio = QRadioButton(tr(opt_key))
+            self._telemetry_group.addButton(radio)
+            self._telemetry_radios[level] = radio
+            group_layout.addWidget(radio)
+
+            help_label = QLabel(tr(help_key))
+            help_label.setWordWrap(True)
+            help_label.setStyleSheet("color: #888; margin-left: 20px;")
+            group_layout.addWidget(help_label)
+
+        group.setLayout(group_layout)
+        layout.addWidget(group)
+
+        layout.addStretch()
+        widget.setLayout(layout)
+        return widget
+
     def _refresh_publish_status(self):
         """Update the publishing status label from the currently stored settings."""
         token = self.settings.get('Shoggoth', 'publish_token', '')
@@ -676,6 +723,10 @@ class SettingsDialog(QDialog):
         self.publish_email_input.setText(self.settings.get('Shoggoth', 'publish_email', ''))
         self._refresh_publish_status()
 
+        # Privacy settings
+        level = self.settings.get('Shoggoth', 'telemetry_level', 'off')
+        self._telemetry_radios.get(level, self._telemetry_radios['off']).setChecked(True)
+
     def save_settings(self):
         """Save settings and close dialog"""
         self.settings.set('Shoggoth', 'prince_cmd', self.prince_cmd_input.text())
@@ -722,5 +773,18 @@ class SettingsDialog(QDialog):
         # by the login/logout button handlers, not staged here)
         self.settings.set('Shoggoth', 'publish_base_url', self.publish_base_url_input.text().strip())
 
+        # Privacy settings. Any change here starts a fresh telemetry session
+        # (new random session GUID, freshly re-rolled OS/UI-language noise)
+        # rather than mutating whatever session might already be running --
+        # see telemetry.start_session's docstring for why.
+        for level, radio in self._telemetry_radios.items():
+            if radio.isChecked():
+                self.settings.set('Shoggoth', 'telemetry_level', level)
+                break
+
         self.settings.save()
+
+        from shoggoth import telemetry
+        telemetry.start_session(self.settings)
+
         self.accept()
