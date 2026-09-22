@@ -15,6 +15,8 @@ from shoggoth.ui.field_widgets import (
     UniqueNameField
 )
 from shoggoth.ui.card_widgets import IllustrationWidget
+from shoggoth.ui.text_editor import flavor_editor_font
+from shoggoth.ui.tag_buttons import TagButtonRow, DEFAULT_TAG_BUTTONS
 from shoggoth.ui.compact_widgets import (
     Band, Stepper, PerStepper, IconStatField, IconCountField, NumbersPanel, TagChipsField, SegmentedToggle
 )
@@ -524,38 +526,77 @@ class FaceEditor(QWidget):
 
     def add_rules_text_row(self, include_flavor=True, include_victory=True,
                             text_field="text", flavor_field="flavor_text", victory_field="victory",
-                            use_arkham=True):
+                            use_arkham=True, flavor_above=False, text_lines=None,
+                            tag_buttons=DEFAULT_TAG_BUTTONS):
         """Rules text (full width, the standard ~5-line arkham editor height) with Flavor
         (~2 lines, 75% width) and Victory (single line, 25% width) stacked below it side
-        by side, instead of either being its own full-width row."""
+        by side, instead of either being its own full-width row.
+
+        flavor_above=True is the campaign-card layout (act/agenda/story): Flavor goes
+        above the text as its own full-width box, both 9 lines tall, since those cards
+        are mostly prose. Victory (when included) still goes below.
+
+        text_lines fixes the text box to that many lines (flavor_above implies 9).
+        tag_buttons names the quick-insert buttons shown above the text box (see
+        tag_buttons.py); pass () for none."""
         outer = QVBoxLayout()
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(10)
 
-        text_widget = LabeledTextEdit(tr("FIELD_TEXT"), use_arkham_editor=use_arkham)
-        text_widget.input.textChanged.connect(lambda: self.on_field_changed(text_field))
-        self.fields[text_field] = text_widget.input
-        self.field_containers[text_field] = text_widget
-        outer.addWidget(text_widget)
-
-        if include_flavor or include_victory:
-            bottom_row = QHBoxLayout()
-            bottom_row.setContentsMargins(0, 0, 0, 0)
-            bottom_row.setSpacing(12)
-
-            if include_flavor:
-                flavor_widget = LabeledTextEdit(tr("FIELD_FLAVOR"))
-                flavor_widget.input.setFixedHeight(58)  # ~2 lines
+        def make_flavor_widget():
+            flavor_widget = LabeledTextEdit(tr("FIELD_FLAVOR"))
+            flavor_widget.input.setFixedHeight(58)  # ~2 lines
+            flavor_font = flavor_editor_font(12)
+            if flavor_font is None:
                 flavor_font = QFont(_load_flavor_font())
                 # Some systems already have "Arno Pro" installed (multiple styles under
                 # one family name) — without this, QFont silently resolves to whatever
                 # style is default (usually Regular) instead of the italic face we want.
                 flavor_font.setItalic(True)
                 flavor_font.setPointSize(12)
-                flavor_widget.input.setFont(flavor_font)
-                flavor_widget.input.textChanged.connect(lambda: self.on_field_changed(flavor_field))
-                self.fields[flavor_field] = flavor_widget.input
-                self.field_containers[flavor_field] = flavor_widget
+            flavor_widget.input.setFont(flavor_font)
+            flavor_widget.input.textChanged.connect(lambda: self.on_field_changed(flavor_field))
+            self.fields[flavor_field] = flavor_widget.input
+            self.field_containers[flavor_field] = flavor_widget
+            return flavor_widget
+
+        def lines_height(edit, lines):
+            # `lines` lines of the field's own font plus the compact theme's vertical padding
+            return edit.fontMetrics().lineSpacing() * lines + 16
+
+        flavor_on_top = include_flavor and flavor_above
+        if flavor_on_top:
+            top_flavor = make_flavor_widget()
+            outer.addWidget(top_flavor)
+
+        text_widget = LabeledTextEdit(tr("FIELD_TEXT"), use_arkham_editor=use_arkham)
+        text_widget.input.textChanged.connect(lambda: self.on_field_changed(text_field))
+        self.fields[text_field] = text_widget.input
+        self.field_containers[text_field] = text_widget
+        if flavor_on_top:
+            text_lines = text_lines or 9
+        if text_lines:
+            boxes = [text_widget.input]
+            if flavor_on_top:
+                # Same pixel height for both boxes (the flavor font is the larger one), so
+                # they read as a matching pair of fields.
+                boxes.append(top_flavor.input)
+            height = max(lines_height(edit, text_lines) for edit in boxes)
+            for edit in boxes:
+                edit.setMinimumHeight(height)
+                edit.setMaximumHeight(height)
+        if tag_buttons and hasattr(text_widget.input, 'insert_tag_pair'):
+            # Between the field label and the edit
+            text_widget.insert_toolbar(TagButtonRow(text_widget.input, tag_buttons))
+        outer.addWidget(text_widget)
+
+        if (include_flavor and not flavor_above) or include_victory:
+            bottom_row = QHBoxLayout()
+            bottom_row.setContentsMargins(0, 0, 0, 0)
+            bottom_row.setSpacing(12)
+
+            if include_flavor and not flavor_above:
+                flavor_widget = make_flavor_widget()
                 bottom_row.addWidget(flavor_widget, 3, Qt.AlignTop)  # 75%
 
             if include_victory:

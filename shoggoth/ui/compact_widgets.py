@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame, QPushButton,
     QLineEdit, QToolButton, QButtonGroup, QCompleter, QSizePolicy, QApplication
 )
-from PySide6.QtCore import Qt, Signal, QEvent, QSize
-from PySide6.QtGui import QFocusEvent, QPixmap, QIcon
+from PySide6.QtCore import Qt, Signal, QEvent, QSize, QMimeData, QTimer
+from PySide6.QtGui import QFocusEvent, QPixmap, QIcon, QDrag
 
 from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
@@ -417,9 +417,79 @@ class NumbersPanel(QFrame):
         return group
 
 
+_TAG_MIME = "application/x-shoggoth-tag-chip"
+_TAG_REMOVE_ZONE = 22  # px at the chip's right edge that act as the "×" button
+
+
+class _TagChip(QPushButton):
+    """A filled trait pill: click the trailing "×" to remove, double-click to edit,
+    drag to reorder (the owning TagChipsField handles the drop)."""
+
+    removeRequested = Signal()
+    editRequested = Signal()
+
+    def __init__(self, text, index, parent=None):
+        super().__init__(f"{text.rstrip('.')} ×", parent)
+        self.index = index
+        self.setProperty("chip", "tag")
+        self.setToolTip(tr("TOOLTIP_TAG_CHIP"))
+        self._press_pos = None
+
+    def _in_remove_zone(self, pos):
+        return pos.x() >= self.width() - _TAG_REMOVE_ZONE
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._press_pos = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if (self._press_pos is not None and event.buttons() & Qt.LeftButton
+                and (event.position().toPoint() - self._press_pos).manhattanLength()
+                >= QApplication.startDragDistance()):
+            self._press_pos = None
+            drag = QDrag(self)
+            mime = QMimeData()
+            mime.setData(_TAG_MIME, str(self.index).encode())
+            drag.setMimeData(mime)
+            drag.setPixmap(self.grab())
+            self.setDown(False)
+            drag.exec(Qt.MoveAction)
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        pressed = self._press_pos
+        self._press_pos = None
+        super().mouseReleaseEvent(event)
+        if (pressed is not None and event.button() == Qt.LeftButton
+                and self._in_remove_zone(pressed) and self._in_remove_zone(event.position().toPoint())
+                and self.rect().contains(event.position().toPoint())):
+            self.removeRequested.emit()
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton and not self._in_remove_zone(event.position().toPoint()):
+            self.editRequested.emit()
+        else:
+            super().mouseDoubleClickEvent(event)
+
+
+class _TagChipEdit(QLineEdit):
+    """In-place editor that replaces a chip; Escape cancels."""
+
+    cancelled = Signal()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            self.cancelled.emit()
+            return
+        super().keyPressEvent(event)
+
+
 class TagChipsField(QWidget):
     """Chip editor for open, user-typed lists (Traits): filled pills with `x`, plus a trailing
     dashed "+ <label>" ghost chip that turns into a text entry with autocomplete on click.
+    Pills can be dragged to reorder and double-clicked to edit in place.
 
     Stores/round-trips the exact same "value1. value2." dot-joined string format the rest of
     the app expects — this widget only changes how the user edits that string.
@@ -432,6 +502,10 @@ class TagChipsField(QWidget):
         self._values = []
         self._placeholder_values = []
         self._completions = completions or []
+        self._edit_index = None
+        self._edit = None
+        self._chips = []
+        self.setAcceptDrops(True)
 
         self.flow = QHBoxLayout(self)
         self.flow.setContentsMargins(6, 4, 6, 4)
@@ -471,13 +545,16 @@ class TagChipsField(QWidget):
         self.entry.setVisible(False)
         self.add_btn.setVisible(True)
 
+    @staticmethod
+    def _format_value(text):
+        formatted = text[0].upper() + text[1:]
+        return formatted if formatted.endswith('.') else formatted + '.'
+
     def _commit_entry_text(self, text):
         self.entry.blockSignals(True)
         self.entry.clear()
         self.entry.blockSignals(False)
-        formatted = text[0].upper() + text[1:]
-        if not formatted.endswith('.'):
-            formatted += '.'
+        formatted = self._format_value(text)
         if formatted not in self._values:
             self._values.append(formatted)
         self._rebuild()
@@ -504,13 +581,105 @@ class TagChipsField(QWidget):
             if text:
                 self._commit_entry_text(text)
             self._close_entry()
+        elif obj is self._edit and event.type() == QEvent.FocusOut:
+            reason = event.reason() if isinstance(event, QFocusEvent) else None
+            if reason != Qt.PopupFocusReason:
+                # Deferred: rebuilding now would delete chips mid-click on the press that
+                # took focus away from the editor.
+                edit = obj
+                QTimer.singleShot(0, lambda: self._finish_edit(True) if self._edit is edit else None)
         return super().eventFilter(obj, event)
 
-    def _remove(self, value):
-        if value in self._values:
-            self._values.remove(value)
+    def _remove_at(self, index):
+        if 0 <= index < len(self._values):
+            del self._values[index]
+            self._edit_index = None
             self._rebuild()
             self.textChanged.emit(self.text())
+
+    # -- in-place editing ---------------------------------------------------
+
+    def _start_edit(self, index):
+        if self._edit is not None:
+            self._finish_edit(True)
+            # Committing may have merged/removed chips; the clicked chip's index is stale then.
+            if index >= len(self._values):
+                return
+        self._close_entry()
+        self._edit_index = index
+        self._rebuild()
+        if self._edit is not None:
+            self._edit.setFocus()
+            self._edit.selectAll()
+
+    def _finish_edit(self, commit):
+        index, edit = self._edit_index, self._edit
+        if index is None or edit is None:
+            return
+        self._edit_index = None
+        self._edit = None
+        text = edit.text().strip()
+        changed = False
+        if commit and 0 <= index < len(self._values):
+            if not text:
+                del self._values[index]
+                changed = True
+            else:
+                formatted = self._format_value(text)
+                if formatted != self._values[index]:
+                    if formatted in self._values:
+                        del self._values[index]  # typo fixed into an existing trait: merge
+                    else:
+                        self._values[index] = formatted
+                    changed = True
+        self._rebuild()
+        if changed:
+            self.textChanged.emit(self.text())
+
+    def _new_edit(self, value):
+        edit = _TagChipEdit()
+        edit.setText(value.rstrip('.'))
+        edit.setFixedWidth(max(90, len(value) * 8 + 24))
+        if self._completions:
+            completer = QCompleter(self._completions)
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchContains)
+            edit.setCompleter(completer)
+        edit.returnPressed.connect(lambda: self._finish_edit(True))
+        edit.cancelled.connect(lambda: self._finish_edit(False))
+        edit.installEventFilter(self)
+        return edit
+
+    # -- drag & drop reordering ---------------------------------------------
+
+    def _drop_index(self, x):
+        """Slot (0..len) a chip dropped at x lands in, judged by chip centers."""
+        return sum(1 for chip in self._chips if chip.geometry().center().x() < x)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat(_TAG_MIME) and self._values:
+            event.acceptProposedAction()
+
+    dragMoveEvent = dragEnterEvent
+
+    def dropEvent(self, event):
+        if not event.mimeData().hasFormat(_TAG_MIME):
+            return
+        try:
+            source = int(bytes(event.mimeData().data(_TAG_MIME)).decode())
+        except ValueError:
+            return
+        if not 0 <= source < len(self._values):
+            return
+        target = self._drop_index(event.position().toPoint().x())
+        if target > source:
+            target -= 1
+        event.acceptProposedAction()
+        if target == source:
+            return
+        self._values.insert(target, self._values.pop(source))
+        self._rebuild()
+        self.textChanged.emit(self.text())
 
     def _rebuild(self):
         for i in reversed(range(self.flow.count())):
@@ -518,13 +687,21 @@ class TagChipsField(QWidget):
             widget = item.widget()
             if widget is not None and widget not in (self.add_btn, self.entry):
                 widget.setParent(None)
+                widget.deleteLater()
+        self._chips = []
+        self._edit = None
         insert_at = self.flow.indexOf(self.entry)
         if self._values:
-            for value in self._values:
-                chip = QPushButton(f"{value.rstrip('.')} ×")
-                chip.setProperty("chip", "tag")
-                chip.clicked.connect(lambda _, v=value: self._remove(v))
-                self.flow.insertWidget(insert_at, chip)
+            for index, value in enumerate(self._values):
+                if index == self._edit_index:
+                    self._edit = self._new_edit(value)
+                    self.flow.insertWidget(insert_at, self._edit)
+                else:
+                    chip = _TagChip(value, index)
+                    chip.removeRequested.connect(lambda i=index: self._remove_at(i))
+                    chip.editRequested.connect(lambda i=index: self._start_edit(i))
+                    self.flow.insertWidget(insert_at, chip)
+                    self._chips.append(chip)
                 insert_at += 1
         else:
             # No explicit value set on this face — show the inherited/fallback traits as
@@ -542,6 +719,7 @@ class TagChipsField(QWidget):
     def setText(self, text):
         text = (text or '').strip()
         self._values = [v.strip() + '.' for v in text.split('.') if v.strip()] if text else []
+        self._edit_index = None
         self._rebuild()
 
     def set_placeholder(self, text):

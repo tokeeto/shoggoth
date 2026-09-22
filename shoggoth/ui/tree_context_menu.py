@@ -146,6 +146,16 @@ class TreeContextMenu:
         new_player_action.triggered.connect(lambda: self.new_player_card(project))
         menu.addAction(new_player_action)
 
+        # Share (only for a project backed by a cloud storage project)
+        if project.is_cloud_project:
+            menu.addSeparator()
+            upload_action = QAction(tr("CTX_UPLOAD_FILE"), self.parent)
+            upload_action.triggered.connect(lambda: self.upload_file(project))
+            menu.addAction(upload_action)
+            share_action = QAction(tr("CTX_SHARE_PROJECT"), self.parent)
+            share_action.triggered.connect(lambda: self.share_project(project))
+            menu.addAction(share_action)
+
         menu.addSeparator()
 
         # Close Project
@@ -374,6 +384,7 @@ class TreeContextMenu:
         if reply == QMessageBox.Yes:
             # Remove from project
             card.project.data['cards'].remove(card.data)
+            card.project.note_deleted('cards', card.id)
             
             print(f"Deleted card: {card.name}")
             
@@ -516,9 +527,11 @@ class TreeContextMenu:
             cards_to_remove = [c for c in project.data['cards'] if c.get('encounter_set') == encounter.id]
             for card in cards_to_remove:
                 project.data['cards'].remove(card)
+                project.note_deleted('cards', card.get('id'))
             
             # Remove encounter set
             project.data['encounter_sets'].remove(encounter.data)
+            project.note_deleted('encounter_sets', encounter.id)
             
             print(f"Deleted encounter set: {encounter.name}")
 
@@ -636,6 +649,7 @@ class TreeContextMenu:
         if reply == QMessageBox.Yes:
             guides = guide.project.data.get('guides', [])
             guide.project.data['guides'] = [g for g in guides if g['id'] != guide.id]
+            guide.project.note_deleted('guides', guide.id)
             guide.project.save_all()
             import shoggoth
             shoggoth.app.refresh_tree()
@@ -659,3 +673,16 @@ class TreeContextMenu:
         import shoggoth
         if shoggoth.app:
             shoggoth.app.close_project(project)
+
+    def upload_file(self, project):
+        """Pick files to add to a cloud project and upload them"""
+        from shoggoth.ui.main_window import cloud
+        import shoggoth
+        cloud.upload_new_files(shoggoth.app, project)
+
+    def share_project(self, project):
+        """Open the share-grants dialog for a cloud-storage-backed project"""
+        from shoggoth.ui.cloud.share_dialog import ShareProjectDialog
+        import shoggoth
+        dialog = ShareProjectDialog(project, shoggoth.app.config, self.parent)
+        dialog.exec()

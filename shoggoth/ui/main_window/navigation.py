@@ -51,6 +51,11 @@ class NavigationHistory:
         self._index += 1
         self._go(self._history[self._index])
 
+    def refresh_current(self):
+        """Re-open the current element (fresh objects, same place in history)"""
+        if 0 <= self._index < len(self._history):
+            self._go(self._history[self._index])
+
     def _go(self, nav_item):
         """Navigate to a history item without adding to history"""
         nav_type, nav_id = nav_item

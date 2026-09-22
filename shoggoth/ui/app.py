@@ -11,8 +11,8 @@ from PySide6.QtCore import Qt, QTimer, QObject, Signal
 from shoggoth.ui.main_window import ShoggothMainWindow
 from shoggoth.ui.snippet_input import SnippetSequenceFilter
 from shoggoth.settings import SettingsManager, apply_appearance
-from shoggoth.i18n import load_language
-from shoggoth import updater
+from shoggoth.i18n import load_language, tr
+from shoggoth import telemetry, updater
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,13 @@ def main():
     color_scheme = settings.get('Shoggoth', 'color_scheme', 'system')
     ui_style = settings.get('Shoggoth', 'ui_style', 'Fusion')
     apply_appearance(color_scheme, ui_style)
+
+    # Opt-in usage data collection (off by default -- see telemetry.py and
+    # CLAUDE.md's Data collection section). No-ops unless the user has
+    # already turned it on in Settings -> Privacy on a previous run. Started
+    # here, before the window is constructed, so ShoggothMainWindow.__init__
+    # already has an active session to record the startup event into.
+    telemetry.start_session(settings)
 
     # Allow Ctrl+C from the terminal to kill the app without saving.
     # Qt's event loop blocks Python signal handling, so a timer wakes it up
@@ -89,6 +96,15 @@ def main():
     ).start()
 
     window.show()
+
+    # First-run only, ever: a single-button notice pointing at the opt-in
+    # telemetry setting (Settings -> Privacy). Never shown again afterwards,
+    # regardless of what level (if any) the user ends up choosing.
+    if not settings.getboolean('Shoggoth', 'telemetry_notice_shown', False):
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(window, tr("DLG_TELEMETRY_NOTICE"), tr("MSG_TELEMETRY_NOTICE"))
+        settings.set('Shoggoth', 'telemetry_notice_shown', True)
+        settings.save()
 
     if window._snippet_filter.load_errors:
         from shoggoth.ui.snippet_loader import report_load_errors

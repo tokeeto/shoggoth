@@ -5,6 +5,12 @@ import platform
 import re
 import shoggoth
 
+def path_key(path):
+    """Canonical string for comparing paths from different sources (cache keys,
+    file-system events): normalized separators and, on Windows, case."""
+    return os.path.normcase(os.path.normpath(str(path)))
+
+
 dirs = PlatformDirs("Shoggoth", "Shoggoth")
 root_dir = Path(dirs.user_data_dir)
 
@@ -28,6 +34,7 @@ translation_dir = asset_dir / "translations"
 
 tts_dir = None
 prince_dir = root_dir / "prince"
+cloud_cache_dir = root_dir / "cloud_cache"
 
 # TTS Output folder
 if platform.system() == "Windows":

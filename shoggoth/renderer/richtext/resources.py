@@ -13,6 +13,7 @@ from collections import OrderedDict
 import pyphen
 from PIL import Image, ImageColor, ImageFont, ImageOps
 
+from shoggoth.files import path_key
 from shoggoth.perf import perf
 from shoggoth.renderer.richtext.constants import GLYPH_RUN_CACHE_MAXSIZE
 from shoggoth.renderer.richtext.tags import FONT_FILES, LOCALE_FONT_OVERRIDES
@@ -112,7 +113,6 @@ class ResourceCache:
         # face name -> {'path': ...}; seeded from the static set, extended by
         # resolve_font() with '__user__<name>' entries for <font "..."> tags.
         self.fonts = dict(FONT_FILES)
-        self.apply_locale_fonts(card_renderer.locale)
 
         self.font_cache = {}          # size -> {face name: ImageFont}
         self._user_font_keys = {}     # <font> name -> face name (or None if unresolved)
@@ -121,14 +121,22 @@ class ResourceCache:
         self.width_cache = WidthCache()
         self.glyph_run_cache = GlyphRunCache()
         self._hyphenators = {}        # locale -> pyphen.Pyphen or None
-
+        self.apply_locale_fonts(card_renderer.locale)
 
     def apply_locale_fonts(self, locale):
         """Swap base font files for faces the locale overrides (for example,
-        Russian titles render in Conkordia instead of Arkhamic)."""
+        Russian titles render in Conkordia instead of Arkhamic). Faces the
+        locale doesn't override revert to their base file, so this is safe to
+        call again when the locale changes."""
+        for face_name, info in FONT_FILES.items():
+            self.fonts[face_name] = info
         for face_name, path in LOCALE_FONT_OVERRIDES.get(locale, {}).items():
             if face_name in self.fonts:
                 self.fonts[face_name] = {**self.fonts[face_name], 'path': path}
+        self.font_cache.clear()
+        self.font_meta.clear()
+        self.width_cache.clear()
+        self.glyph_run_cache.clear()
 
     def load_fonts(self, size):
         if size in self.font_cache:
@@ -163,7 +171,10 @@ class ResourceCache:
             return name, False
         if name in self._user_font_keys:
             cached = self._user_font_keys[name]
-            return ('regular', True) if cached is None else (cached, False)
+            if cached is None:
+                return 'regular', True
+            self.card_renderer.notify_file_used(self.fonts[cached]['path'])
+            return cached, False
 
         face_name = f'__user__{name}'
         path = (project.find_file(name) if project else None) or pathlib.Path(name)
@@ -180,6 +191,7 @@ class ResourceCache:
 
     def _register_user_font(self, name, face_name, path):
         self.fonts[face_name] = {'path': path, 'scale': 1, 'fallback': None}
+        self.card_renderer.notify_file_used(path)
         self.font_cache.clear()
         self._user_font_keys[name] = face_name
         return face_name, False
@@ -298,6 +310,24 @@ class ResourceCache:
             if self.width_cache.width(candidate, font) <= max_width:
                 return candidate, tail + suffix
         return None
+
+    def invalidate_files(self, keys):
+        """Drop cached icons and fonts loaded from any file whose `path_key` is
+        in `keys`. A changed font resets all font state: faces are loaded and
+        measured per size as a set."""
+        for icon_key in [k for k in self.icon_cache if path_key(k[0]) in keys]:
+            del self.icon_cache[icon_key]
+        changed_fonts = [face for face, info in self.fonts.items()
+                         if path_key(info['path']) in keys]
+        if changed_fonts:
+            for face in changed_fonts:
+                if face.startswith('__user__'):
+                    del self.fonts[face]
+            self._user_font_keys.clear()  # <font> tags re-resolve on next parse
+            self.font_cache.clear()
+            self.font_meta.clear()
+            self.width_cache.clear()
+            self.glyph_run_cache.clear()
 
     def clear(self):
         """Drop every in-memory cache so updated assets are picked up next render."""

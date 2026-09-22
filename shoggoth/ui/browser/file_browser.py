@@ -200,6 +200,12 @@ class FileBrowser(QWidget):
                 self.tree.addTopLevelItem(root_item)
                 root_item.setExpanded(True)
 
+    def rebuild(self):
+        """Rebuild the whole tree from scratch, for when a project's identity in
+        the tree changed (its file was replaced or moved) and the incremental
+        `refresh()` can't match up the old nodes."""
+        self._full_rebuild()
+
     def _full_rebuild(self):
         """Do a complete tree rebuild (used for initial load or project change)"""
         self.tree.clear()

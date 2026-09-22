@@ -10,6 +10,7 @@ import time
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
+from shoggoth import telemetry
 from shoggoth.files import default_export_folder
 from shoggoth.i18n import tr
 from shoggoth.renderer import renderer_for_card
@@ -105,6 +106,7 @@ def export_all(window, bleed=None, format=None, quality=None, separate_versions=
     prefs = _read_export_prefs(window, bleed, format, quality, separate_versions, rounded)
     try:
         _export_card_images(window, window.active_project.get_all_cards(), prefs)
+        telemetry.record_export({'images'})
     except Exception as e:
         QMessageBox.critical(window, tr("DLG_EXPORT_ERROR"), tr("ERR_EXPORT_CARDS").format(error=e))
 
@@ -119,6 +121,7 @@ def export_encounter_set(window, encounter_set):
     prefs = _read_export_prefs(window)
     try:
         _export_card_images(window, cards, prefs)
+        telemetry.record_export({'images'})
     except Exception as e:
         QMessageBox.critical(window, tr("DLG_EXPORT_ERROR"), tr("ERR_EXPORT_CARDS").format(error=e))
 
@@ -134,6 +137,7 @@ def export_current(window, bleed=None, format=None, quality=None, separate_versi
         export_folder = _export_folder(window)
         renderer_for_card(window.card_renderer, window.current_card).export_card_images(
             window.current_card, str(export_folder), **prefs)
+        telemetry.record_export({'images'})
         QMessageBox.information(
             window,
             tr("DLG_EXPORT_COMPLETE"),
@@ -171,14 +175,10 @@ def open_encounter_set_export_dialog(window, encounter_set=None):
         return
     from shoggoth.ui.project_export_dialog import ProjectExportDialog
     dialog = ProjectExportDialog(window.active_project, window.card_renderer, window, persist=False)
-    dialog._images_section.set_enabled_checked(True)
-    dialog._pdf_section.set_enabled_checked(False)
-    dialog._tts_section.set_enabled_checked(False)
-    dialog._ab_section.set_enabled_checked(False)
-    dialog._guides_section.set_enabled_checked(False)
+    scope = None
     if encounter_set is not None:
-        dialog._scope_selector.set_scope({'type': 'encounter_sets', 'encounter_set_ids': [encounter_set.id]})
-        dialog._images_section.set_expanded(True)
+        scope = {'type': 'encounter_sets', 'encounter_set_ids': [encounter_set.id], 'card_ids': []}
+    dialog.seed_single_entry('images', scope=scope)
     dialog.exec()
 
 

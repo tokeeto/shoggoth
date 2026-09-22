@@ -1,201 +1,203 @@
-import os
-import time
-from pathlib import Path
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+"""File-change detection for the live card preview.
+
+One `FileWatcher` owns the app's single watchdog Observer (on Linux: one
+inotify instance, which is a scarce per-user resource) and serves two needs:
+
+- *trees*: directories watched recursively where any change counts (the asset
+  pack);
+- *files*: individual files the current card depends on (illustrations, icons,
+  fonts, project-local defaults). The renderer reports them as it uses them
+  (`CardRenderer.track_files`); only their parent directories are watched, and
+  only until `clear_files()` is called (when the user leaves the card).
+  *Pinned* files (`watch_file(path, pinned=True)`, e.g. open project files)
+  are the exception: they stay watched until `unwatch_file()`.
+
+Events are coalesced: the callback fires once, `debounce` seconds after the
+last event, so a file that is still being written (or an asset-pack update
+touching hundreds of files) produces a single refresh, after it settled.
+"""
+
 import logging
+import os
+import threading
+
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
+
+from shoggoth.files import path_key
+
 logging.getLogger('watchdog').setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
+
+# Only these change a file. Opened/closed events are emitted by *reading* a
+# file too, so reacting to them would turn every re-render into a new trigger.
+_CHANGE_EVENTS = ('created', 'modified', 'deleted', 'moved')
 
 
-class CardFileHandler(FileSystemEventHandler):
-    """File system event handler for card files"""
+class _Handler(FileSystemEventHandler):
+    def __init__(self, watcher):
+        super().__init__()
+        self.watcher = watcher
 
-    def __init__(self, callback, monitored_files=None, always_trigger_dirs=None):
-        super(CardFileHandler, self).__init__()
-        self.callback = callback
-        self.monitored_files = monitored_files or set()
-        self.always_trigger_dirs = always_trigger_dirs or set()  # Always trigger for files in these dirs
-        self.last_modified = {}
-
-    def on_modified(self, event):
-        """When a file is modified"""
-        if event.is_directory:
+    def on_any_event(self, event):
+        if event.is_directory or event.event_type not in _CHANGE_EVENTS:
             return
-
-        # Normalize the path for comparison
-        src_path = str(Path(event.src_path).resolve())
-
-        # Check if we should trigger the callback
-        should_trigger = False
-
-        # Always trigger for files in always_trigger_dirs (e.g., asset directory)
-        for trigger_dir in self.always_trigger_dirs:
-            if src_path.startswith(trigger_dir):
-                should_trigger = True
-                break
-
-        # Also trigger for specifically monitored files (e.g., card illustrations)
-        if not should_trigger and src_path in self.monitored_files:
-            should_trigger = True
-
-        if should_trigger:
-            # Add a small delay to avoid multiple reload triggers
-            current_time = time.time()
-            last_time = self.last_modified.get(src_path, 0)
-
-            if current_time - last_time > 0.5:
-                self.last_modified[src_path] = current_time
-                self.callback(src_path)
+        self.watcher._on_event(event.src_path)
+        # Atomic saves (write temp file, rename over the target) arrive as a move
+        if event.event_type == 'moved' and event.dest_path:
+            self.watcher._on_event(event.dest_path)
 
 
-class FileMonitor:
-    """Monitors files for changes"""
+class FileWatcher:
+    """Thread-safe. `callback(paths)` is called on a background timer thread
+    with a set of path strings: for a watched file, the path exactly as it was
+    registered (so it matches the caller's own cache keys); for a change inside
+    a watched tree, the path of the changed file."""
 
-    def __init__(self, directory_path, callback):
-        self.directory_path = directory_path
+    def __init__(self, callback, trees=(), debounce=0.15):
         self.callback = callback
-        self.observer = None
-        self.monitored_files = set()
+        self.debounce = debounce
+        # Two locks, never nested. `_lock` guards what the event handler reads
+        # (the watched files, the pending batch). `_observer_lock` serializes
+        # calls into the observer: watchdog dispatches events while holding its
+        # own lock, so calling schedule()/unschedule() with `_lock` held would
+        # deadlock against a handler waiting for `_lock`.
+        self._lock = threading.Lock()
+        self._observer_lock = threading.Lock()
+        self._observer = None
+        self._handler = _Handler(self)
+        self._trees = [str(t) for t in trees]
+        self._tree_keys = [path_key(t) for t in self._trees]
+        self._registered = set()   # paths as given to watch_file (fast duplicate check)
+        self._pinned = set()       # registered paths that clear_files() keeps
+        self._files = {}           # path_key(real path) -> {paths as given}
+        self._dir_watches = {}     # path_key(real dir) -> ObservedWatch (or None)
+        self._pending = set()
+        self._timer = None
+
+    # ── lifecycle ─────────────────────────────────────────────────────────
 
     def start(self):
-        """Start monitoring files"""
-        if self.observer:
-            self.stop()
-
-        self.observer = Observer()
-        handler = CardFileHandler(self.callback, self.monitored_files)
-
-        # Monitor the directory
-        if os.path.exists(self.directory_path):
-            self.observer.schedule(handler, self.directory_path, recursive=True)
-            self.observer.start()
+        with self._observer_lock:
+            if self._observer:
+                return
+            observer = Observer()
+            observer.daemon = True
+            for tree in self._trees:
+                if os.path.isdir(tree):
+                    observer.schedule(self._handler, tree, recursive=True)
+            observer.start()
+            self._observer = observer
+        with self._lock:
+            registered = list(self._registered)
+        for path in registered:
+            self._watch_parent(path)
 
     def stop(self):
-        """Stop monitoring files"""
-        if self.observer:
-            self.observer.stop()
-            self.observer.join()
-            self.observer = None
+        with self._observer_lock:
+            observer, self._observer = self._observer, None
+            self._dir_watches.clear()
+        with self._lock:
+            if self._timer:
+                self._timer.cancel()
+                self._timer = None
+            self._pending.clear()
+        if observer:
+            observer.stop()
+            observer.join()
 
-    def add_file(self, file_path):
-        """Add a file to monitor"""
-        if file_path and os.path.exists(file_path):
-            self.monitored_files.add(str(Path(file_path).resolve()))
+    # ── file registration ─────────────────────────────────────────────────
 
-    def remove_file(self, file_path):
-        """Remove a file from monitoring"""
-        normalized = str(Path(file_path).resolve())
-        if normalized in self.monitored_files:
-            self.monitored_files.remove(normalized)
+    def watch_file(self, path, pinned=False):
+        """Start watching a file (idempotent, cheap when already watched, and
+        safe to call from any thread). A pinned file survives `clear_files()`."""
+        path = str(path)
+        if path in self._registered and (not pinned or path in self._pinned):
+            return
+        real = os.path.realpath(path)
+        with self._lock:
+            self._registered.add(path)
+            if pinned:
+                self._pinned.add(path)
+            self._files.setdefault(path_key(real), set()).add(path)
+        self._watch_parent(path)
+
+    def unwatch_file(self, path):
+        """Stop watching a file, pinned or not, and release its directory watch
+        if nothing else needs it."""
+        path = str(path)
+        key = path_key(os.path.realpath(path))
+        with self._lock:
+            self._pinned.discard(path)
+            self._registered.discard(path)
+            paths = self._files.get(key)
+            if paths:
+                paths.discard(path)
+                if not paths:
+                    del self._files[key]
+        self._release_unneeded_dirs()
 
     def clear_files(self):
-        """Clear all monitored files"""
-        self.monitored_files.clear()
+        """Forget every watched file except the pinned ones, and release the
+        directory watches that only existed for the others."""
+        with self._lock:
+            self._registered = set(self._pinned)
+            self._files = {}
+            for path in self._pinned:
+                self._files.setdefault(path_key(os.path.realpath(path)), set()).add(path)
+        self._release_unneeded_dirs()
 
+    def _release_unneeded_dirs(self):
+        with self._lock:
+            registered = list(self._registered)
+        keep = {path_key(os.path.dirname(os.path.realpath(p))) for p in registered}
+        with self._observer_lock:
+            for key in [k for k in self._dir_watches if k not in keep]:
+                watch = self._dir_watches.pop(key)
+                if watch and self._observer:
+                    self._observer.unschedule(watch)
 
-class CardFileMonitor:
-    """
-    Monitors files relevant to the current card for changes.
+    def _watch_parent(self, path):
+        """Watch `path`'s directory (non-recursively) unless a tree covers it."""
+        directory = os.path.dirname(os.path.realpath(path))
+        key = path_key(directory)
+        with self._observer_lock:
+            if not self._observer or key in self._dir_watches or self._in_tree(key):
+                return
+            try:
+                self._dir_watches[key] = self._observer.schedule(
+                    self._handler, directory, recursive=False)
+            except OSError as e:
+                # Missing directory, or the system's inotify watch limit
+                logger.warning('Cannot watch %s: %s', directory, e)
+                self._dir_watches[key] = None  # don't retry on every render
 
-    This includes:
-    - Asset directory (templates, overlays, fonts, icons)
-    - Illustration files specified by the current card
-    """
+    def _in_tree(self, key):
+        return any(key == root or key.startswith(root + os.sep) for root in self._tree_keys)
 
-    def __init__(self, asset_dir, callback):
-        self.asset_dir = str(asset_dir)
-        self.callback = callback
-        self.observer = None
-        self.handler = None
-        self.card_files = set()  # Files specific to current card
-        self._watched_dirs = set()  # Extra directories being watched
+    # ── events ────────────────────────────────────────────────────────────
 
-    def start(self):
-        """Start monitoring"""
-        if self.observer:
-            self.stop()
+    def _on_event(self, path):
+        key = path_key(path)
+        with self._lock:
+            hits = set(self._files.get(key, ()))
+            if not hits and self._in_tree(key):
+                hits.add(path)
+            if not hits:
+                return
+            self._pending |= hits
+            if self._timer:
+                self._timer.cancel()
+            self._timer = threading.Timer(self.debounce, self._flush)
+            self._timer.daemon = True
+            self._timer.start()
 
-        self.observer = Observer()
-        # Pass asset_dir as always_trigger_dirs so all asset changes trigger callback
-        self.handler = CardFileHandler(
-            self._on_change,
-            self.card_files,
-            always_trigger_dirs={self.asset_dir}
-        )
-
-        # Always watch the asset directory
-        if os.path.exists(self.asset_dir):
-            self.observer.schedule(self.handler, self.asset_dir, recursive=True)
-
-        self.observer.start()
-
-    def stop(self):
-        """Stop monitoring"""
-        if self.observer:
-            self.observer.stop()
-            self.observer.join()
-            self.observer = None
-            self.handler = None
-            self._watched_dirs.clear()
-
-    def _on_change(self, file_path):
-        """Internal handler that forwards to the callback"""
-        self.callback(file_path)
-
-    def set_card_files(self, files):
-        """
-        Update the set of card-specific files to monitor.
-
-        Args:
-            files: Iterable of file paths to monitor
-        """
-        self.card_files.clear()
-        new_dirs = set()
-
-        for file_path in files:
-            if file_path and os.path.exists(file_path):
-                resolved = str(Path(file_path).resolve())
-                self.card_files.add(resolved)
-
-                # Track the parent directory
-                parent_dir = str(Path(resolved).parent)
-                if parent_dir != self.asset_dir and not parent_dir.startswith(self.asset_dir):
-                    new_dirs.add(parent_dir)
-
-        # Update watched directories if observer is running
-        if self.observer and self.handler:
-            # Add new directories that aren't already watched
-            for dir_path in new_dirs - self._watched_dirs:
-                if os.path.exists(dir_path):
-                    try:
-                        self.observer.schedule(self.handler, dir_path, recursive=False)
-                    except Exception as e:
-                        logging.warning(f"Could not watch directory {dir_path}: {e}")
-
-            self._watched_dirs = new_dirs
-
-        # Update the handler's monitored files
-        if self.handler:
-            self.handler.monitored_files = self.card_files
-
-    def get_card_file_dependencies(self, card):
-        """
-        Extract all file dependencies from a card.
-
-        Args:
-            card: Card object to extract dependencies from
-
-        Returns:
-            Set of file paths that the card depends on
-        """
-        files = set()
-
-        for face in (card.front, card.back):
-            # Illustration file
-            illustration = face.get('illustration')
-            if illustration:
-                files.add(illustration)
-
-            # Template files are in the asset dir, so no need to track separately
-
-        return files
+    def _flush(self):
+        with self._lock:
+            paths, self._pending = self._pending, set()
+            self._timer = None
+        if paths:
+            try:
+                self.callback(paths)
+            except Exception:
+                logger.exception('file change callback failed')

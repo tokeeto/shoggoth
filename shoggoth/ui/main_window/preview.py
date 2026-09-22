@@ -78,9 +78,10 @@ class PreviewController(QObject):
 
         def render_task():
             try:
-                front_image, back_image = renderer.get_card_textures(
-                    card, size, bleed=bleed, show_regions=show_regions, rounded=rounded
-                )
+                with renderer.track_files(lambda path: self._watch_file(version, path)):
+                    front_image, back_image = renderer.get_card_textures(
+                        card, size, bleed=bleed, show_regions=show_regions, rounded=rounded
+                    )
                 # Emit result signal (will be handled on main thread)
                 self.render_result.emit(version, front_image, back_image)
             except Exception as e:
@@ -90,6 +91,13 @@ class PreviewController(QObject):
 
         thread = threading.Thread(target=render_task, daemon=True)
         thread.start()
+
+    def _watch_file(self, version, path):
+        """A render (on any thread) used `path`: keep watching it for changes.
+        Ignored once that render is stale, so a card we already left in the
+        meantime doesn't re-register its files."""
+        if version == self.render_version:
+            self.window.file_watcher.watch_file(path)
 
     @Slot(int, object, object)
     def _handle_render_result(self, version, front_image, back_image):
@@ -109,11 +117,16 @@ class PreviewController(QObject):
         if not window.current_card:
             return
 
+        # A new card is on screen: results/file reports of earlier renders are stale
+        self.render_version += 1
+        version = self.render_version
+        renderer = window.card_renderer
         try:
             bleed, show_regions, rounded = self._render_options()
-            front_image, back_image = window.card_renderer.get_card_textures(
-                window.current_card, self._preview_size(), bleed=bleed, show_regions=show_regions, rounded=rounded
-            )
+            with renderer.track_files(lambda path: self._watch_file(version, path)):
+                front_image, back_image = renderer.get_card_textures(
+                    window.current_card, self._preview_size(), bleed=bleed, show_regions=show_regions, rounded=rounded
+                )
             window.card_preview.set_card_images(front_image, back_image)
         except Exception as e:
             window.status_bar.showMessage(tr("ERR_RENDER_CARD_DETAIL").format(error=e))

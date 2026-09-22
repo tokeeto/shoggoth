@@ -51,6 +51,7 @@ class Face:
         self.data = data
         self.card = card
         self._fallback = None
+        self._fallback_files = []
 
     def __eq__(self, other):
         return self.data == other.data
@@ -60,6 +61,7 @@ class Face:
         fallback = {}
         if path := self.card.project.find_file(name):
             defaults_path = path
+            self._fallback_files.append(path)
         else:
             defaults_path = defaults_dir / f'{name}.json'
 
@@ -86,8 +88,16 @@ class Face:
         if self._fallback is None:
             if not self.data['type']:
                 return {}
+            self._fallback_files = []
             self._fallback = self.__build_fallback(self.data['type'])
         return self._fallback
+
+    @property
+    def fallback_files(self):
+        """Project-local defaults files this face's fallback chain was loaded
+        from (the asset pack's own defaults are not listed)."""
+        self.fallback
+        return tuple(self._fallback_files)
 
     def _resolved_classes(self):
         """ This face's class list, resolving a 'classes': '<copy>' fallback
@@ -181,16 +191,17 @@ class Face:
         if key == 'type':
             self._fallback = None
 
-        if self.data.get(key) != value:
-            self.card.dirty = True
+        changed = self.data.get(key) != value
 
         self.data[key] = value
         if value is None and key != 'type':
             del self.data[key]
 
-        if shoggoth.app:
-            shoggoth.app.schedule_preview_update()
-            shoggoth.app.update_card_in_tree(self.card.id)
+        # Marking dirty (after the data is in place) notifies the project's
+        # change listeners -- that's how the UI learns it should re-render/
+        # refresh the tree, rather than this model code calling into the app.
+        if changed:
+            self.card.dirty = True
 
     def get_class(self):
         cls = self._resolved_classes()
@@ -375,15 +386,14 @@ class Card:
             return classes[0]
 
     def set(self, key, value):
-        if self.data.get(key) != value:
-            self.dirty = True
+        changed = self.data.get(key) != value
 
         self.data[key] = value
         if key in self.data and value is None:
             del self.data[key]
 
-        if shoggoth.app:
-            shoggoth.app.update_card_in_tree(self.id)
+        if changed:
+            self.dirty = True
 
     def get(self, key, default=None):
         if key == 'copyright' and 'copyright' not in self.data:
@@ -425,9 +435,6 @@ class Card:
     def save(self):
         self.project.writer.save_card(self)
         self.dirty = False
-        # Update tree to remove dirty indicator
-        if shoggoth.app:
-            shoggoth.app.update_card_in_tree(self.id)
 
 
 # templates

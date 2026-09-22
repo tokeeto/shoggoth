@@ -18,7 +18,13 @@ class Writer:
             orig_data[key] = project.data[key]
 
         self.dirty = False
-        atomic_write(project.file_path, json.dumps(project.data, indent=4))
+        self._write(project.data)
+
+    def _write(self, data):
+        """Writes the project file, and tells the project what it now holds."""
+        text = json.dumps(data, indent=4)
+        atomic_write(self.project.file_path, text)
+        self.project.remember_saved(json.loads(text))
 
     def save_card(self, card):
         with open(self.project.file_path, 'r', encoding='utf-8') as f:
@@ -30,14 +36,16 @@ class Writer:
                 break
         if index:
             orig_data['cards'][index] = card.data
+        else:
+            orig_data['cards'][card.id] = card.data
 
         self.project.set_dirty(card.id, False)
-        atomic_write(self.project.file_path, json.dumps(orig_data, indent=4))
+        self._write(orig_data)
 
     def save_all(self):
         """Save data to file"""
         self.project.clear_dirty()
-        atomic_write(self.project.file_path, json.dumps(self.project.data, indent=4))
+        self._write(self.project.data)
 
     def save_face(self):
         pass
@@ -47,6 +55,34 @@ class Writer:
 
     def save_encounter_set(self, encounter_set):
         pass
+
+
+class CloudWriter(Writer):
+    """Writer for projects in the cloud folder.
+
+    Saving works exactly as for any other project: edits live in memory until
+    the user saves, and closing without saving discards them. What a cloud
+    project adds is that a save is also the moment the change is *shared* --
+    once the file is written, whoever is syncing this project (see
+    shoggoth.cloud.sync.CloudSyncController, which sets `on_saved` when it
+    attaches) is told what was saved and sends it to the cloud.
+    """
+
+    # callback(project, ids): `ids` is the set of saved element ids, or None
+    # when the whole project was saved
+    on_saved = None
+
+    def save_all(self):
+        super().save_all()
+        self._saved(None)
+
+    def save_card(self, card):
+        super().save_card(card)
+        self._saved({card.id})
+
+    def _saved(self, ids):
+        if self.on_saved is not None:
+            self.on_saved(self.project, ids)
 
 
 class TranslationWriter(Writer):
@@ -59,6 +95,11 @@ class TranslationWriter(Writer):
             orig_data = json.load(f)
         orig_data["project_name"] = project.name
         orig_data['guides'] = project.data['guides']
+        # The translation's own metadata (currently just cloud_translation_id,
+        # see Translation.get_meta/set_meta) -- deliberately not project.data
+        # ['meta'], which belongs to the overlaid *base* project and isn't
+        # this writer's to persist.
+        orig_data['meta'] = self.translation.data.get('meta', {})
 
         project.dirty = False
         atomic_write(self.translation.file_path, json.dumps(orig_data, indent=4))

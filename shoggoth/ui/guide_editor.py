@@ -18,11 +18,15 @@ from io import BytesIO
 from shoggoth.i18n import tr
 from shoggoth.guide import SECTION_TYPES, GuideSection
 
-
 GUIDE_FORMAT_LABELS = {
     'a4': 'A4',
     'letter': 'US Letter',
     '75x95': '7.5 × 9.5 in',
+}
+
+GUIDE_CHAPTER_LABELS = {
+    'ch1': 'Chapter 1',
+    'ch2': 'Chapter 2',
 }
 
 SECTION_LABEL_KEYS = {
@@ -307,6 +311,14 @@ class GuideOverviewPanel(QWidget):
         self._format_combo.currentIndexChanged.connect(self._on_format_changed)
         layout.addWidget(self._format_combo)
 
+        # Chapter type (selects the asset-pack template + assets to render with)
+        layout.addWidget(QLabel(tr("LABEL_GUIDE_CHAPTER")))
+        self._chapter_combo = QComboBox()
+        for key, label in GUIDE_CHAPTER_LABELS.items():
+            self._chapter_combo.addItem(label, key)
+        self._chapter_combo.currentIndexChanged.connect(self._on_chapter_changed)
+        layout.addWidget(self._chapter_combo)
+
         # Section list
         layout.addWidget(QLabel(tr("LABEL_SECTIONS")))
         self._list = QListWidget()
@@ -373,6 +385,10 @@ class GuideOverviewPanel(QWidget):
         index = self._format_combo.findData(self.guide.format)
         self._format_combo.setCurrentIndex(max(index, 0))
         self._format_combo.blockSignals(False)
+        self._chapter_combo.blockSignals(True)
+        index = self._chapter_combo.findData(self.guide.chapter)
+        self._chapter_combo.setCurrentIndex(max(index, 0))
+        self._chapter_combo.blockSignals(False)
 
         selected_id = None
         item = self._list.currentItem()
@@ -411,6 +427,10 @@ class GuideOverviewPanel(QWidget):
 
     def _on_format_changed(self, index):
         self.guide.format = self._format_combo.itemData(index)
+        self.guide.project.save_all()
+
+    def _on_chapter_changed(self, index):
+        self.guide.chapter = self._chapter_combo.itemData(index)
         self.guide.project.save_all()
 
     def _browse_front_page(self):

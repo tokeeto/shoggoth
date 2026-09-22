@@ -7,6 +7,8 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
+from shoggoth import telemetry
+from shoggoth.files import path_key
 from shoggoth.i18n import tr
 from shoggoth.project import (
     Project, Translation,
@@ -58,10 +60,14 @@ def open_project(window, file_path):
         window.open_projects.append(project)
         window.active_project = project
         window.file_browser.add_project(project)
+        window.watch_project_file(project)
         window.session.save_session()
         # Clear navigation history for new project
         window.nav.clear()
         window.status_bar.showMessage(tr("STATUS_OPENED").format(name=project['name']))
+        # A project living in the cloud folder syncs in the background --
+        # opening it above was purely local, so this never delays the open.
+        window.cloud.attach(project)
     except Exception as e:
         QMessageBox.critical(window, tr("DLG_ERROR"), tr("ERR_OPEN_PROJECT").format(error=e))
 
@@ -89,6 +95,9 @@ def close_project(window, project=None):
             project.save()
         elif msg_box.clickedButton() == cancel_btn:
             return
+
+    window.cloud.detach(project)
+    window.unwatch_project_file(project)
 
     # Remove from open projects
     if project in window.open_projects:
@@ -123,28 +132,155 @@ def new_card_dialog(window):
     dialog.exec()
 
 
-def save_changes(window):
-    """Save the entire project"""
-    if not window.active_project:
+def save_changes(window, project=None):
+    """Save the entire project (the active one, unless given)"""
+    project = project or window.active_project
+    if not project:
         return
 
     try:
-        window.active_project.save()
-
-        # Mark all cards as clean
-        for card in window.active_project.get_all_cards():
-            card.dirty = False
-            if hasattr(card, 'front') and hasattr(card.front, 'dirty'):
-                card.front.dirty = False
-            if hasattr(card, 'back') and hasattr(card.back, 'dirty'):
-                card.back.dirty = False
-
-        # Update tree to remove dirty indicators
-        window.file_browser.refresh()
-
+        project.save()
+        _after_save(window, project)
         window.status_bar.showMessage(tr("STATUS_SAVED"), 3000)
     except Exception as e:
         QMessageBox.critical(window, tr("DLG_SAVE_ERROR"), tr("ERR_SAVE_PROJECT").format(error=e))
+
+
+def _after_save(window, project):
+    """Mark everything in a just-saved project clean and refresh the tree."""
+    for card in project.get_all_cards():
+        card.dirty = False
+        if hasattr(card, 'front') and hasattr(card.front, 'dirty'):
+            card.front.dirty = False
+        if hasattr(card, 'back') and hasattr(card.back, 'dirty'):
+            card.back.dirty = False
+
+    # Update tree to remove dirty indicators
+    window.file_browser.refresh()
+
+
+def save_project_as(window, project=None):
+    """Save a project (the active one, unless given) to a new file, and keep
+    working on it there. Returns whether it was saved."""
+    project = project or window.active_project
+    if not project:
+        QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+        return False
+    if not project.is_file_backed:
+        QMessageBox.information(window, tr("DLG_SAVE_PROJECT_AS"), tr("MSG_SAVE_AS_UNSUPPORTED"))
+        return False
+
+    file_path, _ = QFileDialog.getSaveFileName(
+        window, tr("DLG_SAVE_PROJECT_AS"), str(project.file_path), tr("FILTER_SHOGGOTH_PROJECTS"))
+    if not file_path:
+        return False
+    if not Path(file_path).suffix:
+        file_path += '.json'
+
+    if path_key(file_path) == path_key(project.file_path):
+        # Same file: an ordinary save (which is also what "overwrite" means
+        # when the file was changed outside)
+        save_changes(window, project)
+        return True
+    for other in window.open_projects:
+        if other is not project and path_key(other.file_path) == path_key(file_path):
+            QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_SAVE_AS_ALREADY_OPEN").format(path=file_path))
+            return False
+
+    old_path = project.file_path
+    try:
+        project.save_as(file_path)
+    except Exception as e:
+        QMessageBox.critical(window, tr("DLG_SAVE_ERROR"), tr("ERR_SAVE_AS").format(path=file_path, error=e))
+        return False
+
+    window.file_watcher.unwatch_file(old_path)
+    window.watch_project_file(project)
+    _after_save(window, project)
+    # Tree nodes are keyed by the project's file path
+    window.file_browser.rebuild()
+    window.session.save_session()
+    window.status_bar.showMessage(tr("STATUS_SAVED_AS").format(path=file_path), 5000)
+    QMessageBox.information(
+        window, tr("DLG_SAVED_AS_TITLE"), tr("MSG_SAVED_AS_RELATIVE_FILES").format(path=file_path))
+    return True
+
+
+# ── The project file changed outside Shoggoth ─────────────────────────────
+
+_prompting = set()  # id()s of projects with a "file changed" dialog open
+
+
+def check_external_change(window, project):
+    """Called when a watched project file changed on disk. Does nothing unless
+    the content really changed (our own saves, `touch`, reformatting don't
+    count); otherwise asks the user what to do about it."""
+    if id(project) in _prompting or not any(p is project for p in window.open_projects):
+        return
+    if not project.has_external_changes():
+        return
+    _prompting.add(id(project))
+    try:
+        _resolve_external_change(window, project)
+    finally:
+        _prompting.discard(id(project))
+
+
+def _resolve_external_change(window, project):
+    while True:
+        unsaved = project.dirty or project.has_unsaved_changes()
+        box = QMessageBox(window)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle(tr("DLG_PROJECT_FILE_CHANGED"))
+        box.setText(tr("MSG_PROJECT_FILE_CHANGED_UNSAVED" if unsaved else "MSG_PROJECT_FILE_CHANGED")
+                    .format(name=project['name'], path=project.file_path))
+        save_as_btn = box.addButton(tr("BTN_SAVE_AS"), QMessageBox.AcceptRole)
+        reload_btn = box.addButton(tr("BTN_RELOAD_FROM_DISK"), QMessageBox.DestructiveRole)
+        keep_btn = box.addButton(tr("BTN_KEEP_MY_VERSION"), QMessageBox.RejectRole)
+        box.setDefaultButton(save_as_btn if unsaved else reload_btn)
+        box.setEscapeButton(keep_btn)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked == reload_btn:
+            reload_project(window, project)
+            return
+        if clicked == save_as_btn:
+            if save_project_as(window, project):
+                return
+            continue  # cancelled the file dialog: ask again
+        try:
+            project.acknowledge_external_changes()
+        except OSError:
+            pass
+        window.status_bar.showMessage(tr("STATUS_KEPT_OWN_VERSION").format(name=project['name']), 5000)
+        return
+
+
+def reload_project(window, project):
+    """Replace a project's in-memory state with what's in its file, losing any
+    unsaved changes."""
+    try:
+        project.reload()
+    except Exception as e:
+        QMessageBox.critical(window, tr("DLG_ERROR"), tr("ERR_RELOAD_PROJECT").format(error=e))
+        return
+
+    # Editors and the preview hold cards from before the reload, which now
+    # belong to no project: put fresh ones in place of them
+    showing = window.active_project is project
+    if showing:
+        from shoggoth.ui.main_window import views
+        window.file_watcher.clear_files()
+        views.clear_editor(window)
+        window.current_card = None
+        window.current_editor = None
+        window.current_guide = None
+        window.current_guide_editor = None
+    window.file_browser.rebuild()
+    if showing:
+        window.nav.refresh_current()
+    window.status_bar.showMessage(tr("STATUS_RELOADED").format(name=project['name']), 5000)
 
 
 def save_current(window):
@@ -253,6 +389,7 @@ def add_scenario_template(window):
         project.create_scenario(name)
         window.file_browser.refresh()
         window.status_bar.showMessage(tr("STATUS_SCENARIO_CREATED").format(name=name))
+        telemetry.record_template_created('scenario')
 
 
 def add_campaign_template(window):
@@ -263,6 +400,7 @@ def add_campaign_template(window):
     project.create_campaign()
     window.file_browser.refresh()
     window.status_bar.showMessage(tr("STATUS_CAMPAIGN_CREATED"))
+    telemetry.record_template_created('campaign')
 
 
 def add_investigator_template(window):
@@ -275,6 +413,7 @@ def add_investigator_template(window):
         project.add_investigator_set(name)
         window.file_browser.refresh()
         window.status_bar.showMessage(tr("STATUS_INVESTIGATOR_CREATED").format(name=name))
+        telemetry.record_template_created('investigator')
 
 
 def add_investigator_project_template(window):
@@ -285,6 +424,7 @@ def add_investigator_project_template(window):
     project.create_player_project()
     window.file_browser.refresh()
     window.status_bar.showMessage(tr("STATUS_PROJECT_CREATED"))
+    telemetry.record_template_created('investigator_project')
 
 
 # ── Translation management ────────────────────────────────────────────────

@@ -1,5 +1,7 @@
+import hashlib
 import json
 import re
+import time
 from uuid import uuid4
 from pathlib import Path
 from itertools import combinations
@@ -10,7 +12,7 @@ from shoggoth.encounter_set import EncounterSet, parse_number_span
 from shoggoth.export_profile import ExportProfile
 from shoggoth.guide import Guide
 from shoggoth.i18n import tr
-from shoggoth.project_writer import Writer, TranslationWriter
+from shoggoth.project_writer import CloudWriter, Writer, TranslationWriter
 
 
 type_order = {
@@ -183,11 +185,30 @@ def migrate_legacy_collection_fields(data):
     return len(targets)
 
 
+def _fingerprint(data):
+    """ Hash of the parts of a project's raw JSON *data* that matter to the
+        user. Comparing parsed data (rather than file bytes or mtimes) makes
+        formatting, key order and a plain `touch` irrelevant, and `meta.dirty`
+        is bookkeeping of unsaved edits, not content of the file.
+    """
+    content = {key: value for key, value in data.items() if key != 'meta'}
+    meta = {key: value for key, value in (data.get('meta') or {}).items() if key != 'dirty'}
+    if meta:
+        content['meta'] = meta
+    text = json.dumps(content, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
 class Project:
     """ Class to handle project files
 
         Projects are ultimately just representations of json files.
     """
+
+    # Observers of element changes -- see add_change_listener. Class-level
+    # (not per-instance) so the UI registers once and hears about every open
+    # project, instead of being wired up project by project.
+    _change_listeners = []
 
     def __init__(self, file_path, data):
         self.file_path = file_path
@@ -195,7 +216,53 @@ class Project:
         if 'id' not in self.data:
             self.data['id'] = str(uuid4())
         self.id = data['id']
-        self.writer = Writer(self)
+        self.writer = CloudWriter(self) if self.is_cloud_project else Writer(self)
+        # Fingerprint of what the file on disk held when we last read or wrote
+        # it (None: unknown, e.g. a project that hasn't been saved yet).
+        self._disk_fingerprint = None
+
+    @classmethod
+    def add_change_listener(cls, callback):
+        """ Registers `callback(project, kind, element_id, changed)`, called
+            whenever an element's dirty state is set: `changed` is True for an
+            edit, False once it's saved. `kind` is 'project', 'cards',
+            'encounter_sets' or 'guides'. This is how the model tells the UI
+            (preview, tree) and the cloud sync that something changed, without
+            model code ever reaching into `shoggoth.app` itself.
+        """
+        cls._change_listeners.append(callback)
+
+    def _locate(self, element_id):
+        """ Returns (kind, element dict) for an id, or (None, None). The
+            project itself is ('project', self.data). """
+        if element_id == self.id:
+            return 'project', self.data
+        for kind in ('cards', 'encounter_sets', 'guides'):
+            for entry in self.data.get(kind, []):
+                if entry.get('id') == element_id:
+                    return kind, entry
+        return None, None
+
+    @property
+    def is_cloud_project(self):
+        return bool(self.data.get('meta', {}).get('celaeno_id'))
+
+    def stamp(self, element):
+        """ Records "last edited now" in an element's meta -- the timestamp
+            cloud sync compares to decide which side changed (see
+            shoggoth.cloud.merge). Only cloud projects carry timestamps, so
+            ordinary local project files aren't touched. """
+        if self.is_cloud_project:
+            element.setdefault('meta', {})['modified'] = time.time()
+
+    def note_deleted(self, kind, element_id):
+        """ Remembers that an element was removed, so cloud sync can tell
+            "deleted here" from "never existed here". No-op for local projects. """
+        if self.is_cloud_project:
+            deleted = self.data['meta'].setdefault('celaeno_deleted', {})
+            deleted[element_id] = {'kind': kind, 'at': time.time()}
+            for listener in self._change_listeners:
+                listener(self, kind, element_id, True)
 
     @property
     def dirty(self):
@@ -278,6 +345,8 @@ class Project:
         return None
 
     def __eq__(self, other):
+        if not isinstance(other, Project):
+            return NotImplemented  # e.g. `window.active_project == project` with no active project
         return self.data == other.data
 
     def __getitem__(self, key):
@@ -449,6 +518,9 @@ class Project:
             else:
                 card['copyright'] = self.data['default_copyright']
         self.dirty = True
+        card_id = card.id if isinstance(card, Card) else card.get('id')
+        if card_id:
+            self.set_dirty(card_id)
 
     def get_all_cards(self):
         return self.cards
@@ -476,6 +548,14 @@ class Project:
         elif not value and id in self.data['meta']['dirty']:
             self.data['meta']['dirty'].remove(id)
 
+        kind, element = self._locate(id)
+        if kind is None:
+            return  # e.g. a card whose fresh id isn't in the project yet
+        if value:
+            self.stamp(element)
+        for listener in self._change_listeners:
+            listener(self, kind, id, bool(value))
+
     def clear_dirty(self):
         if 'meta' not in self.data:
             self.data['meta'] = {}
@@ -485,8 +565,8 @@ class Project:
         return id in self.data.get('meta', {}).get('dirty', [])
 
     @staticmethod
-    def load(file_path):
-        """Load card data from JSON file"""
+    def _read(file_path):
+        """Reads and validates a project file, returning its raw data."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -500,8 +580,80 @@ class Project:
             except AssertionError:
                 print('Entry failed assertion, project is invalid: ', entry)
                 raise Exception('Invalid project file.')
+        return data
 
-        return Project(file_path, data)
+    @staticmethod
+    def load(file_path):
+        """Load card data from JSON file"""
+        data = Project._read(file_path)
+        fingerprint = _fingerprint(data)  # before __init__ adds a missing id
+        project = Project(file_path, data)
+        project._disk_fingerprint = fingerprint
+        return project
+
+    # ── The project file on disk ──────────────────────────────────────────
+
+    @property
+    def is_file_backed(self):
+        """Whether this project is a plain .shoggoth file that is ours to
+        watch and to move. Translations persist to a sidecar file instead, and
+        cloud projects live in (and are synced through) the cloud folder."""
+        return not self.is_translation and not self.is_cloud_project
+
+    def remember_saved(self, data):
+        """Records that the file now holds *data* (what the writer just wrote),
+        so our own saves are never mistaken for outside changes."""
+        self._disk_fingerprint = _fingerprint(data)
+
+    def has_external_changes(self):
+        """Whether the file's content has changed since we last read or wrote
+        it -- i.e. someone else edited it. Formatting and metadata-only
+        changes don't count (see `_fingerprint`).
+
+        Compared against the last-known state of the file rather than against
+        the in-memory data: with unsaved edits the two always differ, which
+        would flag every project that is merely being worked on. A missing or
+        half-written (unparseable) file isn't reported either: another change
+        event follows once the writer is done, and saving recreates the file.
+        """
+        if self._disk_fingerprint is None:
+            return False
+        try:
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return False
+        return isinstance(data, dict) and _fingerprint(data) != self._disk_fingerprint
+
+    def acknowledge_external_changes(self):
+        """Accepts the file's current content as the baseline, so it stops
+        being reported until it changes again (the user chose to keep their
+        version; their next save overwrites the file)."""
+        with open(self.file_path, 'r', encoding='utf-8') as f:
+            self._disk_fingerprint = _fingerprint(json.load(f))
+
+    def reload(self):
+        """Replaces the in-memory project with the file's content, discarding
+        unsaved changes. The Project object stays the same (the UI holds on to
+        it); anything holding cards/faces from before must be rebuilt."""
+        data = self._read(self.file_path)
+        fingerprint = _fingerprint(data)
+        if 'id' not in data:
+            data['id'] = self.id
+        self.data = data
+        self.id = data['id']
+        self._disk_fingerprint = fingerprint
+
+    def save_as(self, file_path):
+        """Points the project at a new file and writes it there; the old file
+        is left as it is."""
+        old_path = self.file_path
+        self.file_path = str(file_path)
+        try:
+            self.save_all()
+        except Exception:
+            self.file_path = old_path
+            raise
 
     def add_encounter_set(self, name):
         if 'encounter_sets' not in self.data:
@@ -518,10 +670,13 @@ class Project:
         self.data['encounter_sets'].append(encounter_data)
         shoggoth.app.refresh_tree()
         self.dirty = True
-        return EncounterSet(encounter_data, project=self)
+        encounter_set = EncounterSet(encounter_data, project=self)
+        self.set_dirty(encounter_set.id)
+        return encounter_set
 
     def remove_encounter_set(self, index):
-        self.data['encounter_sets'].pop(index)
+        removed = self.data['encounter_sets'].pop(index)
+        self.note_deleted('encounter_sets', removed.get('id'))
 
     def gather_images(self, update=False):
         """ Walks through the project and copies to all relevant images to a nearby folder for easier distribution.
@@ -608,11 +763,13 @@ class Project:
     def add_guide(self, name='Guide', file_location=None):
         if 'guides' not in self.data:
             self.data['guides'] = []
+        guide_id = str(uuid4())
         self.data['guides'].append({
-            'id': str(uuid4()),
+            'id': guide_id,
             'name': name,
             'sections': [],
         })
+        self.set_dirty(guide_id)
         shoggoth.app.refresh_tree()
 
     def add_investigator_set(self, name):
@@ -817,6 +974,23 @@ class Translation:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         return cls(file_path, data)
+
+    def get_meta(self, key, default=None):
+        """Designer-facing metadata for this translation itself (currently
+        just `cloud_translation_id`) -- stored under the sidecar's own
+        data['meta'], separate from the overlaid project's own meta, and
+        persisted by TranslationWriter.save_project."""
+        return self.data.get('meta', {}).get(key, default)
+
+    def set_meta(self, key, value):
+        meta = self.data.setdefault('meta', {})
+        if value is None:
+            meta.pop(key, None)
+        else:
+            meta[key] = value
+
+    def save_all(self):
+        self.project.writer.save_all()
 
     def apply(self):
         """ Translates the project and overwrites the Writer of the project """
