@@ -493,7 +493,14 @@ def update_file(cards, image_folder, file_path_str):
                 for state_key, state_object in state_objects.items()
             }
 
-        return obj
+        # --------------------------------------------------------
+        # Rebuild deck data
+        # --------------------------------------------------------
+
+        if obj.get("Name") == "Deck":
+            rebuild_deck_data(obj)
+
+            return obj
 
     # ------------------------------------------------------------
     # Start recursive traversal
@@ -519,3 +526,83 @@ def update_file(cards, image_folder, file_path_str):
     print(f"Invalid GMNotes:  {stats['invalid_gmnotes']}")
 
     return return_status
+
+
+def rebuild_deck_data(deck):
+    """Rebuild the CustomDeck and CardID data of a TTS deck."""
+
+    urls_to_canon_id = {}
+    custom_deck_registry = {}
+    deck_ids = []
+    
+    contained_objects = deck.get("ContainedObjects", [])
+
+    if not isinstance(contained_objects, list):
+        return deck
+
+    for card in contained_objects:
+        if not isinstance(card, dict):
+            continue
+
+        card_custom_deck = card.get("CustomDeck", {})
+        if not isinstance(card_custom_deck, dict) or not card_custom_deck:
+            continue
+
+        # A card should have exactly one CustomDeck entry
+        orig_id = next(iter(card_custom_deck))
+        info = card_custom_deck[orig_id]
+        fingerprint = (
+            info.get("FaceURL"),
+            info.get("BackURL"),
+        )
+
+        # --------------------------------------------------------
+        # Determine canonical deck ID
+        # --------------------------------------------------------
+
+        if fingerprint not in urls_to_canon_id:
+            if orig_id in custom_deck_registry:
+                # Same ID, but different artwork -> collision
+                existing_ids = [
+                    int(k) for k in custom_deck_registry
+                    if str(k).isdigit()
+                ]
+
+                new_id = str(max(existing_ids) + 1) if existing_ids else orig_id
+                canon_id = new_id
+            else:
+                canon_id = orig_id
+
+            urls_to_canon_id[fingerprint] = canon_id
+            custom_deck_registry[canon_id] = info
+        else:
+            canon_id = urls_to_canon_id[fingerprint]
+
+        # --------------------------------------------------------
+        # Update the card's CardID
+        # --------------------------------------------------------
+
+        old_card_id = str(card.get("CardID", 100))
+        new_card_id = int(f"{canon_id}{old_card_id[-2:]}")
+        card["CardID"] = new_card_id
+
+        # Track CardID in the same order as ContainedObjects
+        deck_ids.append(new_card_id)
+
+        # --------------------------------------------------------
+        # Make the card's CustomDeck canonical as well
+        # --------------------------------------------------------
+
+        card["CustomDeck"] = { canon_id: custom_deck_registry[canon_id] }
+
+    # ------------------------------------------------------------
+    # Update deck-level data
+    # ------------------------------------------------------------
+    
+    deck["DeckIDs"] = deck_ids
+    deck["CustomDeck"] = {
+        key: custom_deck_registry[key]
+        for key in sorted(custom_deck_registry, key=int)
+    }
+
+    return deck
