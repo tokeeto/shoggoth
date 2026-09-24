@@ -86,6 +86,44 @@ class FolderPicker(QGroupBox):
         return str(self._custom_input.text().strip()) if self._rb_custom.isChecked() else None
 
 
+class FilePicker(QWidget):
+    def __init__(self, label, parent=None):
+        super().__init__(parent)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self._edit = QLineEdit()
+        self._edit.setReadOnly(True)
+        self._edit.setPlaceholderText(label)
+        layout.addWidget(self._edit)
+
+        self._browse = QPushButton(tr("BTN_BROWSE"))
+        self._browse.clicked.connect(self._browse_file)
+        layout.addWidget(self._browse)
+
+    def _browse_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            self._edit.placeholderText(),
+            "",
+            "TTS Save (*.json)",
+        )
+
+        if file_path:
+            self._edit.setText(file_path)
+
+    def text(self):
+        return self._edit.text()
+
+    def setText(self, value):
+        self._edit.setText(value)
+
+    def path(self):
+        value = self._edit.text()
+        return Path(value) if value else None
+
+
 def resolve_scope_cards(project, scope):
     """The list of Card objects a scope dict ({'type', 'encounter_set_ids',
     'card_ids'}) resolves to for the given project."""

@@ -668,6 +668,8 @@
   "TTS_FOLDER_CUSTOM": "Benutzerdefinierter Ordner:",
   "TTS_FORMAT_INFO": "Format: {fmt}  |  Größe: {w}×{h}  |  Ohne Rand",
   "TTS_SEND_TO_TTS": "An TTS senden?",
+  "TTS_UPDATE_FILE_LABEL": "Existierenden TTS export updaten:",
+  "TTS_FILE_PLACEHOLDER": "Wähle eine JSON Datei aus...",
   "TTS_BTN_EXPORT": "Exportieren",
   "TTS_DLG_SELECT_FOLDER": "Bildordner auswählen",
   "TTS_EXPORTING_IMAGES": "Kartenbilder werden exportiert…",

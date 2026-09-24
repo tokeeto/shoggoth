@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from shoggoth.files import default_export_folder, safe_filename
 from shoggoth.i18n import tr
 from shoggoth.settings import EXPORT_SIZES
-from shoggoth.ui.export_widgets import FolderPicker, ProfileScopeSelector
+from shoggoth.ui.export_widgets import FilePicker, FolderPicker, ProfileScopeSelector
 
 FILENAME_FORMATS = [
     ('id',        'UUID ({id})'),
@@ -375,6 +375,14 @@ class TtsEntryWidget(QWidget):
 
         self._sync = QCheckBox(tr("TTS_SEND_TO_TTS"))
         layout.addWidget(self._sync)
+
+        layout.addSpacing(10)
+
+        file_label = QLabel(tr("TTS_UPDATE_FILE_LABEL"))
+        layout.addWidget(file_label)
+
+        self._file = FilePicker(tr("TTS_FILE_PLACEHOLDER"))
+        layout.addWidget(self._file)
 
         layout.addStretch()
 
