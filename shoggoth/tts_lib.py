@@ -375,6 +375,7 @@ def export_player_cards(cards, image_folder, sync=True):
         tts_sync.push_to_tts(wrapper)
     return return_status, output_path
 
+
 def update_file(cards, image_folder, file_path_str):
     return_status = 0
 
@@ -390,7 +391,7 @@ def update_file(cards, image_folder, file_path_str):
             # special handling for ID since the TTS mod uses that to match mini-card and investigator
             card_id = card.id
             if card.front.get('type', '') == 'mini_investigator':
-                card_id = card.get('investigator_id', "00000") + "-m"
+                card_id = card.get('investigator_id', '00000') + '-m'
 
             id_to_card[card_id] = card_to_tts(card, image_id, 0, image_folder)
             image_id += 1
@@ -402,6 +403,17 @@ def update_file(cards, image_folder, file_path_str):
     file_path = Path(file_path_str)
     with open(file_path, "r", encoding="utf-8") as f:
         file_data = json.load(f)
+
+    # ------------------------------------------------------------
+    # Tracking
+    # ------------------------------------------------------------
+
+    stats = {
+        "objects_with_id": 0,
+        "updated": 0,
+        "not_found": 0,
+        "invalid_gmnotes": 0,
+    }
 
     # ------------------------------------------------------------
     # Recursively update objects
@@ -429,25 +441,33 @@ def update_file(cards, image_folder, file_path_str):
                 metadata = json.loads(gmnotes)
             except (json.JSONDecodeError, TypeError):
                 metadata = None
+                stats["invalid_gmnotes"] += 1
 
             if isinstance(metadata, dict):
                 card_id = metadata.get("id")
 
-                if card_id in id_to_card:
-                    # Replace with newly generated card
-                    new_obj = id_to_card[card_id].copy()
+                if card_id is not None:
+                    stats["objects_with_id"] += 1
 
-                    # Preserve the GUID of the existing object
-                    old_guid = obj.get("GUID")
-                    if old_guid is not None:
-                        new_obj["GUID"] = old_guid
+                    if card_id in id_to_card:
+                        # Replace with newly generated card
+                        new_obj = id_to_card[card_id].copy()
 
-                    # Preserve the Transform (position / rotation / scale) of the existing object
-                    old_transform = obj.get("Transform")
-                    if old_transform is not None:
-                        new_obj["Transform"] = old_transform
+                        # Preserve the GUID
+                        old_guid = obj.get("GUID")
+                        if old_guid is not None:
+                            new_obj["GUID"] = old_guid
 
-                    return new_obj
+                        # Preserve the Transform (position / rotation / scale)
+                        old_transform = obj.get("Transform")
+                        if old_transform is not None:
+                            new_obj["Transform"] = old_transform
+
+                        stats["updated"] += 1
+
+                        return new_obj
+
+                    stats["not_found"] += 1
 
         # --------------------------------------------------------
         # Recursively process contained objects
@@ -488,5 +508,14 @@ def update_file(cards, image_folder, file_path_str):
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(file_data, f, indent=2, ensure_ascii=False)
         f.write("\n")
+
+    # ------------------------------------------------------------
+    # Report results
+    # ------------------------------------------------------------
+
+    print(f"Objects with ID:  {stats['objects_with_id']}")
+    print(f"Objects updated:  {stats['updated']}")
+    print(f"IDs not found:    {stats['not_found']}")
+    print(f"Invalid GMNotes:  {stats['invalid_gmnotes']}")
 
     return return_status
