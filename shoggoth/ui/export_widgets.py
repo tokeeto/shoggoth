@@ -94,7 +94,6 @@ class FilePicker(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self._edit = QLineEdit()
-        self._edit.setReadOnly(True)
         self._edit.setPlaceholderText(label)
         layout.addWidget(self._edit)
 
@@ -116,12 +115,12 @@ class FilePicker(QWidget):
     def text(self):
         return self._edit.text()
 
-    def setText(self, value):
+    def set_file(self, value):
         self._edit.setText(value)
 
-    def path(self):
-        value = self._edit.text()
-        return Path(value) if value else None
+    def file_setting(self):
+        value = self._edit.text().strip()
+        return str(value) if value else None
 
 
 def resolve_scope_cards(project, scope):
