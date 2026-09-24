@@ -109,18 +109,14 @@ class FilePicker(QWidget):
             "TTS Save (*.json)",
         )
 
-        if file_path:
-            self._edit.setText(file_path)
+        self.set_file_path(file_path)
 
-    def text(self):
-        return self._edit.text()
+    def set_file_path(self, file_path):
+        self._edit.setText(file_path)
 
-    def set_file(self, value):
-        self._edit.setText(value)
-
-    def file_setting(self):
-        value = self._edit.text().strip()
-        return str(value) if value else None
+    def get_file_path(self):
+        file_path = self._edit.text().strip()
+        return str(file_path) if file_path else None
 
 
 def resolve_scope_cards(project, scope):

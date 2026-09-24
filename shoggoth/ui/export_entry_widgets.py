@@ -392,14 +392,14 @@ class TtsEntryWidget(QWidget):
         self._export_images_cb.setChecked(d.get('export_images', True))
         self._folder.set_folder(d.get('folder'))
         self._sync.setChecked(d.get('sync', False))
-        self._update_file.set_file(d.get('update_file'))
+        self._update_file.set_file_path(d.get('update_file'))
 
     def read(self):
         settings = {
             'folder': self._folder.folder_setting(),
             'export_images': self._export_images_cb.isChecked(),
             'sync': self._sync.isChecked(),
-            'update_file': self._update_file.file_setting(),
+            'update_file': self._update_file.get_file_path(),
         }
         return {'scope': self._scope_selector.read_scope(), 'settings': settings}
 
