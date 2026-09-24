@@ -167,8 +167,8 @@ def atomic_write(filepath, data, mode="w", **kwargs):
         raise
 
 KEY_ORDER = [
-    "id",
     "name",
+    "id",
     "code",
     "default_copyright",
     "icon",
@@ -192,9 +192,9 @@ def order_dict(data):
             if key in data:
                 ordered[key] = order_dict(data[key])
 
-        for key, value in data.items():
-            if key not in ordered:
-                ordered[key] = order_dict(value)
+        for key in sorted(data.keys()):
+            if key not in KEY_ORDER:
+                ordered[key] = order_dict(data[key])
 
         return ordered
 
