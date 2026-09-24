@@ -60,6 +60,7 @@ DEFAULT_SETTINGS = {
         'folder': None,
         'export_images': True,
         'sync': False,
+        'update_file': None
     },
     'arkham_build': {
         'url_pattern': None,

@@ -211,17 +211,26 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
             if Path(p).exists()
         ]
     sync = d['sync']
+    update_file = d['update_file']
     # 'campaign'/'all' keep tts_lib's dedicated bag structure (grouped by
     # encounter set); every other scope (player cards, or the new specific
     # encounter-sets/cards scopes) exports the resolved card list as one
     # flat TTS bag via export_player_cards, which accepts any card list.
-    if scope_type == 'campaign':
+    if update_file and Path(update_file).exists():
+        status = tts_lib.update_file(cards, folder, update_file)
+        path = update_file
+    elif scope_type == 'campaign':
         status, path = tts_lib.export_campaign(project, folder, sync=sync)
     elif scope_type == 'all':
         status, path = tts_lib.export_all(project, folder, sync=sync)
     else:
         status, path = tts_lib.export_player_cards(cards, folder, sync=sync)
-    key = "TTS_RESULT_TTS_DIR" if status == 1 else "TTS_RESULT_PROJECT_DIR"
+
+    key = "TTS_RESULT_TTS_DIR"
+    if update_file and Path(update_file).exists():
+        key = "TTS_RESULT_UPDATED_FILE"
+    elif status != 1:
+        key = "TTS_RESULT_PROJECT_DIR"
     return tr(key).format(path=path), image_paths, str(path)
 
 
@@ -299,8 +308,10 @@ def run_profile(parent, project, renderer, profile_data):
                     parent, project, renderer, cards, entry.scope.get('type', 'all'), settings
                 )
                 tts_result = {
-                    'image_paths': image_paths, 'wrapper_path': wrapper_path,
+                    'image_paths': image_paths,
+                    'wrapper_path': wrapper_path,
                     'sync': settings['sync'],
+                    'update_file': settings['update_file']
                 }
                 results.append(msg)
             except Exception as e:

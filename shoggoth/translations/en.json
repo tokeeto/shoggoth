@@ -947,6 +947,7 @@
   "TTS_DLG_SELECT_FOLDER": "Select image folder",
   "TTS_RESULT_TTS_DIR": "Export complete. Saved directly to your TTS folder:\n{path}",
   "TTS_RESULT_PROJECT_DIR": "Export complete. Saved to project folder:\n{path}",
+  "TTS_RESULT_UPDATED_FILE": "Export complete. Updated existing save:\n{path}",
   "// ===== IMAGE EXPORT SECTION =====": "",
   "IMG_EXPORT_FOLDER_LABEL": "Destination folder",
   "IMG_EXPORT_NAMING_LABEL": "File naming",

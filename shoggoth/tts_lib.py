@@ -374,3 +374,119 @@ def export_player_cards(cards, image_folder, sync=True):
     if sync:
         tts_sync.push_to_tts(wrapper)
     return return_status, output_path
+
+def update_file(cards, image_folder, file_path_str):
+    return_status = 0
+
+    # ------------------------------------------------------------
+    # Generate lookup map of cards
+    # ------------------------------------------------------------
+
+    id_to_card = {}
+
+    image_id = 1
+    for card in cards:
+        for _ in range(card.amount):
+            # special handling for ID since the TTS mod uses that to match mini-card and investigator
+            card_id = card.id
+            if card.front.get('type', '') == 'mini_investigator':
+                card_id = card.get('investigator_id', "00000") + "-m"
+
+            id_to_card[card_id] = card_to_tts(card, image_id, 0, image_folder)
+            image_id += 1
+
+    # ------------------------------------------------------------
+    # Load existing file
+    # ------------------------------------------------------------
+
+    file_path = Path(file_path_str)
+    with open(file_path, "r", encoding="utf-8") as f:
+        file_data = json.load(f)
+
+    # ------------------------------------------------------------
+    # Recursively update objects
+    # ------------------------------------------------------------
+
+    def update_object(obj):
+        """
+        Recursively search a TTS object tree and replace cards
+        whose metadata ID exists in id_to_card.
+
+        Returns the updated object.
+        """
+
+        if not isinstance(obj, dict):
+            return obj
+
+        # --------------------------------------------------------
+        # Check whether this object has a matching ID
+        # --------------------------------------------------------
+
+        gmnotes = obj.get("GMNotes")
+
+        if gmnotes:
+            try:
+                metadata = json.loads(gmnotes)
+            except (json.JSONDecodeError, TypeError):
+                metadata = None
+
+            if isinstance(metadata, dict):
+                card_id = metadata.get("id")
+
+                if card_id in id_to_card:
+                    # Replace with newly generated card
+                    new_obj = id_to_card[card_id].copy()
+
+                    # Preserve the GUID of the existing object
+                    old_guid = obj.get("GUID")
+                    if old_guid is not None:
+                        new_obj["GUID"] = old_guid
+
+                    # Preserve the Transform (position / rotation / scale) of the existing object
+                    old_transform = obj.get("Transform")
+                    if old_transform is not None:
+                        new_obj["Transform"] = old_transform
+
+                    return new_obj
+
+        # --------------------------------------------------------
+        # Recursively process contained objects
+        # --------------------------------------------------------
+
+        contained_objects = obj.get("ContainedObjects")
+
+        if isinstance(contained_objects, list):
+            obj["ContainedObjects"] = [
+                update_object(child)
+                for child in contained_objects
+            ]
+
+        # --------------------------------------------------------
+        # Recursively process states
+        # --------------------------------------------------------
+
+        state_objects = obj.get("States")
+
+        if isinstance(state_objects, dict):
+            obj["States"] = {
+                state_key: update_object(state_object)
+                for state_key, state_object in state_objects.items()
+            }
+
+        return obj
+
+    # ------------------------------------------------------------
+    # Start recursive traversal
+    # ------------------------------------------------------------
+
+    file_data = update_object(file_data)
+
+    # ------------------------------------------------------------
+    # Save updated file
+    # ------------------------------------------------------------
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(file_data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+    return return_status
