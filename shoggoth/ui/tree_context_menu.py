@@ -376,7 +376,7 @@ class TreeContextMenu:
         reply = QMessageBox.question(
             self.parent,
             tr("DLG_DELETE_CARD"),
-            tr("MSG_DELETE_CARD_CONFIRM", card_name=card.name),
+            tr("MSG_DELETE_CARD_CONFIRM", name=card.name),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
