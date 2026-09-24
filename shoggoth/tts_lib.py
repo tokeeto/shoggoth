@@ -254,7 +254,7 @@ def card_to_tts(card, id, number, image_folder):
         data['Transform']['scaleZ'] *= 0.6
 
     # Handle double-sided locations (enable hiding if different back name)
-    if front_type == back_type == 'location' and card.front.get('name') != card.back.get('name'):
+    if 'location' in front_type and 'location' in back_type and card.front.get('name') != card.back.get('name'):
         data['HideWhenFaceDown'] = True
 
     data['Description'] = card.get('subtitle')
