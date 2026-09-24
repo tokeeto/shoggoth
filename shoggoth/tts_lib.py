@@ -253,7 +253,10 @@ def card_to_tts(card, id, number, image_folder):
         data['Transform']['scaleX'] *= 0.6
         data['Transform']['scaleZ'] *= 0.6
 
-    data['Description'] = card.get('subtitle')
+    subtitle = card.get('subtitle')
+    if subtitle is not None:
+        data['Description'] = subtitle
+
     data['Nickname'] = remove_formatting_tags(card.name)
     data['CardID'] = id * 100
     data['GMNotes'] = build_gm_notes_string(card)
@@ -470,6 +473,18 @@ def update_file(cards, image_folder, file_path_str):
                     stats["not_found"] += 1
 
         # --------------------------------------------------------
+        # Recursively process ObjectStates
+        # --------------------------------------------------------
+
+        object_states = obj.get("ObjectStates")
+
+        if isinstance(object_states, list):
+            obj["ObjectStates"] = [
+                update_object(child)
+                for child in object_states
+            ]
+    
+        # --------------------------------------------------------
         # Recursively process contained objects
         # --------------------------------------------------------
 
@@ -500,7 +515,7 @@ def update_file(cards, image_folder, file_path_str):
         if obj.get("Name") == "Deck":
             rebuild_deck_data(obj)
 
-            return obj
+        return obj
 
     # ------------------------------------------------------------
     # Start recursive traversal
@@ -546,6 +561,9 @@ def rebuild_deck_data(deck):
 
         card_custom_deck = card.get("CustomDeck", {})
         if not isinstance(card_custom_deck, dict) or not card_custom_deck:
+            if "CardID" in card:
+                deck_ids.append(card.get("CardID"))
+
             continue
 
         # A card should have exactly one CustomDeck entry
