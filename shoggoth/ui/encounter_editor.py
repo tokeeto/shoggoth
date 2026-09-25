@@ -187,27 +187,9 @@ class EncounterSetEditor(QWidget):
         stats_label.setStyleSheet("color: #666; font-style: italic;")
         layout.addWidget(stats_label)
 
-        # Add code to count traits here.
-        treachery_card_traits = []
-        for card in self.encounter_set.cards:
-            group = card.front.get('grouping', card.front.get('type'))
-            if (group == 'treachery' or group == 'enemy'):
-                card_traits = card.front.get('traits').split('.')
-                for trait in card_traits:
-                    trait = trait.strip()
-                    if trait != '':
-                        for copy in range(card.amount): treachery_card_traits.append(trait)
-                
-
-        if len(treachery_card_traits) > 0:
-            treachery_counts = Counter(treachery_card_traits)
-            trait_list = "<b>" + tr("TRAITS_COUNT") + "</b> <ul>"
-            for trait, count in treachery_counts.items():
-                trait_list += "<li>" + str(trait) + ": " + str(count) + "</li>"
-            trait_list += "</ul>"
-            treachery_label = QLabel(trait_list)
-            treachery_label.setStyleSheet("color: #666; list-style-type: '- '")
-            layout.addWidget(treachery_label)
+        # Counts of cards by type
+        # Loop through card types and get count/add widget
+        self._encounter_set_stats(layout)
 
         layout.addStretch()
 
@@ -233,6 +215,68 @@ class EncounterSetEditor(QWidget):
 
         tab.setLayout(layout)
         return tab
+
+    def _encounter_set_stats(self, layout):
+        encounter_card_groups = ['player', 'story', 'location', 'treachery']
+
+        cards_by_type = dict()
+        card_traits = dict()
+        for group in encounter_card_groups:
+            card_traits[group] = []
+            cards_by_type[group] = 0
+        for card in self.encounter_set.cards:
+            # If the back of the card has different traits from the front, treat it like a separate card for the purposes of counting traits.
+            if (card.back.get('traits') != '' and card.front.get('traits') != card.back.get('traits')):
+                group = card.back.get('grouping', card.back.get('type'))
+                self._build_trait_list(card_traits, card, group, cards_by_type)
+
+            group = card.front.get('grouping', card.front.get('type'))
+            self._build_trait_list(card_traits, card, group, cards_by_type)
+
+
+        for group in encounter_card_groups:
+            self._add_trait_counts(card_traits, layout, group, cards_by_type)
+
+    def _build_trait_list(self, card_traits, card, group, cards_by_type):
+        player_cards = ['asset', 'event', 'skill', 'investigator', 'investigator_back', 'customizable', 'player']
+        story_cards = ['act', 'act_back', 'agenda', 'agenda_back', 'scenario', 'chaos', 'story', 'act_agenda_full', 'act_agenda_full_back']
+        encounter_cards = ['treachery', 'enemy']
+
+        if (group in encounter_cards):
+            self._get_traits(card, card_traits['treachery'])
+            cards_by_type['treachery'] += card.amount
+        elif (group == 'location'):
+            self._get_traits(card, card_traits['location'])
+            cards_by_type['location'] += card.amount
+        elif (group in player_cards):
+            self._get_traits(card, card_traits['player'])
+            cards_by_type['player'] += card.amount
+        elif (group in story_cards):
+            self._get_traits(card, card_traits['story'])
+            cards_by_type['story'] += card.amount
+
+    def _add_trait_counts(self, traits, layout, group, cards_by_type):
+        if cards_by_type[group] > 0:
+            counter = Counter(traits[group])
+            type_string = "TYPE_" + group.upper()
+            tr_string = tr("CARDS_COUNT").format(type=tr(type_string).capitalize(), count=cards_by_type[group])
+            if len(traits[group]) > 0:
+                tr_string += ' ' + tr("TRAITS_COUNT")
+            trait_list = "<b>" + tr_string + "</b> <ul>"
+            for trait, count in counter.items():
+                trait_list += "<li>" + str(trait) + ": " + str(count) + "</li>"
+            trait_list += "</ul>"
+            label = QLabel(trait_list)
+            label.setStyleSheet("color: #666;")
+            layout.addWidget(label)
+
+    def _get_traits(self, card, trait_list):
+        card_traits = card.front.get('traits').split('.')
+        for trait in card_traits:
+            trait = trait.strip()
+            if trait != '':
+                for copy in range(card.amount): 
+                    trait_list.append(trait)
 
     def _build_cards_tab(self):
         tab = QWidget()
