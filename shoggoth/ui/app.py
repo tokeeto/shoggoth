@@ -3,10 +3,9 @@ Main application entry point for Shoggoth with PySide6
 """
 import signal
 import sys
-import threading
 import logging
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt, QTimer, QObject, Signal
+from PySide6.QtCore import Qt, QTimer
 
 from shoggoth.ui.main_window import ShoggothMainWindow
 from shoggoth.ui.snippet_input import SnippetSequenceFilter
@@ -15,11 +14,6 @@ from shoggoth.i18n import load_language, tr
 from shoggoth import telemetry, updater
 
 logger = logging.getLogger(__name__)
-
-
-class _AssetUpdateSignal(QObject):
-    """Carries the 'assets were updated' notification from the background thread."""
-    triggered = Signal()
 
 
 def main():
@@ -84,16 +78,11 @@ def main():
     window._insert_link_filter = InsertLinkFilter(app)
     app.installEventFilter(window._insert_link_filter)
 
-    # Subsequent runs: run incremental asset update silently in the background.
-    # The signal is connected before the thread starts to guarantee delivery
-    # even if the download completes before the Qt event loop ticks.
-    _update_signal = _AssetUpdateSignal()
-    _update_signal.triggered.connect(window.on_assets_updated)
-    threading.Thread(
-        target=_incremental_update_background,
-        args=(_update_signal,),
-        daemon=True,
-    ).start()
+    # Subsequent runs: update the asset pack in the background -- silently,
+    # unless it would overwrite files the user changed, or files fail.
+    from shoggoth.ui.updater_ui import BackgroundAssetUpdater
+    window.asset_updater = BackgroundAssetUpdater(window)
+    window.asset_updater.start()
 
     window.show()
 
@@ -111,16 +100,6 @@ def main():
         report_load_errors(window, window._snippet_filter.load_errors)
 
     sys.exit(app.exec())
-
-
-def _incremental_update_background(signal: _AssetUpdateSignal):
-    """Run ensure_assets_current() in a background thread on non-first runs."""
-    try:
-        changed = updater.ensure_assets_current()
-        if changed:
-            signal.triggered.emit()
-    except Exception as exc:
-        logger.warning(f"Background asset update failed: {exc}")
 
 
 if __name__ == "__main__":

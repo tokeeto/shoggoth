@@ -188,16 +188,16 @@ def _pdf_card_box(path, w_mm, h_mm):
     printed size. Unlike `_card_page` (one card per page, page-sized box),
     this box is flowed inline alongside its siblings, so it needs its own
     positioning context for the overlay to line up."""
-    style = '' if (w_mm, h_mm) == (_CARD_W_MM, _CARD_H_MM) else f' style="width:{w_mm}mm;height:{h_mm}mm"'
+    style = "" if (w_mm, h_mm) == (_CARD_W_MM, _CARD_H_MM) else f'style="width:{w_mm}mm; height:{h_mm}mm;"'
     sidecar = Path(path).with_suffix('.html')
     if sidecar.exists():
         overlay = sidecar.read_text(encoding='utf-8')
         m = re.search(r'data-width="(\d+)"', overlay)
         if m:
             k = w_mm * _CSS_PX_PER_MM / int(m[1])
-            return (f'<div class="card"{style}><img src="{path}">'
-                    f'<div class="text-scale" style="transform:scale({k:.6f})">{overlay}</div></div>\n')
-    return f'<div class="card"{style}><img src="{path}"></div>\n'
+            return (f'<div class="card_container"><div class="card" {style}><img src="{path}">'
+                    f'<div class="text-scale" style="transform:scale({k:.6f})">{overlay}</div></div></div>\n')
+    return f'<div class="card_container"><div class="card" {style}><img src="{path}"></div></div>\n'
 
 
 def _pdf_html(cards, folder, size, format='png', include_backs=False):
@@ -208,16 +208,22 @@ def _pdf_html(cards, folder, size, format='png', include_backs=False):
         <head>
             <meta charset="utf-8">
             <style>
+                .card_container {{
+                    position: relative;
+                    display: inline-block;
+                    width: {_CARD_W_MM}mm;
+                    margin: 0;
+                    padding: 0;
+                }}
                 .card {{
                     position: relative;
                     display: inline-block;
                     width: {_CARD_W_MM}mm;
                     height: {_CARD_H_MM}mm;
-                    margin: 2mm;
+                    margin: 0mm;
                     break-inside: avoid;
                 }}
                 .card > img {{
-                    -prince-image-resolution: 900dpi;
                     width: 100%;
                     height: 100%;
                     display: block;
@@ -229,7 +235,7 @@ def _pdf_html(cards, folder, size, format='png', include_backs=False):
                     transform-origin: 0 0;
                 }}
                 @page {{
-                    margin: 10mm;
+                    margin: 2mm;
                     size: a4;
                 }}
             </style>
@@ -247,6 +253,7 @@ def _pdf_html(cards, folder, size, format='png', include_backs=False):
         else:
             for path in CardRenderer.expected_export_paths(card, folder, size, format=format, include_backs=include_backs):
                 yield _pdf_card_box(path, w_mm, h_mm)
+
     yield "</body>"
 
 

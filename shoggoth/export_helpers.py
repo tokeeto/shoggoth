@@ -444,4 +444,4 @@ def build_gm_notes(card):
 
 def build_gm_notes_string(card):
     """Return build_gm_notes(card) serialised as a compact JSON string."""
-    return json.dumps(build_gm_notes(card), indent=2)
+    return json.dumps(build_gm_notes(card))

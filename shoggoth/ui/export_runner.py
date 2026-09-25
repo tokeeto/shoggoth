@@ -189,7 +189,7 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
             parent, renderer, cards, folder,
             size=tts_lib.TTS_IMAGE_SIZE, bleed=False, separate_versions=False,
             format=tts_lib.TTS_IMAGE_FORMAT, quality=tts_lib.TTS_IMAGE_QUALITY,
-            include_backs=False, rotate=False, rounded=True,
+            include_backs=False, rotate='tts', rounded=True,
         )
     else:
         # Images weren't (re-)rendered this run, but Publish still needs to

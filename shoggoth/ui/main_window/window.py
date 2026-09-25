@@ -293,11 +293,11 @@ class ShoggothMainWindow(QMainWindow):
     def on_assets_updated(self):
         """Called (on the main thread) after a background asset update writes new files.
 
-        Clears all renderer caches so the next preview render picks up updated
-        fonts, icons, and templates without requiring a restart.
+        The card shown at startup was rendered (and its defaults loaded) before
+        the update finished, so drop everything cached from the old files and
+        redraw -- otherwise the update only shows after a restart.
         """
-        self.card_renderer.clear_asset_caches()
-        self.schedule_preview_update()
+        self.clear_cache()
 
     def clear_cache(self):
         """Tools -> Clear Cache: drop renderer image/font caches and the

@@ -68,7 +68,18 @@ If you want to build Shoggoth yourself or contribute to development:
 2. Clone this repository
 3. Run `uv run shoggoth`
 
-Shoggoth downloads its asset pack (card templates, fonts, icons) automatically on first launch from the [shoggoth-assets](https://github.com/tokeeto/shoggoth_assets) repository. You only need to clone that repo if you want to modify the assets themselves. Shoggoth will stop managing that repo/folder as soon as it sees a .git folder, so make sure to delete .git if you want to go back to Shoggoth automatically downloading updates again.
+Shoggoth downloads its asset pack (card templates, fonts, icons) automatically on first launch from the [shoggoth-assets](https://github.com/tokeeto/shoggoth_assets) repository, and keeps it up to date every time it starts. You only need to clone that repo if you want to modify the assets themselves.
+
+### Editing the asset pack
+
+Shoggoth manages its own asset folder (Help → Asset file location) and updates it automatically. If you change files in that folder, Shoggoth will notice when an update would replace them, and ask before overwriting your changes. That is a safety net, not a way to work: to edit assets, keep your own copy and tell Shoggoth to use it instead, by setting two environment variables:
+
+```
+SHOGGOTH_ASSET_DIR="/path/to/shoggoth_assets/"
+SHOGGOTH_UNMANAGED_ASSETS=1
+```
+
+`SHOGGOTH_ASSET_DIR` points Shoggoth at your folder (for example a clone of the shoggoth-assets repository), and `SHOGGOTH_UNMANAGED_ASSETS` stops Shoggoth from updating it. Instead of setting them system-wide, you can put those two lines in a file named `.env` next to the Shoggoth executable (or, when running from source, in the repository folder). Remove them to go back to automatic updates.
 
 ---
 

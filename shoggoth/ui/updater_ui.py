@@ -31,11 +31,89 @@ from shoggoth.updater import (
     get_current_version, detect_installation_type, compare_versions,
     GITHUB_RELEASES_LIST_URL, PYPI_API_URL,
     download_full_assets, reset_assets, _get_remote_asset_sha, _save_local_asset_state, ASSET_BRANCH,
+    check_asset_update, apply_asset_update,
 )
+from shoggoth.files import asset_dir
 
 logger = logging.getLogger(__name__)
 
 GITHUB_RELEASES_URL = "https://github.com/tokeeto/shoggoth/releases/latest"
+
+
+def _file_list(paths, limit=15):
+    shown = "\n".join(f"  \u2022 {p}" for p in paths[:limit])
+    if len(paths) > limit:
+        shown += "\n  " + tr("MSG_ASSET_UPDATE_MORE_FILES").format(count=len(paths) - limit)
+    return shown
+
+
+class BackgroundAssetUpdater(QObject):
+    """Keeps the asset pack current while the app runs, silently when all goes well.
+
+    The check and the download run on worker threads. If the update would
+    overwrite files the user changed, the user is asked first (on the main
+    thread); declining postpones those files to the next launch, where they're
+    asked again. Files that still fail after the updater's retries are
+    reported. `window.on_assets_updated()` runs whenever files changed.
+    """
+
+    _confirm_needed = Signal(object)  # AssetUpdatePlan
+    _finished = Signal(object)        # AssetUpdateResult, or an error string
+
+    def __init__(self, window):
+        super().__init__(window)
+        self.window = window
+        # connected before any thread starts, so no emit can be missed
+        self._confirm_needed.connect(self._ask_about_modified)
+        self._finished.connect(self._on_finished)
+
+    def start(self):
+        threading.Thread(target=self._check, daemon=True).start()
+
+    def _check(self):
+        try:
+            plan = check_asset_update()
+        except Exception as exc:
+            logger.warning(f"Background asset update failed: {exc}")
+            self._finished.emit(str(exc))
+            return
+        if plan is None:
+            return
+        if plan.modified:
+            self._confirm_needed.emit(plan)
+        else:
+            self._apply(plan, False)
+
+    def _apply(self, plan, overwrite_modified):
+        try:
+            result = apply_asset_update(plan, overwrite_modified)
+        except Exception as exc:
+            logger.warning(f"Background asset update failed: {exc}")
+            self._finished.emit(str(exc))
+            return
+        self._finished.emit(result)
+
+    def _ask_about_modified(self, plan):
+        answer = QMessageBox.question(
+            self.window,
+            tr("DLG_ASSET_UPDATE_MODIFIED"),
+            tr("MSG_ASSET_UPDATE_MODIFIED").format(files=_file_list(plan.modified), folder=asset_dir),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        overwrite = answer == QMessageBox.Yes
+        threading.Thread(target=self._apply, args=(plan, overwrite), daemon=True).start()
+
+    def _on_finished(self, result):
+        if isinstance(result, str):
+            QMessageBox.warning(self.window, tr("DLG_ASSET_UPDATE_FAILED"),
+                                tr("MSG_ASSET_UPDATE_ERROR").format(error=result))
+            return
+        if result.changed:
+            self.window.on_assets_updated()
+        if result.failed:
+            QMessageBox.warning(self.window, tr("DLG_ASSET_UPDATE_FAILED"),
+                                tr("MSG_ASSET_UPDATE_FAILED").format(files=_file_list(result.failed)))
 
 
 class FirstRunDownloadDialog(QDialog):

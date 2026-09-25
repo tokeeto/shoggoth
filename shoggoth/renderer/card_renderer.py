@@ -808,7 +808,13 @@ class CardRenderer:
             )
             card_image.paste(mark_image, mask=mark_image)
 
-        if rotation and side.get('orientation', 'vertical') == 'horizontal':
+        if rotation == 'tts':
+            if side is side.card.back and side.get('orientation', 'vertical') != side.other_side.get('orientation', 'vertical'):
+                rotation = -90
+                if side.get('orientation', 'vertical') == 'horizontal':
+                    rotation = 90
+                card_image = card_image.rotate(rotation, expand=True)
+        elif rotation and side.get('orientation', 'vertical') == 'horizontal':
             degrees = -90
             if card.back == side:
                 degrees = 90
