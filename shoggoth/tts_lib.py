@@ -253,11 +253,14 @@ def card_to_tts(card, id, number, image_folder):
         data['Transform']['scaleX'] *= 0.6
         data['Transform']['scaleZ'] *= 0.6
 
+    subtitle = card.get('subtitle')
+    if subtitle is not None:
+        data['Description'] = subtitle
+
     # Handle double-sided locations (enable hiding if different back name)
     if 'location' in front_type and 'location' in back_type and card.front.get('name') != card.back.get('name'):
         data['HideWhenFaceDown'] = True
 
-    data['Description'] = card.get('subtitle')
     data['Nickname'] = remove_formatting_tags(card.name)
     data['CardID'] = id * 100
     data['GMNotes'] = build_gm_notes_string(card)
@@ -378,3 +381,250 @@ def export_player_cards(cards, image_folder, sync=True):
     if sync:
         tts_sync.push_to_tts(wrapper)
     return return_status, output_path
+
+
+def update_file(cards, image_folder, file_path_str):
+    return_status = 0
+
+    # ------------------------------------------------------------
+    # Generate lookup map of cards
+    # ------------------------------------------------------------
+
+    id_to_card = {}
+
+    image_id = 1
+    for card in cards:
+        for _ in range(card.amount):
+            # special handling for ID since the TTS mod uses that to match mini-card and investigator
+            card_id = card.id
+            if card.front.get('type', '') == 'mini_investigator':
+                card_id = card.get('investigator_id', '00000') + '-m'
+
+            id_to_card[card_id] = card_to_tts(card, image_id, 0, image_folder)
+            image_id += 1
+
+    # ------------------------------------------------------------
+    # Load existing file
+    # ------------------------------------------------------------
+
+    file_path = Path(file_path_str)
+    with open(file_path, "r", encoding="utf-8") as f:
+        file_data = json.load(f)
+
+    # ------------------------------------------------------------
+    # Tracking
+    # ------------------------------------------------------------
+
+    stats = {
+        "objects_with_id": 0,
+        "updated": 0,
+        "not_found": 0,
+        "invalid_gmnotes": 0,
+    }
+
+    # ------------------------------------------------------------
+    # Recursively update objects
+    # ------------------------------------------------------------
+
+    def update_object(obj):
+        """
+        Recursively search a TTS object tree and replace cards
+        whose metadata ID exists in id_to_card.
+
+        Returns the updated object.
+        """
+
+        if not isinstance(obj, dict):
+            return obj
+
+        # --------------------------------------------------------
+        # Check whether this object has a matching ID
+        # --------------------------------------------------------
+
+        gmnotes = obj.get("GMNotes")
+
+        if gmnotes:
+            try:
+                metadata = json.loads(gmnotes)
+            except (json.JSONDecodeError, TypeError):
+                metadata = None
+                stats["invalid_gmnotes"] += 1
+
+            if isinstance(metadata, dict):
+                card_id = metadata.get("id")
+
+                if card_id is not None:
+                    stats["objects_with_id"] += 1
+
+                    if card_id in id_to_card:
+                        # Replace with newly generated card
+                        new_obj = id_to_card[card_id].copy()
+
+                        # Preserve the GUID
+                        old_guid = obj.get("GUID")
+                        if old_guid is not None:
+                            new_obj["GUID"] = old_guid
+
+                        # Preserve the Transform (position / rotation / scale)
+                        old_transform = obj.get("Transform")
+                        if old_transform is not None:
+                            new_obj["Transform"] = old_transform
+
+                        stats["updated"] += 1
+
+                        return new_obj
+
+                    stats["not_found"] += 1
+
+        # --------------------------------------------------------
+        # Recursively process ObjectStates
+        # --------------------------------------------------------
+
+        object_states = obj.get("ObjectStates")
+
+        if isinstance(object_states, list):
+            obj["ObjectStates"] = [
+                update_object(child)
+                for child in object_states
+            ]
+    
+        # --------------------------------------------------------
+        # Recursively process contained objects
+        # --------------------------------------------------------
+
+        contained_objects = obj.get("ContainedObjects")
+
+        if isinstance(contained_objects, list):
+            obj["ContainedObjects"] = [
+                update_object(child)
+                for child in contained_objects
+            ]
+
+        # --------------------------------------------------------
+        # Recursively process states
+        # --------------------------------------------------------
+
+        state_objects = obj.get("States")
+
+        if isinstance(state_objects, dict):
+            obj["States"] = {
+                state_key: update_object(state_object)
+                for state_key, state_object in state_objects.items()
+            }
+
+        # --------------------------------------------------------
+        # Rebuild deck data
+        # --------------------------------------------------------
+
+        if obj.get("Name") == "Deck":
+            rebuild_deck_data(obj)
+
+        return obj
+
+    # ------------------------------------------------------------
+    # Start recursive traversal
+    # ------------------------------------------------------------
+
+    file_data = update_object(file_data)
+
+    # ------------------------------------------------------------
+    # Save updated file
+    # ------------------------------------------------------------
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(file_data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+    # ------------------------------------------------------------
+    # Report results
+    # ------------------------------------------------------------
+
+    print(f"Objects with ID:  {stats['objects_with_id']}")
+    print(f"Objects updated:  {stats['updated']}")
+    print(f"IDs not found:    {stats['not_found']}")
+    print(f"Invalid GMNotes:  {stats['invalid_gmnotes']}")
+
+    return return_status
+
+
+def rebuild_deck_data(deck):
+    """Rebuild the CustomDeck and CardID data of a TTS deck."""
+
+    urls_to_canon_id = {}
+    custom_deck_registry = {}
+    deck_ids = []
+    
+    contained_objects = deck.get("ContainedObjects", [])
+
+    if not isinstance(contained_objects, list):
+        return deck
+
+    for card in contained_objects:
+        if not isinstance(card, dict):
+            continue
+
+        card_custom_deck = card.get("CustomDeck", {})
+        if not isinstance(card_custom_deck, dict) or not card_custom_deck:
+            if "CardID" in card:
+                deck_ids.append(card.get("CardID"))
+
+            continue
+
+        # A card should have exactly one CustomDeck entry
+        orig_id = next(iter(card_custom_deck))
+        info = card_custom_deck[orig_id]
+        fingerprint = (
+            info.get("FaceURL"),
+            info.get("BackURL"),
+        )
+
+        # --------------------------------------------------------
+        # Determine canonical deck ID
+        # --------------------------------------------------------
+
+        if fingerprint not in urls_to_canon_id:
+            if orig_id in custom_deck_registry:
+                # Same ID, but different artwork -> collision
+                existing_ids = [
+                    int(k) for k in custom_deck_registry
+                    if str(k).isdigit()
+                ]
+
+                new_id = str(max(existing_ids) + 1) if existing_ids else orig_id
+                canon_id = new_id
+            else:
+                canon_id = orig_id
+
+            urls_to_canon_id[fingerprint] = canon_id
+            custom_deck_registry[canon_id] = info
+        else:
+            canon_id = urls_to_canon_id[fingerprint]
+
+        # --------------------------------------------------------
+        # Update the card's CardID
+        # --------------------------------------------------------
+
+        old_card_id = str(card.get("CardID", 100))
+        new_card_id = int(f"{canon_id}{old_card_id[-2:]}")
+        card["CardID"] = new_card_id
+
+        # Track CardID in the same order as ContainedObjects
+        deck_ids.append(new_card_id)
+
+        # --------------------------------------------------------
+        # Make the card's CustomDeck canonical as well
+        # --------------------------------------------------------
+
+        card["CustomDeck"] = { canon_id: custom_deck_registry[canon_id] }
+
+    # ------------------------------------------------------------
+    # Update deck-level data
+    # ------------------------------------------------------------
+    
+    deck["DeckIDs"] = deck_ids
+    deck["CustomDeck"] = {
+        key: custom_deck_registry[key]
+        for key in sorted(custom_deck_registry, key=int)
+    }
+
+    return deck

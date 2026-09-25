@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from shoggoth.files import default_export_folder, safe_filename
 from shoggoth.i18n import tr
 from shoggoth.settings import EXPORT_SIZES
-from shoggoth.ui.export_widgets import FolderPicker, ProfileScopeSelector
+from shoggoth.ui.export_widgets import FilePicker, FolderPicker, ProfileScopeSelector
 
 FILENAME_FORMATS = [
     ('id',        'UUID ({id})'),
@@ -376,6 +376,14 @@ class TtsEntryWidget(QWidget):
         self._sync = QCheckBox(tr("TTS_SEND_TO_TTS"))
         layout.addWidget(self._sync)
 
+        layout.addSpacing(10)
+
+        file_label = QLabel(tr("TTS_UPDATE_FILE_LABEL"))
+        layout.addWidget(file_label)
+
+        self._update_file = FilePicker(tr("TTS_FILE_PLACEHOLDER"))
+        layout.addWidget(self._update_file)
+
         layout.addStretch()
 
     def apply(self, entry):
@@ -384,12 +392,14 @@ class TtsEntryWidget(QWidget):
         self._export_images_cb.setChecked(d.get('export_images', True))
         self._folder.set_folder(d.get('folder'))
         self._sync.setChecked(d.get('sync', False))
+        self._update_file.set_file_path(d.get('update_file'))
 
     def read(self):
         settings = {
             'folder': self._folder.folder_setting(),
             'export_images': self._export_images_cb.isChecked(),
             'sync': self._sync.isChecked(),
+            'update_file': self._update_file.get_file_path(),
         }
         return {'scope': self._scope_selector.read_scope(), 'settings': settings}
 
