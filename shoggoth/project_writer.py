@@ -22,7 +22,7 @@ class Writer:
 
     def _write(self, data):
         """Writes the project file, and tells the project what it now holds."""
-        text = json.dumps(data, indent=4)
+        text = json.dumps(order_dict(data), indent=4)
         atomic_write(self.project.file_path, text)
         self.project.remember_saved(json.loads(text))
 
@@ -102,7 +102,7 @@ class TranslationWriter(Writer):
         orig_data['meta'] = self.translation.data.get('meta', {})
 
         project.dirty = False
-        atomic_write(self.translation.file_path, json.dumps(orig_data, indent=4))
+        atomic_write(self.translation.file_path, json.dumps(order_dict(orig_data), indent=4))
 
     def save_encounter_set(self, encounter_set):
         """Save data to file"""
@@ -115,7 +115,7 @@ class TranslationWriter(Writer):
         orig_data['encounter_sets'][encounter_set.id]['name'] = encounter_set.name
 
         encounter_set.dirty = False
-        atomic_write(self.translation.file_path, json.dumps(orig_data, indent=4))
+        atomic_write(self.translation.file_path, json.dumps(order_dict(orig_data), indent=4))
 
     def save_card(self, card):
         with open(self.translation.file_path, 'r', encoding='utf-8') as f:
@@ -135,7 +135,7 @@ class TranslationWriter(Writer):
                     orig_data['cards'][card.id][side][field] = card.data[side][field]
 
         card.dirty = False
-        atomic_write(self.translation.file_path, json.dumps(orig_data, indent=4))
+        atomic_write(self.translation.file_path, json.dumps(order_dict(orig_data), indent=4))
 
     def save_all(self):
         """Save data to file"""
@@ -165,3 +165,40 @@ def atomic_write(filepath, data, mode="w", **kwargs):
     except Exception:
         os.unlink(tmp_path)  # clean up on failure
         raise
+
+KEY_ORDER = [
+    "name",
+    "id",
+    "code",
+    "default_copyright",
+    "icon",
+    "meta",
+    "cards",
+    "encounter_sets",
+    "amount",
+    "investigator",
+    "project_number",
+    "copyright",
+    "front",
+    "back",
+]
+
+def order_dict(data):
+    """Return a new dict with preferred keys first, followed by remaining keys."""
+    if isinstance(data, dict):
+        ordered = {}
+
+        for key in KEY_ORDER:
+            if key in data:
+                ordered[key] = order_dict(data[key])
+
+        for key in sorted(data.keys()):
+            if key not in KEY_ORDER:
+                ordered[key] = order_dict(data[key])
+
+        return ordered
+
+    if isinstance(data, list):
+        return [order_dict(item) for item in data]
+
+    return data
