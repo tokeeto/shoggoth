@@ -224,11 +224,11 @@ def card_to_tts(card, id, number, image_folder):
 
     expected_front, expected_back = renderer.CardRenderer.expected_export_paths(card, image_folder, separate_versions=False, include_backs=True, format='webp')
 
-    # set the front / back image
+    # Set the front / back image
     data['CustomDeck'][id]['FaceURL'] = DEFAULT_IMAGES.get(front_type, f'file:///{expected_front}')
     data['CustomDeck'][id]['BackURL'] = DEFAULT_IMAGES.get(back_type, f'file:///{expected_back}')
 
-    # add tags based on type
+    # Add tags based on type
     for card_type in {front_type, back_type}:
         tag = TYPE_TAG_MAP.get(card_type)
         if tag:
@@ -240,18 +240,22 @@ def card_to_tts(card, id, number, image_folder):
     if card.front.get('orientation', 'vertical') != card.back.get('orientation', 'vertical'):
         data['Tags'].append('DynamicAltView')
 
-    # handling for horizontal cards (since they get scaled differently by TTS)
+    # Handle horizontal cards (since they get scaled differently by TTS)
     if front_type in ['act', 'agenda', 'investigator']:
         data['Transform']['scaleX'] *= 0.8214 / 1.15
         data['Transform']['scaleZ'] *= 0.8214 / 1.15
 
-    # handling for investigators (since they are larger in TTS for clarity)
+    # Handle investigators (since they are larger in TTS for clarity)
     if front_type == 'investigator':
         data['Transform']['scaleX'] *= 1.15
         data['Transform']['scaleZ'] *= 1.15
     elif front_type == 'mini_investigator':
         data['Transform']['scaleX'] *= 0.6
         data['Transform']['scaleZ'] *= 0.6
+
+    # Handle double-sided locations (enable hiding if different back name)
+    if 'location' in front_type and 'location' in back_type and card.front.get('name') != card.back.get('name'):
+        data['HideWhenFaceDown'] = True
 
     data['Description'] = card.get('subtitle')
     data['Nickname'] = remove_formatting_tags(card.name)
