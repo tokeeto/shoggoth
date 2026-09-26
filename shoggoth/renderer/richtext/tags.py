@@ -41,6 +41,7 @@ FORMATTING_TAGS = {
     '<br>': Token(TokenType.BREAK),
     '<hr>': Token(TokenType.HR),
     '</indent>': Token(TokenType.INDENT_POP),
+    '<valign>': Token(TokenType.VALIGN),
 }
 
 REPLACEMENT_TAGS = {
@@ -202,6 +203,7 @@ _TOKEN_HELP = {
     TokenType.INDENT_POP: 'end indent',
     TokenType.UNDERLINE: 'underline',
     TokenType.DBL_UNDERLINE: 'double underline heading',
+    TokenType.VALIGN: 'vertically center the text from this line on',
 }
 
 

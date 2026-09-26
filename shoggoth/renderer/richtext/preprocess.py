@@ -22,7 +22,7 @@ CONTROL_TOKEN_TYPES = frozenset({
     TokenType.SIZE, TokenType.SIZE_POP,
     TokenType.FONT_PUSH, TokenType.FONT_POP,
     TokenType.UNDERLINE, TokenType.DBL_UNDERLINE,
-    TokenType.MARGIN, TokenType.LETTER_SPACING,
+    TokenType.MARGIN, TokenType.LETTER_SPACING, TokenType.VALIGN,
 })
 
 _SPACE = Token(TokenType.TEXT, ' ')

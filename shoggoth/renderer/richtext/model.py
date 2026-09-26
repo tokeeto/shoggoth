@@ -23,6 +23,7 @@ class TokenType(Enum):
     BREAK = auto()
     MARGIN = auto()
     LETTER_SPACING = auto()
+    VALIGN = auto()          # <valign>
     FORMAT = auto()          # <b> <i> <bi> <icon>
     ALIGN = auto()           # <center> <left> <right>
     STORY = auto()           # <blockquote>
@@ -50,6 +51,7 @@ class PieceType(Enum):
     HR_BREAK = auto()        # a rule alone on its line
     VSPACE = auto()          # <margin N>
     LETTER_SPACING = auto()  # <spacing N>, stripped before layout
+    VALIGN = auto()          # <valign>: center the rest of the text vertically
 
 
 class Align(Enum):
