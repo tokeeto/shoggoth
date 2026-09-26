@@ -11,6 +11,7 @@
     or pushing text to the next line as needed.
 """
 
+import math
 from typing import NamedTuple
 
 from shoggoth.renderer.richtext.constants import (
@@ -18,8 +19,11 @@ from shoggoth.renderer.richtext.constants import (
     STRIKETHROUGH_Y_FACTOR, UNDERLINE_Y_FACTOR,
 )
 from shoggoth.renderer.richtext.model import (
-    Align, ImageCommand, LineCommand, PieceType, Style, TextCommand,
+    Align, ImageCommand, LineCommand, Piece, PieceType, Style, TextCommand,
 )
+
+# Upper bound on extra layout passes spent vertically centering polygon text.
+_MAX_VALIGN_PASSES = 12
 
 
 class _Item(NamedTuple):
@@ -32,6 +36,18 @@ class _Item(NamedTuple):
     font: object = None
     icon: object = None
     letter_spaced: bool = False     # drawn glyph-by-glyph, never run-merged
+    face: str = ''                  # font face name, to reload `font` at another size
+    src: object = None              # IMAGE: icon source + tint, to re-fetch at
+    color: object = None            #   another size (`font` = the sizing font)
+
+
+class _Box(NamedTuple):
+    """A region scaled to the target resolution (float coordinates)."""
+
+    x: float
+    y: float
+    width: float
+    height: float
 
 
 class LayoutEngine:
@@ -45,30 +61,50 @@ class LayoutEngine:
             fill='#231f20', outline=0, outline_fill=None, scale=1.0,
             letter_spacing=1.0, valignment='top'):
         """`region`/`polygon`/`font_size`/`min_font_size`/`outline` must be
-        nominal (pre-scale) values -- see the module docstring. `scale` is
-        applied only at the very end, to the finished commands."""
-        lines, size = self._fit(pieces, region, polygon, font_size, min_font_size,
-                                letter_spacing)
-        context = _RenderContext(size, 1.0, fill, outline, outline_fill, region, polygon)
+        nominal (pre-scale) values.
+
+        Two passes: the fit and line breaking happen once at the nominal
+        (full) size, which fixes which items sit on which line and each line's
+        baseline. Then every line is re-measured with fonts and icons loaded
+        at the target `scale` and flowed horizontally at that resolution. So
+        baselines land exactly at their full-size Y (times `scale`), while X
+        follows the target-size glyph advances, keeping spacing and kerning
+        within a line consistent instead of mixing full-size positions with
+        target-size glyphs."""
+        if valignment == 'center':
+            pieces = [Piece(PieceType.VALIGN)] + list(pieces)
+        lines, size, fitted = self._fit(pieces, region, polygon, font_size,
+                                        min_font_size, letter_spacing)
+        if fitted.valign_line is not None:
+            lines = self._center(pieces, region, polygon, size, letter_spacing,
+                                 lines, fitted)
+        if scale and scale != 1.0:
+            lines = _scale_lines(lines, scale, self.resources, letter_spacing)
+            region = _Box(region.x * scale, region.y * scale,
+                          region.width * scale, region.height * scale)
+            if polygon:
+                polygon = [(x * scale, y * scale) for x, y in polygon]
+            size = max(1, round(size * scale))
+            if outline:
+                outline = max(0, round(outline * scale))
+        else:
+            scale = 1.0
+        context = _RenderContext(size, scale, fill, outline, outline_fill, region, polygon)
         commands = []
         for line in lines:
             commands.extend(line.render(context))
-        if valignment == 'center':
-            commands = _center_vertically(commands, region, size)
-        if scale and scale != 1.0:
-            commands = _scale_commands(commands, scale, self.resources)
         return commands
 
     def _fit(self, pieces, region, polygon, font_size, min_font_size, letter_spacing):
         """Search for a fitting size and build its lines, always at the
         nominal (scale-1) size the caller passed in. Returns
-        (list[_Line], final_size_px)."""
+        (list[_Line], final_size_px, the _LayoutPass that built them)."""
         size = round(font_size)
         while True:
             forced = size <= min_font_size
-            lines, fits, fraction = _LayoutPass(
-                self.resources, pieces, region, polygon, size,
-                1.0, letter_spacing, forced).build()
+            layout_pass = _LayoutPass(self.resources, pieces, region, polygon, size,
+                                      1.0, letter_spacing, forced)
+            lines, fits, fraction = layout_pass.build()
             if fits or forced:
                 break
             # Step down faster the earlier the overflow started.
@@ -80,70 +116,135 @@ class LayoutEngine:
             if 0 < fraction < 0.3:
                 size -= 1
 
-        return lines, size
+        return lines, size, layout_pass
+
+    def _center(self, pieces, region, polygon, size, letter_spacing, lines, fitted):
+        """Vertically center the lines from `<valign>`'s line on, within the
+        band between that line's top and the region's bottom, keeping the
+        fitted size. Balances the ink box (cap height of the block's first
+        line to descender of its last), so top and bottom gaps look equal.
+
+        Without a polygon, line breaks don't depend on Y, so the block is just
+        shifted. With one, moving text down changes the band widths and so
+        the line count, so the offset is searched for: a fixed-point step
+        (move by half the remaining imbalance) inside a bisection bracket.
+        `lo` is the largest offset known to fit without sitting below center,
+        `hi` the smallest known not to. The step usually lands in one or two
+        passes; the bracket guarantees termination when there's no exact
+        fixed point (e.g. one line more fits exactly when shifted down), and
+        in that case the text stays at `lo`, a bit above center rather than
+        overflowing or sinking low."""
+        start, top = fitted.valign_line, fitted.valign_top
+        limit = region.y + region.height
+        balance = _imbalance(lines, start, top, limit)
+        if balance is None or balance < 2:
+            return lines
+        if not polygon:
+            for line in lines[start:]:
+                line.y += math.floor(balance / 2)
+            return lines
+
+        best, lo, hi = lines, 0, None
+        tried = {0}
+        guess = math.floor(balance / 2)
+        tolerance = max(1, size // 10)   # a bracket this narrow isn't worth a pass
+        for _ in range(_MAX_VALIGN_PASSES):
+            if hi is not None and hi - lo <= tolerance:
+                break
+            if hi is not None and not lo < guess < hi:
+                guess = (lo + hi) // 2
+            if guess <= lo or guess in tried:
+                break
+            tried.add(guess)
+            candidate, fits, _ = _LayoutPass(
+                self.resources, pieces, region, polygon, size, 1.0, letter_spacing,
+                False, valign_line=start, valign_offset=guess).build()
+            balance = _imbalance(candidate, start, top, limit) if fits else None
+            if balance is not None and balance >= 0:
+                best, lo = candidate, guess
+            else:
+                hi = guess
+            guess = guess + math.floor(balance / 2) if balance is not None else hi
+        return best
 
 
-def _scale_commands(commands, scale, resources):
-    """Scale a full-size command list down (or up) to the caller's real
-    `scale`, as the final step of layout -- see the module docstring. Text
-    keeps its full-size measured position (just multiplied by `scale`) but is
-    re-rendered with a font loaded at the scaled size, since only the glyphs
-    need to look right at the target resolution, not the wrap decisions that
-    already happened at full size."""
+def _imbalance(lines, start, top, limit):
+    """Bottom gap minus top gap of the ink of `lines[start:]` within the band
+    `top`..`limit`; positive means the block sits above center. None if the
+    block draws nothing."""
+    block = [line for line in lines[start:] if line.is_rule or line.items]
+    if not block:
+        return None
+    above, _ = _ink_extent(block[0])
+    _, below = _ink_extent(block[-1])
+    return (limit - (block[-1].y + below)) - ((block[0].y - above) - top)
+
+
+def _ink_extent(line):
+    """(height above, depth below) the baseline that `line` inks: cap height
+    and descender of its text fonts (so the result doesn't depend on which
+    letters happen to be there), the actual glyphs of icon-font items, and
+    inline images as placed by `_Line.render`."""
+    if line.is_rule:
+        return 0, 0
+    above = below = 0
+    for item in line.items:
+        if item.kind is PieceType.TEXT and item.text.strip():
+            if item.face == 'icon':
+                _, glyph_top, _, glyph_bottom = item.font.getbbox(item.text, anchor='ls')
+            else:
+                glyph_top = item.font.getbbox('H', anchor='ls')[1]
+                glyph_bottom = item.font.getbbox('p', anchor='ls')[3]
+            above, below = max(above, -glyph_top), max(below, glyph_bottom)
+        elif item.kind is PieceType.IMAGE and item.icon is not None:
+            above = max(above, item.icon.height * .85)
+            below = max(below, item.icon.height * .15)
+    return above, below
+
+
+def _scale_lines(lines, scale, resources, letter_spacing):
+    """Copy full-size `lines` to the target resolution: same items per line,
+    baselines and vertical metrics multiplied by `scale`, but every item
+    re-measured with its font (or icon) loaded at the scaled size. Horizontal
+    placement is then redone by `_Line.render` from those widths."""
+    def font_at(face, size_px):
+        return resources.load_fonts(max(1, round(size_px * scale)))[face]
+
+    def scale_item(item):
+        if item.kind is PieceType.TEXT:
+            font = font_at(item.face, item.font.size)
+            width = resources.width_cache.width(item.text, font)
+            if item.letter_spaced:
+                width *= letter_spacing
+            return item._replace(font=font, width=width)
+        if item.kind is PieceType.IMAGE:
+            if item.icon is None:
+                return item
+            regular = font_at('regular', item.font.size)
+            icon = resources.get_icon(item.src, int(regular.size), color=item.color)
+            return item._replace(font=regular, icon=icon, width=icon.width if icon else 0)
+        return item._replace(width=item.width * scale)  # inline HR spans the band
+
     scaled = []
-    for command in commands:
-        if isinstance(command, TextCommand):
-            font = command.font.font_variant(size=max(1, round(command.font.size * scale)))
-            _register_scaled_font_meta(resources, font, command.font)
-            outline = max(0, round(command.outline * scale)) if command.outline else command.outline
-            scaled.append(command._replace(x=command.x * scale, y=command.y * scale,
-                                           font=font, outline=outline))
-        elif isinstance(command, LineCommand):
-            scaled.append(command._replace(
-                x1=command.x1 * scale, y1=command.y1 * scale,
-                x2=command.x2 * scale, y2=command.y2 * scale,
-                width=max(1, round(command.width * scale))))
-        elif isinstance(command, ImageCommand):
-            width = max(1, round(command.icon.width * scale))
-            height = max(1, round(command.icon.height * scale))
-            scaled.append(command._replace(
-                x=round(command.x * scale), y=round(command.y * scale),
-                icon=command.icon.resize((width, height))))
-        else:
-            scaled.append(command)
+    for line in lines:
+        new = _Line()
+        new.is_rule = line.is_rule
+        new.y = line.y * scale
+        new.block_indent = line.block_indent * scale
+        new.align = line.align
+        new.size_px = line.size_px * scale
+        new.line_height = line.line_height * scale
+        new.quote = line.quote
+        new.quote_first = line.quote_first
+        new.has_dbl = line.has_dbl
+        new.hang = line.hang
+        if line.quote:
+            new.text_indent = QUOTE_INDENT * scale
+        elif line.hang:
+            new.text_indent = resources.width_cache.width('b ', font_at('icon', line.size_px))
+        new.items = [scale_item(item) for item in line.items]
+        scaled.append(new)
     return scaled
-
-
-def _register_scaled_font_meta(resources, font, base_font):
-    """`font_variant()` returns a new ImageFont instance, keyed nowhere --
-    `resources.font_meta` is keyed by identity (see ResourceCache.load_fonts),
-    so without this the HTML-capture text-span lookup (`font_meta.get(command
-    .font)`) misses and silently drops the span, leaving a correctly
-    positioned but empty text layer in the PDF overlay."""
-    if font in resources.font_meta:
-        return
-    base_meta = resources.font_meta.get(base_font)
-    if base_meta is None:
-        return
-    ascent, descent = font.getmetrics()
-    resources.font_meta[font] = {**base_meta, 'size': font.size, 'ascent': ascent, 'descent': descent}
-
-
-def _center_vertically(commands, region, size):
-    baselines = [c.y for c in commands if isinstance(c, (TextCommand, ImageCommand))]
-    if not baselines:
-        return commands
-    text_bottom = max(baselines) + int(size * LINE_HEIGHT_FACTOR)
-    offset = (region.height - (text_bottom - region.y)) // 2
-    if offset <= 0:
-        return commands
-    shifted = []
-    for command in commands:
-        if isinstance(command, LineCommand):
-            shifted.append(command._replace(y1=command.y1 + offset, y2=command.y2 + offset))
-        else:
-            shifted.append(command._replace(y=command.y + offset))
-    return shifted
 
 
 class _Line:
@@ -204,7 +305,7 @@ class _Line:
             bar_top = self.y - (self.size_px * 0.8 if self.quote_first else self.line_height)
             for bar_x in (context.left, context.left + int(context.scale * QUOTE_BAR_SPACING)):
                 commands.append(LineCommand(bar_x, bar_top, bar_x, self.y,
-                                            context.fill, int(context.scale * 2)))
+                                            context.fill, max(1, round(context.scale * 2))))
 
         left, width = context.content_bounds(self.y, self.block_indent, self.size_px)
         left += self.text_indent
@@ -400,7 +501,7 @@ class _LayoutPass:
     returns (None, False, fraction)."""
 
     def __init__(self, resources, pieces, region, polygon, base_size, scale,
-                 letter_spacing, forced):
+                 letter_spacing, forced, valign_line=None, valign_offset=0):
         self.resources = resources
         self.pieces = pieces
         self.region = region
@@ -419,6 +520,16 @@ class _LayoutPass:
         self._line = None
         self._first_of_paragraph = True
         self._bullet_paragraph = False
+
+        # <valign>: `valign_line` is the index of the line the first marker
+        # landed on and `valign_top` that line's top, before any offset.
+        # `valign_offset` (from LayoutEngine._center) moves that line and
+        # everything after it down.
+        self.valign_line = None
+        self.valign_top = None
+        self._offset_line = valign_line
+        self._offset = valign_offset
+        self._applied_offset = 0
 
     # ── measurement ─────────────────────────────────────────────────────
     def _size_px(self, style):
@@ -439,9 +550,10 @@ class _LayoutPass:
 
     def _text_items(self, text, font, style):
         if self.letter_spacing == 1.0 or not text:
-            return [_Item(PieceType.TEXT, self._width(text, font), style, text=text, font=font)]
+            return [_Item(PieceType.TEXT, self._width(text, font), style, text=text, font=font,
+                          face=style.font)]
         return [_Item(PieceType.TEXT, self._width(character, font) * self.letter_spacing,
-                      style, text=character, font=font, letter_spaced=True)
+                      style, text=character, font=font, letter_spaced=True, face=style.font)
                 for character in text]
 
     def _wrap_width(self, y, block_indent, text_indent, size_px):
@@ -462,6 +574,9 @@ class _LayoutPass:
 
     # ── line lifecycle ─────────────────────────────────────────────────
     def _open_line(self):
+        if self._offset and len(self.lines) == self._offset_line:
+            self.y += self._offset
+            self._applied_offset = self._offset
         self._line = _Line()
         self._line.hang = self._bullet_paragraph and not self._first_of_paragraph
 
@@ -516,6 +631,12 @@ class _LayoutPass:
             kind = piece.type
 
             if kind is PieceType.LETTER_SPACING:
+                continue
+
+            if kind is PieceType.VALIGN:
+                if self.valign_line is None:
+                    self.valign_line = len(self.lines)
+                    self.valign_top = self.y - self._applied_offset - self.base_size
                 continue
 
             if kind is PieceType.VSPACE:
@@ -578,13 +699,14 @@ class _LayoutPass:
             if kind is PieceType.ICON:
                 font = self._font('icon', size_px)
                 item = _Item(PieceType.TEXT, self._width(piece.glyph, font), style,
-                             text=piece.glyph, font=font)
+                             text=piece.glyph, font=font, face='icon')
                 if piece.glyph == 'b' and not self._line.items:
                     self._bullet_paragraph = True
             elif kind is PieceType.IMAGE:
                 regular = self._font('regular', size_px)
                 icon = self.resources.get_icon(piece.src, int(regular.size), color=piece.color)
-                item = _Item(PieceType.IMAGE, icon.width if icon else 0, style, icon=icon)
+                item = _Item(PieceType.IMAGE, icon.width if icon else 0, style, icon=icon,
+                             font=regular, src=piece.src, color=piece.color)
             else:  # inline HR
                 text_indent = self._text_indent(style, size_px)
                 width = self._wrap_width(self.y, style.indent, text_indent, size_px)

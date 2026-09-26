@@ -633,7 +633,6 @@ class CardRenderer:
             value = value.replace('<encounter.icon', '<image src=""')
 
         value = value.replace('<copyright>', side.card.get('copyright') or '')
-        value = value.replace('<valign>', '')
 
         # card reference
         references = re.findall(card_value_pattern, value)
@@ -875,9 +874,6 @@ class CardRenderer:
             if not value:
                 continue
 
-            # Valign reading, must happen before replacement
-            valign = 'center' if '<valign>' in value else 'top'
-
             # Replacements
             value = self.text_replacement(field, value, side)
 
@@ -913,7 +909,7 @@ class CardRenderer:
                                 outline=font.get('outline', None),
                                 outline_fill=font.get('outline_color'),
                                 alignment=font.get('alignment', 'left'),
-                                valignment=font.get('valignment', valign),
+                                valignment=font.get('valignment', 'top'),
                                 polygon=polygon,
                                 scale=s,
                                 project=side.card.project,
@@ -934,7 +930,7 @@ class CardRenderer:
                             outline=font.get('outline'),
                             outline_fill=font.get('outline_color'),
                             alignment=font.get('alignment', 'left'),
-                            valignment=font.get('valignment', valign),
+                            valignment=font.get('valignment', 'top'),
                             polygon=polygon,
                             scale=s,
                             project=side.card.project,

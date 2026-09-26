@@ -5,7 +5,8 @@ post-passes in `preprocess`). `_resolve_to_pieces` then folds every style-only
 token (`<b>`, `<font>`, `<indent>`, `<center>`, `<size>`, `<u>`, `<dbl>`,
 `<blockquote>`, ...) into the `Style` of the pieces it covers and drops it, so
 the layout engine only sees space-occupying pieces (`TEXT`, `SPACE`, `ICON`,
-`IMAGE`, `HR`) and flow breaks (`BREAK`, `PAR`, `HR_BREAK`, `VSPACE`).
+`IMAGE`, `HR`), flow breaks (`BREAK`, `PAR`, `HR_BREAK`, `VSPACE`) and the
+`VALIGN` marker.
 """
 
 from shoggoth.renderer.richtext import preprocess
@@ -211,6 +212,8 @@ def _resolve_to_pieces(tokens, base_font, base_align):
             pieces.append(Piece(PieceType.VSPACE, px=token.value))
         elif kind is TokenType.LETTER_SPACING:
             pieces.append(Piece(PieceType.LETTER_SPACING, spacing=token.value))
+        elif kind is TokenType.VALIGN:
+            pieces.append(Piece(PieceType.VALIGN))
         elif kind is TokenType.FORMAT:
             set_scope('font', token.value, token.start, base_font)
         elif kind is TokenType.ALIGN:
