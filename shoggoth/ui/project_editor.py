@@ -446,7 +446,7 @@ class ProjectEditor(QWidget):
                 break
             try:
                 renderer = renderer_for_card(self.card_renderer, card)
-                front_image, _ = renderer.get_card_textures(card, {'width': 375, 'height': 519, 'bleed': 18}, bleed=False)
+                front_image, _ = renderer.get_card_textures(card, {'width': 375, 'height': 519, 'bleed': 18}, bleed=False, rounded=True)
 
                 pixmap = QPixmap.fromImage(ImageQt(front_image))
 
