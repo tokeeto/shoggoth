@@ -214,7 +214,7 @@ def remove_formatting_tags(text: str) -> str:
     return re.sub(r"</?[^>]+>", "", text)
 
 
-def card_to_tts(card, id, number, image_folder):
+def card_to_tts(card, id, image_folder):
     data = deepcopy(card_template)
     data['CustomDeck'][id] = deepcopy(inner_card_template)
     data['Tags'] = []
@@ -278,7 +278,7 @@ def _resolve_included_sets(project, encounter):
 
 def export_all(project, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
-    current_id = 6000
+    image_id = 0
     for encounter in project.encounter_sets:
         encounter_wrapper = deepcopy(encounter_template)
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
@@ -288,14 +288,14 @@ def export_all(project, image_folder, sync=True):
         other_sets = _resolve_included_sets(project, encounter)
         for enc_set in [encounter] + other_sets:
             for card in enc_set.cards:
+                image_id += 1
                 for _ in range(card.amount):
-                    encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
-                    current_id += 1
-                    encounter_wrapper['DeckIDs'].append(current_id)
+                    encounter_wrapper['ContainedObjects'].append(card_to_tts(card, image_id, image_folder))
+                    encounter_wrapper['DeckIDs'].append(image_id)
 
     for card in project.player_cards:
-        wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
-        current_id += 1
+        image_id += 1
+        wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, image_id, image_folder))
 
     return_status = 0
     if files.tts_dir:
@@ -314,7 +314,7 @@ def export_all(project, image_folder, sync=True):
 
 def export_card(card, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
-    data = card_to_tts(card, 8000, 0, image_folder)
+    data = card_to_tts(card, 8000, image_folder)
     wrapper['ObjectStates'].append(data)
 
     if files.tts_dir:
@@ -330,7 +330,7 @@ def export_card(card, image_folder, sync=True):
 
 def export_campaign(project, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
-    current_id = 6000
+    image_id = 0
     for encounter in project.encounter_sets:
         encounter_wrapper = deepcopy(encounter_template)
         wrapper['ObjectStates'][0]['ContainedObjects'].append(encounter_wrapper)
@@ -340,10 +340,10 @@ def export_campaign(project, image_folder, sync=True):
         other_sets = _resolve_included_sets(project, encounter)
         for enc_set in [encounter] + other_sets:
             for card in enc_set.cards:
+                image_id += 1
                 for _ in range(card.amount):
-                    encounter_wrapper['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
-                    current_id += 1
-                    encounter_wrapper['DeckIDs'].append(current_id)
+                    encounter_wrapper['ContainedObjects'].append(card_to_tts(card, image_id, image_folder))
+                    encounter_wrapper['DeckIDs'].append(image_id)
 
     return_status = 0
     if files.tts_dir:
@@ -362,11 +362,11 @@ def export_campaign(project, image_folder, sync=True):
 
 def export_player_cards(cards, image_folder, sync=True):
     wrapper = deepcopy(wrapper_template)
-    current_id = 6000
+    image_id = 0
     for card in cards:
+        image_id += 1
         for _ in range(card.amount):
-            wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, current_id, 0, image_folder))
-            current_id += 1
+            wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, image_id, image_folder))
 
     return_status = 0
     if files.tts_dir:
@@ -392,16 +392,16 @@ def update_file(cards, image_folder, file_path_str):
 
     id_to_card = {}
 
-    image_id = 1
+    image_id = 0
     for card in cards:
+        image_id += 1
         for _ in range(card.amount):
             # special handling for ID since the TTS mod uses that to match mini-card and investigator
             card_id = card.id
             if card.front.get('type', '') == 'mini_investigator':
                 card_id = card.get('investigator_id', '00000') + '-m'
 
-            id_to_card[card_id] = card_to_tts(card, image_id, 0, image_folder)
-            image_id += 1
+            id_to_card[card_id] = card_to_tts(card, image_id, image_folder)
 
     # ------------------------------------------------------------
     # Load existing file
