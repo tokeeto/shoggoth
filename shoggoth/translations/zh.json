@@ -336,6 +336,7 @@
   "DLG_DELETE_CARD": "删除卡牌",
   "CONFIRM_DELETE_CARD": "确定要删除\"{card_name}\"吗？\n\n此操作无法撤销。",
   "CONFIRM_DELETE_ENCOUNTER_SET": "确定要删除遭遇套组\"{name}\"吗？\n\n这将同时删除该套组中的所有 {count} 张卡牌。\n此操作无法撤销。",
+  "FIELD_GROUPING": "按类型排序",
   "// ===== ENCOUNTER SET EDITOR =====": "",
   "TITLE_ENCOUNTER_SET": "遭遇套组：{name}",
   "TAB_INFO": "信息",

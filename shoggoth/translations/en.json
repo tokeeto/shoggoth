@@ -377,6 +377,7 @@
   "DLG_SELECT_BONDED_CARD": "Select Bonded Card",
   "FIELD_SET_ASIDE": "Set aside",
   "HELP_SET_ASIDE": "Excludes this card from the starting setup.",
+  "FIELD_GROUPING": "Sort By Type",
   "FIELD_DESCRIPTION": "Description",
   "FIELD_NOTES": "Notes",
   "HELP_NOTES": "For communication during design — not used in exports.",

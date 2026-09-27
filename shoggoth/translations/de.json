@@ -382,6 +382,7 @@
   "BTN_DELETE_ENCOUNTER_SET": "Begegnungsset löschen",
   "BTN_NEW_CARD": "Neue Karte",
   "BTN_EXPORT_SET": "Set exportieren",
+  "FIELD_GROUPING": "Nach Typ sortieren",
   "// ===== GUIDE EDITOR =====": "",
   "GUIDE_TITLE": "Kampagnenleitfaden: {name}",
   "LABEL_FRONT_PAGE_IMAGE": "Bild für Vorderseite:",
