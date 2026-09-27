@@ -271,7 +271,7 @@ class CardEditor(QWidget):
         bonded_widget.setLayout(bonded_col)
         content.addWidget(bonded_widget)
 
-        self.set_aside_checkbox = QCheckBox(tr("FIELD_SET_ASIDE").upper())
+        self.set_aside_checkbox = QCheckBox(tr("FIELD_SET_ASIDE"))
         self.set_aside_checkbox.setToolTip(tr("HELP_SET_ASIDE"))
         self.set_aside_checkbox.toggled.connect(self.on_set_aside_changed)
         content.addWidget(self.set_aside_checkbox)
@@ -285,7 +285,7 @@ class CardEditor(QWidget):
         group_layout = QVBoxLayout()
         group_layout.setContentsMargins(0, 0, 0, 0)
         group_layout.setSpacing(4)
-        type_label = QLabel(tr('FIELD_GROUPING'))
+        type_label = QLabel(tr('FIELD_GROUPING').upper())
         type_label.setProperty("role", "field-label")
 
         self.group_combo = NoScrollComboBox()
