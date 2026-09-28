@@ -8,13 +8,14 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QPushButton, QLabel, QMenu, QCheckBox,
     QApplication, QDialog, QDialogButtonBox, QGridLayout,
     QScrollArea, QFrame, QTabBar, QInputDialog,
-    QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
+    QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QColorDialog,
 )
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF, QSize, QTimer
 from PySide6.QtGui import (
     QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker,
     QPolygonF, QPixmap, QFont, QCursor, QIcon, QImage
 )
+import math
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -23,30 +24,20 @@ from shoggoth.files import overlay_dir
 from shoggoth.renderer import renderer_for_card
 
 
-class ConnectionArrow(QGraphicsPathItem):
-    """Arrow representing a connection between two locations.
+class ArrowShape(QGraphicsPathItem):
+    """Base for the filled, white-outlined arrows drawn in the location view.
 
-    A single arrow can represent either a one-way connection (arrowhead on
-    the target end only) or a two-way connection (arrowhead on both ends),
-    when `reverse_symbol` is set.
+    Subclasses decide where the arrow runs (`_set_geometry`) and which color
+    it is filled with (`fill_color`).
     """
 
     LINE_WIDTH = 4
     OUTLINE_WIDTH = 4
-    LINE_COLOR = QColor(156, 0, 0)  # maroon
     OUTLINE_COLOR = QColor(255, 255, 255)
-    HOVER_LINE_COLOR = QColor(200, 40, 40)
     ARROW_SIZE = 16
-    # In fixed-length mode the arrow's total length is this fraction of a
-    # card width, regardless of how far apart the two nodes actually are.
-    FIXED_LENGTH_RATIO = 0.9
 
-    def __init__(self, source_node, target_node, connection_symbol, reverse_symbol=None):
+    def __init__(self):
         super().__init__()
-        self.source_node = source_node
-        self.target_node = target_node
-        self.connection_symbol = connection_symbol
-        self.reverse_symbol = reverse_symbol
         self.hovered = False
         self._fill_path = QPainterPath()
 
@@ -59,6 +50,144 @@ class ConnectionArrow(QGraphicsPathItem):
         self.outline_pen.setMiterLimit(5)
 
         self.setAcceptHoverEvents(True)
+
+    def fill_color(self):
+        raise NotImplementedError
+
+    def _set_geometry(self, start, end, double_headed, direction=None):
+        """Rebuild the filled shape for an arrow from `start` to `end`.
+
+        `direction` is a unit (x, y) vector; it defaults to start -> end.
+
+        The shaft and arrowhead(s) are traced as a single simple polygon in
+        one pass, rather than built as separate shaft/arrowhead QPainterPaths
+        combined with `united()`. That boolean union can, at certain angles,
+        leave a stray internal edge where the thin shaft meets the much wider
+        arrowhead base - invisible under the fill, but the outline pass still
+        strokes it, producing a small rectangular white glitch right at that
+        junction. Tracing one outline by hand sidesteps the boolean clip
+        entirely so there's nothing left to mis-merge.
+        """
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        length = (dx * dx + dy * dy) ** 0.5
+
+        fill_path = QPainterPath()
+        if direction is None and length > 0:
+            direction = (dx / length, dy / length)
+
+        if direction is not None:
+            dir_x, dir_y = direction
+
+            # Shrink the head(s) on very short arrows so they don't overlap
+            arrow_size = self.ARROW_SIZE
+            if length > 0:
+                arrow_size = min(arrow_size, length / (2 if double_headed else 1))
+            hw = self.LINE_WIDTH / 2
+            half_width = arrow_size * 0.55
+            perp_x, perp_y = -dir_y, dir_x
+
+            # "Shoulder" = where the shaft's edge steps out to the arrowhead's
+            # (wider) back edge, at each end that has an arrowhead.
+            end_shoulder = QPointF(end.x() - dir_x * arrow_size, end.y() - dir_y * arrow_size)
+
+            # Trace the outline once: out along the +perp side from the end tip
+            # to the start end, then back along the -perp side to close the loop.
+            points = [
+                end,
+                QPointF(end_shoulder.x() + perp_x * half_width, end_shoulder.y() + perp_y * half_width),
+                QPointF(end_shoulder.x() + perp_x * hw, end_shoulder.y() + perp_y * hw),
+            ]
+            if double_headed:
+                start_shoulder = QPointF(start.x() + dir_x * arrow_size, start.y() + dir_y * arrow_size)
+                points += [
+                    QPointF(start_shoulder.x() + perp_x * hw, start_shoulder.y() + perp_y * hw),
+                    QPointF(start_shoulder.x() + perp_x * half_width, start_shoulder.y() + perp_y * half_width),
+                    start,
+                    QPointF(start_shoulder.x() - perp_x * half_width, start_shoulder.y() - perp_y * half_width),
+                    QPointF(start_shoulder.x() - perp_x * hw, start_shoulder.y() - perp_y * hw),
+                ]
+            else:
+                points += [
+                    QPointF(start.x() + perp_x * hw, start.y() + perp_y * hw),
+                    QPointF(start.x() - perp_x * hw, start.y() - perp_y * hw),
+                ]
+            points += [
+                QPointF(end_shoulder.x() - perp_x * hw, end_shoulder.y() - perp_y * hw),
+                QPointF(end_shoulder.x() - perp_x * half_width, end_shoulder.y() - perp_y * half_width),
+            ]
+
+            fill_path.addPolygon(QPolygonF(points))
+            fill_path.closeSubpath()
+
+        # boundingRect() is derived from _fill_path, so Qt must be told *before*
+        # it changes: prepareGeometryChange() removes the item from the scene's
+        # BSP index using the current (old) rect. Calling it afterwards (or via
+        # setPath(), which reads our already-updated boundingRect()) leaves a
+        # stale entry in the index, and the next scene query after the arrow is
+        # deleted walks a dangling pointer -> segfault. Hence no setPath() here.
+        self.prepareGeometryChange()
+        self._fill_path = fill_path
+
+    def boundingRect(self):
+        margin = self.OUTLINE_WIDTH + 1
+        return self._fill_path.boundingRect().adjusted(-margin, -margin, margin, margin)
+
+    def shape(self):
+        stroker = QPainterPathStroker()
+        stroker.setWidth(self.OUTLINE_WIDTH * 2)
+        stroker.setJoinStyle(Qt.MiterJoin)
+        outline = stroker.createStroke(self._fill_path)
+        return self._fill_path.united(outline)
+
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # White outline, stroked around the outside of the filled shape so
+        # the shaft and arrowhead(s) share one continuous silhouette.
+        painter.setPen(self.outline_pen)
+        painter.setBrush(QBrush(self.OUTLINE_COLOR))
+        painter.drawPath(self._fill_path)
+
+        # Colored fill on top, same shape, no border.
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(self.fill_color()))
+        painter.drawPath(self._fill_path)
+
+    def hoverEnterEvent(self, event):
+        self.hovered = True
+        self.setCursor(QCursor(Qt.PointingHandCursor))
+        self.update()
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.hovered = False
+        self.unsetCursor()
+        self.update()
+        super().hoverLeaveEvent(event)
+
+
+class ConnectionArrow(ArrowShape):
+    """Arrow representing a connection between two locations.
+
+    A single arrow can represent either a one-way connection (arrowhead on
+    the target end only) or a two-way connection (arrowhead on both ends),
+    when `reverse_symbol` is set.
+    """
+
+    LINE_COLOR = QColor(156, 0, 0)  # maroon
+    HOVER_LINE_COLOR = QColor(200, 40, 40)
+    # In fixed-length mode the arrow's total length is this fraction of a
+    # card width, regardless of how far apart the two nodes actually are.
+    FIXED_LENGTH_RATIO = 0.9
+
+    def __init__(self, source_node, target_node, connection_symbol, reverse_symbol=None):
+        super().__init__()
+        self.source_node = source_node
+        self.target_node = target_node
+        self.connection_symbol = connection_symbol
+        self.reverse_symbol = reverse_symbol
+
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setZValue(1)  # Draw on top of location cards
 
@@ -67,6 +196,9 @@ class ConnectionArrow(QGraphicsPathItem):
     @property
     def bidirectional(self):
         return self.reverse_symbol is not None
+
+    def fill_color(self):
+        return self.HOVER_LINE_COLOR if self.hovered else self.LINE_COLOR
 
     def _rect_edge_intersection(self, center, rect_width, rect_height, direction_x, direction_y):
         """Calculate where a ray from center intersects the rectangle edge"""
@@ -117,17 +249,7 @@ class ConnectionArrow(QGraphicsPathItem):
         return QPointF(center.x() + direction_x * t, center.y() + direction_y * t)
 
     def update_path(self):
-        """Update the arrow's filled shape based on node positions.
-
-        The shaft and arrowhead(s) are traced as a single simple polygon in
-        one pass, rather than built as separate shaft/arrowhead QPainterPaths
-        combined with `united()`. That boolean union can, at certain angles,
-        leave a stray internal edge where the thin shaft meets the much wider
-        arrowhead base - invisible under the fill, but the outline pass still
-        strokes it, producing a small rectangular white glitch right at that
-        junction. Tracing one outline by hand sidesteps the boolean clip
-        entirely so there's nothing left to mis-merge.
-        """
+        """Update the arrow's filled shape based on node positions"""
         if not self.source_node or not self.target_node:
             return
 
@@ -168,90 +290,9 @@ class ConnectionArrow(QGraphicsPathItem):
                 target_center, target_rect.width(), target_rect.height(), -dir_x, -dir_y
             )
 
-        arrow_size = self.ARROW_SIZE
-        hw = self.LINE_WIDTH / 2
-        half_width = arrow_size * 0.55
-        perp_x, perp_y = -dir_y, dir_x
-
-        # "Shoulder" = where the shaft's edge steps out to the arrowhead's
-        # (wider) back edge, at each end that has an arrowhead.
-        end_shoulder = QPointF(end.x() - dir_x * arrow_size, end.y() - dir_y * arrow_size)
-
-        # Trace the outline once: out along the +perp side from the end tip
-        # to the start end, then back along the -perp side to close the loop.
-        points = [
-            end,
-            QPointF(end_shoulder.x() + perp_x * half_width, end_shoulder.y() + perp_y * half_width),
-            QPointF(end_shoulder.x() + perp_x * hw, end_shoulder.y() + perp_y * hw),
-        ]
-        if self.bidirectional:
-            start_shoulder = QPointF(start.x() + dir_x * arrow_size, start.y() + dir_y * arrow_size)
-            points += [
-                QPointF(start_shoulder.x() + perp_x * hw, start_shoulder.y() + perp_y * hw),
-                QPointF(start_shoulder.x() + perp_x * half_width, start_shoulder.y() + perp_y * half_width),
-                start,
-                QPointF(start_shoulder.x() - perp_x * half_width, start_shoulder.y() - perp_y * half_width),
-                QPointF(start_shoulder.x() - perp_x * hw, start_shoulder.y() - perp_y * hw),
-            ]
-        else:
-            points += [
-                QPointF(start.x() + perp_x * hw, start.y() + perp_y * hw),
-                QPointF(start.x() - perp_x * hw, start.y() - perp_y * hw),
-            ]
-        points += [
-            QPointF(end_shoulder.x() - perp_x * hw, end_shoulder.y() - perp_y * hw),
-            QPointF(end_shoulder.x() - perp_x * half_width, end_shoulder.y() - perp_y * half_width),
-        ]
-
-        fill_path = QPainterPath()
-        fill_path.addPolygon(QPolygonF(points))
-        fill_path.closeSubpath()
-
-        # boundingRect() is derived from _fill_path, so Qt must be told *before*
-        # it changes: prepareGeometryChange() removes the item from the scene's
-        # BSP index using the current (old) rect. Calling it afterwards (or via
-        # setPath(), which reads our already-updated boundingRect()) leaves a
-        # stale entry in the index, and the next scene query after the arrow is
-        # deleted walks a dangling pointer -> segfault. Hence no setPath() here.
-        self.prepareGeometryChange()
-        self._fill_path = fill_path
-
-    def boundingRect(self):
-        margin = self.OUTLINE_WIDTH + 1
-        return self._fill_path.boundingRect().adjusted(-margin, -margin, margin, margin)
-
-    def shape(self):
-        stroker = QPainterPathStroker()
-        stroker.setWidth(self.OUTLINE_WIDTH * 2)
-        stroker.setJoinStyle(Qt.MiterJoin)
-        outline = stroker.createStroke(self._fill_path)
-        return self._fill_path.united(outline)
-
-    def paint(self, painter, option, widget=None):
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        # White outline, stroked around the outside of the filled shape so
-        # the shaft and arrowhead(s) share one continuous silhouette.
-        painter.setPen(self.outline_pen)
-        painter.setBrush(QBrush(self.OUTLINE_COLOR))
-        painter.drawPath(self._fill_path)
-
-        # Maroon (or hover red) fill on top, same shape, no border.
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(self.HOVER_LINE_COLOR if self.hovered else self.LINE_COLOR))
-        painter.drawPath(self._fill_path)
-
-    def hoverEnterEvent(self, event):
-        self.hovered = True
-        self.setCursor(QCursor(Qt.PointingHandCursor))
-        self.update()
-        super().hoverEnterEvent(event)
-
-    def hoverLeaveEvent(self, event):
-        self.hovered = False
-        self.unsetCursor()
-        self.update()
-        super().hoverLeaveEvent(event)
+        # Pass the center-to-center direction explicitly: when the two cards
+        # overlap, the edge intersections can end up "behind" each other.
+        self._set_geometry(start, end, self.bidirectional, direction=(dir_x, dir_y))
 
 
 class LocationNode(QGraphicsItem):
@@ -525,6 +566,190 @@ class ConnectionDragLine(QGraphicsPathItem):
         self.setPath(path)
 
 
+class ArrowHandle(QGraphicsEllipseItem):
+    """Draggable endpoint handle of a ManualArrow (a child item of it).
+
+    Ignores view transformations so it stays the same on-screen size at any
+    zoom level. Shift constrains the arrow's angle to 15 degree steps.
+    """
+
+    RADIUS = 6
+    ANGLE_STEP = 15
+
+    def __init__(self, arrow, end):
+        r = self.RADIUS
+        super().__init__(-r, -r, 2 * r, 2 * r, arrow)
+        self.arrow = arrow
+        self.end = end  # 'start' or 'end'
+        self.setFlag(QGraphicsItem.ItemIgnoresTransformations)
+        self.setPen(QPen(QColor(0, 0, 0), 1.5))
+        self.setBrush(QBrush(QColor(255, 255, 255)))
+        self.setCursor(QCursor(Qt.SizeAllCursor))
+        self.setAcceptHoverEvents(True)
+        self._dragging = False
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._dragging = True
+            event.accept()
+        else:
+            event.ignore()
+
+    def mouseMoveEvent(self, event):
+        if not self._dragging:
+            return
+        pos = event.scenePos()
+        if event.modifiers() & Qt.ShiftModifier:
+            anchor = self.arrow.end if self.end == 'start' else self.arrow.start
+            dx = pos.x() - anchor.x()
+            dy = pos.y() - anchor.y()
+            length = math.hypot(dx, dy)
+            angle = math.radians(round(math.degrees(math.atan2(dy, dx)) / self.ANGLE_STEP) * self.ANGLE_STEP)
+            pos = QPointF(anchor.x() + math.cos(angle) * length, anchor.y() + math.sin(angle) * length)
+        self.arrow.set_endpoint(self.end, pos)
+
+    def mouseReleaseEvent(self, event):
+        if self._dragging and event.button() == Qt.LeftButton:
+            self._dragging = False
+            self.arrow.save()
+            self.arrow.update_handles()
+            event.accept()
+        else:
+            event.ignore()
+
+
+class ManualArrow(ArrowShape):
+    """Free-standing decorative arrow, not tied to any connection.
+
+    Defined by two scene points (start, end), a color, and whether it has a
+    head on both ends. Backed by one entry of the active layout's
+    `manual_arrows` list, which it updates in place (see `save`).
+
+    Drag the body to move it; when selected or hovered, drag the round
+    handles at either end to change length and orientation.
+    """
+
+    DEFAULT_COLOR = ConnectionArrow.LINE_COLOR
+
+    def __init__(self, view, data):
+        super().__init__()
+        self.view = view
+        self.data = data
+        self.start = QPointF(*data.get('start', (0, 0)))
+        self.end = QPointF(*data.get('end', (LocationNode.CARD_WIDTH, 0)))
+        self.color = QColor(data.get('color') or self.DEFAULT_COLOR)
+        self.double_headed = bool(data.get('double', False))
+        self._drag_last = None
+        self._moved = False
+
+        self.setFlag(QGraphicsItem.ItemIsSelectable)
+        self.setZValue(2)  # Above connection arrows and location cards
+
+        self.start_handle = ArrowHandle(self, 'start')
+        self.end_handle = ArrowHandle(self, 'end')
+        self.update_path()
+        self.update_handles()
+
+    def fill_color(self):
+        return self.color.lighter(130) if self.hovered else self.color
+
+    def update_path(self):
+        self._set_geometry(self.start, self.end, self.double_headed)
+        self.start_handle.setPos(self.start)
+        self.end_handle.setPos(self.end)
+
+    def update_handles(self):
+        """Show the endpoint handles only while hovered, selected, or being dragged"""
+        dragging = self.start_handle._dragging or self.end_handle._dragging
+        visible = (self.hovered or self.isSelected() or dragging) and not self.view._capturing
+        self.start_handle.setVisible(visible)
+        self.end_handle.setVisible(visible)
+
+    def set_endpoint(self, which, pos):
+        if which == 'start':
+            self.start = QPointF(pos)
+        else:
+            self.end = QPointF(pos)
+        self.update_path()
+
+    def set_color(self, color):
+        self.color = QColor(color)
+        self.update()
+        self.save()
+
+    def set_double_headed(self, double_headed):
+        self.double_headed = bool(double_headed)
+        self.update_path()
+        self.save()
+
+    def reverse(self):
+        self.start, self.end = self.end, self.start
+        self.update_path()
+        self.save()
+
+    def save(self):
+        """Write this arrow's state back into its layout entry"""
+        self.data['start'] = [self.start.x(), self.start.y()]
+        self.data['end'] = [self.end.x(), self.end.y()]
+        self.data['color'] = self.color.name(QColor.HexArgb if self.color.alpha() < 255 else QColor.HexRgb)
+        self.data['double'] = self.double_headed
+        self.view.encounter_set.dirty = True
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.ItemSelectedHasChanged:
+            self.update_handles()
+        return super().itemChange(change, value)
+
+    def hoverEnterEvent(self, event):
+        super().hoverEnterEvent(event)
+        self.setCursor(QCursor(Qt.SizeAllCursor))
+        self.update_handles()
+
+    def hoverLeaveEvent(self, event):
+        super().hoverLeaveEvent(event)
+        self.update_handles()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            if not (event.modifiers() & Qt.ControlModifier) and not self.isSelected():
+                self.scene().clearSelection()
+            self.setSelected(True)
+            self._drag_last = event.scenePos()
+            self._moved = False
+            event.accept()
+        elif event.button() == Qt.RightButton:
+            # Accept so the press doesn't fall through to a location card
+            # underneath (which would start a connection drag); the context
+            # menu arrives separately via contextMenuEvent.
+            event.accept()
+        else:
+            event.ignore()
+
+    def mouseMoveEvent(self, event):
+        if self._drag_last is None:
+            return
+        delta = event.scenePos() - self._drag_last
+        self._drag_last = event.scenePos()
+        self.start += delta
+        self.end += delta
+        self._moved = True
+        self.update_path()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self._drag_last is not None:
+            self._drag_last = None
+            if self._moved:
+                self.save()
+        event.accept()
+
+    def contextMenuEvent(self, event):
+        event.accept()
+        if not self.isSelected():
+            self.scene().clearSelection()
+            self.setSelected(True)
+        self.view.show_manual_arrow_context_menu(self, event.screenPos())
+
+
 class PickConnectionSymbolDialog(QDialog):
     """Dialog for picking a connection symbol to assign to a location"""
 
@@ -720,6 +945,11 @@ class LocationView(QGraphicsView):
         # Storage
         self.location_nodes = {}  # card.id -> LocationNode
         self.arrows = []  # List of ConnectionArrow
+        self.manual_arrows = []  # List of ManualArrow (active layout only)
+        self._capturing = False  # True while rendering a screenshot (hides arrow handles)
+        # New manual arrows reuse the last color / head style the user picked
+        self._last_arrow_color = QColor(ManualArrow.DEFAULT_COLOR)
+        self._last_arrow_double = False
         self.connection_drag_line = None
         self.drag_source_node = None
         self._hovered_node = None
@@ -741,6 +971,7 @@ class LocationView(QGraphicsView):
         self.scene.clear()
         self.location_nodes.clear()
         self.arrows.clear()
+        self.manual_arrows.clear()
 
         # Load saved positions from the active layout
         saved_positions = self._get_saved_positions()
@@ -795,6 +1026,7 @@ class LocationView(QGraphicsView):
 
         # Create connection arrows
         self._build_arrows()
+        self._build_manual_arrows()
 
         # Fit view to content
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
@@ -851,6 +1083,88 @@ class LocationView(QGraphicsView):
             self.arrows.append(arrow)
 
         self._apply_visibility()
+
+    def _build_manual_arrows(self):
+        """(Re)create the free-standing arrows stored in the active layout"""
+        for arrow in self.manual_arrows:
+            self.scene.removeItem(arrow)
+        self.manual_arrows.clear()
+
+        for entry in self.active_layout.get('manual_arrows', []):
+            arrow = ManualArrow(self, entry)
+            self.scene.addItem(arrow)
+            self.manual_arrows.append(arrow)
+
+    def add_manual_arrow(self):
+        """Add a new free-standing arrow in the middle of the visible area, selected"""
+        center = self.mapToScene(self.viewport().rect().center())
+        half = LocationNode.CARD_WIDTH / 2
+        color = self._last_arrow_color
+        entry = {
+            'id': uuid4().hex,
+            'start': [center.x() - half, center.y()],
+            'end': [center.x() + half, center.y()],
+            'color': color.name(QColor.HexArgb if color.alpha() < 255 else QColor.HexRgb),
+            'double': self._last_arrow_double,
+        }
+        self.active_layout.setdefault('manual_arrows', []).append(entry)
+        self.encounter_set.dirty = True
+
+        arrow = ManualArrow(self, entry)
+        self.scene.addItem(arrow)
+        self.manual_arrows.append(arrow)
+        self.scene.clearSelection()
+        arrow.setSelected(True)
+        return arrow
+
+    def selected_manual_arrows(self):
+        return [a for a in self.manual_arrows if a.isSelected()]
+
+    def delete_manual_arrows(self, arrows):
+        """Remove free-standing arrows from the active layout"""
+        if not arrows:
+            return
+        ids = {id(a.data) for a in arrows}
+        entries = self.active_layout.setdefault('manual_arrows', [])
+        entries[:] = [e for e in entries if id(e) not in ids]
+        for arrow in arrows:
+            self.scene.removeItem(arrow)
+            self.manual_arrows.remove(arrow)
+        self.encounter_set.dirty = True
+
+    def show_manual_arrow_context_menu(self, arrow, global_pos):
+        """Color / head style / direction / delete menu for a free-standing arrow"""
+        menu = QMenu(self)
+        color_action = menu.addAction(tr("CTX_ARROW_COLOR"))
+        double_action = menu.addAction(tr("CTX_ARROW_DOUBLE_HEADED"))
+        double_action.setCheckable(True)
+        double_action.setChecked(arrow.double_headed)
+        reverse_action = menu.addAction(tr("CTX_ARROW_REVERSE"))
+        reverse_action.setEnabled(not arrow.double_headed)
+        menu.addSeparator()
+        delete_action = menu.addAction(tr("CTX_ARROW_DELETE"))
+
+        action = menu.exec_(global_pos)
+        # Apply to every selected arrow, so several can be restyled at once
+        targets = self.selected_manual_arrows() or [arrow]
+        if action == color_action:
+            color = QColorDialog.getColor(
+                arrow.color, self, tr("DLG_ARROW_COLOR"), QColorDialog.ShowAlphaChannel
+            )
+            if color.isValid():
+                self._last_arrow_color = QColor(color)
+                for a in targets:
+                    a.set_color(color)
+        elif action == double_action:
+            double = double_action.isChecked()
+            self._last_arrow_double = double
+            for a in targets:
+                a.set_double_headed(double)
+        elif action == reverse_action:
+            for a in targets:
+                a.reverse()
+        elif action == delete_action:
+            self.delete_manual_arrows(targets)
 
     def update_arrows(self):
         """Update all arrow positions"""
@@ -1035,6 +1349,10 @@ class LocationView(QGraphicsView):
                 self.toggle_node_hidden(self._hovered_node)
             event.accept()
             return
+        if event.key() in (Qt.Key_Delete, Qt.Key_Backspace) and self.selected_manual_arrows():
+            self.delete_manual_arrows(self.selected_manual_arrows())
+            event.accept()
+            return
         super().keyPressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -1061,6 +1379,8 @@ class LocationView(QGraphicsView):
             items = self.scene.items(scene_pos)
 
             for item in items:
+                if isinstance(item, (ManualArrow, ArrowHandle)) and item.isVisible():
+                    break  # handled by the item itself (drag / select)
                 if isinstance(item, ConnectionArrow) and item.isVisible():
                     # Show context menu for arrow
                     self._show_arrow_context_menu(item, event.globalPos())
@@ -1246,6 +1566,7 @@ class LocationView(QGraphicsView):
         # Rebuild (not just reposition) arrows: flip state may have changed
         # each node's connection data.
         self._build_arrows()
+        self._build_manual_arrows()
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
         self.hidden_locations_changed.emit()
         self.layouts_changed.emit()
@@ -1406,11 +1727,19 @@ class LocationView(QGraphicsView):
         image = QImage(int(rect.width()), int(rect.height()), QImage.Format_ARGB32)
         image.fill(Qt.transparent)
 
-        # Render scene to image
-        painter = QPainter(image)
-        painter.setRenderHint(QPainter.Antialiasing)
-        self.scene.render(painter, QRectF(image.rect()), rect)
-        painter.end()
+        # Render scene to image, without the manual arrows' edit handles
+        self._capturing = True
+        for arrow in self.manual_arrows:
+            arrow.update_handles()
+        try:
+            painter = QPainter(image)
+            painter.setRenderHint(QPainter.Antialiasing)
+            self.scene.render(painter, QRectF(image.rect()), rect)
+            painter.end()
+        finally:
+            self._capturing = False
+            for arrow in self.manual_arrows:
+                arrow.update_handles()
 
         return image
 
@@ -1598,6 +1927,11 @@ class LocationViewWidget(QWidget):
         cards_separator.setFrameShape(QFrame.HLine)
         col.addWidget(cards_separator)
 
+        add_arrow_btn = QPushButton(tr("BTN_ADD_ARROW"))
+        add_arrow_btn.setToolTip(tr("TOOLTIP_ADD_ARROW"))
+        add_arrow_btn.clicked.connect(self._add_arrow)
+        col.addWidget(add_arrow_btn)
+
         add_card_btn = QPushButton(tr("BTN_ADD_CARD"))
         add_card_btn.setToolTip(tr("TOOLTIP_ADD_CARD"))
         add_card_btn.clicked.connect(self._add_card)
@@ -1661,7 +1995,14 @@ class LocationViewWidget(QWidget):
                 card_ids = [c.id for c in es.cards if c.grouping == 'location']
                 self.location_view.add_extra_cards(card_ids)
 
+    def _add_arrow(self):
+        self.location_view.add_manual_arrow()
+        self.location_view.setFocus()
+
     def _delete_selected(self):
+        # Manual arrows are cheap to recreate - remove them without asking
+        self.location_view.delete_manual_arrows(self.location_view.selected_manual_arrows())
+
         selected = [n for n in self.location_view.location_nodes.values() if n.isSelected()]
         if not selected:
             return

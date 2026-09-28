@@ -1216,8 +1216,7 @@ class CardRenderer:
         illustration_scale = float(side.get('illustration_scale', 0)) * s
         if not illustration_scale:
             illustration_scale = region.height / illustration.height
-            if region.width / illustration.width > illustration_scale:
-                illustration_scale = region.width / illustration.width
+            illustration_scale = max(illustration_scale, region.width / illustration.width)
 
         # Resize illustration
         new_width = int(illustration.width * illustration_scale)
@@ -1228,12 +1227,11 @@ class CardRenderer:
             illustration = ImageOps.mirror(illustration)
 
         if side.get('illustration_greyscale', False):
-            # keep the alpha channel (mini investigator backs)
             illustration = illustration.convert('LA').convert('RGBA')
 
         rotation = side.get('illustration_rotation', 0)
         if rotation:
-            illustration = illustration.rotate(float(rotation))
+            illustration = illustration.rotate(float(rotation), expand=True)
 
         # Apply panning
         if side.get('illustration_pan_x', None) is None:
