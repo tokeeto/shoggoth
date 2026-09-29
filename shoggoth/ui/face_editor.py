@@ -52,9 +52,6 @@ class FaceEditor(QWidget):
     # Signal emitted when type changes and editor should be swapped
     type_changed = Signal(object)  # Emits the face object
 
-    # Fields that carry translatable prose content
-    TRANSLATABLE_FIELDS = frozenset({'name', 'text', 'flavor_text', 'subtitle', 'victory', 'traits', 'entries', 'difficulty', 'chaos_extra', 'tracking', 'checkbox_entries'})
-
     def __init__(self, face, parent=None):
         super().__init__(parent)
         self.face = face
@@ -113,7 +110,6 @@ class FaceEditor(QWidget):
         type_layout.addWidget(type_label)
         type_layout.addWidget(self.type_combo)
         type_widget = QWidget()
-        type_widget.setProperty("visible_in_translation_project", False)
         type_widget.setLayout(type_layout)
         self.main_layout.addWidget(type_widget)
 
@@ -801,89 +797,3 @@ class FaceEditor(QWidget):
 
         self._target_layout().addWidget(illustration)
         return illustration
-
-    def _iter_main_widgets(self):
-        """Yield every widget in this editor, including nested field widgets."""
-        seen = set()
-        for i in range(self.main_layout.count()):
-            item = self.main_layout.itemAt(i)
-            if item is None:
-                continue
-            widget = item.widget()
-            if widget is None:
-                continue
-            stack = [widget]
-            while stack:
-                current = stack.pop()
-                if current is None or id(current) in seen:
-                    continue
-                seen.add(id(current))
-                yield current
-                for child in current.findChildren(QWidget):
-                    if id(child) not in seen:
-                        stack.append(child)
-
-    def _subtree_has_translatable_field(self, widget, translatable_widgets):
-        """Return True if `widget` itself, or any descendant at any depth, is a
-        registered translatable field container."""
-        if widget in translatable_widgets:
-            return True
-        return any(child in translatable_widgets for child in widget.findChildren(QWidget))
-
-    def _set_translation_visibility(self, widget, translatable_widgets, field_widgets):
-        """Recursively apply translation-mode visibility, pruning at field-leaf or
-        fully-non-translatable subtree boundaries.
-
-        A container (band/row wrapper) shared by translatable and non-translatable
-        fields must stay visible itself — otherwise hiding it would collaterally hide
-        the translatable fields nested inside it — so we only ever explicitly hide a
-        registered non-translatable field container, or a subtree that contains no
-        translatable field at all. Chrome (labels, hairlines, band headers) inside a
-        still-visible mixed container is left untouched rather than independently
-        judged, since it isn't a field and has no translatable-ness of its own.
-        """
-        if widget.property("visible_in_translation_project"):
-            widget.setVisible(True)
-            return
-
-        if widget in field_widgets:
-            widget.setVisible(widget in translatable_widgets)
-            return
-
-        if not self._subtree_has_translatable_field(widget, translatable_widgets):
-            widget.setVisible(False)
-            return
-
-        widget.setVisible(True)
-        for child in widget.findChildren(QWidget, options=Qt.FindDirectChildrenOnly):
-            self._set_translation_visibility(child, translatable_widgets, field_widgets)
-
-    def _apply_translation_widget_state(self, enable_translation_mode):
-        """Lock or unlock editor widgets according to translation mode."""
-        translatable_widgets = {
-            w for name, w in self.field_containers.items()
-            if name in self.TRANSLATABLE_FIELDS
-        }
-        for name, widget in self.fields.items():
-            if name in self.TRANSLATABLE_FIELDS:
-                translatable_widgets.add(widget)
-
-        if not enable_translation_mode:
-            for widget in self._iter_main_widgets():
-                widget.setVisible(True)
-            return
-
-        field_widgets = set(self.field_containers.values())
-        for i in range(self.main_layout.count()):
-            item = self.main_layout.itemAt(i)
-            widget = item.widget() if item else None
-            if widget is not None:
-                self._set_translation_visibility(widget, translatable_widgets, field_widgets)
-
-    def enter_translation_mode(self):
-        """Lock non-translatable fields while keeping the form visible."""
-        self._apply_translation_widget_state(True)
-
-    def exit_translation_mode(self):
-        """Restore all fields."""
-        self._apply_translation_widget_state(False)

@@ -40,10 +40,9 @@ class PublishProgressDialog(QDialog):
     An ABOUT.md (author + description) is always uploaded to the root too,
     regardless of which content types were selected.
 
-    `translation`, if given, is the local shoggoth.project.Translation
-    currently active (see export_runner._run_publish) -- `project` is then
-    still the *translation-view* Project (translated card text, name, etc.,
-    used for ABOUT.md/TTS content), but every upload is routed into that
+    `translation`, if given, is the modification project being published
+    (see celaeno.py) -- the same object as `project` (translated card text,
+    name, etc., used for ABOUT.md/TTS content), but every upload is routed into that
     translation's own subfolder under the base project instead of the
     project's own root, and the base project itself is never (re)published
     from here: a translation inherits the parent project's visibility for
@@ -138,19 +137,23 @@ class PublishProgressDialog(QDialog):
             # resolving its cloud id -- never trust whatever in-memory copy
             # happens to be attached to this dialog. Two Project objects can
             # easily be open on the same underlying file at once (e.g. the
-            # plain project in one tab, and Translation.project's own
-            # separate load in another, opened via "Load Translation") --
-            # publishing one persists cloud_project_id to disk, but does
+            # plain project in one tab, and a modification's own load of it
+            # as its parent in another) -- publishing one persists cloud_project_id to disk, but does
             # nothing to update the *other* Python object's already-loaded
             # `.data`. Resolving from a fresh read is the only way to see a
             # sibling view's already-saved id, and it's what avoids minting a
             # second, duplicate cloud project out from under the first one.
-            # (For a translation view specifically, this also sidesteps
-            # TranslationWriter, which only ever persists a handful of
-            # translation-specific fields -- writing cloud_project_id through
-            # it would silently be dropped.)
             from shoggoth.project import Project
-            base_project = Project.load(self.project.file_path)
+            if self.translation is not None:
+                # A modification never writes to its parent: the parent has
+                # to have been published (by its owner) already
+                from shoggoth.modification import ReadOnlyWriter
+                base_project = Project.load(self.project.parent_path)
+                base_project.writer = ReadOnlyWriter(base_project)
+                if not base_project.get_meta("cloud_project_id"):
+                    raise publish_client.PublishError(tr("ERR_PUBLISH_PARENT_NOT_PUBLISHED"))
+            else:
+                base_project = Project.load(self.project.file_path)
             self._log_signal.emit(tr("MSG_PUBLISH_ENSURING_PROJECT"))
             project_id, ensured_public_url = publish_client.ensure_project(
                 self.base_url, self.token, base_project

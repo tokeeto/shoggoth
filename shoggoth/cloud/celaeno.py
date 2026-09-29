@@ -112,11 +112,10 @@ class CelaenoProvider(CloudProvider):
                 seen.add(fkey)
                 unique_files.append((kind, path, remote_name))
 
-        # When the active project is a translation view (opened via "Load
-        # Translation"), publish everything into that translation's own
-        # cloud subfolder instead of the base project's -- see
-        # PublishProgressDialog's docstring.
-        translation = getattr(project, '_translation', None)
+        # A modification (a translation) publishes everything into its own
+        # cloud subfolder of the parent project instead of the parent's --
+        # see PublishProgressDialog's docstring.
+        translation = project if project.is_modification else None
 
         dialog = PublishProgressDialog(
             project, base_url, token, unique_files,

@@ -204,7 +204,7 @@ def upload_bytes(
 
 def ensure_translation(base_url: str, token: str, project_id: str, translation) -> str:
     """Return the server-side translation id for `translation` (a
-    shoggoth.project.Translation), creating one if
+    shoggoth.modification.ModificationProject), creating one if
     `translation.get_meta('cloud_translation_id')` doesn't resolve (missing,
     or 404s -- deleted, or belonging to a different project/account).
 

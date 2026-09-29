@@ -19,6 +19,8 @@ class PreviewController(QObject):
         self.window = window
         self.render_version = 0  # Tracks render requests, stale results are discarded
         self.trim = window.config.get('Shoggoth', 'preview_trim', 'ffg')
+        # Render the parent's version of a modification's card instead
+        self.show_original = False
 
         self.render_timer = QTimer(self)
         self.render_timer.setSingleShot(True)
@@ -34,6 +36,19 @@ class PreviewController(QObject):
         self.window.config.set('Shoggoth', 'preview_trim', trim)
         self.window.config.save()
         self.rerender_now()
+
+    def set_show_original(self, show):
+        if show == self.show_original:
+            return
+        self.show_original = show
+        self.rerender_now()
+
+    def _card_to_render(self):
+        """The current card, or its unmodified original when asked for."""
+        card = self.window.current_card
+        if self.show_original and card is not None and card.project.is_modification:
+            return card.project.original_card(card.id) or card
+        return card
 
     def _preview_size(self):
         idx = self.window.config.getint('Shoggoth', 'preview_resolution', 0)
@@ -69,7 +84,7 @@ class PreviewController(QObject):
             return
 
         # Capture current state for the background thread
-        card = window.current_card
+        card = self._card_to_render()
         version = self.render_version
         bleed, show_regions, rounded = self._render_options()
         renderer = window.card_renderer
@@ -125,7 +140,7 @@ class PreviewController(QObject):
             bleed, show_regions, rounded = self._render_options()
             with renderer.track_files(lambda path: self._watch_file(version, path)):
                 front_image, back_image = renderer.get_card_textures(
-                    window.current_card, self._preview_size(), bleed=bleed, show_regions=show_regions, rounded=rounded
+                    self._card_to_render(), self._preview_size(), bleed=bleed, show_regions=show_regions, rounded=rounded
                 )
             window.card_preview.set_card_images(front_image, back_image)
         except Exception as e:

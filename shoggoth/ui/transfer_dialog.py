@@ -137,6 +137,8 @@ class TransferCardsDialog(QDialog):
         self.source_combo.blockSignals(True)
         self.source_combo.clear()
         for project in self.window.open_projects:
+            if project.is_modification:
+                continue  # its cards are the parent's
             self.source_combo.addItem(project.name, project)
         idx = self.source_combo.findData(preselect) if preselect else -1
         if idx < 0:
@@ -149,6 +151,8 @@ class TransferCardsDialog(QDialog):
         self.dest_combo.blockSignals(True)
         self.dest_combo.clear()
         for project in self.window.open_projects:
+            if project.is_modification:
+                continue  # can't add cards to a modification
             self.dest_combo.addItem(project.name, project)
         idx = self.dest_combo.findData(preselect) if preselect else -1
         self.dest_combo.setCurrentIndex(max(idx, 0))

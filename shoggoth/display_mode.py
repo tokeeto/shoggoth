@@ -29,6 +29,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from shoggoth.project import Project
+from shoggoth.modification import ModificationProject, is_modification_data
 from shoggoth.renderer import CardRenderer, renderer_for_card
 
 RENDER_SIZE = {'width': 750, 'height': 1039, 'bleed': 36}
@@ -139,7 +140,10 @@ class DisplayApp(FileSystemEventHandler):
         try:
             with open(self.project_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            project = Project(self.project_path, data)
+            if is_modification_data(data):
+                project = ModificationProject(self.project_path, data)
+            else:
+                project = Project(self.project_path, data)
         except Exception as e:
             self.status = f'waiting for a valid save ({e.__class__.__name__})'
             return False

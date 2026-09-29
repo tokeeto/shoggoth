@@ -1,8 +1,7 @@
 """
-Project lifecycle actions: open/close/save, translation sidecars, and the
+Project lifecycle actions: open/close/save, modification projects, and the
 Project-menu template generators.
 """
-import json
 from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
@@ -11,7 +10,7 @@ from shoggoth import telemetry
 from shoggoth.files import path_key
 from shoggoth.i18n import tr
 from shoggoth.project import (
-    Project, Translation,
+    Project,
     has_legacy_collection_fields, migrate_legacy_collection_fields,
 )
 
@@ -46,7 +45,8 @@ def open_project(window, file_path):
         # Load new project
         project = Project.load(file_path)
 
-        if has_legacy_collection_fields(project.data):
+        # (a modification would record the migration as its own change)
+        if not project.is_modification and has_legacy_collection_fields(project.data):
             reply = QMessageBox.question(
                 window, tr("DLG_MIGRATE_COLLECTION_TITLE"),
                 tr("CONFIRM_MIGRATE_COLLECTION"),
@@ -123,8 +123,7 @@ def new_project_dialog(window):
 
 def new_card_dialog(window):
     """Show dialog to create a new card"""
-    if not window.active_project:
-        QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_NO_PROJECT_OPEN"))
+    if not _require_structural_project(window):
         return
 
     from shoggoth.ui.dialogs import NewCardDialog
@@ -266,8 +265,13 @@ def reload_project(window, project):
         QMessageBox.critical(window, tr("DLG_ERROR"), tr("ERR_RELOAD_PROJECT").format(error=e))
         return
 
-    # Editors and the preview hold cards from before the reload, which now
-    # belong to no project: put fresh ones in place of them
+    _rebuild_views(window, project)
+    window.status_bar.showMessage(tr("STATUS_RELOADED").format(name=project['name']), 5000)
+
+
+def _rebuild_views(window, project):
+    """Editors and the preview hold cards from before a project's data was
+    replaced, which now belong to no project: put fresh ones in their place."""
     showing = window.active_project is project
     if showing:
         from shoggoth.ui.main_window import views
@@ -280,7 +284,20 @@ def reload_project(window, project):
     window.file_browser.rebuild()
     if showing:
         window.nav.refresh_current()
-    window.status_bar.showMessage(tr("STATUS_RELOADED").format(name=project['name']), 5000)
+
+
+def parent_changed(window, project):
+    """The project a modification applies to changed on disk (e.g. it was
+    saved in its own tab): apply the modification, unsaved changes included,
+    to the new version of it."""
+    try:
+        project.refresh_parent()
+    except Exception as e:
+        # e.g. a half-written file; the next change event retries
+        print(f"Could not re-read {project.parent_path}: {e}")
+        return
+    _rebuild_views(window, project)
+    window.status_bar.showMessage(tr("STATUS_PARENT_UPDATED").format(name=project['name']), 5000)
 
 
 def save_current(window):
@@ -321,6 +338,17 @@ def _require_project(window):
     return window.active_project
 
 
+def _require_structural_project(window):
+    """Like _require_project, for actions that add or remove cards, sets or
+    guides -- which a modification can't do (it only changes what its parent
+    has)."""
+    project = _require_project(window)
+    if project is not None and project.is_modification:
+        QMessageBox.information(window, tr("DLG_MODIFICATION"), tr("MSG_MODIFICATION_NO_STRUCTURE"))
+        return None
+    return project
+
+
 def _get_text_input(window, title, label, default=""):
     text, ok = QInputDialog.getText(window, title, label, text=default)
     return text, ok
@@ -355,7 +383,7 @@ def open_transfer_cards_dialog(window):
 
 
 def add_encounter_set(window):
-    project = _require_project(window)
+    project = _require_structural_project(window)
     if not project:
         return
     name, ok = QInputDialog.getText(window, tr("DLG_NEW_ENCOUNTER_SET"), tr("MSG_ENTER_ENCOUNTER_SET"))
@@ -366,7 +394,7 @@ def add_encounter_set(window):
 
 def add_guide(window):
     """Add a guide to the project"""
-    project = _require_project(window)
+    project = _require_structural_project(window)
     if not project:
         return
     from shoggoth.ui.dialogs import NewGuideDialog
@@ -381,7 +409,7 @@ def add_guide(window):
 
 def add_scenario_template(window):
     """Add a scenario template"""
-    project = _require_project(window)
+    project = _require_structural_project(window)
     if not project:
         return
     name, ok = _get_text_input(window, tr("DLG_SCENARIO_NAME"), tr("MSG_ENTER_SCENARIO"), tr("PLACEHOLDER_SCENARIO"))
@@ -394,7 +422,7 @@ def add_scenario_template(window):
 
 def add_campaign_template(window):
     """Add a campaign template"""
-    project = _require_project(window)
+    project = _require_structural_project(window)
     if not project:
         return
     project.create_campaign()
@@ -405,7 +433,7 @@ def add_campaign_template(window):
 
 def add_investigator_template(window):
     """Add an investigator template"""
-    project = _require_project(window)
+    project = _require_structural_project(window)
     if not project:
         return
     name, ok = _get_text_input(window, tr("DLG_INVESTIGATOR_NAME"), tr("MSG_ENTER_INVESTIGATOR"), tr("PLACEHOLDER_ROLAN"))
@@ -418,7 +446,7 @@ def add_investigator_template(window):
 
 def add_investigator_project_template(window):
     """Add an investigator project template"""
-    project = _require_project(window)
+    project = _require_structural_project(window)
     if not project:
         return
     project.create_player_project()
@@ -427,83 +455,51 @@ def add_investigator_project_template(window):
     telemetry.record_template_created('investigator_project')
 
 
-# ── Translation management ────────────────────────────────────────────────
+# ── Modification projects ─────────────────────────────────────────────────
 
-def add_translation_dialog(window):
-    """Prompt for a language code and create a new translation sidecar file."""
-    if not window.active_project:
+def new_modification_dialog(window):
+    """Create a modification (e.g. a translation) of the active project in a
+    file of its own, and open it. The active project isn't changed."""
+    parent = window.active_project
+    if not parent:
+        QMessageBox.information(window, tr("DLG_NEW_MODIFICATION"), tr("MSG_OPEN_PROJECT_FIRST_MODIFICATION"))
         return
-    lang, ok = QInputDialog.getText(
-        window, tr("DLG_ADD_TRANSLATION"), tr("MSG_ENTER_LANGUAGE_CODE")
-    )
-    if not ok or not lang.strip():
+    if parent.is_modification:
+        # Build on the same original rather than stacking modifications
+        parent = parent.parent
+
+    from shoggoth.ui.dialogs import NewModificationDialog
+    dialog = NewModificationDialog(window, parent)
+    if not dialog.exec():
         return
-    lang = lang.strip().lower()
-    if lang in window.active_project.data.get('translations', {}):
-        QMessageBox.warning(window, tr("DLG_ADD_TRANSLATION"), tr("MSG_TRANSLATION_EXISTS").format(lang=lang))
-        return
+    language, file_path = dialog.result_values()
 
-    project_path = Path(window.active_project.file_path)
-    translation_path = project_path.parent / f"{project_path.stem}_{lang}.json"
-    data = {
-        'language': lang,
-        'project': project_path.name,
-        'project_name': window.active_project.name,
-        'encounter_sets': {},
-        'cards': {},
-        'guides': window.active_project.data.get('guides', []),
-    }
-    with open(translation_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    for project in window.open_projects:
+        if path_key(project.file_path) == path_key(file_path):
+            QMessageBox.warning(window, tr("DLG_ERROR"), tr("MSG_SAVE_AS_ALREADY_OPEN").format(path=file_path))
+            return
 
-    window.active_project.add_translation(lang, translation_path.name)
-    window.active_project.save_all()
-    window.status_bar.showMessage(f"Translation '{lang}' added: {translation_path.name}")
-
-    # Auto-open the new translation project
-    open_translation(window, str(translation_path))
-
-
-def load_translation_dialog(window):
-    """Show dialog to load an existing registered translation."""
-    if not window.active_project:
-        QMessageBox.information(window, tr("DLG_LOAD_TRANSLATION"), tr("MSG_OPEN_PROJECT_FIRST_TRANSLATION"))
-        return
-    translations = window.active_project.translations  # {lang: Path}
-    if not translations:
-        QMessageBox.information(window, tr("DLG_LOAD_TRANSLATION"),
-                                tr("MSG_NO_TRANSLATIONS"))
-        return
-    choices = [f"{lang}  ({path.name})" for lang, path in translations.items()]
-    choice, ok = QInputDialog.getItem(
-        window, tr("DLG_LOAD_TRANSLATION"), tr("MSG_CHOOSE_TRANSLATION"), choices, 0, False)
-    if not ok:
-        return
-    lang = choice.split("  ")[0]
-    open_translation(window, str(translations[lang]))
-
-
-def open_translation(window, file_path):
-    """Open a translation file and add its translated project to the tree."""
+    from shoggoth.modification import ModificationProject
     try:
-        # Avoid duplicate opens — keyed by translation file path
-        for project in window.open_projects:
-            if getattr(project, '_node_id_path', None) == file_path:
-                window.file_browser.set_active_project(project)
-                window.status_bar.showMessage(
-                    f"Switched to {project._translation.language} translation")
-                return
-
-        translation = Translation.load(file_path)
-        project = translation.project
-        project._translation = translation      # ephemeral: language reference
-        project._node_id_path = file_path       # ephemeral: unique node key
-
-        window.open_projects.append(project)
-        window.active_project = project
-        window.file_browser.add_project(project)
-        window.session.save_session()
-        window.status_bar.showMessage(
-            f"Opened {translation.language} translation of {project['name']}")
+        ModificationProject.create(file_path, parent.file_path, language=language or None)
     except Exception as e:
-        QMessageBox.critical(window, "Error", f"Could not open translation:\n{e}")
+        QMessageBox.critical(window, tr("DLG_ERROR"), tr("ERR_OPEN_PROJECT").format(error=e))
+        return
+    open_project(window, file_path)
+
+
+def open_modification_dialog(window):
+    """Open a modification: one of the translations older Shoggoth versions
+    registered in the active project, or any file picked from disk."""
+    registered = window.active_project.translations if window.active_project else {}
+    if registered:
+        browse = tr("OPT_BROWSE")
+        choices = [f"{lang}  ({path.name})" for lang, path in registered.items()] + [browse]
+        choice, ok = QInputDialog.getItem(
+            window, tr("DLG_OPEN_MODIFICATION"), tr("MSG_CHOOSE_MODIFICATION"), choices, 0, False)
+        if not ok:
+            return
+        if choice != browse:
+            open_project(window, str(registered[choice.split("  ")[0]]))
+            return
+    open_project_dialog(window)

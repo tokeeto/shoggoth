@@ -357,3 +357,107 @@ class NewProjectDialog(QDialog):
             self.accept()
         except Exception as e:
             self.error_label.setText(tr("ERR_CREATING_PROJECT").format(error=e))
+
+class NewModificationDialog(QDialog):
+    """Dialog for creating a modification of a project: a translation (with a
+    language) or any other modification. Nothing is written to the parent."""
+
+    def __init__(self, parent_window, project):
+        super().__init__(parent_window)
+        self.setWindowTitle(tr("DLG_NEW_MODIFICATION"))
+        self.setMinimumWidth(480)
+        self.project = project
+        self.file_path = None
+        self._path_chosen = False
+
+        from shoggoth.files import translation_dir
+        from shoggoth.i18n import get_available_languages_from_dir
+
+        layout = QVBoxLayout(self)
+        info = QLabel(tr("HELP_NEW_MODIFICATION").format(name=project.name))
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        form = QFormLayout()
+        self.kind_combo = QComboBox()
+        self.kind_combo.addItem(tr("OPT_MODIFICATION_TRANSLATION"), 'translation')
+        self.kind_combo.addItem(tr("OPT_MODIFICATION_OTHER"), 'other')
+        form.addRow(tr("FIELD_MODIFICATION_KIND"), self.kind_combo)
+
+        # Editable: card languages the asset pack knows, or any code
+        self.language_combo = QComboBox()
+        self.language_combo.setEditable(True)
+        for code, name in get_available_languages_from_dir(translation_dir).items():
+            self.language_combo.addItem(f"{code} — {name}", code)
+        self.language_combo.setCurrentIndex(-1)
+        self.language_combo.setEditText('')
+        form.addRow(tr("FIELD_LANGUAGE"), self.language_combo)
+
+        file_layout = QHBoxLayout()
+        self.file_display = QLineEdit()
+        self.file_display.setReadOnly(True)
+        file_layout.addWidget(self.file_display)
+        file_btn = QPushButton(tr("BTN_BROWSE"))
+        file_btn.clicked.connect(self.browse_file)
+        file_layout.addWidget(file_btn)
+        form.addRow(tr("FIELD_SAVE_LOCATION"), file_layout)
+        layout.addLayout(form)
+
+        self.error_label = QLabel()
+        self.error_label.setStyleSheet("color: red;")
+        layout.addWidget(self.error_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept_modification)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.kind_combo.currentIndexChanged.connect(self._on_changed)
+        self.language_combo.editTextChanged.connect(self._on_changed)
+        self._on_changed()
+
+    def language(self):
+        if self.kind_combo.currentData() != 'translation':
+            return ''
+        text = self.language_combo.currentText().strip()
+        index = self.language_combo.findText(text)
+        if index >= 0:
+            return self.language_combo.itemData(index)
+        return text.split(' ')[0].lower()
+
+    def _on_changed(self, *args):
+        self.language_combo.setEnabled(self.kind_combo.currentData() == 'translation')
+        if not self._path_chosen:
+            stem = Path(self.project.file_path).stem
+            suffix = self.language() or 'modification'
+            self.file_path = Path(self.project.file_path).parent / f"{stem}_{suffix}.json"
+            self.file_display.setText(str(self.file_path))
+
+    def browse_file(self):
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, tr("DLG_NEW_MODIFICATION"), str(self.file_path), tr("FILTER_SHOGGOTH_PROJECTS"))
+        if file_path:
+            if not Path(file_path).suffix:
+                file_path += '.json'
+            self._path_chosen = True
+            self.file_path = Path(file_path)
+            self.file_display.setText(file_path)
+
+    def accept_modification(self):
+        if self.kind_combo.currentData() == 'translation' and not self.language():
+            self.error_label.setText(tr("MSG_MODIFICATION_NEEDS_LANGUAGE"))
+            return
+        if self.file_path.resolve() == Path(self.project.file_path).resolve():
+            self.error_label.setText(tr("MSG_MODIFICATION_SAME_FILE"))
+            return
+        if self.file_path.exists():
+            reply = QMessageBox.question(
+                self, tr("DLG_NEW_MODIFICATION"), tr("CONFIRM_OVERWRITE_FILE").format(path=self.file_path),
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply != QMessageBox.Yes:
+                return
+        self.accept()
+
+    def result_values(self):
+        """(language, file_path) after the dialog is accepted."""
+        return self.language(), str(self.file_path)

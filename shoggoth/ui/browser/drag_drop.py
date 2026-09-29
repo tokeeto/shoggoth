@@ -81,9 +81,10 @@ class DraggableTreeWidget(QTreeWidget):
         return None
 
     def _source_project_for_card(self, card_id):
-        """Find which open project currently owns *card_id*."""
+        """Find which open project currently owns *card_id*. Modifications
+        are never a drag source (see mimeData), and share their parent's ids."""
         for project in self.file_browser._projects:
-            if project.get_card(card_id):
+            if not project.is_modification and project.get_card(card_id):
                 return project
         return None
 
@@ -156,7 +157,9 @@ class DraggableTreeWidget(QTreeWidget):
             data = self._get_item_data(item)
             if data and data.get('type') == 'card':
                 card = data.get('data')
-                if card:
+                # A modification's cards can't be moved or copied out: they're
+                # the parent's cards
+                if card and not card.project.is_modification:
                     card_ids.append(card.id)
 
         if card_ids:
@@ -200,7 +203,8 @@ class DraggableTreeWidget(QTreeWidget):
 
         target_item = self.itemAt(event.position().toPoint())
         target_project = self._resolve_target_project(target_item)
-        if target_project is None:
+        # Cards can't be added to or moved around in a modification
+        if target_project is None or target_project.is_modification:
             event.ignore()
             return
 
@@ -230,7 +234,8 @@ class DraggableTreeWidget(QTreeWidget):
 
         target_item = self.itemAt(event.position().toPoint())
         target_project = self._resolve_target_project(target_item)
-        if target_project is None:
+        # Cards can't be added to or moved around in a modification
+        if target_project is None or target_project.is_modification:
             event.ignore()
             return
 

@@ -86,7 +86,7 @@ def show_card(window, card):
     window.current_card = card
     window.current_editor = None
 
-    editor = CardEditor(card)
+    editor, scroll = _card_editor_for(window, card)
     window.current_editor = editor
 
     # Connect data change signal to debounced preview update
@@ -100,14 +100,24 @@ def show_card(window, card):
     window.preview_dock.show()
     window.toggle_preview_action.setChecked(True)
 
-    # Enter translation mode if this card belongs to a translation project
-    if card.project.is_translation:
-        editor.enter_translation_mode()
+    window.card_preview.set_original_available(card.project.is_modification)
 
-    _mount(window, editor)
+    _mount(window, editor, scroll=scroll)
 
     # Update preview
     window.preview.render_current_sync()
+
+
+def _card_editor_for(window, card):
+    """The editor for a card, and whether it wants the content scroll area:
+    a modification's card gets the Translation or Modification View (View
+    menu), anything else the plain card editor."""
+    if card.project.is_modification:
+        from shoggoth.ui.modification_editors import ModificationCompareEditor, TranslationEditor
+        if window.modification_view == 'modification':
+            return ModificationCompareEditor(card), False
+        return TranslationEditor(card), True
+    return CardEditor(card), True
 
 
 def show_encounter(window, encounter):

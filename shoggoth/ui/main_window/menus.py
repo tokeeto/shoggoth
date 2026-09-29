@@ -106,10 +106,10 @@ def _create_project_menu(window, menubar):
 
     project_menu.addSeparator()
 
-    _add_action(window, project_menu, tr("MENU_ADD_TRANSLATION"),
-                lambda: projects.add_translation_dialog(window))
-    _add_action(window, project_menu, tr("MENU_LOAD_TRANSLATION"),
-                lambda: projects.load_translation_dialog(window))
+    _add_action(window, project_menu, tr("MENU_NEW_MODIFICATION"),
+                lambda: projects.new_modification_dialog(window))
+    _add_action(window, project_menu, tr("MENU_OPEN_MODIFICATION"),
+                lambda: projects.open_modification_dialog(window))
 
 
 def _create_export_menu(window, menubar):
@@ -276,6 +276,26 @@ def _create_view_menu(window, menubar):
     window.sidebar_list_action.setCheckable(True)
     sidebar_group.addAction(window.sidebar_list_action)
     view_menu.addAction(window.sidebar_list_action)
+
+    # How a modification project's cards are edited (see views.show_card)
+    view_menu.addSeparator()
+    modification_header = QAction(tr("MENU_MODIFICATION_CARDS"), window)
+    modification_header.setEnabled(False)
+    modification_header.setObjectName("palette_skip")
+    view_menu.addAction(modification_header)
+
+    modification_group = QActionGroup(window)
+    modification_group.setExclusive(True)
+    window.modification_view_actions = {}
+    for mode, label in (('translation', tr("MENU_TRANSLATION_VIEW")),
+                        ('modification', tr("MENU_MODIFICATION_VIEW"))):
+        action = QAction(label, window)
+        action.setCheckable(True)
+        action.setChecked(window.modification_view == mode)
+        action.triggered.connect(lambda checked, m=mode: window.set_modification_view(m))
+        modification_group.addAction(action)
+        view_menu.addAction(action)
+        window.modification_view_actions[mode] = action
 
 
 def _create_language_menu(window, menubar):

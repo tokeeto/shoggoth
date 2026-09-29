@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 from shoggoth.card import natural_sort_key
 from shoggoth.i18n import tr
 from shoggoth.ui.browser.drag_drop import CompactLeafDelegate, DraggableTreeWidget
-from shoggoth.ui.browser.tree_spec import build_tree_spec, card_display_name
+from shoggoth.ui.browser.tree_spec import build_tree_spec, card_display_name, node_scope
 from shoggoth.ui.browser.tree_sync import TreeSync
 
 
@@ -234,9 +234,9 @@ class FileBrowser(QWidget):
         if self._view_mode == 'list':
             self._build_card_list()
 
-    def update_card_node(self, card_id):
+    def update_card_node(self, card_id, project=None):
         """Update a single card node by its ID without rebuilding the tree"""
-        node_id = f'card:{card_id}'
+        node_id = f'card:{card_id}{node_scope(project)}'
         if node_id not in self.sync.node_map:
             # Card not in tree, might need full refresh
             return False
@@ -259,26 +259,36 @@ class FileBrowser(QWidget):
 
         return True
 
-    def get_card_item(self, card_id):
+    def get_card_item(self, card_id, project=None):
         """Get the tree item for a card by ID"""
-        node_id = f'card:{card_id}'
+        node_id = f'card:{card_id}{node_scope(project)}'
         return self.sync.node_map.get(node_id)
 
     def select_item_in_tree(self, item_id):
-        """Find and select an item in the tree by ID, expanding parents"""
+        """Find and select an item in the tree by ID, expanding parents. A
+        modification and its parent share ids: the active project's wins."""
+        matches = []
         for item in self._iterate_items(self.tree.invisibleRootItem()):
             data = item.data(0, Qt.UserRole)
             if data and data.get('data'):
                 if hasattr(data['data'], 'id') and str(data['data'].id) == str(item_id):
-                    self._expand_to_item(item)
-                    self._programmatic_select = True
-                    try:
-                        self.tree.setCurrentItem(item)
-                        self.tree.scrollToItem(item)
-                    finally:
-                        self._programmatic_select = False
-                    return True
-        return False
+                    matches.append(item)
+        if not matches:
+            return False
+
+        def in_active_project(item):
+            element = item.data(0, Qt.UserRole)['data']
+            return getattr(element, 'project', element) is self._active_project
+
+        item = next((m for m in matches if in_active_project(m)), matches[0])
+        self._expand_to_item(item)
+        self._programmatic_select = True
+        try:
+            self.tree.setCurrentItem(item)
+            self.tree.scrollToItem(item)
+        finally:
+            self._programmatic_select = False
+        return True
 
     def _iterate_items(self, root_item):
         """Recursively iterate all items in tree"""
@@ -452,7 +462,7 @@ class FileBrowser(QWidget):
                 card_item = QTreeWidgetItem([display])
                 card_item.setData(0, Qt.UserRole, {
                     'type': 'card', 'data': card,
-                    'node_id': f'card:{card.id}'
+                    'node_id': f'card:{card.id}{node_scope(card.project)}'
                 })
                 proj_item.addChild(card_item)
 

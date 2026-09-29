@@ -415,8 +415,8 @@ class EncounterSetEditor(QWidget):
     def _update_icon_preview(self, path_text):
         path = Path(path_text.strip()) if path_text.strip() else None
         if path and not path.is_absolute():
-            project_folder = Path(self.encounter_set.project.file_path).parent
-            path = project_folder / path
+            project = self.encounter_set.project
+            path = project.find_file(path) or project.folder / path
         if path and path.exists():
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():

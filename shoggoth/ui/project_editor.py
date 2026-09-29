@@ -56,8 +56,8 @@ class ProjectEditor(QWidget):
 
     def setup_ui(self):
         """Setup the user interface"""
-        if self.project.is_translation:
-            self._setup_translation_ui()
+        if self.project.is_modification:
+            self._setup_modification_ui()
         else:
             self._setup_project_ui()
 
@@ -231,23 +231,24 @@ class ProjectEditor(QWidget):
         tab.setLayout(layout)
         return tab
 
-    def _setup_translation_ui(self):
-        """Simplified view for translation projects"""
+    def _setup_modification_ui(self):
+        """Simplified view for modification projects: what it modifies, and
+        its own name and card language (both stored as its changes)"""
         layout = QVBoxLayout()
 
-        # Info section: parent project and language
-        info_group = QGroupBox("Translation")
+        info_group = QGroupBox(tr("TITLE_MODIFICATION"))
         info_layout = QFormLayout()
 
-        parent_label = QLabel(self.project.data.get('project', ''))
+        parent_label = QLabel(f"{self.project.parent_name}  ({self.project.parent_path})")
         parent_label.setStyleSheet('color: grey;')
-        info_layout.addRow("Parent project:", parent_label)
+        parent_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        info_layout.addRow(tr("FIELD_MODIFIES_PROJECT"), parent_label)
 
-        lang_label = QLabel(self.project.data.get('language', '').upper())
-        info_layout.addRow("Language:", lang_label)
+        self.name_input = QLineEdit()
+        self.name_input.textChanged.connect(lambda: self.on_field_changed('name'))
+        info_layout.addRow(tr("FIELD_PROJECT_NAME"), self.name_input)
 
-        # Card language override — defaults to the translation's own
-        # language (see Translation.apply()), but can still be changed.
+        # Card language: a translation is created with its language set
         self.language_combo = self._build_language_combo()
         self.language_combo.currentIndexChanged.connect(lambda: self.on_field_changed('language'))
         info_layout.addRow(tr("FIELD_PROJECT_LANGUAGE"), self.language_combo)
@@ -284,8 +285,8 @@ class ProjectEditor(QWidget):
         """Load project data into fields"""
         self._updating = True
 
-        if self.project.is_translation:
-            # Translation project: only show card count
+        if self.project.is_modification:
+            self.name_input.setText(self.project.get('name', ''))
             self.card_count_label.setText(str(len(self.project.get_all_cards())))
             idx = self.language_combo.findData(self.project.language)
             self.language_combo.setCurrentIndex(idx if idx >= 0 else 0)

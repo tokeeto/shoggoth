@@ -51,8 +51,30 @@ class TreeContextMenu:
             parent_data = item.parent().data(0, Qt.UserRole) if item.parent() else None
             self._create_category_menu(menu, category_name, parent_data, data)
 
+        if self._in_modification(item):
+            self._keep_only_non_structural(menu)
+
         if not menu.isEmpty():
             menu.exec(position)
+
+    def _in_modification(self, item):
+        """Whether the item belongs to a modification project (its root)."""
+        while item.parent() is not None:
+            item = item.parent()
+        data = item.data(0, Qt.UserRole) or {}
+        project = data.get('data')
+        return data.get('type') == 'project' and getattr(project, 'is_modification', False)
+
+    def _keep_only_non_structural(self, menu):
+        """A modification changes its parent's elements but can't add or
+        remove any: drop every action that would."""
+        allowed = {tr(key) for key in (
+            "CTX_COPY", "CTX_EXPORT_SET", "BTN_EXPORT_PDF",
+            "CTX_SET_ACTIVE", "CTX_OPEN_FOLDER", "CTX_CLOSE_PROJECT",
+        )}
+        for action in menu.actions():
+            if not action.isSeparator() and action.text() not in allowed:
+                menu.removeAction(action)
     
     def show_selection_menu(self, items, position):
         """Show the menu for a multi-entry selection. Groups propagate their

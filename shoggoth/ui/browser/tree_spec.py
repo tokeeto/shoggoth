@@ -85,6 +85,13 @@ def card_display_name(card, include_level=False):
     return name
 
 
+def node_scope(project):
+    """Suffix keeping node ids unique across the open projects: a modification
+    shares its element ids (and often names) with its parent, which may be
+    open next to it. Plain projects keep their unscoped ids."""
+    return f'@{project.file_path}' if project is not None and project.is_modification else ''
+
+
 def build_card_spec(card, include_level=False):
     """Build a specification for a card node"""
     display_name = card_display_name(card, include_level)
@@ -94,7 +101,7 @@ def build_card_spec(card, include_level=False):
         display_name = '● ' + display_name
 
     return {
-        'node_id': f'card:{card.id}',
+        'node_id': f'card:{card.id}{node_scope(card.project)}',
         'text': display_name,
         'type': 'card',
         'data': card,
@@ -108,14 +115,15 @@ def build_tree_spec(project):
     if not project:
         return None
 
-    # Root node — translation projects get a distinct node_id and label
-    node_id_path = getattr(project, '_node_id_path', project.file_path)
-    translation = getattr(project, '_translation', None)
-    label = (f"{translation.language} translation of {project['name']}"
-             if translation else project['name'])
+    # Root node — a modification says what it modifies
+    label = project['name']
+    if project.is_modification:
+        label = (tr('TREE_TRANSLATION_OF') if project.language else tr('TREE_MODIFICATION_OF')).format(
+            name=project['name'], parent=project.parent_name, language=project.language)
+    scope = node_scope(project)
 
     root_spec = {
-        'node_id': f'project:{node_id_path}',
+        'node_id': f'project:{project.file_path}',
         'text': label,
         'type': 'project',
         'data': project,
@@ -169,9 +177,10 @@ def build_tree_spec(project):
     for encounter_set in encounter_sets:
         e_icon = None
         if encounter_set.icon:
-            e_icon = make_inverted_icon(encounter_set.icon, project.file_path)
+            e_icon = make_inverted_icon(project.find_file(encounter_set.icon) or encounter_set.icon,
+                                        project.file_path)
         e_spec = {
-            'node_id': f'encounter:{encounter_set.name}',
+            'node_id': f'encounter:{encounter_set.name}{scope}',
             'text': encounter_set.name,
             'type': 'encounter',
             'data': encounter_set,
@@ -180,7 +189,7 @@ def build_tree_spec(project):
         }
 
         story_spec = {
-            'node_id': f'category:{encounter_set.name}:story',
+            'node_id': f'category:{encounter_set.name}:story{scope}',
             'text': tr('TREE_STORY'),
             'type': 'category',
             'data': encounter_set,
@@ -188,7 +197,7 @@ def build_tree_spec(project):
             'children': []
         }
         location_spec = {
-            'node_id': f'locations:{encounter_set.name}',
+            'node_id': f'locations:{encounter_set.name}{scope}',
             'text': tr('TREE_LOCATIONS'),
             'type': 'locations',
             'data': encounter_set,
@@ -196,7 +205,7 @@ def build_tree_spec(project):
             'children': []
         }
         encounter_cat_spec = {
-            'node_id': f'category:{encounter_set.name}:encounter',
+            'node_id': f'category:{encounter_set.name}:encounter{scope}',
             'text': tr('TREE_ENCOUNTER'),
             'type': 'category',
             'data': encounter_set,
@@ -318,7 +327,7 @@ def build_tree_spec(project):
         }
         for guide in project.guides:
             guide_spec = {
-                'node_id': f'guide:{guide.id}',
+                'node_id': f'guide:{guide.id}{scope}',
                 'text': guide.name,
                 'type': 'guide',
                 'data': guide,

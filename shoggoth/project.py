@@ -12,7 +12,7 @@ from shoggoth.encounter_set import EncounterSet, parse_number_span
 from shoggoth.export_profile import ExportProfile
 from shoggoth.guide import Guide
 from shoggoth.i18n import tr
-from shoggoth.project_writer import CloudWriter, Writer, TranslationWriter
+from shoggoth.project_writer import CloudWriter, Writer
 
 
 type_order = {
@@ -355,27 +355,19 @@ class Project:
     def get(self, key, default=None):
         return self.data.get(key, default)
 
-    @property
-    def is_translation(self):
-        """Whether this project is a translation for another project."""
-        return bool(getattr(self, '_translation', None) or self.data.get('project'))
+    # Overridden by shoggoth.modification.ModificationProject
+    is_modification = False
 
     @property
     def translations(self):
-        """Return a dict of {language: Translation} for all registered translations."""
+        """{language: Path} of translations registered in this project by
+        older versions of Shoggoth (new modifications aren't registered in
+        the project they modify)."""
         result = {}
         for lang, rel_path in self.data.get('translations', {}).items():
             full_path = self.folder / rel_path
             result[lang] = full_path
         return result
-
-    def add_translation(self, language, file_path):
-        """Register a translation file. *file_path* may be absolute or relative."""
-        rel = Path(file_path).relative_to(self.folder) if Path(file_path).is_absolute() else Path(file_path)
-        if 'translations' not in self.data:
-            self.data['translations'] = {}
-        self.data['translations'][language] = str(rel)
-        self.dirty = True
 
     def save_all(self):
         self.writer.save_all()
@@ -573,19 +565,28 @@ class Project:
         except Exception as e:
             print(e)
             raise
+        Project._validate(data)
+        return data
 
+    @staticmethod
+    def _validate(data):
         for entry in data["encounter_sets"]:
             try:
                 assert EncounterSet.is_valid(entry)
             except AssertionError:
                 print('Entry failed assertion, project is invalid: ', entry)
                 raise Exception('Invalid project file.')
-        return data
 
     @staticmethod
     def load(file_path):
-        """Load card data from JSON file"""
-        data = Project._read(file_path)
+        """Load a project file -- a ModificationProject when the file is a
+        modification of another project (see shoggoth.modification)."""
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        from shoggoth.modification import ModificationProject, is_modification_data
+        if is_modification_data(data):
+            return ModificationProject.load(file_path)
+        Project._validate(data)
         fingerprint = _fingerprint(data)  # before __init__ adds a missing id
         project = Project(file_path, data)
         project._disk_fingerprint = fingerprint
@@ -596,9 +597,9 @@ class Project:
     @property
     def is_file_backed(self):
         """Whether this project is a plain .shoggoth file that is ours to
-        watch and to move. Translations persist to a sidecar file instead, and
-        cloud projects live in (and are synced through) the cloud folder."""
-        return not self.is_translation and not self.is_cloud_project
+        watch and to move. Cloud projects live in (and are synced through)
+        the cloud folder."""
+        return not self.is_cloud_project
 
     def remember_saved(self, data):
         """Records that the file now holds *data* (what the writer just wrote),
@@ -947,84 +948,3 @@ def update(d, u):
         else:
             d[k] = v
     return d
-
-
-class Translation:
-    """ A translated version of a project.
-        Only really supports work and changes to the translation of
-        the project. Any changes to cards should happen in the Project
-        itself.
-    """
-
-    def __init__(self, file_path, data):
-        self.file_path = str(file_path)
-        self.data = data
-        if 'language' not in self.data:
-            raise Exception(tr("ERROR_TRANSLATION_MISSING_LANGUAGE"))
-        self.language = data['language']
-        if 'project' not in self.data:
-            raise Exception(tr("ERROR_TRANSLATION_MISSING_PROJECT"))
-        self.project_path = Path(self.file_path).parent / Path(data['project'])
-        self.project = Project.load(self.project_path)
-        self.apply()
-
-    @classmethod
-    def load(cls, file_path):
-        """Load data from JSON file"""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return cls(file_path, data)
-
-    def get_meta(self, key, default=None):
-        """Designer-facing metadata for this translation itself (currently
-        just `cloud_translation_id`) -- stored under the sidecar's own
-        data['meta'], separate from the overlaid project's own meta, and
-        persisted by TranslationWriter.save_project."""
-        return self.data.get('meta', {}).get(key, default)
-
-    def set_meta(self, key, value):
-        meta = self.data.setdefault('meta', {})
-        if value is None:
-            meta.pop(key, None)
-        else:
-            meta[key] = value
-
-    def save_all(self):
-        self.project.writer.save_all()
-
-    def apply(self):
-        """ Translates the project and overwrites the Writer of the project """
-        self.project.writer = TranslationWriter(self)
-
-        # project
-        self.project.data['name'] = self.data.get('project_name', self.project.name)
-
-        # Card language: default a translation project to the language it's
-        # translated into, so e.g. a German translation renders "GEGNER"
-        # instead of "ENEMY" without a manual UI-language switch. Editable
-        # afterwards via the project editor like any other project setting.
-        self.project.data.setdefault('meta', {})['language'] = self.language
-
-        # encounter sets
-        for encounter_id in self.data.get('encounter_sets', {}):
-            encounter = self.project.get_encounter_set(encounter_id)
-            if not encounter:
-                continue
-            encounter.data['name'] = self.data['encounter_sets'][encounter_id]['name']
-
-        # cards
-        for card_id, card_data in self.data.get('cards', {}).items():
-            card = self.project.get_card(card_id)
-            if not card:
-                continue
-            card.data['name'] = card_data.get('name', card.name)
-            if 'language' in card_data:
-                card.data['language'] = card_data['language']
-            for field, value in card_data.get('front', {}).items():
-                card.data['front'][field] = value
-            for field, value in card_data.get('back', {}).items():
-                card.data['back'][field] = value
-
-        # guides
-        # overwrites the guides to hide non-translated guides
-        self.project.data['guides'] = self.data.get('guides', [])

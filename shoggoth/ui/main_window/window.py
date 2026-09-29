@@ -162,6 +162,7 @@ class ShoggothMainWindow(QMainWindow):
         self.card_preview = ImprovedCardPreview()
         self.card_preview.set_trim(self.preview.trim)
         self.card_preview.trim_changed.connect(self.preview.set_trim)
+        self.card_preview.original_toggled.connect(self.preview.set_show_original)
         self.preview_dock.setWidget(self.card_preview)
 
         # Add dock widget to right side (hidden initially)
@@ -242,9 +243,9 @@ class ShoggothMainWindow(QMainWindow):
     def refresh_tree(self):
         self.file_browser.refresh()
 
-    def update_card_in_tree(self, card_id):
+    def update_card_in_tree(self, card_id, project=None):
         """Update a single card's display in the tree (for name/dirty changes)"""
-        return self.file_browser.update_card_node(card_id)
+        return self.file_browser.update_card_node(card_id, project)
 
     def select_item_in_tree(self, item_id):
         return self.file_browser.select_item_in_tree(item_id)
@@ -286,8 +287,9 @@ class ShoggothMainWindow(QMainWindow):
         bulk-changing) other cards doesn't trigger a render at all."""
         if kind != 'cards':
             return
-        self.update_card_in_tree(element_id)
-        if changed and self.current_card and self.current_card.id == element_id:
+        self.update_card_in_tree(element_id, project)
+        if changed and self.current_card and self.current_card.id == element_id \
+                and self.current_card.project is project:
             self.preview.schedule_update()
 
     def on_assets_updated(self):
@@ -322,6 +324,21 @@ class ShoggothMainWindow(QMainWindow):
 
     def save_settings(self):
         self.session.save()
+
+    @property
+    def modification_view(self):
+        """How a modification project's cards are edited: 'translation' (the
+        translatable fields beside the originals) or 'modification' (the
+        full editor beside the locked original)."""
+        return self.settings.get('modification_view', 'translation')
+
+    def set_modification_view(self, mode):
+        self.settings['modification_view'] = mode
+        self.save_settings()
+        if mode in getattr(self, 'modification_view_actions', {}):
+            self.modification_view_actions[mode].setChecked(True)
+        if self.current_card and self.current_card.project.is_modification:
+            self.nav.refresh_current()
 
     @property
     def current_project(self):
@@ -437,14 +454,30 @@ class ShoggothMainWindow(QMainWindow):
         self.file_watcher = FileWatcher(self.on_files_changed, trees=[asset_dir])
         self.file_watcher.start()
 
+    @staticmethod
+    def _project_watch_paths(project):
+        """The files an open project depends on: its own file, and for a
+        modification also the parent project it's applied to."""
+        paths = []
+        if project.is_file_backed:
+            paths.append(project.file_path)
+        if project.is_modification:
+            paths.append(project.parent_path)
+        return paths
+
     def watch_project_file(self, project):
         """Watch an open project's file for outside changes, for as long as it stays open"""
-        if project.is_file_backed:
-            self.file_watcher.watch_file(project.file_path, pinned=True)
+        for path in self._project_watch_paths(project):
+            self.file_watcher.watch_file(path, pinned=True)
 
     def unwatch_project_file(self, project):
-        if project.is_file_backed:
-            self.file_watcher.unwatch_file(project.file_path)
+        # A parent can be shared with other open projects (another modification
+        # of it, or the parent itself)
+        still_needed = {path_key(path) for other in self.open_projects if other is not project
+                        for path in self._project_watch_paths(other)}
+        for path in self._project_watch_paths(project):
+            if path_key(path) not in still_needed:
+                self.file_watcher.unwatch_file(path)
 
     def on_files_changed(self, paths):
         """Called from the file watcher (background thread) - emit signal for main thread handling"""
@@ -455,11 +488,19 @@ class ShoggothMainWindow(QMainWindow):
         """Handle file system changes on main thread - refresh preview when relevant files change"""
         # Project files aren't render inputs; they're checked for outside edits
         project_files = {path_key(p.file_path): p for p in self.open_projects if p.is_file_backed}
-        changed_projects = [project_files[k] for k in {path_key(p) for p in paths} if k in project_files]
-        if changed_projects:
-            paths = {p for p in paths if path_key(p) not in project_files}
+        parent_files = {}
+        for p in self.open_projects:
+            if p.is_modification:
+                parent_files.setdefault(path_key(p.parent_path), []).append(p)
+        changed_keys = {path_key(p) for p in paths}
+        changed_projects = [project_files[k] for k in changed_keys if k in project_files]
+        changed_parents = [m for k in changed_keys if k in parent_files for m in parent_files[k]]
+        if changed_projects or changed_parents:
+            paths = {p for p in paths if path_key(p) not in project_files and path_key(p) not in parent_files}
             for project in changed_projects:
                 projects.check_external_change(self, project)
+            for modification in changed_parents:
+                projects.parent_changed(self, modification)
             if not paths:
                 return
         # Read via self: the renderer is replaced on language change

@@ -147,7 +147,7 @@ class CloudSyncController(QObject):
     def is_attachable(self, project) -> bool:
         return (
             project.is_cloud_project
-            and not getattr(project, '_translation', None)
+            and not project.is_modification
             and folder.is_in_cloud_cache(project.file_path)
         )
 

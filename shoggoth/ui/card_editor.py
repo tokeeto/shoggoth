@@ -29,12 +29,6 @@ class CardEditor(QWidget):
     def __init__(self, card):
         super().__init__()
         self.card = card
-        # Whether front/back editors should be put into translation mode as soon as
-        # they're (re)created — set by enter/exit_translation_mode. Needed because the
-        # Front/Back/JSON toggle and a face type change both rebuild the face editors
-        # from scratch (see create_form_editors/on_type_changed), which would otherwise
-        # lose translation-mode state and show every field again.
-        self._translation_active = False
 
         # Main layout with scroll
         scroll = QScrollArea()
@@ -42,14 +36,6 @@ class CardEditor(QWidget):
 
         content = QWidget()
         layout = QVBoxLayout()
-
-        self.translation_notice = QLabel(tr("TRANSLATION_MODE_NOTE"))
-        self.translation_notice.setVisible(False)
-        self.translation_notice.setStyleSheet(
-            "QLabel { color: #7a5b14; background: #fff4cc; border: 1px solid #d9c27a; "
-            "padding: 6px 10px; border-radius: 4px; font-weight: 600; }"
-        )
-        layout.addWidget(self.translation_notice)
 
         self.name_input = LabeledLineEdit(tr("FIELD_NAME"))
         layout.addWidget(self.name_input)
@@ -474,8 +460,6 @@ class CardEditor(QWidget):
 
         self.front_editor = get_editor_for_face(self.card.front)
         self.front_editor.type_changed.connect(lambda: self.on_type_changed('front'))
-        if self._translation_active:
-            self.front_editor.enter_translation_mode()
         self.face_stack.addWidget(self.front_editor)
 
     def create_back_editor(self):
@@ -487,8 +471,6 @@ class CardEditor(QWidget):
 
         self.back_editor = get_editor_for_face(self.card.back)
         self.back_editor.type_changed.connect(lambda: self.on_type_changed('back'))
-        if self._translation_active:
-            self.back_editor.enter_translation_mode()
         self.face_stack.addWidget(self.back_editor)
 
     def _show_face(self, value):
@@ -592,24 +574,6 @@ class CardEditor(QWidget):
             effective = resolve_language(shoggoth.app, self.card.project, self.card)
             shoggoth.app.card_renderer.set_locale(effective)
         self.data_changed.emit()
-
-    def enter_translation_mode(self):
-        """Switch both face editors into translation mode and show a translation notice."""
-        self._translation_active = True
-        self.translation_notice.setVisible(True)
-        if self.front_editor:
-            self.front_editor.enter_translation_mode()
-        if self.back_editor:
-            self.back_editor.enter_translation_mode()
-
-    def exit_translation_mode(self):
-        """Restore both face editors to normal editing mode and hide the translation notice."""
-        self._translation_active = False
-        self.translation_notice.setVisible(False)
-        if self.front_editor:
-            self.front_editor.exit_translation_mode()
-        if self.back_editor:
-            self.back_editor.exit_translation_mode()
 
     def cleanup(self):
         """Cleanup editor resources"""

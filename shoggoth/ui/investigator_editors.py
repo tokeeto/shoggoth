@@ -246,11 +246,6 @@ class InvestigatorBackEditor(FaceEditor):
         self.entry_widgets.append((header_input, value_input))
         return header_input, value_input
 
-    def enter_translation_mode(self):
-        super().enter_translation_mode()
-        # _entries_group is not in field_containers; show it explicitly
-        self._entries_group.setVisible(True)
-
     def load_data(self):
         """Load data from face into fields, including special entries handling"""
         self.updating = True

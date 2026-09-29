@@ -718,7 +718,7 @@ class Guide:
 
         html = html.replace("{{project.name}}", self.project.name)
         try:
-            html = html.replace("file:///{{project.icon}}", (self.project.folder / self.project.icon).resolve().as_uri())
+            html = html.replace("file:///{{project.icon}}", (self.project.find_file(self.project.icon) or self.project.folder / self.project.icon).resolve().as_uri())
         except Exception:
             pass
         return html

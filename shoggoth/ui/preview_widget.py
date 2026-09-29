@@ -246,6 +246,7 @@ class ImprovedCardPreview(QWidget):
     """Improved card preview with tabs for front/back and zoom capabilities"""
 
     trim_changed = Signal(str)  # 'ffg' or 'mtg'
+    original_toggled = Signal(bool)  # show the unmodified card of a modification
 
     def __init__(self):
         super().__init__()
@@ -275,6 +276,14 @@ class ImprovedCardPreview(QWidget):
         trim_row.addWidget(self._ffg_btn)
         trim_row.addWidget(self._mtg_btn)
         trim_row.addStretch()
+
+        # Only shown for cards of a modification project
+        self._original_btn = QPushButton(tr("PREVIEW_SHOW_ORIGINAL"))
+        self._original_btn.setCheckable(True)
+        self._original_btn.setToolTip(tr("TOOLTIP_PREVIEW_SHOW_ORIGINAL"))
+        self._original_btn.setVisible(False)
+        self._original_btn.toggled.connect(self.original_toggled.emit)
+        trim_row.addWidget(self._original_btn)
         layout.addLayout(trim_row)
 
         self.tabs = QTabWidget()
@@ -298,6 +307,13 @@ class ImprovedCardPreview(QWidget):
             btn.blockSignals(True)
             btn.setChecked(True)
             btn.blockSignals(False)
+
+    def set_original_available(self, available):
+        """Show the "Original" toggle (for a modification's card), or hide it
+        and switch back to the card itself."""
+        self._original_btn.setVisible(available)
+        if not available and self._original_btn.isChecked():
+            self._original_btn.setChecked(False)
 
     def set_card_images(self, front_buffer, back_buffer):
         if front_buffer:

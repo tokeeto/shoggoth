@@ -63,22 +63,18 @@ class SessionManager:
         """
         self.settings['session']['last_id'] = element_id
         self.settings['session']['last_type'] = element_type
-        self.settings['session']['last_project'] = (
-            getattr(project, '_node_id_path', project.file_path) if project else None
-        )
+        self.settings['session']['last_project'] = project.file_path if project else None
         self.save_session()
 
     def save_session(self):
         """Save current session state (open projects and active project)"""
         window = self.window
-        regular = [p.file_path for p in window.open_projects
-                   if not getattr(p, '_translation', None)]
-        trans = [p._node_id_path for p in window.open_projects
-                 if getattr(p, '_translation', None)]
-        active_path = (getattr(window.active_project, '_node_id_path', window.active_project.file_path)
-                       if window.active_project else None)
-        self.settings['session']['open_projects'] = regular
-        self.settings['session']['open_translations'] = trans
+        # Modifications are opened like any other project file
+        open_paths = [p.file_path for p in window.open_projects]
+        active_path = window.active_project.file_path if window.active_project else None
+        self.settings['session']['open_projects'] = open_paths
+        # Written by older versions; now part of open_projects
+        self.settings['session'].pop('open_translations', None)
         self.settings['session']['active_project'] = active_path
         # Keep legacy 'project' key for backward compatibility
         self.settings['session']['project'] = active_path
@@ -108,18 +104,17 @@ class SessionManager:
             except Exception as e:
                 print(f"Error restoring project {project_path}: {e}")
 
+        # Sessions of older versions list translations separately
         for trans_path in open_translation_paths:
             try:
-                projects.open_translation(window, trans_path)
+                projects.open_project(window, trans_path)
             except Exception as e:
                 print(f"Error restoring translation {trans_path}: {e}")
 
-        # Set the active project — match by _node_id_path for translations,
-        # file_path for regular projects.
+        # Set the active project
         if active_project_path:
             for project in window.open_projects:
-                path = getattr(project, '_node_id_path', project.file_path)
-                if path == active_project_path:
+                if project.file_path == active_project_path:
                     window.file_browser.set_active_project(project)
                     break
 
@@ -158,8 +153,7 @@ class SessionManager:
         project = None
         if project_path:
             for p in window.open_projects:
-                path = getattr(p, '_node_id_path', p.file_path)
-                if path == project_path:
+                if p.file_path == project_path:
                     project = p
                     break
         if project is None:
