@@ -293,7 +293,6 @@ class ShoggothPreviewCardCommand(sublime_plugin.TextCommand):
     def _show_images(self, window, state, card_id, images, settings):
         preview = self._get_preview_view(window, state)
         width = int(settings.get('image_width', 420))
-        print(images)
 
         parts = ['<body id="shoggoth-card-preview">']
         for path in images:
@@ -307,7 +306,6 @@ class ShoggothPreviewCardCommand(sublime_plugin.TextCommand):
             parts.append('<div><img src="{}" {}></div>'.format(
                 Path(path).as_uri(), size_attr))
         parts.append('</body>')
-        print(parts)
 
         phantoms = state.get('phantoms')
         if phantoms is None or phantoms.view.id() != preview.id():
