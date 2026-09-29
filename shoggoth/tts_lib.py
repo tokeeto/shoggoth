@@ -102,9 +102,9 @@ inner_card_template = {
 }
 
 card_template = {
-    "CardID": 552100,
+    "CardID": 100,
     "CustomDeck": {},
-    "Description": "Card 1",
+    "Description": "",
     "GMNotes": "",
     "Name": "Card",
     "Nickname": "A card",
@@ -157,7 +157,7 @@ campaign_box_template = {
   },
   "Description": "",
   "DragSelectable": True,
-  "GMNotes": "{\n  \"filename\": \"the_scarlet_keys\"}",
+  "GMNotes": "",
   "Grid": True,
   "GridProjection": False,
   "Hands": False,
@@ -165,7 +165,7 @@ campaign_box_template = {
   "IgnoreFoW": False,
   "LayoutGroupSortIndex": 0,
   "Locked": False,
-  "LuaScript": "require(\"core/DownloadBox\")",
+  "LuaScript": "",
   "LuaScriptState": "",
   "MeasureMovement": False,
   "Name": "Custom_Model",
