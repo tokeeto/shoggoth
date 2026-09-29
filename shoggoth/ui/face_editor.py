@@ -244,16 +244,18 @@ class FaceEditor(QWidget):
         return widget
 
     def add_numbers_panel(self, items):
-        """Bordered stat mini-panel. `items` = [(label, item), ...] where `item` is:
+        """Bordered stat mini-panel. `items` = [(label, item[, help_text]), ...] where
+        the optional help_text is shown on hover over a "?" after the label, and `item` is:
           - a field name (str) -> one Stepper
           - a list/tuple of field names -> a row of Steppers sharing one group label
             (e.g. Willpower/Intellect/Combat/Agility, or a Health/Sanity pair)
           - a QWidget -> used as-is (e.g. an already-built IconsWidget/SlotChipsField)
         """
         panel = NumbersPanel()
-        for label, item in items:
+        for label, item, *help_text in items:
+            help_text = help_text[0] if help_text else None
             if isinstance(item, QWidget):
-                panel.add_group(label, item)
+                panel.add_group(label, item, help_text=help_text)
             elif isinstance(item, (list, tuple)):
                 row = QHBoxLayout()
                 row.setContentsMargins(0, 0, 0, 0)
@@ -262,9 +264,9 @@ class FaceEditor(QWidget):
                     row.addWidget(self._make_stepper(field_name))
                 row_widget = QWidget()
                 row_widget.setLayout(row)
-                panel.add_group(label, row_widget)
+                panel.add_group(label, row_widget, help_text=help_text)
             else:
-                panel.add_group(label, self._make_stepper(item))
+                panel.add_group(label, self._make_stepper(item), help_text=help_text)
         self._target_layout().addWidget(panel)
         return panel
 

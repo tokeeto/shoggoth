@@ -6,31 +6,87 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
-    QSizePolicy, QToolTip
+    QSizePolicy, QToolTip, QToolButton
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QPointF, QRectF, QSize
 from PySide6.QtGui import (
-    QImage, QPixmap, QPainter, QPainterPath, QColor, QPen, QTransform
+    QIcon, QImage, QPixmap, QPainter, QPainterPath, QColor, QPen, QTransform
 )
 
 from shoggoth.renderer import _pdf_page_dims, _render_pdf_page
 from shoggoth.ui.field_widgets import LabeledLineEdit
-from shoggoth.ui.editor_widgets import NoScrollComboBox
 from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
 
 logger = logging.getLogger('shoggoth')
 
 
+class _IconCounter(QToolButton):
+    """Flat icon + count button: left-click adds one, right-click removes one.
+
+    Handles the presses itself (no Qt "clicked"), so both buttons count and a
+    fast second click - delivered as a double-click - isn't lost.
+    """
+
+    stepped = Signal(int)  # +1 / -1
+
+    def __init__(self, icon_path, fallback_text, tooltip):
+        super().__init__()
+        self.setAutoRaise(True)
+        self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.setIconSize(QSize(16, 16))
+        self.setCursor(Qt.PointingHandCursor)
+        self.setContextMenuPolicy(Qt.PreventContextMenu)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setToolTip(tooltip)
+        if icon_path.exists():
+            self.setIcon(QIcon(str(icon_path)))
+        else:
+            self.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            self._fallback_text = fallback_text
+        font = self.font()
+        font.setBold(True)
+        self.setFont(font)
+        # Fixed width sized for the widest count, so counting doesn't shift the row
+        self.setText("\u22128")
+        self.setFixedWidth(self.sizeHint().width())
+        self.set_count(0)
+
+    def set_count(self, count):
+        text = str(count) if count >= 0 else f"\u2212{-count}"
+        if self.toolButtonStyle() == Qt.ToolButtonTextOnly:
+            text = f"{self._fallback_text} {text}"
+        self.setText(text)
+
+    def _step_for(self, event):
+        if event.button() == Qt.LeftButton:
+            return 1
+        if event.button() == Qt.RightButton:
+            return -1
+        return 0
+
+    def mousePressEvent(self, event):
+        step = self._step_for(event)
+        if step:
+            event.accept()
+            self.stepped.emit(step)
+        else:
+            super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        self.mousePressEvent(event)
+
+
 class IconsWidget(QWidget):
-    """Widget for skill icons: an icon + a 0-6 count dropdown per icon type.
+    """Widget for skill icons: an icon + count per icon type, left-click to add
+    one, right-click to remove one (0-6).
 
     Each icon has a single signed count internally. Positive counts map to the
     positive letter (W, I, C, A, Q); negative counts map to the negative letter
-    (V, H, B, Z, P). The dropdown only offers 0-6 (no negative selection yet —
-    a possible future addition); a count loaded from existing negative data is
-    displayed as 0 until the user actively changes that dropdown, so it isn't
-    silently discarded just by opening the card.
+    (V, H, B, Z, P). Clicking only steps within 0-6 (no negative entry yet — a
+    possible future addition); a negative count loaded from existing data is
+    shown as-is, can be raised back towards 0 with left-clicks, and is never
+    lowered further.
 
     If a card's icons string contains both the positive AND negative letter for
     the same icon type (e.g. "WWVV"), that is an unsupported GUI state and the
@@ -48,7 +104,7 @@ class IconsWidget(QWidget):
     # Map negative letters back to their canonical (positive) key
     NEG_TO_POS = {'V': 'W', 'H': 'I', 'B': 'C', 'Z': 'A', 'P': 'Q'}
     MAX_COUNT = 8  # safety clamp while parsing a raw icons string
-    UI_MAX = 6  # dropdown range: 0-6
+    UI_MAX = 6  # clicking steps within 0-6
 
     iconsChanged = Signal(str)
 
@@ -56,7 +112,7 @@ class IconsWidget(QWidget):
         super().__init__()
         # Signed counts keyed by the positive letter (W, I, C, A, Q)
         self.counts = {pos: 0 for pos, neg, _ in self.ICONS}
-        self.combos = {}
+        self.counters = {}
         self._updating = False
 
         layout = QVBoxLayout()
@@ -69,59 +125,36 @@ class IconsWidget(QWidget):
         self._conflict_label.setVisible(False)
         layout.addWidget(self._conflict_label)
 
-        # Container for interactive clusters (disabled as a unit when conflict)
+        # Container for interactive counters (disabled as a unit when conflict)
         self._rows_widget = QWidget()
         rows_layout = QHBoxLayout()
         rows_layout.setContentsMargins(0, 0, 0, 0)
-        rows_layout.setSpacing(6)
+        rows_layout.setSpacing(2)
 
         for pos, neg, name in self.ICONS:
-            cluster = QHBoxLayout()
-            cluster.setContentsMargins(0, 0, 0, 0)
-            cluster.setSpacing(3)
-
-            icon_label = QLabel()
-            icon_label.setToolTip(name)
             icon_path = overlay_dir / 'svg' / f"skill_icon_{pos}.svg"
-            if icon_path.exists():
-                pixmap = QPixmap(str(icon_path)).scaled(
-                    16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                )
-                icon_label.setPixmap(pixmap)
-            else:
-                icon_label.setText(pos)
-            icon_label.setFixedSize(16, 16)
-            cluster.addWidget(icon_label)
-
-            combo = NoScrollComboBox()
-            combo.addItems([str(n) for n in range(self.UI_MAX + 1)])
-            combo.setToolTip(name)
-            combo.setProperty("role", "flat-combo")
-            combo.setFixedWidth(30)
-            combo.currentIndexChanged.connect(lambda index, k=pos: self._on_combo_changed(k, index))
-            self.combos[pos] = combo
-            cluster.addWidget(combo)
-
-            cluster_widget = QWidget()
-            cluster_widget.setLayout(cluster)
-            rows_layout.addWidget(cluster_widget)
+            counter = _IconCounter(icon_path, pos, name)
+            counter.stepped.connect(lambda step, k=pos: self._on_stepped(k, step))
+            self.counters[pos] = counter
+            rows_layout.addWidget(counter)
 
         rows_layout.addStretch()
         self._rows_widget.setLayout(rows_layout)
         layout.addWidget(self._rows_widget)
         self.setLayout(layout)
 
-    def _sync_combo(self, key):
-        v = self.counts[key]
-        combo = self.combos[key]
-        combo.blockSignals(True)
-        combo.setCurrentIndex(v if 0 <= v <= self.UI_MAX else 0)
-        combo.blockSignals(False)
-
-    def _on_combo_changed(self, key, index):
+    def _on_stepped(self, key, step):
         if self._updating:
             return
-        self.counts[key] = index
+        v = self.counts[key]
+        if step > 0:
+            new = min(v + 1, self.UI_MAX)
+        else:
+            new = v - 1 if v > 0 else v
+        if new == v:
+            return
+        self.counts[key] = new
+        self.counters[key].set_count(new)
         self.iconsChanged.emit(self.get_icons_string())
 
     def get_icons_string(self):
@@ -164,7 +197,7 @@ class IconsWidget(QWidget):
 
         for pos, neg, _ in self.ICONS:
             self.counts[pos] = raw_pos[pos] - raw_neg[pos]
-            self._sync_combo(pos)
+            self.counters[pos].set_count(self.counts[pos])
 
         self._conflict_label.setVisible(conflict)
         self._rows_widget.setEnabled(not conflict)

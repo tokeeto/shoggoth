@@ -1048,7 +1048,10 @@ class CardRenderer:
         box_image = self.get_resized_cached(box_path, box_region.size)
 
         for index, icon in enumerate(value):
-            icon_path = self.overlays_path / 'svg' / f"skill_icon_{icon}.svg"
+            icon_pattern = side.get('icons_pattern', 'skill_icon_{icon}.svg')
+            icon_path = side.card.project.find_file(icon_pattern.format(icon=icon))
+            if icon_path is None:
+                icon_path = self.overlays_path / 'svg' / icon_pattern.format(icon=icon)
             icon_image = self.get_resized_cached(icon_path, (scale(102, s), scale(106, s)))
             card_image.paste(box_image, (icon_region.x + box_region.x, index * icon_region.height + icon_region.y + box_region.y), box_image)
             card_image.paste(icon_image, (icon_region.x, index * icon_region.height + icon_region.y), icon_image)

@@ -33,7 +33,7 @@ class AssetEditor(FaceEditor):
         self.slots_widget.slotsChanged.connect(self.on_slots_changed)
         self.add_numbers_panel([
             (tr("FIELD_COST"), "cost"),
-            (tr("LABEL_ICONS"), self.icons_widget),
+            (tr("LABEL_ICONS"), self.icons_widget, tr("TOOLTIP_ICONS_HELP")),
             (tr("FIELD_HEALTH") + " / " + tr("FIELD_SANITY"),
              self.add_icon_field_pair("damage", "health", "horror", "sanity")),
             (tr("FIELD_SLOT"), self.slots_widget),
@@ -86,7 +86,7 @@ class EventEditor(FaceEditor):
         self.icons_widget.iconsChanged.connect(self.on_icons_changed)
         self.add_numbers_panel([
             (tr("FIELD_COST"), "cost"),
-            (tr("LABEL_ICONS"), self.icons_widget),
+            (tr("LABEL_ICONS"), self.icons_widget, tr("TOOLTIP_ICONS_HELP")),
         ])
 
         self.start_band(tr("BAND_RULES_TEXT"))

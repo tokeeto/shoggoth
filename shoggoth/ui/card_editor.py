@@ -54,8 +54,10 @@ class CardEditor(QWidget):
         self.name_input = LabeledLineEdit(tr("FIELD_NAME"))
         layout.addWidget(self.name_input)
 
-        # Basic info (collapsible band, collapsed by default — rarely touched)
-        self.basic_info_band = Band(tr("BAND_BASIC_INFO"), collapsible=True)
+        # Basic info (collapsible band, collapsed by default — rarely touched; stays
+        # unfolded across cards for the session once the user opens it)
+        self.basic_info_band = Band(tr("BAND_BASIC_INFO"), collapsible=True,
+                                    state_key='card_basic_info')
 
         self.copyright_input = LabeledLineEdit(tr("FIELD_COPYRIGHT"))
         self.basic_info_band.content_layout.addWidget(self.copyright_input)

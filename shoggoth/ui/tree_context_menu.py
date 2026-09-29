@@ -20,7 +20,7 @@ class TreeContextMenu:
     
     def __init__(self, parent):
         self.parent = parent
-        self.clipboard = None  # Stores copied card data
+        self.clipboard = []  # Copied card data dicts (ids stripped)
     
     def show_context_menu(self, item, position):
         """Show appropriate context menu for the item"""
@@ -54,6 +54,54 @@ class TreeContextMenu:
         if not menu.isEmpty():
             menu.exec(position)
     
+    def show_selection_menu(self, items, position):
+        """Show the menu for a multi-entry selection. Groups propagate their
+        selection to their children (see FileBrowser), so the selected card
+        items already cover every card inside a selected group."""
+        cards, encounters, guides = self._collect_selection(items)
+        if not (cards or encounters or guides):
+            return
+
+        menu = QMenu(self.parent)
+
+        if cards:
+            copy_action = QAction(tr("CTX_COPY"), self.parent)
+            copy_action.triggered.connect(lambda: self.copy_cards(cards))
+            menu.addAction(copy_action)
+
+        if cards or guides:
+            duplicate_action = QAction(tr("CTX_DUPLICATE"), self.parent)
+            duplicate_action.triggered.connect(lambda: self.duplicate_selection(cards, guides))
+            menu.addAction(duplicate_action)
+
+        if cards:
+            transfer_action = QAction(tr("CTX_TRANSFER"), self.parent)
+            transfer_action.triggered.connect(lambda: self.transfer_cards(cards))
+            menu.addAction(transfer_action)
+
+        menu.addSeparator()
+
+        delete_action = QAction(tr("CTX_DELETE"), self.parent)
+        delete_action.triggered.connect(lambda: self.delete_selection(cards, encounters, guides))
+        menu.addAction(delete_action)
+
+        menu.exec(position)
+
+    @staticmethod
+    def _collect_selection(items):
+        """Split selected tree items into (cards, encounter sets, guides),
+        deduplicated by id. Other node types (projects, categories, the
+        locations shortcut) only matter through their selected children."""
+        found = {'card': {}, 'encounter': {}, 'guide': {}}
+        for item in items:
+            data = item.data(0, Qt.UserRole)
+            if not data or data.get('type') not in found or not data.get('data'):
+                continue
+            element = data['data']
+            found[data['type']].setdefault(element.id, element)
+        return (list(found['card'].values()), list(found['encounter'].values()),
+                list(found['guide'].values()))
+
     def _create_card_menu(self, menu, card):
         """Create context menu for a card"""
         # Copy
@@ -340,32 +388,133 @@ class TreeContextMenu:
     
     def copy_card(self, card):
         """Copy card to clipboard"""
-        # Deep copy the card data
-        self.clipboard = json.loads(json.dumps(card.data))
-        # Remove ID so paste creates new card
-        if 'id' in self.clipboard:
-            del self.clipboard['id']
-        print(f"Copied card: {card.name}")
-    
+        self.copy_cards([card])
+
+    def copy_cards(self, cards):
+        """Copy cards to the clipboard, replacing its contents"""
+        self.clipboard = []
+        for card in cards:
+            # Deep copy the card data
+            data = json.loads(json.dumps(card.data))
+            # Remove ID so paste creates new card
+            data.pop('id', None)
+            self.clipboard.append(data)
+        print(f"Copied {len(cards)} card(s)")
+
     def duplicate_card(self, card):
         """Duplicate a card in the same location"""
+        self._duplicate_card(card)
+
+        # Trigger refresh
+        import shoggoth
+        shoggoth.app.refresh_tree()
+
+    @staticmethod
+    def _duplicate_card(card):
         from uuid import uuid4
-        
+
         # Create a copy of the card data
         new_data = json.loads(json.dumps(card.data))
-        
+
         # Generate new ID
         new_data['id'] = str(uuid4())
-        
+
         # Append "Copy" to name
         new_data['name'] = f"{card.name} (Copy)"
-        
+
         # Add to project
         card.project.add_card(new_data)
-        
+
         print(f"Duplicated card: {card.name}")
-        
-        # Trigger refresh
+
+    def duplicate_selection(self, cards, guides):
+        """Duplicate several cards and guides in place"""
+        for card in cards:
+            self._duplicate_card(card)
+        for project, project_guides in self._by_project(guides):
+            for guide in project_guides:
+                self._duplicate_guide(guide)
+            project.save_all()
+
+        import shoggoth
+        shoggoth.app.refresh_tree()
+
+    def transfer_cards(self, cards):
+        """Open the Transfer Cards dialog pre-filled with *cards*. A selection
+        spanning several projects pre-checks only the first card's project's
+        cards, matching cross-project drag & drop."""
+        import shoggoth
+        from shoggoth.ui.transfer_dialog import TransferCardsDialog
+        source_project = cards[0].project
+        dialog = TransferCardsDialog(
+            shoggoth.app,
+            source_project=source_project,
+            selected_cards=[c for c in cards if c.project is source_project],
+        )
+        dialog.exec()
+
+    @staticmethod
+    def _by_project(elements):
+        """Group elements as [(project, [elements])] - Project isn't hashable."""
+        grouped = []
+        for element in elements:
+            for project, members in grouped:
+                if project is element.project:
+                    members.append(element)
+                    break
+            else:
+                grouped.append((element.project, [element]))
+        return grouped
+
+    def delete_selection(self, cards, encounters, guides):
+        """Delete several cards, encounter sets (with all their cards) and
+        guides after a single confirmation"""
+        from PySide6.QtWidgets import QMessageBox
+
+        # Cards inside a deleted encounter set go with it
+        card_ids = {c.id for c in cards}
+        for encounter in encounters:
+            card_ids.update(c.get('id') for c in encounter.project.data['cards']
+                            if c.get('encounter_set') == encounter.id)
+
+        counts = []
+        if card_ids:
+            counts.append(tr("SEL_COUNT_CARDS", count=len(card_ids)))
+        if encounters:
+            counts.append(tr("SEL_COUNT_ENCOUNTER_SETS", count=len(encounters)))
+        if guides:
+            counts.append(tr("SEL_COUNT_GUIDES", count=len(guides)))
+        message = tr("MSG_DELETE_SELECTION_CONFIRM") + "\n\n" + "\n".join(f"• {c}" for c in counts)
+
+        reply = QMessageBox.question(
+            self.parent,
+            tr("DLG_DELETE_SELECTION"),
+            message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        for project, _ in self._by_project(cards + encounters):
+            removed = [c for c in project.data['cards'] if c.get('id') in card_ids]
+            project.data['cards'][:] = [c for c in project.data['cards'] if c.get('id') not in card_ids]
+            for card_data in removed:
+                project.note_deleted('cards', card_data.get('id'))
+
+        for encounter in encounters:
+            encounter.project.data['encounter_sets'].remove(encounter.data)
+            encounter.project.note_deleted('encounter_sets', encounter.id)
+
+        for project, project_guides in self._by_project(guides):
+            guide_ids = {g.id for g in project_guides}
+            project.data['guides'] = [g for g in project.data.get('guides', []) if g['id'] not in guide_ids]
+            for guide_id in guide_ids:
+                project.note_deleted('guides', guide_id)
+            project.save_all()
+
+        print(f"Deleted {len(card_ids)} card(s), {len(encounters)} encounter set(s), {len(guides)} guide(s)")
+
         import shoggoth
         shoggoth.app.refresh_tree()
     
@@ -396,36 +545,37 @@ class TreeContextMenu:
         """Paste clipboard card to target location"""
         if not self.clipboard:
             return
-        
+
         from uuid import uuid4
-        
-        # Create new card data from clipboard
-        new_data = json.loads(json.dumps(self.clipboard))
-        
-        # Generate new ID
-        new_data['id'] = str(uuid4())
-        
-        # Apply template if provided (for categories)
-        if template:
-            if 'front' in template:
-                new_data.setdefault('front', {}).update(template['front'])
-            if 'back' in template:
-                new_data.setdefault('back', {}).update(template['back'])
-            if 'investigator' in template:
-                new_data['investigator'] = template['investigator']
-        
-        # Set encounter set if target is an encounter
         from shoggoth.encounter_set import EncounterSet
-        if isinstance(target, EncounterSet):
-            new_data['encounter_set'] = target.id
-        
-        # Add to project
         import shoggoth
         project = shoggoth.app.current_project
-        project.add_card(new_data)
-        
-        print(f"Pasted card: {new_data['name']}")
-        
+
+        for clip in self.clipboard:
+            # Create new card data from clipboard
+            new_data = json.loads(json.dumps(clip))
+
+            # Generate new ID
+            new_data['id'] = str(uuid4())
+
+            # Apply template if provided (for categories)
+            if template:
+                if 'front' in template:
+                    new_data.setdefault('front', {}).update(template['front'])
+                if 'back' in template:
+                    new_data.setdefault('back', {}).update(template['back'])
+                if 'investigator' in template:
+                    new_data['investigator'] = template['investigator']
+
+            # Set encounter set if target is an encounter
+            if isinstance(target, EncounterSet):
+                new_data['encounter_set'] = target.id
+
+            # Add to project
+            project.add_card(new_data)
+
+            print(f"Pasted card: {new_data.get('name', 'New Card')}")
+
         # Trigger refresh
         shoggoth.app.refresh_tree()
     
@@ -580,26 +730,34 @@ class TreeContextMenu:
         import shoggoth
         from uuid import uuid4
 
-        # Create new card data from clipboard
-        new_data = json.loads(json.dumps(self.clipboard))
-
-        # Generate new ID
-        new_data['id'] = str(uuid4())
-
-        # Set class on front face
-        new_data.setdefault('front', {})['classes'] = [class_type]
-
-        # Add to project
         project = shoggoth.app.current_project
-        project.add_card(new_data)
+        for clip in self.clipboard:
+            # Create new card data from clipboard
+            new_data = json.loads(json.dumps(clip))
 
-        print(f"Pasted card: {new_data.get('name', 'New Card')}")
+            # Generate new ID
+            new_data['id'] = str(uuid4())
+
+            # Set class on front face
+            new_data.setdefault('front', {})['classes'] = [class_type]
+
+            # Add to project
+            project.add_card(new_data)
+
+            print(f"Pasted card: {new_data.get('name', 'New Card')}")
 
         # Trigger refresh
         shoggoth.app.refresh_tree()
 
     def duplicate_guide(self, guide):
         """Duplicate a guide within the same project"""
+        self._duplicate_guide(guide)
+        guide.project.save_all()
+        import shoggoth
+        shoggoth.app.refresh_tree()
+
+    @staticmethod
+    def _duplicate_guide(guide):
         import copy
         import uuid
         new_data = copy.deepcopy(guide.data)
@@ -608,9 +766,6 @@ class TreeContextMenu:
         for section in new_data.get('sections', []):
             section['id'] = uuid.uuid4().hex[:8]
         guide.project.data.setdefault('guides', []).append(new_data)
-        guide.project.save_all()
-        import shoggoth
-        shoggoth.app.refresh_tree()
 
     def export_guide_to_pdf(self, guide):
         """Export a guide to PDF via a save-file dialog"""

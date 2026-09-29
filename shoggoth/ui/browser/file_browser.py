@@ -67,6 +67,7 @@ class FileBrowser(QWidget):
         self.tree.setHeaderHidden(True)
         self.tree.setItemDelegate(CompactLeafDelegate(self.tree))
         self.tree.currentItemChanged.connect(self._on_tree_current_changed)
+        self.tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.on_context_menu)
 
@@ -87,6 +88,8 @@ class FileBrowser(QWidget):
         self.sync = TreeSync()  # node_id -> item map and incremental updates
         self._view_mode = 'tree'  # 'tree' or 'list'
         self._programmatic_select = False  # suppresses currentItemChanged during setCurrentItem
+        self._selected_node_ids = set()  # tree selection as of the last selection change
+        self._propagating_selection = False
 
         self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
         self.type_filter_combo.currentIndexChanged.connect(self._on_filter_changed)
@@ -300,6 +303,70 @@ class FileBrowser(QWidget):
         if current and not self._programmatic_select:
             self._on_list_item_clicked(current, 0)
 
+    @staticmethod
+    def _is_project_item(item):
+        data = item.data(0, Qt.UserRole)
+        return bool(data) and data.get('type') == 'project'
+
+    def _on_tree_selection_changed(self):
+        """Keep group selections whole: selecting a group marks all of its
+        descendants (so it's visible what a multi-selection action will
+        touch), deselecting a group unmarks them, and deselecting a child
+        unmarks its groups. Project roots are exempt - selecting one would
+        otherwise mark the entire project."""
+        if self._propagating_selection:
+            return
+
+        def node_ids(items):
+            return {data['node_id'] for data in (i.data(0, Qt.UserRole) for i in items)
+                    if data and data.get('node_id')}
+
+        current = node_ids(self.tree.selectedItems())
+        added = current - self._selected_node_ids
+        removed = self._selected_node_ids - current
+        node_map = self.sync.node_map
+
+        self._propagating_selection = True
+        try:
+            for node_id in removed:
+                item = node_map.get(node_id)
+                if item is None:
+                    continue
+                if not self._is_project_item(item):
+                    for child in self._iterate_items(item):
+                        child.setSelected(False)
+                parent = item.parent()
+                while parent is not None and not self._is_project_item(parent):
+                    parent.setSelected(False)
+                    parent = parent.parent()
+            for node_id in added:
+                item = node_map.get(node_id)
+                if item is None or not item.isSelected() or self._is_project_item(item):
+                    continue
+                for child in self._iterate_items(item):
+                    child.setSelected(True)
+        finally:
+            self._propagating_selection = False
+
+        self._selected_node_ids = node_ids(self.tree.selectedItems())
+
+    def selected_entries(self):
+        """The top-most selected tree items: selected items none of whose
+        ancestors are selected. Project roots are ignored."""
+        def is_marked(item):
+            return item.isSelected() and not self._is_project_item(item)
+
+        result = []
+        for item in self.tree.selectedItems():
+            if not is_marked(item):
+                continue
+            parent = item.parent()
+            while parent is not None and not is_marked(parent):
+                parent = parent.parent()
+            if parent is None:
+                result.append(item)
+        return result
+
     def switch_view(self, mode, sort_order=None):
         """Switch sidebar between 'tree' and 'list' view."""
         self._view_mode = mode
@@ -440,4 +507,7 @@ class FileBrowser(QWidget):
         if item:
             # Convert position to global coordinates
             global_pos = self.tree.viewport().mapToGlobal(position)
-            self.context_menu.show_context_menu(item, global_pos)
+            if item.isSelected() and len(self.selected_entries()) > 1:
+                self.context_menu.show_selection_menu(self.tree.selectedItems(), global_pos)
+            else:
+                self.context_menu.show_context_menu(item, global_pos)

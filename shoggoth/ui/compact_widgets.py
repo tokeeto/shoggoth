@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QToolButton, QButtonGroup, QCompleter, QSizePolicy, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QEvent, QSize, QMimeData, QTimer
-from PySide6.QtGui import QFocusEvent, QPixmap, QIcon, QDrag
+from PySide6.QtGui import QFocusEvent, QPixmap, QIcon, QDrag, QPainter, QPalette, QPen, QRegion
 
 from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
@@ -67,23 +67,42 @@ def _hairline(vertical=False):
     return frame
 
 
+# Expanded/collapsed state of collapsible bands, by state_key. Session-only on purpose:
+# unfolding a band on one card keeps it unfolded on every card until Shoggoth closes.
+_session_band_expanded = {}
+
+
 class Band(QWidget):
     """A section: uppercase label + hairline rule + padded content area.
 
-    No border around the band itself — bands are separated by the rule + spacing only, per
+    No border around a regular band — bands are separated by the rule + spacing only, per
     the style guide ("never nest a bordered box inside a bordered box more than one level deep").
+    Collapsible bands are the exception: they're drawn as a fieldset-style frame with the
+    title set into its top edge, and the frame stays (empty) while collapsed, so it reads
+    as a folded-away group rather than a stray label.
+
+    `state_key` makes a collapsible band remember its expanded state for the session,
+    shared by every band created with the same key.
     """
 
-    def __init__(self, title, hint=None, collapsible=False, parent=None):
+    _FRAME_RADIUS = 4
+    _FRAME_PADDING = 10
+
+    def __init__(self, title, hint=None, collapsible=False, state_key=None, parent=None):
         super().__init__(parent)
         self.collapsible = collapsible
+        self.state_key = state_key
         # Never let a band get stretched taller than its content — extra vertical space
         # (e.g. from the scroll area forcing the whole column to fill the viewport) must
         # go to the trailing addStretch() in FaceEditor.main_layout, not leak into a band.
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 14, 0, 0)
+        if collapsible:
+            pad = self._FRAME_PADDING
+            outer.setContentsMargins(pad, 14, pad, pad)
+        else:
+            outer.setContentsMargins(0, 14, 0, 0)
         outer.setSpacing(7)
 
         header = QHBoxLayout()
@@ -107,7 +126,11 @@ class Band(QWidget):
             label.setProperty("role", "band-label")
             header.addWidget(label)
 
-        header.addWidget(_hairline(), 1)
+        # A collapsible band's frame edge takes the place of the hairline
+        if collapsible:
+            header.addStretch(1)
+        else:
+            header.addWidget(_hairline(), 1)
 
         self.hint_label = None
         if hint:
@@ -124,11 +147,61 @@ class Band(QWidget):
         outer.addWidget(self.content)
 
         if collapsible:
+            # Keeps some visibly empty room inside the frame while collapsed
+            self.collapsed_spacer = QWidget()
+            self.collapsed_spacer.setFixedHeight(4)
+            outer.addWidget(self.collapsed_spacer)
+            expanded = _session_band_expanded.get(state_key, False)
             self.content.setVisible(False)
+            self._update_cursor(False)
+            if expanded:
+                self.toggle.setChecked(True)
 
     def _on_toggled(self, checked):
         self.toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
         self.content.setVisible(checked)
+        self.collapsed_spacer.setVisible(not checked)
+        self._update_cursor(checked)
+        if self.state_key is not None:
+            _session_band_expanded[self.state_key] = checked
+
+    def _update_cursor(self, expanded):
+        # The whole empty frame is a click target while collapsed
+        if expanded:
+            self.unsetCursor()
+        else:
+            self.setCursor(Qt.PointingHandCursor)
+
+    def mousePressEvent(self, event):
+        if (self.toggle is not None and not self.toggle.isChecked()
+                and event.button() == Qt.LeftButton):
+            self.toggle.setChecked(True)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self.collapsible:
+            return
+
+        # Frame top runs through the middle of the title; the header widgets sit in
+        # gaps cut out of that edge.
+        top = self.toggle.geometry().center().y()
+        frame = self.rect().adjusted(0, top, 0, 0)
+
+        clip = QRegion(self.rect())
+        for widget in (self.toggle, self.hint_label):
+            if widget is not None and widget.isVisible():
+                clip = clip.subtracted(QRegion(widget.geometry().adjusted(-4, 0, 4, 0)))
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setClipRegion(clip)
+        painter.setPen(QPen(self.palette().color(QPalette.Mid), 1))
+        painter.setBrush(Qt.NoBrush)
+        r = self._FRAME_RADIUS
+        painter.drawRoundedRect(frame.toRectF().adjusted(0.5, 0.5, -0.5, -0.5), r, r)
 
     def set_expanded(self, expanded):
         if self.toggle is not None:
@@ -384,6 +457,17 @@ class IconCountField(QWidget):
         self._updating = False
 
 
+def _help_badge(text):
+    """Small circled "?" that shows `text` as a tooltip on hover."""
+    badge = QLabel("?")
+    badge.setProperty("role", "help-badge")
+    badge.setAlignment(Qt.AlignCenter)
+    badge.setFixedSize(13, 13)
+    badge.setToolTip(text)
+    badge.setCursor(Qt.WhatsThisCursor)
+    return badge
+
+
 class NumbersPanel(QFrame):
     """Bordered mini-panel holding several stat sub-groups, divided by thin vertical rules."""
 
@@ -396,8 +480,9 @@ class NumbersPanel(QFrame):
         self.layout_.setSpacing(14)
         self._first = True
 
-    def add_group(self, label, widget, stretch=0):
-        """Add a labelled sub-group (e.g. "Cost", "Health / Sanity") to the panel."""
+    def add_group(self, label, widget, stretch=0, help_text=None):
+        """Add a labelled sub-group (e.g. "Cost", "Health / Sanity") to the panel.
+        `help_text` adds a small "?" badge after the label that shows it on hover."""
         if not self._first:
             self.layout_.addWidget(_hairline(vertical=True))
         self._first = False
@@ -410,7 +495,16 @@ class NumbersPanel(QFrame):
         if label:
             label_widget = QLabel(label.upper())
             label_widget.setProperty("role", "field-label")
-            group_layout.addWidget(label_widget)
+            if help_text:
+                label_row = QHBoxLayout()
+                label_row.setContentsMargins(0, 0, 0, 0)
+                label_row.setSpacing(4)
+                label_row.addWidget(label_widget)
+                label_row.addWidget(_help_badge(help_text))
+                label_row.addStretch(1)
+                group_layout.addLayout(label_row)
+            else:
+                group_layout.addWidget(label_widget)
 
         group_layout.addWidget(widget)
         self.layout_.addWidget(group, stretch)

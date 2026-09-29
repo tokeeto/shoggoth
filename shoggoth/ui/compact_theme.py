@@ -18,6 +18,26 @@ QLabel[role="band-label"], QToolButton[role="band-label"] {
     font-weight: 600;
 }
 
+/* Collapsible band toggle: flat even while checked (expanded) - the band's frame
+   already shows the state, a sunken button inside it reads as noise */
+QToolButton[role="band-label"] {
+    border: none;
+    border-radius: 3px;
+    padding: 2px 4px;
+    background: transparent;
+}
+
+QToolButton[role="band-label"]:hover {
+    background: palette(midlight);
+}
+
+QLabel[role="help-badge"] {
+    font-size: 8.5px;
+    font-weight: 700;
+    border: 1px solid palette(mid);
+    border-radius: 6px;
+}
+
 QLabel[role="band-hint"] {
     font-size: 9.5px;
 }
