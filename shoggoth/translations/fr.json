@@ -517,6 +517,7 @@
   "BTN_DELETE_ENCOUNTER_SET": "Supprimer le set de rencontre",
   "BTN_NEW_CARD": "Nouvelle carte",
   "BTN_EXPORT_SET": "Exporter le set",
+  "FIELD_GROUPING": "Trier par type",
   "// ===== GUIDE EDITOR =====": "",
   "GUIDE_TITLE": "Guide: {name}",
   "LABEL_FRONT_PAGE_IMAGE": "Page de couverture :",

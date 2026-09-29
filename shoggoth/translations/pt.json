@@ -465,6 +465,7 @@
   "CONFIRM_DELETE_ENCOUNTER_SET": "Tem a certeza de que deseja eliminar o conjunto de encontro '{name}'?\n\nIsto também irá eliminar todas as {count} cartas deste conjunto.\nEsta ação não pode ser desfeita.",
   "DLG_DELETE_GUIDE": "Eliminar Guia",
   "CONFIRM_DELETE_GUIDE": "Tem a certeza de que deseja eliminar o guia '{name}'?\n\nEsta ação não pode ser desfeita.",
+  "FIELD_GROUPING": "Ordenar por tipo",
   "// ===== ENCOUNTER SET EDITOR =====": "",
   "TITLE_ENCOUNTER_SET": "Conjunto de Encontro: {name}",
   "TAB_INFO": "Informação",

@@ -517,6 +517,7 @@
   "BTN_DELETE_ENCOUNTER_SET": "Eliminar Conjunto de Encuentro",
   "BTN_NEW_CARD": "Nueva Carta",
   "BTN_EXPORT_SET": "Exportar Conjunto",
+  "FIELD_GROUPING": "Ordenar por tipo",
   "// ===== GUIDE EDITOR =====": "",
   "GUIDE_TITLE": "Guía: {name}",
   "LABEL_FRONT_PAGE_IMAGE": "Imagen de Portada:",

@@ -335,6 +335,7 @@ class Card:
     @property
     def grouping(self):
         """ Returns a string descriping how this card should be grouped """
+        print(self.front.get('grouping'))
         if self.encounter:
             if self.front.get('grouping'):
                 return self.front.get('grouping')

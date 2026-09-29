@@ -4,10 +4,10 @@ Card editor widget for Shoggoth using PySide6
 import json
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QLabel, QCheckBox,
+    QLineEdit, QPushButton, QLabel, QCheckBox, QComboBox, QCompleter,
     QScrollArea, QStackedWidget, QMessageBox, QSizePolicy, QDialog
 )
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 
 from shoggoth.ui.field_widgets import LabeledLineEdit, LabeledTextEdit, FieldWidget
 from shoggoth.ui.editor_widgets import NoScrollComboBox
@@ -269,6 +269,37 @@ class CardEditor(QWidget):
         self.tags_input.input.textChanged.connect(self.on_tags_changed)
         content.addWidget(self.tags_input)
 
+        """Add grouping combobox to change what a card is sorted/grouped by"""
+        group_layout = QVBoxLayout()
+        group_layout.setContentsMargins(0, 0, 0, 0)
+        group_layout.setSpacing(4)
+        type_label = QLabel(tr('FIELD_GROUPING').upper())
+        type_label.setProperty("role", "field-label")
+
+        self.group_combo = NoScrollComboBox()
+        self.group_combo.setFixedWidth(200)
+        self.group_combo.setEditable(True)
+        self.group_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.group_combo.addItems(["story", "location", "encounter"])
+
+        # Add autocomplete
+        completer = QCompleter(["story", "location", "encounter"])
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.group_combo.setCompleter(completer)
+
+        # Connect to handle changes - use signals that fire on "commit" not every keystroke
+        # activated: fires when user selects from dropdown
+        self.group_combo.activated.connect(self.on_sortby_changed)
+        self.group_combo.lineEdit().editingFinished.connect(self.on_sortby_changed)
+
+        group_layout.addWidget(type_label)
+        group_layout.addWidget(self.group_combo)
+        group_widget = QWidget()
+        group_widget.setProperty("visible_in_translation_project", False)
+        group_widget.setLayout(group_layout)
+        content.addWidget(group_widget)
+
         self.description_input = LabeledTextEdit(tr("FIELD_DESCRIPTION"))
         self.description_input.textChanged.connect(self.on_description_changed)
         content.addWidget(self.description_input)
@@ -294,6 +325,7 @@ class CardEditor(QWidget):
         self._loading_meta = True
         self._refresh_bonded_label()
         self.set_aside_checkbox.setChecked(bool(self.card.get_meta('set_aside', False)))
+        self.group_combo.setEditText(self.card.front.get('grouping') or '')
         self.tags_input.setText(', '.join(self.card.get_meta('tags') or []))
         self.description_input.setPlainText(self.card.get_meta('description', '') or '')
         self.notes_input.setPlainText(self.card.get_meta('notes', '') or '')
@@ -338,6 +370,14 @@ class CardEditor(QWidget):
         tags = [t.strip() for t in text.split(',') if t.strip()]
         self.card.set_meta('tags', tags or None)
         self.data_changed.emit()
+
+    def on_sortby_changed(self):
+        if self._loading_meta:
+            return
+        value = self.group_combo.currentText().lower()
+        self.card.front.set('grouping', value)
+        self.data_changed.emit()
+        
 
     def on_description_changed(self):
         if self._loading_meta:
