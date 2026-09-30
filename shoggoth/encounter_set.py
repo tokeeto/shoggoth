@@ -117,11 +117,14 @@ class EncounterSet:
             while any((current_number + i) in manual_numbers for i in range(amount)):
                 current_number += 1
             if amount > 1:
-                card.data['encounter_number'] = f'{current_number}-{current_number+amount-1}'
+                card.encounter_number = f'{current_number}-{current_number+amount-1}'
             else:
-                card.data['encounter_number'] = f'{current_number}'
+                card.encounter_number = f'{current_number}'
             current_number += amount
-        self.data['card_amount'] = max(current_number - 1, max(manual_numbers, default=0))
+        card_amount = max(current_number - 1, max(manual_numbers, default=0))
+        if self.data.get('card_amount') != card_amount:
+            self.data['card_amount'] = card_amount
+            self.dirty = True
 
     def set(self, key, value):
         self.data[key] = value

@@ -168,9 +168,7 @@ class InvestigatorBackEditor(FaceEditor):
     # and Restrictions is one line but often left empty entirely.
     DEFAULT_ENTRY_MODES = ['single', 'single', 'multi', 'multi', 'single']
 
-    # Matches a compact_theme-styled QLineEdit's actual rendered height (measured, not
-    # derived — QTextEdit has no line-count-based sizeHint of its own to match against).
-    SINGLE_LINE_HEIGHT = 34
+    SINGLE_LINE_HEIGHT = ArkhamTextEdit.SINGLE_LINE_HEIGHT
     MULTI_LINE_HEIGHT = 54  # ~3 lines
 
     def setup_ui(self):
@@ -195,16 +193,7 @@ class InvestigatorBackEditor(FaceEditor):
             self._add_entry_row(mode)
         self._target_layout().addLayout(self._entries_layout)
 
-        self._add_entry_btn = QPushButton(tr("BUTTON_ADD_ENTRY"))
-        self._add_entry_btn.setProperty("chip", "tag-add")
-        self._add_entry_btn.clicked.connect(lambda: self._add_entry_row('multi'))
-        add_row = QHBoxLayout()
-        add_row.setContentsMargins(0, 0, 0, 0)
-        add_row.addWidget(self._add_entry_btn)
-        add_row.addStretch(1)
-        add_row_widget = QWidget()
-        add_row_widget.setLayout(add_row)
-        self._target_layout().addWidget(add_row_widget)
+        self._add_entry_btn = self.add_entry_button(lambda: self._add_entry_row('multi'))
 
         self.start_band(tr("BAND_RULES_TEXT"))
         self.add_labeled_text(tr("FIELD_FLAVOR"), "flavor_text")
@@ -226,12 +215,9 @@ class InvestigatorBackEditor(FaceEditor):
 
         value_input = ArkhamTextEdit()
         value_input.setPlaceholderText(tr("PLACEHOLDER_VALUE").format(n=index + 1))
-        if mode == 'single':
-            value_input.setFixedHeight(self.SINGLE_LINE_HEIGHT)
-            value_input.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            value_input.setLineWrapMode(ArkhamTextEdit.NoWrap)
-        else:
-            value_input.setFixedHeight(self.MULTI_LINE_HEIGHT)
+        # The mode only sets the resting height; the value grows to fit its text.
+        value_input.fit_height_to_content(
+            self.SINGLE_LINE_HEIGHT if mode == 'single' else self.MULTI_LINE_HEIGHT)
         value_input.textChanged.connect(self.on_entries_changed)
 
         row = QHBoxLayout()

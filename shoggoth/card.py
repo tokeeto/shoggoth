@@ -318,7 +318,9 @@ class Card:
 
     @project_number.setter
     def project_number(self, value):
-        self.data['project_number'] = value
+        if self.data.get('project_number') != value:
+            self.data['project_number'] = value
+            self.dirty = True
 
     @property
     def encounter_number(self):
@@ -330,7 +332,9 @@ class Card:
     def encounter_number(self, value):
         if not self.encounter:
             raise Exception("No encounter, can't set number.")
-        self.data['encounter_number'] = value
+        if self.data.get('encounter_number') != value:
+            self.data['encounter_number'] = value
+            self.dirty = True
 
     @property
     def grouping(self):
@@ -361,7 +365,7 @@ class Card:
         r = self.encounter_number.split('-')
         for n in range(int(r[0]), int(r[1]) + 1):
             cp = Card(self.data.copy(), self.project, self.encounter)
-            cp.encounter_number = n
+            cp.data['encounter_number'] = n  # detached copy: don't dirty the real card
             versions.append(cp)
         return versions
 

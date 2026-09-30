@@ -7,6 +7,7 @@ from PySide6.QtGui import (
     QSyntaxHighlighter, QTextCharFormat, QColor, QFont,
     QTextCursor, QPalette, QFontDatabase
 )
+import math
 import re
 
 from shoggoth.files import font_dir
@@ -451,6 +452,24 @@ class ArkhamTextEdit(_LiveTextEditMixin, QTextEdit):
 
         # Track if we're currently showing autocomplete
         self.completing = False
+
+    # Matches a compact_theme-styled QLineEdit's actual rendered height (measured, not
+    # derived — QTextEdit has no line-count-based sizeHint of its own to match against).
+    SINGLE_LINE_HEIGHT = 34
+
+    def fit_height_to_content(self, min_height=SINGLE_LINE_HEIGHT):
+        """Keep this edit exactly as tall as its wrapped text (never below
+        `min_height`), growing and shrinking as the text or the width changes."""
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setFixedHeight(min_height)
+
+        def fit(_size=None):
+            # Height outside the viewport: the theme's CSS padding + border.
+            chrome = self.height() - self.viewport().height()
+            needed = math.ceil(self.document().size().height()) + chrome
+            self.setFixedHeight(max(min_height, needed))
+
+        self.document().documentLayout().documentSizeChanged.connect(fit)
 
     def setup_autocomplete(self):
         """Setup autocomplete with common tags"""

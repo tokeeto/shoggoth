@@ -63,6 +63,7 @@ def ensure_snippet_file() -> Path:
     path = snippet_file_path()
     if not path.exists():
         root_dir.mkdir(parents=True, exist_ok=True)
+        path.touch()
         path.write_text(DEMO_SNIPPET_SOURCE, encoding='utf-8')
     return path
 

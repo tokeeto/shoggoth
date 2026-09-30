@@ -4,7 +4,7 @@ FaceEditor base class for Shoggoth face editors
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QTextEdit, QComboBox,
-    QLabel, QCompleter, QCheckBox, QToolButton, QSpinBox
+    QLabel, QCompleter, QCheckBox, QToolButton, QSpinBox, QPushButton
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QPixmap, QFont, QFontDatabase
@@ -140,6 +140,20 @@ class FaceEditor(QWidget):
     def _target_layout(self):
         """The layout add_* helpers should append into: the open band's content, or main_layout."""
         return self.current_band.content_layout if self.current_band else self.main_layout
+
+    def add_entry_button(self, on_click):
+        """Add a left-aligned "+ Add entry" chip button that calls `on_click()`."""
+        button = QPushButton(tr("BUTTON_ADD_ENTRY"))
+        button.setProperty("chip", "tag-add")
+        button.clicked.connect(lambda: on_click())
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(button)
+        row.addStretch(1)
+        row_widget = QWidget()
+        row_widget.setLayout(row)
+        self._target_layout().addWidget(row_widget)
+        return button
 
     # Cost's "-" at 0 drops to this sentinel: "cannot be played/paid for by normal means"
     # (as opposed to "0", which is free-but-payable). Enemy attack/health/evade use

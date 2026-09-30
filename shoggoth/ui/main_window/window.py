@@ -285,6 +285,14 @@ class ShoggothMainWindow(QMainWindow):
         """Project change-listener. Only the card being shown needs a
         re-render, and only when it actually changed -- so editing (or
         bulk-changing) other cards doesn't trigger a render at all."""
+        if kind == 'encounter_sets':
+            # Set-level data (e.g. card_amount, the "n/total" on each card)
+            # is drawn on the shown card if it belongs to that set.
+            card = self.current_card
+            if changed and card and card.project is project \
+                    and card.data.get('encounter_set') == element_id:
+                self.preview.schedule_update()
+            return
         if kind != 'cards':
             return
         self.update_card_in_tree(element_id, project)

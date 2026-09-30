@@ -269,9 +269,11 @@ def reload_project(window, project):
     window.status_bar.showMessage(tr("STATUS_RELOADED").format(name=project['name']), 5000)
 
 
-def _rebuild_views(window, project):
+def _rebuild_views(window, project, full=True):
     """Editors and the preview hold cards from before a project's data was
-    replaced, which now belong to no project: put fresh ones in their place."""
+    replaced, which now belong to no project: put fresh ones in their place.
+    `full` rebuilds the tree from scratch (collapsing it); otherwise it's
+    synced in place, which works when the project's node ids didn't change."""
     showing = window.active_project is project
     if showing:
         from shoggoth.ui.main_window import views
@@ -281,7 +283,10 @@ def _rebuild_views(window, project):
         window.current_editor = None
         window.current_guide = None
         window.current_guide_editor = None
-    window.file_browser.rebuild()
+    if full:
+        window.file_browser.rebuild()
+    else:
+        window.file_browser.refresh()
     if showing:
         window.nav.refresh_current()
 
@@ -289,14 +294,17 @@ def _rebuild_views(window, project):
 def parent_changed(window, project):
     """The project a modification applies to changed on disk (e.g. it was
     saved in its own tab): apply the modification, unsaved changes included,
-    to the new version of it."""
+    to the new version of it. Events that don't change its content (e.g.
+    saving the parent without edits) are ignored."""
+    if not project.parent.has_external_changes():
+        return
     try:
         project.refresh_parent()
     except Exception as e:
         # e.g. a half-written file; the next change event retries
         print(f"Could not re-read {project.parent_path}: {e}")
         return
-    _rebuild_views(window, project)
+    _rebuild_views(window, project, full=False)
     window.status_bar.showMessage(tr("STATUS_PARENT_UPDATED").format(name=project['name']), 5000)
 
 
@@ -360,6 +368,11 @@ def auto_enumerate(window):
     if not project:
         return
     project.assign_card_numbers()
+    # The preview re-renders via the change listener; the open card editor's
+    # number fields need reloading by hand.
+    from shoggoth.ui.card_editor import CardEditor
+    if isinstance(window.current_editor, CardEditor):
+        window.current_editor.load_card()
     window.status_bar.showMessage(tr("STATUS_PROJECT_ENUMERATED"))
 
 

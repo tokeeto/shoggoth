@@ -4,10 +4,12 @@ Campaign card editors for Shoggoth (act, agenda, chaos, story)
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
 )
+from PySide6.QtCore import Qt
 
 from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.compact_widgets import PLAYER_CLASSES
 from shoggoth.ui.tag_buttons import STORY_TAG_BUTTONS
+from shoggoth.ui.text_editor import ArkhamTextEdit
 from shoggoth.i18n import tr
 
 
@@ -92,7 +94,7 @@ class AgendaBackEditor(FaceEditor):
 class ChaosEditor(FaceEditor):
     """Editor for chaos bag reference cards"""
 
-    NUM_ENTRIES = 10
+    NUM_ENTRIES = 4  # rows shown by default; "+ Add entry" / load_data add more
 
     def setup_ui(self):
         self.start_band(tr("BAND_IDENTITY"))
@@ -100,42 +102,46 @@ class ChaosEditor(FaceEditor):
 
         # Entries section
         self.start_band(tr("GROUP_CHAOS_BAG_ENTRIES"))
-        entries_layout = QVBoxLayout()
-        entries_layout.setSpacing(6)
-        entries_layout.setContentsMargins(0, 0, 0, 0)
+        self._entries_layout = QVBoxLayout()
+        self._entries_layout.setSpacing(6)
+        self._entries_layout.setContentsMargins(0, 0, 0, 0)
 
         self.entry_widgets = []  # Store (token_input, text_input) pairs
-
-        for i in range(self.NUM_ENTRIES):
-            entry_widget = QWidget()
-            entry_layout = QHBoxLayout()
-            entry_layout.setContentsMargins(0, 0, 0, 0)
-
-            # Token input (comma-separated list of tokens)
-            token_input = QLineEdit()
-            token_input.setPlaceholderText(tr("PLACEHOLDER_TOKENS"))
-            token_input.setMaximumWidth(150)
-            token_input.textChanged.connect(self.on_entries_changed)
-            entry_layout.addWidget(token_input)
-
-            # Text input
-            text_input = QLineEdit()
-            text_input.setPlaceholderText(tr("PLACEHOLDER_EFFECT_TEXT"))
-            text_input.textChanged.connect(self.on_entries_changed)
-            entry_layout.addWidget(text_input)
-
-            entry_widget.setLayout(entry_layout)
-            entries_layout.addWidget(entry_widget)
-
-            self.entry_widgets.append((token_input, text_input))
-
-        self._target_layout().addLayout(entries_layout)
+        for _ in range(self.NUM_ENTRIES):
+            self._add_entry_row()
+        self._target_layout().addLayout(self._entries_layout)
+        self.add_entry_button(self._add_entry_row)
 
         self.add_token_area_widget()
 
         self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_footer_row()
         self.main_layout.addStretch()
+
+    def _add_entry_row(self):
+        """Append one tokens + effect text entry row."""
+        entry_widget = QWidget()
+        entry_layout = QHBoxLayout()
+        entry_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Token input (comma-separated list of tokens)
+        token_input = QLineEdit()
+        token_input.setPlaceholderText(tr("PLACEHOLDER_TOKENS"))
+        token_input.setMaximumWidth(150)
+        token_input.textChanged.connect(self.on_entries_changed)
+        entry_layout.addWidget(token_input, 0, Qt.AlignTop)
+
+        # Text input — grows to fit its text
+        text_input = ArkhamTextEdit()
+        text_input.setPlaceholderText(tr("PLACEHOLDER_EFFECT_TEXT"))
+        text_input.fit_height_to_content()
+        text_input.textChanged.connect(self.on_entries_changed)
+        entry_layout.addWidget(text_input)
+
+        entry_widget.setLayout(entry_layout)
+        self._entries_layout.addWidget(entry_widget)
+
+        self.entry_widgets.append((token_input, text_input))
 
     def load_data(self):
         """Load data from face into fields"""
@@ -146,10 +152,11 @@ class ChaosEditor(FaceEditor):
             value = self.face.get(field_name, '')
             self.set_widget_value(widget, value)
 
-        # Load entries
-        entries = self.face.get('entries', [])
-        if not entries:
-            entries = []
+        # Load entries — grow the row list if this card carries more entries than
+        # we have rows for.
+        entries = self.face.get('entries', []) or []
+        while len(entries) > len(self.entry_widgets):
+            self._add_entry_row()
 
         for i, (token_input, text_input) in enumerate(self.entry_widgets):
             if i < len(entries) and isinstance(entries[i], dict):
@@ -159,10 +166,10 @@ class ChaosEditor(FaceEditor):
                     token_input.setText(', '.join(str(t) for t in tokens))
                 else:
                     token_input.setText(str(tokens) if tokens else '')
-                text_input.setText(str(entries[i].get('text', '')))
+                text_input.setPlainText(str(entries[i].get('text', '')))
             else:
                 token_input.setText('')
-                text_input.setText('')
+                text_input.setPlainText('')
 
         self.load_token_area('chaos_extra_region', 'chaos_extra')
 
@@ -176,7 +183,7 @@ class ChaosEditor(FaceEditor):
         entries = []
         for token_input, text_input in self.entry_widgets:
             token_str = token_input.text().strip()
-            text = text_input.text().strip()
+            text = text_input.toPlainText().strip()
 
             if token_str or text:
                 # Parse tokens as comma-separated list
