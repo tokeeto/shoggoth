@@ -180,7 +180,7 @@ def _export_card(card, project, renderer, position, image_pattern=None):
         "traits": front.get('traits', ''),
         "text": _convert_text(front.get('text', '')),
         "flavor": front.get('flavor_text', ''),
-        "illustrator": front.get('illustrator', '').strip('Illus. '),
+        "illustrator": front.get('illustrator')[7:] if front.get('illustrator', '').startswith('Illus. ') else front.get('illustrator', ''),
         "is_unique": '<unique>' in front.get('name', '') or '<unique>' in back.get('name', ''),
 
         # Skill icons
@@ -250,7 +250,7 @@ def _export_card(card, project, renderer, position, image_pattern=None):
         })
 
     # Add customization options if present
-    if front.get('type') == 'customizable':
+    if card.card_type == 'customizable':
         entries = front.get('entries', [])
         if entries:
             card_data["customization_options"] = _format_customization_options(entries)

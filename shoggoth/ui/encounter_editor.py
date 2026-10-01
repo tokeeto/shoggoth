@@ -227,10 +227,10 @@ class EncounterSetEditor(QWidget):
         for card in self.encounter_set.cards:
             # If the back of the card has different traits from the front, treat it like a separate card for the purposes of counting traits.
             if (card.back.get('traits') != '' and card.front.get('traits') != card.back.get('traits')):
-                group = card.back.get('grouping', card.back.get('type'))
+                group = card.back.card_type
                 self._build_trait_list(card_traits, card, group, cards_by_type)
 
-            group = card.front.get('grouping', card.front.get('type'))
+            group = card.front.card_type
             self._build_trait_list(card_traits, card, group, cards_by_type)
 
 
@@ -238,8 +238,8 @@ class EncounterSetEditor(QWidget):
             self._add_trait_counts(card_traits, layout, group, cards_by_type)
 
     def _build_trait_list(self, card_traits, card, group, cards_by_type):
-        player_cards = ['asset', 'event', 'skill', 'investigator', 'investigator_back', 'customizable', 'player']
-        story_cards = ['act', 'act_back', 'agenda', 'agenda_back', 'scenario', 'chaos', 'story', 'act_agenda_full', 'act_agenda_full_back']
+        player_cards = ['asset', 'event', 'skill', 'investigator', 'customizable', 'player']
+        story_cards = ['act', 'agenda', 'scenario', 'chaos', 'story']
         encounter_cards = ['treachery', 'enemy']
 
         if (group in encounter_cards):

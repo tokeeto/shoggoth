@@ -17,17 +17,21 @@ class TreeSync:
     def clear(self):
         self.node_map.clear()
 
+    @staticmethod
+    def _user_data(spec):
+        user_data = {'type': spec['type'], 'data': spec['data'], 'node_id': spec['node_id']}
+        # optional extras: class/investigator groups, folder view placement
+        for key in ('class', 'investigator', 'folder', 'context'):
+            if key in spec:
+                user_data[key] = spec[key]
+        return user_data
+
     def create_item(self, spec):
         """Create a QTreeWidgetItem from a spec, recursively"""
         item = QTreeWidgetItem([spec['text']])
 
         # Build user data
-        user_data = {'type': spec['type'], 'data': spec['data'], 'node_id': spec['node_id']}
-        if 'class' in spec:
-            user_data['class'] = spec['class']
-        if 'investigator' in spec:
-            user_data['investigator'] = spec['investigator']
-        item.setData(0, Qt.UserRole, user_data)
+        item.setData(0, Qt.UserRole, self._user_data(spec))
 
         # Set icon if specified
         if spec.get('icon'):
@@ -61,12 +65,7 @@ class TreeSync:
             item.setIcon(0, QIcon())
 
         # Update user data
-        user_data = {'type': spec['type'], 'data': spec['data'], 'node_id': spec['node_id']}
-        if 'class' in spec:
-            user_data['class'] = spec['class']
-        if 'investigator' in spec:
-            user_data['investigator'] = spec['investigator']
-        item.setData(0, Qt.UserRole, user_data)
+        item.setData(0, Qt.UserRole, self._user_data(spec))
 
         # Update node map
         self.node_map[spec['node_id']] = item
@@ -159,7 +158,9 @@ class TreeSync:
     def forget_item(self, item):
         """Recursively remove an item and its children from the node map"""
         node_id = self.node_id_for_item(item)
-        if node_id and node_id in self.node_map:
+        # Only if the map still points at this item: a node that moved to
+        # another parent may already have been recreated (and mapped) there.
+        if node_id and self.node_map.get(node_id) is item:
             del self.node_map[node_id]
 
         for i in range(item.childCount()):

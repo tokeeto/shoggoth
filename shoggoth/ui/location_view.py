@@ -976,12 +976,12 @@ class LocationView(QGraphicsView):
         # Load saved positions from the active layout
         saved_positions = self._get_saved_positions()
 
-        # Native location cards, using the same grouping logic as the tree view -
+        # Native location cards, using the same card_type logic as the tree view -
         # excluding any the user has explicitly deleted from this layout.
         removed = set(self.active_layout.get('removed_locations', []))
         locations = []
         for card in self.encounter_set.cards:
-            if card.grouping == 'location' and card.id not in removed:
+            if card.card_type == 'location' and card.id not in removed:
                 locations.append((card, card.front, 'front', f"{card.id}_front", False))
 
         # Manually-added cards (Add Card / Add Locations From Set), duplicates allowed.
@@ -1992,7 +1992,7 @@ class LocationViewWidget(QWidget):
         if dlg.exec_() == QDialog.Accepted and dlg.selected_set_id():
             es = self.encounter_set.project.get_encounter_set(dlg.selected_set_id())
             if es:
-                card_ids = [c.id for c in es.cards if c.grouping == 'location']
+                card_ids = [c.id for c in es.cards if c.card_type == 'location']
                 self.location_view.add_extra_cards(card_ids)
 
     def _add_arrow(self):

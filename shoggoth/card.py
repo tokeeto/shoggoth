@@ -220,6 +220,48 @@ class Face:
         for n in range(cls_count, 0, -1):
             yield f'multi{n}+'
 
+    @property
+    def card_types(self):
+        """ Every game role this face fills, most significant first.
+
+            Usually a single role, taken from the type's "card_type". Types
+            blending several roles list them all in "card_types" (e.g.
+            enemy_location is ["location", "enemy"]). A type without either
+            (old project-local defaults files) falls back to its own name,
+            minus any "_back".
+        """
+        card_type = self.get('card_type', None)
+        card_types = self.get('card_types', None) or []
+        if isinstance(card_types, str):
+            card_types = [card_types]
+        if not card_type:
+            if card_types:
+                return list(card_types)
+            type_name = self.data.get('type')
+            if not type_name:
+                return []
+            card_type = Path(type_name).stem.removesuffix('_back')
+        return [card_type] + [t for t in card_types if t != card_type]
+
+    @property
+    def card_type(self):
+        """ The primary game role of this face (see card_types) """
+        card_types = self.card_types
+        return card_types[0] if card_types else ''
+
+    def editor_candidates(self):
+        """ Editor names to try for this face, best match first: an explicit
+            "editor", the type itself, then the editor of its card_type.
+        """
+        card_type = self.card_type
+        type_name = self.get('type')
+        candidates = [self.get('editor', None), type_name]
+        if card_type:
+            if str(type_name).endswith('_back'):
+                candidates.append(f'{card_type}_back')
+            candidates.append(card_type)
+        return [c for c in dict.fromkeys(candidates) if c]
+
     def get_editor(self):
         """ Returns the expected editor type for this face
             This will usually be the same as a the type, but
@@ -232,6 +274,36 @@ class Face:
         if self == self.card.front:
             return self.card.back
         return self.card.front
+
+
+FOLDER_SEPARATOR = '/'
+
+
+def split_folder(folder):
+    """ The segments of a folder string, outermost first """
+    return [part.strip() for part in str(folder or '').split(FOLDER_SEPARATOR) if part.strip()]
+
+
+def default_folder(card):
+    """ Where a card sits in the project's folder view unless it says
+        otherwise (see Card.folder), as a FOLDER_SEPARATOR-joined path.
+
+        Segments in {braces} stand for the built-in groups and are resolved
+        per card when the tree is built (ui/browser/folder_spec.py), so a
+        card follows its encounter set, class or investigator around.
+    """
+    if card.data.get('encounter_set'):
+        card_type = card.card_type
+        if card_type == 'location':
+            group = '{locations}'
+        elif card_type in ('treachery', 'enemy'):
+            group = '{encounter}'
+        else:
+            group = '{story}'
+        return FOLDER_SEPARATOR.join(('{campaign_cards}', '{encounter_set}', group))
+    if card.data.get('investigator'):
+        return FOLDER_SEPARATOR.join(('{player_cards}', '{investigators}', '{investigator}'))
+    return FOLDER_SEPARATOR.join(('{player_cards}', '{class}'))
 
 
 class Card:
@@ -337,18 +409,34 @@ class Card:
             self.dirty = True
 
     @property
-    def grouping(self):
-        """ Returns a string descriping how this card should be grouped """
-        if self.encounter:
-            if self.front.get('grouping'):
-                return self.front.get('grouping')
-            if self.back.get('grouping'):
-                return self.back.get('grouping')
-            if self.front.get('type') == 'location':
-                return 'location'
-            if self.back.get('type') == 'encounter':
-                return 'encounter'
-        return 'other'
+    def card_types(self):
+        """ Every role this card has in the game, most significant first.
+            Based on the front face, or the back face if the front has none.
+        """
+        return self.front.card_types or self.back.card_types
+
+    @property
+    def card_type(self):
+        """ The single role this card has in the game (see card_types) """
+        card_types = self.card_types
+        return card_types[0] if card_types else ''
+
+    @property
+    def folder(self):
+        """ The folder this card appears in: the user's own choice
+            (meta 'folder') or the default for its kind of card.
+        """
+        return self.get_meta('folder') or default_folder(self)
+
+    @folder.setter
+    def folder(self, value):
+        """ Stores a folder choice; the default (or nothing) clears it, so
+            the card keeps following its default folder.
+        """
+        value = FOLDER_SEPARATOR.join(split_folder(value))
+        if not value or value == default_folder(self):
+            value = None
+        self.set_meta('folder', value)
 
     @property
     def has_versions(self):

@@ -62,14 +62,15 @@ class ElementEntry:
 # ── element collection ───────────────────────────────────────────────────────
 
 def _card_path(project, card) -> str:
-    """Breadcrumb string for a card, matching the old Go-to dialog grouping."""
+    """Breadcrumb string for a card, matching the project tree's categories."""
     encounter_id = card.data.get('encounter_set')
     if encounter_id:
         es = project.get_encounter_set(encounter_id)
         es_name = es.name if es else "?"
-        if card.front.get('type') == 'location':
+        card_type = card.card_type
+        if card_type == 'location':
             subcategory = "Locations"
-        elif card.back.get('type') == 'encounter':
+        elif card_type in ('treachery', 'enemy'):
             subcategory = "Encounter"
         else:
             subcategory = "Story"

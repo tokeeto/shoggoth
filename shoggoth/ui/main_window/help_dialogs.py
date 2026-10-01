@@ -1,10 +1,11 @@
 """
 Help-menu dialogs: manual, about, text options, and asset location.
 """
+import re
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QHBoxLayout, QLineEdit, QPushButton,
     QTextBrowser, QVBoxLayout,
@@ -13,6 +14,24 @@ from PySide6.QtWidgets import (
 import shoggoth
 from shoggoth.files import asset_dir
 from shoggoth.i18n import tr
+
+
+def _heading_slug(text):
+    """GitHub-style anchor for a heading, which is what the manual's links use."""
+    return re.sub(r'[^\w\- ]', '', text.strip().lower()).replace(' ', '-')
+
+
+def _scroll_to_heading(browser, fragment):
+    """Qt's Markdown import doesn't create anchors for headings, so find the
+    heading whose GitHub-style slug matches the link's fragment."""
+    block = browser.document().begin()
+    while block.isValid():
+        if block.blockFormat().headingLevel() and _heading_slug(block.text()) == fragment:
+            browser.setTextCursor(QTextCursor(block))
+            browser.verticalScrollBar().setValue(
+                int(browser.document().documentLayout().blockBoundingRect(block).top()))
+            return
+        block = block.next()
 
 
 def show_manual(parent):
@@ -26,25 +45,40 @@ def show_manual(parent):
     dialog.resize(960, 720)
     layout = QVBoxLayout()
 
+    # The manual is split into one Markdown file per chapter; links between
+    # them are followed in place, so the browser keeps its own back history.
     browser = QTextBrowser()
-    browser.setSearchPaths([str(manual_path.parent)])
-    browser.setMarkdown(manual_path.read_text(encoding="utf-8"))
     browser.setOpenLinks(False)
+
+    def show_source(url):
+        browser.setSource(url, QTextDocument.MarkdownResource)
+        if url.fragment():
+            _scroll_to_heading(browser, url.fragment())
 
     def on_link_clicked(url):
         if url.scheme() in ("http", "https"):
             QDesktopServices.openUrl(url)
-        elif not url.path() and url.fragment():
-            browser.scrollToAnchor(url.fragment())
+            return
+        target = browser.source().resolved(url)
+        if target.isLocalFile() and Path(target.toLocalFile()).is_file():
+            if target.toLocalFile() == browser.source().toLocalFile():
+                _scroll_to_heading(browser, target.fragment())
+            else:
+                show_source(target)
         else:
             QDesktopServices.openUrl(QUrl(
                 "https://github.com/tokeeto/shoggoth/blob/manual/documentation/" + url.path()
             ))
 
     browser.anchorClicked.connect(on_link_clicked)
+    show_source(QUrl.fromLocalFile(str(manual_path)))
     layout.addWidget(browser)
 
     button_box = QDialogButtonBox(QDialogButtonBox.Close)
+    back_button = button_box.addButton("←", QDialogButtonBox.ActionRole)
+    back_button.setEnabled(False)
+    back_button.clicked.connect(browser.backward)
+    browser.backwardAvailable.connect(back_button.setEnabled)
     button_box.rejected.connect(dialog.reject)
     layout.addWidget(button_box)
 

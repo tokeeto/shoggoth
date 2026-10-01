@@ -89,7 +89,7 @@ class EncounterSet:
     @property
     def number_of_locations(self):
         """ Property used in guide creation mainly """
-        return len([c for c in self.cards if c.front.get('type') == 'location'])
+        return len([c for c in self.cards if c.card_type == 'location'])
 
     def add_card(self, card):
         if isinstance(card, Card):

@@ -45,6 +45,8 @@ class TreeContextMenu:
             self._create_player_cards_menu(menu, item_data)
         elif item_type == 'guide':
             self._create_guide_menu(menu, item_data)
+        elif item_type == 'folder':
+            self._create_folder_menu(menu, data)
         elif item_type == 'category':
             # Category nodes (Story, Locations, Encounter, Class groups, etc.)
             category_name = item.text(0)
@@ -260,6 +262,41 @@ class TreeContextMenu:
         delete_action = QAction(tr("CTX_DELETE"), self.parent)
         delete_action.triggered.connect(lambda: self.delete_guide(guide))
         menu.addAction(delete_action)
+
+    def _create_folder_menu(self, menu, folder):
+        """Create context menu for a generic folder (folder view). What can
+        be added depends on what the folders above it say about its cards:
+        encounter cards under an encounter set, player cards under Player
+        Cards / a class / an investigator, otherwise just a card."""
+        context = folder['context']
+
+        def add(label, template):
+            action = QAction(label, self.parent)
+            action.triggered.connect(lambda checked=False: self.new_card_in_folder(folder, template))
+            menu.addAction(action)
+
+        if context.get('encounter_set'):
+            for label_key, template in (
+                ("CTX_ADD_NEW_ACT", {'front': {'type': 'act'}, 'back': {'type': 'act_back'}}),
+                ("CTX_ADD_NEW_AGENDA", {'front': {'type': 'agenda'}, 'back': {'type': 'agenda_back'}}),
+                ("CTX_ADD_NEW_STORY", {'front': {'type': 'story'}, 'back': {'type': 'story'}}),
+                ("CTX_ADD_NEW_ENEMY", {'front': {'type': 'enemy'}, 'back': {'type': 'encounter'}}),
+                ("CTX_ADD_NEW_TREACHERY", {'front': {'type': 'treachery'}, 'back': {'type': 'encounter'}}),
+                ("CTX_ADD_NEW_LOCATION", {'front': {'type': 'location'}, 'back': {'type': 'location_back'}}),
+            ):
+                add(tr(label_key), template)
+        elif context.get('player') or context.get('class') or context.get('investigator'):
+            for label_key, card_type in (("CTX_NEW_ASSET", 'asset'), ("CTX_NEW_EVENT", 'event'),
+                                         ("CTX_NEW_SKILL", 'skill')):
+                add(tr(label_key), {'front': {'type': card_type}, 'back': {'type': 'player'}})
+        else:
+            add(tr("CTX_NEW_CARD"), None)
+
+        if self.clipboard:
+            menu.addSeparator()
+            paste_action = QAction(tr("CTX_PASTE_CARD"), self.parent)
+            paste_action.triggered.connect(lambda: self.paste_in_folder(folder))
+            menu.addAction(paste_action)
 
     def _create_category_menu(self, menu, category_name, parent_data, item_data):
         """Create context menu for category nodes (Story, Locations, etc.)"""
@@ -657,6 +694,31 @@ class TreeContextMenu:
         shoggoth.app.show_card(new_card)
         shoggoth.app.select_item_in_tree(new_card.id)
     
+    def new_card_in_folder(self, folder, template=None):
+        """Create a new card in a folder view folder"""
+        import shoggoth
+        from shoggoth.ui.browser.folder_moves import new_card_data
+
+        project = folder['data']
+        new_data = new_card_data(folder, template)
+        project.add_card(new_data)
+
+        shoggoth.app.refresh_tree()
+        new_card = project.get_card(new_data['id'])
+        if new_card:
+            shoggoth.app.show_card(new_card)
+            shoggoth.app.select_item_in_tree(new_card.id)
+
+    def paste_in_folder(self, folder):
+        """Paste the clipboard's cards into a folder view folder"""
+        import shoggoth
+        from shoggoth.ui.browser.folder_moves import new_card_data
+
+        project = folder['data']
+        for clip in self.clipboard:
+            project.add_card(new_card_data(folder, source=json.loads(json.dumps(clip))))
+        shoggoth.app.refresh_tree()
+
     def new_encounter_set(self, project):
         """Create new encounter set"""
         from PySide6.QtWidgets import QInputDialog

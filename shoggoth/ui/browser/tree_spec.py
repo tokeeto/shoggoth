@@ -110,19 +110,15 @@ def build_card_spec(card, include_level=False):
     }
 
 
-def build_tree_spec(project):
-    """Build a specification of the desired tree state for one project"""
-    if not project:
-        return None
-
+def build_root_spec(project):
+    """Build the (still childless) project node"""
     # Root node — a modification says what it modifies
     label = project['name']
     if project.is_modification:
         label = (tr('TREE_TRANSLATION_OF') if project.language else tr('TREE_MODIFICATION_OF')).format(
             name=project['name'], parent=project.parent_name, language=project.language)
-    scope = node_scope(project)
 
-    root_spec = {
+    return {
         'node_id': f'project:{project.file_path}',
         'text': label,
         'type': 'project',
@@ -130,6 +126,40 @@ def build_tree_spec(project):
         'icon': None,
         'children': []
     }
+
+
+def build_guides_spec(project):
+    """Build the Guides category with the project's guides, or None without any"""
+    if not project.guides:
+        return None
+    scope = node_scope(project)
+    guide_parent = {
+        'node_id': f'category:guides:{project.file_path}',
+        'text': tr('TREE_GUIDES'),
+        'type': 'category',
+        'data': project,
+        'icon': None,
+        'children': []
+    }
+    for guide in project.guides:
+        guide_parent['children'].append({
+            'node_id': f'guide:{guide.id}{scope}',
+            'text': guide.name,
+            'type': 'guide',
+            'data': guide,
+            'icon': None,
+            'children': []
+        })
+    return guide_parent
+
+
+def build_tree_spec(project):
+    """Build a specification of the desired tree state for one project"""
+    if not project:
+        return None
+
+    root_spec = build_root_spec(project)
+    scope = node_scope(project)
 
     # project.encounter_sets is a generator - materialize once so it can be
     # iterated/inspected more than once below (bool() on the generator itself
@@ -216,9 +246,10 @@ def build_tree_spec(project):
         for card in encounter_set.cards:
             card_spec = build_card_spec(card)
 
-            if card.grouping == 'location':
+            card_type = card.card_type
+            if card_type == 'location':
                 location_spec['children'].append(card_spec)
-            elif card.grouping in ('treachery', 'enemy'):
+            elif card_type in ('treachery', 'enemy'):
                 encounter_cat_spec['children'].append(card_spec)
             else:
                 story_spec['children'].append(card_spec)
@@ -316,25 +347,7 @@ def build_tree_spec(project):
             player_spec['children'].append(class_specs[cls])
 
     # Add guides
-    if project.guides:
-        guide_parent = {
-            'node_id': f'category:guides:{project.file_path}',
-            'text': tr('TREE_GUIDES'),
-            'type': 'category',
-            'data': project,
-            'icon': None,
-            'children': []
-        }
-        for guide in project.guides:
-            guide_spec = {
-                'node_id': f'guide:{guide.id}{scope}',
-                'text': guide.name,
-                'type': 'guide',
-                'data': guide,
-                'icon': None,
-                'children': []
-            }
-            guide_parent['children'].append(guide_spec)
-        root_spec['children'].append(guide_parent)
+    if guides_spec := build_guides_spec(project):
+        root_spec['children'].append(guides_spec)
 
     return root_spec

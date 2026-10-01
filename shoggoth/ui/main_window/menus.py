@@ -272,6 +272,11 @@ def _create_view_menu(window, menubar):
     sidebar_group.addAction(window.sidebar_tree_action)
     view_menu.addAction(window.sidebar_tree_action)
 
+    window.sidebar_folders_action = QAction(tr("MENU_SIDEBAR_FOLDERS"), window)
+    window.sidebar_folders_action.setCheckable(True)
+    sidebar_group.addAction(window.sidebar_folders_action)
+    view_menu.addAction(window.sidebar_folders_action)
+
     window.sidebar_list_action = QAction(tr("MENU_SIDEBAR_LIST"), window)
     window.sidebar_list_action.setCheckable(True)
     sidebar_group.addAction(window.sidebar_list_action)

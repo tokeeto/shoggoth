@@ -164,6 +164,8 @@ EDITOR_MAPPING = {
 
 def get_editor_for_face(face, parent=None):
     """Get the appropriate editor for a face"""
-    editor_type = face.get_editor()
-    editor_class = EDITOR_MAPPING.get(editor_type, JsonEditor)
+    editor_class = next(
+        (EDITOR_MAPPING[name] for name in face.editor_candidates() if name in EDITOR_MAPPING),
+        JsonEditor,
+    )
     return editor_class(face, parent)

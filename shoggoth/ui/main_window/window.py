@@ -137,10 +137,13 @@ class ShoggothMainWindow(QMainWindow):
         self.file_browser.switch_view(sidebar_mode, sort_order=card_sort)
         if sidebar_mode == 'list':
             self.sidebar_list_action.setChecked(True)
+        elif sidebar_mode == 'folders':
+            self.sidebar_folders_action.setChecked(True)
         else:
             self.sidebar_tree_action.setChecked(True)
 
         self.sidebar_tree_action.triggered.connect(lambda: self._set_sidebar_view('tree'))
+        self.sidebar_folders_action.triggered.connect(lambda: self._set_sidebar_view('folders'))
         self.sidebar_list_action.triggered.connect(lambda: self._set_sidebar_view('list'))
         self.file_browser.sort_combo.currentIndexChanged.connect(self._on_card_sort_changed)
 

@@ -361,7 +361,7 @@ class ModificationCompareEditor(QWidget):
 
     def _follow_view(self, value):
         self.original_editor.view_toggle.set_current_value(value)
-        self.original_editor._on_view_toggle_changed(value)
+        self.original_editor._set_view(value)
 
     @staticmethod
     def _sync_scrolling(left, right):

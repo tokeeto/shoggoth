@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QTreeWidget
 
 import shoggoth
+from shoggoth.ui.browser import folder_moves
 
 
 class CompactLeafDelegate(QStyledItemDelegate):
@@ -143,6 +144,19 @@ class DraggableTreeWidget(QTreeWidget):
 
         return None, None
 
+    def _folder_view(self):
+        return self.file_browser._view_mode == 'folders'
+
+    def _can_drop(self, target_item, dragged):
+        """Whether the dragged cards (of the target's own project) can be
+        dropped on this item."""
+        if self._folder_view():
+            # A drop can fail: the folder has to tell us enough about what
+            # each card becomes (see folder_moves.py)
+            target = self._get_item_data(target_item)
+            return all(folder_moves.can_move(card, target) for card, _ in dragged)
+        return self._get_drop_target_type(target_item)[0] is not None
+
     def mimeTypes(self):
         return ['application/x-shoggoth-card']
 
@@ -189,8 +203,11 @@ class DraggableTreeWidget(QTreeWidget):
             if not card:
                 continue
 
+            # Classic tree: dropping a card on a group it's already in is a
+            # no-op. In the folder view it moves the card up to that folder.
             node_id = f'card:{card_id}'
-            if node_id in node_map and self._is_ancestor_of(target_item, node_map[node_id]):
+            if not self._folder_view() and node_id in node_map \
+                    and self._is_ancestor_of(target_item, node_map[node_id]):
                 continue
 
             result.append((card, source_project))
@@ -220,8 +237,7 @@ class DraggableTreeWidget(QTreeWidget):
             event.acceptProposedAction()
             return
 
-        drop_type, _ = self._get_drop_target_type(target_item)
-        if drop_type is None:
+        if not self._can_drop(target_item, dragged):
             event.ignore()
             return
 
@@ -255,6 +271,14 @@ class DraggableTreeWidget(QTreeWidget):
 
         if cross_project:
             self._open_cross_project_dialog(dragged, target_project, target_item)
+            return
+
+        if self._folder_view():
+            if self._can_drop(target_item, dragged):
+                target = self._get_item_data(target_item)
+                for card, _ in dragged:
+                    folder_moves.move_card(card, target)
+                shoggoth.app.refresh_tree()
             return
 
         drop_type, drop_data = self._get_drop_target_type(target_item)
@@ -300,8 +324,12 @@ class DraggableTreeWidget(QTreeWidget):
         source_project = dragged[0][1]
         prefill_cards = [card for card, source in dragged if source is source_project]
 
-        drop_type, drop_data = self._get_drop_target_type(target_item)
-        target_encounter = drop_data if drop_type == 'encounter' else None
+        if self._folder_view():
+            target = self._get_item_data(target_item) or {}
+            target_encounter = (target.get('context') or {}).get('encounter_set')
+        else:
+            drop_type, drop_data = self._get_drop_target_type(target_item)
+            target_encounter = drop_data if drop_type == 'encounter' else None
 
         from shoggoth.ui.transfer_dialog import TransferCardsDialog
         dialog = TransferCardsDialog(

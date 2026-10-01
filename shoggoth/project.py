@@ -79,11 +79,11 @@ def sort_cards(cards):
     rest.sort(key=lambda card: (
         not card.get('meta', {}).get('sorting', card.get('sorting', True)), # check if the card has sorting disabled, if it does - skip it. It will be placed at the end of the list
         #TODO ^ This can be cleaned up once meta tags are implemented
-        type_order.get(card.front['type'], 15),
+        type_order.get(card.card_type, 15),
         str(card.front.get('index', 15)),
         class_sort_key(card), # helper to sort the cards within the multi-colored segment if there are any, otherwise defaults to what was here before
         str(card.front.get('level', 15)),
-        str(player_type_order.get(card.front['type'], 15)), 
+        str(player_type_order.get(card.card_type, 15)),
         str(card.name),
     ))
 
@@ -96,15 +96,15 @@ def sort_cards(cards):
     # Sort within the group in case of an investigator with multiple signatures
     for group in linked_groups.values():
         group.sort(key=lambda card: (
-            0 if card.front.get('type') == 'investigator' else
+            0 if card.card_type == 'investigator' else
             2 if card.get_class() == 'weakness' else 1,
-            player_type_order.get(card.front.get('type', ''), 15),
+            player_type_order.get(card.card_type, 15),
             card.name,
         ))
 
     # Sort groups by class (checking the class of the investigator)
     def group_key(group):
-        inv = next((c for c in group if c.front.get('type') == 'investigator'), group[0])
+        inv = next((c for c in group if c.card_type == 'investigator'), group[0])
         return class_order.get(inv.get_class(), 15)
     
     sorted_linked_groups = sorted(linked_groups.values(), key=group_key)

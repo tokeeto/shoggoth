@@ -229,9 +229,9 @@ def card_to_tts(card, id, image_folder):
     data['CustomDeck'][id]['BackURL'] = DEFAULT_IMAGES.get(back_type, f'file:///{expected_back}')
 
     # Add tags based on type
-    for card_type in {front_type, back_type}:
+    for card_type in card.card_types + [card.back.card_type]:
         tag = TYPE_TAG_MAP.get(card_type)
-        if tag:
+        if tag and tag not in data['Tags']:
             data['Tags'].append(tag)
 
     # Handle rotated cards and cards with different orientation
@@ -241,15 +241,15 @@ def card_to_tts(card, id, image_folder):
         data['Tags'].append('DynamicAltView')
 
     # Handle horizontal cards (since they get scaled differently by TTS)
-    if front_type in ['act', 'agenda', 'investigator']:
+    if card.card_type in ['act', 'agenda', 'investigator']:
         data['Transform']['scaleX'] *= 0.8214 / 1.15
         data['Transform']['scaleZ'] *= 0.8214 / 1.15
 
     # Handle investigators (since they are larger in TTS for clarity)
-    if front_type == 'investigator':
+    if card.card_type == 'investigator':
         data['Transform']['scaleX'] *= 1.15
         data['Transform']['scaleZ'] *= 1.15
-    elif front_type == 'mini_investigator':
+    elif card.card_type == 'mini_investigator':
         data['Transform']['scaleX'] *= 0.6
         data['Transform']['scaleZ'] *= 0.6
 
@@ -258,7 +258,7 @@ def card_to_tts(card, id, image_folder):
         data['Description'] = subtitle
 
     # Handle double-sided locations (enable hiding if different back name)
-    if 'location' in front_type and 'location' in back_type and card.front.get('name') != card.back.get('name'):
+    if card.front.card_type == 'location' and card.back.card_type == 'location' and card.front.get('name') != card.back.get('name'):
         data['HideWhenFaceDown'] = True
 
     data['Nickname'] = remove_formatting_tags(card.name)

@@ -1,6 +1,6 @@
 """
 File browser widget showing the open projects' cards, encounter sets,
-and guides, in either a grouped tree view or a flat sortable list.
+and guides, in a grouped tree view, a folder view, or a flat sortable list.
 """
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from shoggoth.card import natural_sort_key
 from shoggoth.i18n import tr
 from shoggoth.ui.browser.drag_drop import CompactLeafDelegate, DraggableTreeWidget
+from shoggoth.ui.browser.folder_spec import build_folder_tree_spec
 from shoggoth.ui.browser.tree_spec import build_tree_spec, card_display_name, node_scope
 from shoggoth.ui.browser.tree_sync import TreeSync
 
@@ -86,7 +87,7 @@ class FileBrowser(QWidget):
         self._projects = []  # List of open projects
         self._active_project = None  # The active project for operations
         self.sync = TreeSync()  # node_id -> item map and incremental updates
-        self._view_mode = 'tree'  # 'tree' or 'list'
+        self._view_mode = 'tree'  # 'tree', 'folders' or 'list'
         self._programmatic_select = False  # suppresses currentItemChanged during setCurrentItem
         self._selected_node_ids = set()  # tree selection as of the last selection change
         self._propagating_selection = False
@@ -185,7 +186,7 @@ class FileBrowser(QWidget):
             return
 
         # Build desired tree specification for all projects
-        desired_specs = [build_tree_spec(project) for project in self._projects]
+        desired_specs = [self._build_spec(project) for project in self._projects]
 
         # Remove extra projects if any were closed
         while self.tree.topLevelItemCount() > len(desired_specs):
@@ -202,6 +203,12 @@ class FileBrowser(QWidget):
                 root_item = self.sync.create_item(spec)
                 self.tree.addTopLevelItem(root_item)
                 root_item.setExpanded(True)
+
+    def _build_spec(self, project):
+        """The desired tree state for a project in the current view mode"""
+        if self._view_mode == 'folders':
+            return build_folder_tree_spec(project)
+        return build_tree_spec(project)
 
     def rebuild(self):
         """Rebuild the whole tree from scratch, for when a project's identity in
@@ -220,7 +227,7 @@ class FileBrowser(QWidget):
             return
 
         for project in self._projects:
-            spec = build_tree_spec(project)
+            spec = self._build_spec(project)
             root_item = self.sync.create_item(spec)
             self.tree.addTopLevelItem(root_item)
             root_item.setExpanded(True)
@@ -378,7 +385,7 @@ class FileBrowser(QWidget):
         return result
 
     def switch_view(self, mode, sort_order=None):
-        """Switch sidebar between 'tree' and 'list' view."""
+        """Switch sidebar between 'tree', 'folders' and 'list' view."""
         self._view_mode = mode
         if sort_order is not None:
             idx = self.sort_combo.findData(sort_order)
@@ -403,14 +410,10 @@ class FileBrowser(QWidget):
             self._build_card_list()
 
     def _populate_type_filter(self, all_cards):
-        """Refresh the type filter dropdown with the front-face types
+        """Refresh the type filter dropdown with the card types
         present across open projects, preserving the current selection."""
         current = self.type_filter_combo.currentData()
-        types = sorted({
-            card.front.data.get('type')
-            for card in all_cards
-            if card.front.data.get('type')
-        })
+        types = sorted({card.card_type for card in all_cards} - {''})
 
         self.type_filter_combo.blockSignals(True)
         self.type_filter_combo.clear()
@@ -447,7 +450,7 @@ class FileBrowser(QWidget):
                 cards.sort(key=lambda c: (natural_sort_key(c.data.get('project_number') or 0), c.name.lower()))
 
             for card in cards:
-                if type_filter and card.front.data.get('type') != type_filter:
+                if type_filter and card.card_type != type_filter:
                     continue
                 if name_filter and name_filter not in card.name.lower():
                     continue

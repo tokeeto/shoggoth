@@ -3,8 +3,8 @@ Export helpers - shared utilities for exporting cards to various formats
 """
 import json
 
-# Mapping from Shoggoth face types to expected front/back pairs
-# Format: front_type -> (export_type, expected_back_type)
+# Mapping from Shoggoth card types (Card.card_type) to expected front/back pairs
+# Format: card_type -> (export_type, expected_back_type)
 CARD_TYPE_INFO = {
     # Player cards - have "player" backs
     'asset': {
@@ -103,7 +103,7 @@ CLASS_TO_FACTION = {
 
 def get_card_export_type(card):
     """
-    Determine the export type for a card based on its front face type.
+    Determine the export type for a card based on its card_type.
 
     Returns a dict with:
         - type_code: The export type code (e.g., 'asset', 'enemy', 'location')
@@ -113,9 +113,9 @@ def get_card_export_type(card):
         - double_sided: Whether the card has meaningful content on both sides
         - is_encounter: Whether this is an encounter card (vs player card)
     """
-    front_type = card.front.get('grouping', card.front.get('type'))
+    card_type = card.card_type
 
-    if front_type not in CARD_TYPE_INFO:
+    if card_type not in CARD_TYPE_INFO:
         return {
             'type_code': 'unknown',
             'faction_code': 'neutral',
@@ -125,7 +125,7 @@ def get_card_export_type(card):
             'is_encounter': False,
         }
 
-    info = CARD_TYPE_INFO[front_type]
+    info = CARD_TYPE_INFO[card_type]
 
     # Determine faction(s)
     faction_code = 'neutral'
@@ -156,23 +156,22 @@ def get_card_export_type(card):
 
 def is_player_card(card):
     """Check if a card is a player card (has player back)"""
-    front_type = card.front.get('type')
-    if front_type in CARD_TYPE_INFO:
-        info = CARD_TYPE_INFO[front_type]
+    info = CARD_TYPE_INFO.get(card.card_type)
+    if info:
         return info['expected_back'] in ('player', 'customizable_back')
     return False
 
 
 def is_investigator_card(card):
     """Check if a card is an investigator card"""
-    return card.front.get('type') == 'investigator'
+    return card.card_type == 'investigator'
 
 
 def is_encounter_card(card):
     """Check if a card is an encounter card"""
-    front_type = card.front.get('type')
-    if front_type in CARD_TYPE_INFO:
-        return CARD_TYPE_INFO[front_type]['faction'] == 'mythos'
+    info = CARD_TYPE_INFO.get(card.card_type)
+    if info:
+        return info['faction'] == 'mythos'
     return False
 
 
@@ -349,7 +348,7 @@ def build_gm_notes(card):
 
     Returns a dict suitable for JSON-serialising into the TTS GMNotes field.
     """
-    front_type = card.front.get('type', '')
+    front_type = card.card_type
     notes = {}
 
     # special handling for ID since the TTS mod uses that to match mini-card and investigator
