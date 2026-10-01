@@ -412,6 +412,8 @@
   "HELP_NOTES": "For communication during design — not used in exports.",
   "FIELD_TAGS": "Tags",
   "PLACEHOLDER_TAGS": "Comma-separated tags",
+  "FIELD_TTS_METADATA": "TTS Metadata Additions/Override",
+  "HELP_TTS_METADATA": "Use this field to define additional metadata for this card to be used by TTS.\nIt will be combined with the automatically generated metadata.",
   "FIELD_REQUIRED_SETS": "Required Sets",
   "HELP_REQUIRED_SETS": "Other encounter sets in the project that are used alongside this one when playing:",
   "FIELD_AUTHOR": "Author",

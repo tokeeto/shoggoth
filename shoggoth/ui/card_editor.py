@@ -306,6 +306,32 @@ class CardEditor(QWidget):
         self.notes_input.textChanged.connect(self.on_notes_changed)
         content.addWidget(self.notes_input)
 
+        # JSON editor for TTS Metadata
+        self.tts_metadata_label = QLabel(tr("FIELD_TTS_METADATA").upper())
+        self.tts_metadata_label.setProperty("role", "field-label")
+        content.addWidget(self.tts_metadata_label)
+
+        self.tts_metadata_input = PlainJsonTextEdit(monospace=True)
+        self.tts_metadata_input.setToolTip(tr("HELP_TTS_METADATA"))
+        self.tts_metadata_input.setPlaceholderText('{\n    "key": "value"\n}')
+        self.tts_metadata_input.textChanged.connect(self.on_tts_metadata_changed)
+        content.addWidget(self.tts_metadata_input)
+
+        self.tts_metadata_status = QLabel("")
+        content.addWidget(self.tts_metadata_status)
+
+        tts_metadata_buttons = QHBoxLayout()
+        format_tts_metadata_btn = QPushButton(tr("BTN_FORMAT_JSON"))
+        format_tts_metadata_btn.clicked.connect(self.format_tts_metadata)
+        tts_metadata_buttons.addWidget(format_tts_metadata_btn)
+
+        validate_tts_metadata_btn = QPushButton(tr("BTN_VALIDATE"))
+        validate_tts_metadata_btn.clicked.connect(self.validate_tts_metadata)
+        tts_metadata_buttons.addWidget(validate_tts_metadata_btn)
+
+        tts_metadata_buttons.addStretch()
+        content.addLayout(tts_metadata_buttons)
+
         self.editor_layout.addWidget(meta_band)
         self.editor_layout.addStretch(1)
 
@@ -326,6 +352,11 @@ class CardEditor(QWidget):
         self.tags_input.setText(', '.join(self.card.get_meta('tags') or []))
         self.description_input.setPlainText(self.card.get_meta('description', '') or '')
         self.notes_input.setPlainText(self.card.get_meta('notes', '') or '')
+
+        tts_metadata = self.card.get_meta('tts_metadata')
+        if tts_metadata:
+            self.tts_metadata_input.setPlainText(json.dumps(tts_metadata, indent=4, ensure_ascii=False))
+
         self._loading_meta = False
 
     def on_change_bonded(self):
@@ -374,7 +405,6 @@ class CardEditor(QWidget):
         value = self.group_combo.currentText().lower()
         self.card.front.set('grouping', value)
         self.data_changed.emit()
-        
 
     def on_description_changed(self):
         if self._loading_meta:
@@ -410,6 +440,61 @@ class CardEditor(QWidget):
         preview = getattr(shoggoth.app, 'card_preview', None)
         if preview is not None:
             preview.show_front() if value == 'front' else preview.show_back()
+
+    def on_tts_metadata_changed(self):
+        """Validate and store additional TTS metadata."""
+        text = self.tts_metadata_input.toPlainText().strip()
+
+        if not text:
+            self.tts_metadata_status.clear()
+            self.card.set_meta('tts_metadata', None)
+            return
+
+        try:
+            data = json.loads(text)
+            if not isinstance(data, dict):
+                raise ValueError("TTS metadata must be a JSON object.")
+
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.tts_metadata_status.setText(str(exc))
+            return
+
+        self.tts_metadata_status.setText("")
+        self.card.set_meta('tts_metadata', data)
+
+    def validate_tts_metadata(self):
+        """Validate the TTS metadata JSON"""
+        text = self.tts_metadata_input.toPlainText().strip()
+
+        if not text:
+            self.tts_metadata_status.setText("")
+            return True
+
+        try:
+            data = json.loads(text)
+            if not isinstance(data, dict):
+                raise ValueError("TTS metadata must be a JSON object.")
+
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.tts_metadata_status.setText(f"Invalid JSON: {exc}")
+            return False
+
+        self.tts_metadata_status.setText("Valid JSON")
+        return True
+
+    def format_tts_metadata(self):
+        """Pretty-print the TTS metadata JSON"""
+        try:
+            data = json.loads(self.tts_metadata_input.toPlainText())
+            if not isinstance(data, dict):
+                raise ValueError("TTS metadata must be a JSON object.")
+
+            self.tts_metadata_input.setPlainText(
+                json.dumps(data, indent=4, ensure_ascii=False)
+            )
+
+        except (json.JSONDecodeError, ValueError) as exc:
+            self.tts_metadata_status.setText(f"Invalid JSON: {exc}")
 
     def load_json_data(self):
         """Load card data into JSON editor"""

@@ -439,6 +439,11 @@ def build_gm_notes(card):
     if loc_back:
         notes['locationBack'] = loc_back
 
+    # load manually defined metadata if possible
+    manual_metadata = card.get_meta('tts_metadata')
+    if isinstance(manual_metadata, dict):
+        notes.update(manual_metadata)
+
     return notes
 
 
