@@ -210,9 +210,6 @@ class CardEditor(QWidget):
         # Load current card data
         self.load_json_data()
 
-        # Load current card data
-        self.load_json_data()
-
     def create_meta_editor(self):
         """Create the Meta tab: designer-facing metadata not used by rendering, stored
         under card.data['meta'] (bonded/set aside/description/notes/tags) and mainly
