@@ -295,7 +295,8 @@ def export_all(project, image_folder, sync=True):
 
     for card in project.player_cards:
         image_id += 1
-        wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, image_id, image_folder))
+        for _ in range(card.amount):
+            wrapper['ObjectStates'][0]['ContainedObjects'].append(card_to_tts(card, image_id, image_folder))
 
     return_status = 0
     if files.tts_dir:
@@ -391,17 +392,19 @@ def update_file(cards, image_folder, file_path_str):
     # ------------------------------------------------------------
 
     id_to_card = {}
+    id_to_amount = {}
 
     image_id = 0
     for card in cards:
         image_id += 1
-        for _ in range(card.amount):
-            # special handling for ID since the TTS mod uses that to match mini-card and investigator
-            card_id = card.id
-            if card.front.get('type', '') == 'mini_investigator':
-                card_id = card.get('investigator_id', '00000') + '-m'
 
-            id_to_card[card_id] = card_to_tts(card, image_id, image_folder)
+        # special handling for ID since the TTS mod uses that to match mini-card and investigator
+        card_id = card.id
+        if card.front.get('type', '') == 'mini_investigator':
+            card_id = card.get('investigator_id', '00000') + '-m'
+
+        id_to_card[card_id] = card_to_tts(card, image_id, image_folder)
+        id_to_amount[card_id] = card.amount
 
     # ------------------------------------------------------------
     # Load existing file
@@ -421,6 +424,9 @@ def update_file(cards, image_folder, file_path_str):
         "not_found": 0,
         "invalid_gmnotes": 0,
     }
+
+    # IDs from id_to_card that were actually found and updated
+    used_ids = set()
 
     # ------------------------------------------------------------
     # Recursively update objects
@@ -457,6 +463,9 @@ def update_file(cards, image_folder, file_path_str):
                     stats["objects_with_id"] += 1
 
                     if card_id in id_to_card:
+                        # Mark this card as used
+                        used_ids.add(card_id)
+
                         # Replace with newly generated card
                         new_obj = id_to_card[card_id].copy()
 
@@ -487,7 +496,7 @@ def update_file(cards, image_folder, file_path_str):
                 update_object(child)
                 for child in object_states
             ]
-    
+
         # --------------------------------------------------------
         # Recursively process contained objects
         # --------------------------------------------------------
@@ -536,6 +545,33 @@ def update_file(cards, image_folder, file_path_str):
         f.write("\n")
 
     # ------------------------------------------------------------
+    # Export unused cards
+    # ------------------------------------------------------------
+
+    unused_ids = [
+        card_id
+        for card_id in id_to_card
+        if card_id not in used_ids
+    ]
+
+    if len(unused_ids) > 0:
+        wrapper = deepcopy(wrapper_template)
+        for unused_id in unused_ids:
+            amount = id_to_amount[unused_id]
+            card = id_to_card[unused_id]
+
+            for _ in range(amount):
+                wrapper['ObjectStates'][0]['ContainedObjects'].append(card)
+
+        if files.tts_dir:
+            output_path = files.tts_dir / f"{shoggoth.app.current_project.name} unused cards.json"
+        else:
+            output_path = Path(shoggoth.app.current_project.file_path).parent / f"{shoggoth.app.current_project.name} unused cards.json"
+
+        with open(output_path, 'w', encoding='utf-8') as file:
+            json.dump(wrapper, file, indent=2)
+
+    # ------------------------------------------------------------
     # Report results
     # ------------------------------------------------------------
 
@@ -543,6 +579,8 @@ def update_file(cards, image_folder, file_path_str):
     print(f"Objects updated:  {stats['updated']}")
     print(f"IDs not found:    {stats['not_found']}")
     print(f"Invalid GMNotes:  {stats['invalid_gmnotes']}")
+    print(f"Unused cards:     {len(unused_ids)}")
+    print(f"Unused file:      {output_path}")
 
     return return_status
 
