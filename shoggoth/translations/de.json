@@ -970,7 +970,7 @@
   "TTS_EXPORTING_IMAGES": "Kartenbilder werden exportiert…",
   "TTS_RESULT_TTS_DIR": "Export abgeschlossen. Direkt im TTS-Ordner gespeichert:\n{path}",
   "TTS_RESULT_PROJECT_DIR": "Export abgeschlossen. Im Projektordner gespeichert:\n{path}",
-  "TTS_RESULT_UPDATED_FILE": "Export abgeschlossen. Existierenden Export aktualisiert:\n{path}",
+  "TTS_RESULT_UPDATED_FILE": "Export abgeschlossen. Existierenden Export aktualisiert:\n{path}\n\nFalls weitere Karten Bestandteil des Export waren, wurden diese in einem separaten 'saved object' platziert.",
   "MENU_EXPORT_TTS": "Für &TTS exportieren…",
   "// ===== PDF EXPORT DIALOG =====": "",
   "PDF_DLG_TITLE_CARD": "Karte als PDF exportieren",
