@@ -426,6 +426,8 @@ def update_file(cards, image_folder, file_path_str):
     # Recursively update objects
     # ------------------------------------------------------------
 
+    fields_to_preserve = ["GUID", "Transform", "LuaScript", "LuaScriptState"]
+
     def update_object(obj):
         """
         Recursively search a TTS object tree and replace cards
@@ -458,17 +460,12 @@ def update_file(cards, image_folder, file_path_str):
 
                     if card_id in id_to_card:
                         # Replace with newly generated card
-                        new_obj = id_to_card[card_id].copy()
+                        new_obj = deepcopy(id_to_card[card_id])
 
-                        # Preserve the GUID
-                        old_guid = obj.get("GUID")
-                        if old_guid is not None:
-                            new_obj["GUID"] = old_guid
-
-                        # Preserve the Transform (position / rotation / scale)
-                        old_transform = obj.get("Transform")
-                        if old_transform is not None:
-                            new_obj["Transform"] = old_transform
+                        # Preserve some data
+                        for field in fields_to_preserve:
+                            if field in obj:
+                                new_obj[field] = obj[field]
 
                         stats["updated"] += 1
 
