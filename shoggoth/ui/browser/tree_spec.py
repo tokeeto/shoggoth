@@ -75,8 +75,10 @@ def warning_triangle_icon(size=16):
 
 def card_display_name(card, include_level=False):
     """Return the display name for a card node (without dirty indicator)."""
-    if include_level and str(card.front.get('level', '0')) != '0':
-        name = f'{card.name} ({card.front.get("level")})'
+    level = card.front.get('level')
+
+    if include_level and level not in ('', None, 'None', 0, '0'):
+        name = f'{card.name} ({level})'
     else:
         name = card.name
     index = card.front.get('index')
