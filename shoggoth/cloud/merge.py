@@ -130,9 +130,12 @@ class Plan:
                     or self.take_project or self.push_project)
 
 
-def _decide(local, remote, synced_at, tombstone, remote_deleted=False):
+def _decide(local, remote, synced_at, tombstone, remote_deleted=False, prefer_local=False):
     """Returns one of 'none' | 'take' | 'remove' | 'push' | 'push_delete' |
-    'conflict' for one element. `local`/`remote` are element dicts or None."""
+    'conflict' for one element. `local`/`remote` are element dicts or None.
+    `prefer_local`: the cloud is known to have lost data, so where it hasn't
+    changed since the last sync, our copy is re-sent rather than replaced or
+    removed."""
     local_t, remote_t = modified(local), modified(remote)
     local_changed = local_t > synced_at
     remote_changed = remote_t > synced_at
@@ -142,7 +145,7 @@ def _decide(local, remote, synced_at, tombstone, remote_deleted=False):
             return 'none'
         if local_changed and remote_changed:
             return 'conflict'
-        if local_changed:
+        if local_changed or (prefer_local and not remote_changed):
             return 'push'
         return 'take'  # remote changed, or neither did (server is truth)
 
@@ -154,13 +157,14 @@ def _decide(local, remote, synced_at, tombstone, remote_deleted=False):
     if local is not None:  # absent remotely
         if remote_deleted:  # an explicit deletion (live patch), not just a missing key
             return 'conflict' if local_changed else 'remove'
-        return 'push' if local_changed else 'remove'
+        return 'push' if local_changed or prefer_local else 'remove'
 
     return 'none'
 
 
-def _plan_element(plan, kind, element_id, local, remote, synced_at, tombstone, remote_deleted=False):
-    decision = _decide(local, remote, synced_at, tombstone, remote_deleted)
+def _plan_element(plan, kind, element_id, local, remote, synced_at, tombstone, remote_deleted=False,
+                  prefer_local=False):
+    decision = _decide(local, remote, synced_at, tombstone, remote_deleted, prefer_local)
     if decision == 'take':
         plan.take.append((kind, element_id, remote))
     elif decision == 'remove':
@@ -173,7 +177,7 @@ def _plan_element(plan, kind, element_id, local, remote, synced_at, tombstone, r
         plan.conflicts.append(Conflict(kind, element_id, local, remote))
 
 
-def _plan_project(plan, local_data, remote_fields, synced_at):
+def _plan_project(plan, local_data, remote_fields, synced_at, prefer_local=False):
     local_fields = project_fields(local_data)
     if same_content(local_fields, remote_fields):
         return
@@ -181,7 +185,7 @@ def _plan_project(plan, local_data, remote_fields, synced_at):
     remote_changed = modified(remote_fields) > synced_at
     if local_changed and remote_changed:
         plan.conflicts.append(Conflict('project', local_data.get('id', ''), local_fields, remote_fields))
-    elif local_changed:
+    elif local_changed or (prefer_local and not remote_changed):
         plan.push_project = local_fields
     else:
         plan.take_project = remote_fields
@@ -191,18 +195,39 @@ def _local_index(local_data, kind):
     return {e['id']: e for e in local_data.get(kind, []) if e.get('id')}
 
 
-def plan_snapshot(local_data: dict, remote_wire: dict, synced_at: float, deleted: dict) -> Plan:
+def plan_snapshot(local_data: dict, remote_wire: dict, synced_at: float, deleted: dict,
+                  prefer_local: bool = False) -> Plan:
     """Plan for a whole cloud snapshot: elements absent on one side are
     treated as deleted there (or new here) per the rules above. `deleted` is
-    the local tombstone dict {id: {'kind', 'at'}}."""
+    the local tombstone dict {id: {'kind', 'at'}}. `prefer_local`: see
+    _decide."""
     plan = Plan()
     for kind in ELEMENT_KINDS:
-        local, remote = _local_index(local_data, kind), remote_wire.get(kind, {})
+        local, remote = _local_index(local_data, kind), remote_wire.get(kind) or {}
         for element_id in list(dict.fromkeys([*local, *remote])):
             _plan_element(plan, kind, element_id, local.get(element_id), remote.get(element_id),
-                          synced_at, element_id in deleted)
-    _plan_project(plan, local_data, project_fields(from_wire(remote_wire)), synced_at)
+                          synced_at, element_id in deleted, prefer_local=prefer_local)
+    _plan_project(plan, local_data, project_fields(from_wire(remote_wire)), synced_at, prefer_local)
     return plan
+
+
+def local_changes(local_data: dict, synced_at: float, deleted: dict) -> set:
+    """{(kind, id)} of everything changed locally since `synced_at`: edited
+    elements, the project's own fields ('project', project id) and every
+    deletion not yet confirmed by the cloud (tombstones). What a "nothing new
+    in the cloud" answer still leaves us to send -- e.g. a save whose push
+    failed before Shoggoth was closed."""
+    keys = set()
+    for kind in ELEMENT_KINDS:
+        for element_id, element in _local_index(local_data, kind).items():
+            if modified(element) > synced_at:
+                keys.add((kind, element_id))
+    for element_id, tombstone in deleted.items():
+        if tombstone.get('kind') in ELEMENT_KINDS:
+            keys.add((tombstone['kind'], element_id))
+    if modified(project_fields(local_data)) > synced_at:
+        keys.add(('project', local_data.get('id', '')))
+    return keys
 
 
 def plan_patch(local_data: dict, patch: dict, synced_at: float, deleted: dict) -> Plan:

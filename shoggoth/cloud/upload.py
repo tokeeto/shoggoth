@@ -9,6 +9,7 @@ into the new folder and the references rewritten. Pure logic, no Qt.
 import copy
 import shutil
 from pathlib import Path
+from uuid import uuid4
 
 from shoggoth import files
 
@@ -58,6 +59,13 @@ def relocate_resources(project, dest_dir: Path) -> dict:
         shutil.copy2(resolved, target)
         copied[resolved] = f'images/{target.name}'
         return copied[resolved]
+
+    # Sync addresses elements by id; one without (e.g. a guide from an older
+    # file) would never reach the cloud copy.
+    for kind in ('cards', 'encounter_sets', 'guides'):
+        for element in data.get(kind, []):
+            if not element.get('id'):
+                element['id'] = str(uuid4())
 
     if data.get('icon'):
         data['icon'] = relocate(data['icon'])

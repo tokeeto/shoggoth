@@ -47,6 +47,9 @@ _UPLOAD_DEBOUNCE_MS = 1000
 _SAVE_DEBOUNCE_MS = 2000
 _RETRY_MS = 15000
 _RESOURCE_REFRESH_MS = 300
+# snapshot_received's detail when the pull failed (as opposed to None: a 304,
+# "the cloud has nothing newer")
+_PULL_FAILED = 'failed'
 
 
 class _Session:
@@ -71,6 +74,8 @@ class _Session:
         self.push_timer = None
         self.upload_timer = None
         self.save_timer = None
+        self.warned = False         # told the user sync is failing (once per session)
+        self.prefer_local = False   # the cloud lost data: next pull re-sends ours
 
     @property
     def meta(self):
@@ -117,8 +122,9 @@ class CloudSyncController(QObject):
     reconnected = Signal(str)                        # cloud id: socket (re)opened
     resource_written = Signal(str, str)              # cloud id, absolute path
     file_touched = Signal(str, str)                  # cloud id, absolute path
-    push_finished = Signal(str, bool, float, object)  # id, ok, flush start, pushed keys
+    push_finished = Signal(str, bool, float, object, int)  # id, ok, flush start, pushed keys, new version
     status = Signal(str)
+    sync_failed = Signal(str, str)                   # cloud id, error message
 
     def __init__(self, window):
         super().__init__(window)
@@ -135,6 +141,7 @@ class CloudSyncController(QObject):
         self.file_touched.connect(self._on_file_touched)
         self.push_finished.connect(self._on_push_finished)
         self.status.connect(self._show_status)
+        self.sync_failed.connect(self._on_sync_failed)
 
         Project.add_change_listener(self._on_project_change)
 
@@ -222,15 +229,17 @@ class CloudSyncController(QObject):
             return
         session.pulling = True
         base_url, token = self._credentials()
-        since = session.version
+        # A full snapshot (no since_version) when the cloud lost data: the
+        # version we know is no longer meaningful there.
+        since = None if session.prefer_local else session.version
         started = time.time()
 
         def task():
             try:
                 detail = client.get_storage_project(base_url, token, session.id, since_version=since)
-            except client.PublishError as exc:
-                self.status.emit(str(exc))
-                detail = None
+            except Exception as exc:  # noqa: BLE001 -- whatever it was, `pulling` must be reset
+                self.sync_failed.emit(session.id, str(exc))
+                detail = _PULL_FAILED
             self.snapshot_received.emit(session.id, detail, started)
             try:
                 self._sync_resources(session, base_url, token)
@@ -245,15 +254,36 @@ class CloudSyncController(QObject):
         if session is None:
             return
         session.pulling = False
-        if detail is None:  # 304 (nothing newer) or the pull failed
-            if not session.pending and not session.pushing:
+        if isinstance(detail, str) and detail == _PULL_FAILED:
+            # We learned nothing about the cloud: local and cloud are *not*
+            # known to agree, so the sync marker must not move (it would make
+            # unsent local edits look synced, and a later snapshot missing
+            # them would then delete them). Everything local stays as it is.
+            return
+        session.warned = False
+        if detail is None:  # 304: the cloud has nothing newer
+            # ...but we may still have something newer for it: saves whose
+            # push never got through (failed, or Shoggoth closed first).
+            if not session.read_only:
+                for kind, element_id in merge.local_changes(
+                        session.project.data, session.synced_at, session.deleted):
+                    self._queue(session, kind, element_id)
+            if session.pending:
+                self._flush_push(session)
+            elif not session.pushing:
                 self._mark_synced(session, started)
+            return
+        if not isinstance(detail, dict) or not isinstance(detail.get('data'), dict):
+            self._on_sync_failed(cloud_id, tr("MSG_CLOUD_BAD_RESPONSE"))
             return
 
         project = session.project
-        plan = merge.plan_snapshot(project.data, detail['data'], session.synced_at, session.deleted)
-        changed, touched = self._resolve_and_apply(session, plan)
-        session.meta['celaeno_version'] = max(session.version, int(detail['version']))
+        prefer_local, session.prefer_local = session.prefer_local, False
+        plan = merge.plan_snapshot(project.data, detail['data'], session.synced_at, session.deleted,
+                                   prefer_local=prefer_local)
+        changed, touched = self._resolve_and_apply(session, plan, snapshot=True)
+        version = int(detail.get('version') or 0)
+        session.meta['celaeno_version'] = version if prefer_local else max(session.version, version)
         if not session.pending and not session.pushing:
             self._mark_synced(session, started)
         self._after_merge(session, changed, touched)
@@ -441,16 +471,29 @@ class CloudSyncController(QObject):
 
     # ── Applying a plan ──────────────────────────────────────────────────
 
-    def _resolve_and_apply(self, session, plan):
+    def _resolve_and_apply(self, session, plan, snapshot=False):
         """Puts conflicts to the user (one question for the whole batch), then
         applies the plan to the project and queues what needs pushing. Returns
-        (anything_changed_locally, ids_of_elements_replaced_or_removed)."""
+        (anything_changed_locally, ids_of_elements_replaced_or_removed).
+
+        `snapshot`: the plan came from a whole cloud snapshot, where "absent
+        in the cloud" may mean deleted there -- or that the cloud lost it. Such
+        removals are never applied silently: the user decides, and keeping
+        them sends them back up."""
         project = session.project
         keep_mine = True
         if session.read_only:
             keep_mine = False  # a viewer never pushes, so the cloud always wins
         elif plan.conflicts:
             keep_mine = self._ask_conflicts(plan.conflicts)
+
+        if snapshot and plan.remove and not session.read_only:
+            local = {(kind, e.get('id')): e for kind in merge.ELEMENT_KINDS
+                     for e in project.data.get(kind, [])}
+            if not self._ask_removals([local.get(key) or {'id': key[1]} for key in plan.remove]):
+                for kind, element_id in plan.remove:
+                    plan.push_element(kind, element_id, local.get((kind, element_id)))
+                plan.remove = []
 
         for conflict in plan.conflicts:
             if conflict.kind == 'project':
@@ -502,6 +545,23 @@ class CloudSyncController(QObject):
         box.addButton(tr("BTN_USE_THEIRS"), QMessageBox.ButtonRole.DestructiveRole)
         box.exec()
         return box.clickedButton() is keep_btn
+
+    def _ask_removals(self, elements) -> bool:
+        """True to remove elements the cloud copy no longer has, False (the
+        default) to keep them here and upload them again."""
+        names = ', '.join(merge.element_name(e) for e in elements[:20])
+        if len(elements) > 20:
+            names += ', …'
+        box = QMessageBox(self.window)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("DLG_CLOUD_MISSING"))
+        box.setText(tr("MSG_CLOUD_MISSING").format(count=len(elements), names=names))
+        keep_btn = box.addButton(tr("BTN_KEEP_AND_UPLOAD"), QMessageBox.ButtonRole.AcceptRole)
+        remove_btn = box.addButton(tr("BTN_REMOVE_HERE"), QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(keep_btn)
+        box.setEscapeButton(keep_btn)
+        box.exec()
+        return box.clickedButton() is remove_btn
 
     def _after_merge(self, session, changed, touched):
         window = self.window
@@ -594,29 +654,46 @@ class CloudSyncController(QObject):
         session.pushing = True
 
         def task():
-            ok = True
+            ok, version = True, 0
             try:
-                client.patch_storage_project(base_url, token, session.id, patch)
-            except client.PublishError as exc:
+                result = client.patch_storage_project(base_url, token, session.id, patch)
+            except Exception as exc:  # noqa: BLE001 -- whatever it was, `pushing` must be reset
                 ok = False
-                self.status.emit(str(exc))
-            self.push_finished.emit(session.id, ok, started, keys)
+                self.sync_failed.emit(session.id, str(exc))
+            else:
+                try:
+                    version = int(result.get('version') or 0)
+                except (TypeError, ValueError, AttributeError):
+                    pass  # pushed, but the answer was odd: no version to learn from
+            self.push_finished.emit(session.id, ok, started, keys, version)
 
         thread = threading.Thread(target=task, daemon=True)
         thread.start()
         if wait:
             thread.join(timeout=5)
 
-    @Slot(str, bool, float, object)
-    def _on_push_finished(self, cloud_id, ok, started, keys):
+    @Slot(str, bool, float, object, int)
+    def _on_push_finished(self, cloud_id, ok, started, keys, version):
         session = self._sessions.get(cloud_id)
         if session is None:
             return
         session.pushing = False
         if not ok:
+            # Kept for the retry; nothing local is touched. Should Shoggoth
+            # close first, the next open finds them again (merge.local_changes):
+            # the sync marker never moved past them.
             session.pending |= keys
             session.push_timer.start(_RETRY_MS)
             return
+        session.warned = False
+        if 0 < version < session.version:
+            # Our push bumped the cloud's version, yet it's behind one we
+            # already had: the cloud copy was reset or restored and has lost
+            # data. Re-send everything it doesn't have instead of trusting it.
+            # (Equal is normal: our own echo can beat the HTTP response.)
+            session.prefer_local = True
+            session.meta['celaeno_version'] = 0
+            self._start_pull(session)
         for kind, element_id in keys:
             if kind != 'project' and element_id in session.deleted:
                 session.deleted.pop(element_id, None)
@@ -638,12 +715,14 @@ class CloudSyncController(QObject):
         Edits still unsaved are not in the cloud, so the marker never moves
         past the oldest of them: otherwise they'd look older than the last
         sync and never be sent."""
-        when = min([when, *self._unsaved_stamps(session)])
+        # Strictly below them: "changed since the sync" is `modified > synced_at`.
+        keys = session.unsaved | session.pending
+        when = min([when, *(stamp - 0.001 for stamp in self._stamps(session, keys))])
         session.meta['celaeno_synced_at'] = max(session.synced_at, when, session.remote_floor)
 
-    def _unsaved_stamps(self, session):
+    def _stamps(self, session, keys):
         data = session.project.data
-        for kind, element_id in session.unsaved:
+        for kind, element_id in keys:
             if kind == 'project':
                 yield merge.modified(merge.project_fields(data))
             elif element_id in session.deleted:
@@ -672,3 +751,18 @@ class CloudSyncController(QObject):
     @Slot(str)
     def _show_status(self, message):
         self.window.status_bar.showMessage(message, 5000)
+
+    @Slot(str, str)
+    def _on_sync_failed(self, cloud_id, message):
+        """A pull or push failed. The local project is never changed because
+        of it; the user hears about it once per session (status bar after
+        that), since every retry fails the same way until the cloud is back."""
+        self._show_status(message)
+        session = self._sessions.get(cloud_id)
+        if session is None or session.warned:
+            return
+        session.warned = True
+        QMessageBox.warning(
+            self.window, tr("DLG_CLOUD_SYNC_FAILED"),
+            tr("MSG_CLOUD_SYNC_FAILED").format(project=session.project.name, error=message),
+        )

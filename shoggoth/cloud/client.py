@@ -36,7 +36,25 @@ def _raise_for_status(resp, what: str, status_messages: dict | None = None) -> N
     status_messages = status_messages or {}
     if resp.status_code in status_messages:
         raise PublishError(status_messages[resp.status_code])
-    raise PublishError(f"{what} failed: HTTP {resp.status_code} {resp.text[:200]}")
+    # The API answers errors as {"detail": "..."}; anything else (a proxy's
+    # HTML error page, say) is shown truncated.
+    try:
+        detail = resp.json().get("detail")
+    except (ValueError, AttributeError):
+        detail = None
+    if not isinstance(detail, str):
+        detail = resp.text[:200]
+    raise PublishError(f"{what} failed: HTTP {resp.status_code} {detail}")
+
+
+def _json(resp, what: str):
+    """The response body as JSON. A success whose body isn't JSON (a proxy
+    page, a truncated response) is an error like any other -- callers only
+    ever have to handle PublishError."""
+    try:
+        return resp.json()
+    except ValueError as exc:
+        raise PublishError(f"{what}: unexpected response from the server") from exc
 
 
 def login_with_password(base_url: str, email: str, password: str) -> str:
@@ -50,7 +68,7 @@ def login_with_password(base_url: str, email: str, password: str) -> str:
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Login", {401: "Incorrect email or password."})
-    data = resp.json()
+    data = _json(resp, "Login")
     token = data.get("token")
     if not token:
         raise PublishError("Login succeeded but no token was returned.")
@@ -66,7 +84,7 @@ def verify_token(base_url: str, token: str) -> dict:
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Verify", {401: "That token is not valid or has expired."})
-    return resp.json()
+    return _json(resp, "Verify")
 
 
 def _project_payload(project) -> dict:
@@ -107,7 +125,7 @@ def ensure_project(base_url: str, token: str, project) -> tuple[str, str | None]
         except requests.RequestException as exc:
             raise PublishError(f"Could not reach {base_url}: {exc}") from exc
         if resp.ok:
-            return existing_id, resp.json().get("public_url")
+            return existing_id, _json(resp, "Project update").get("public_url")
         if resp.status_code != 404:
             _raise_for_status(resp, "Project update")
         # 404: stale/not owned by this token -- fall through and create a new one.
@@ -122,7 +140,7 @@ def ensure_project(base_url: str, token: str, project) -> tuple[str, str | None]
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Create project")
-    data = resp.json()
+    data = _json(resp, "Create project")
     new_id = data["id"]
     project.set_meta("cloud_project_id", new_id)
     project.save_all()
@@ -165,7 +183,7 @@ def _do_upload(url: str, token: str, size: int, file_obj, filename: str, progres
             404: "Project not found (it may have been deleted or belongs to a different account).",
         },
     )
-    return resp.json()
+    return _json(resp, f"Upload of {filename}")
 
 
 def upload_file(
@@ -239,7 +257,7 @@ def ensure_translation(base_url: str, token: str, project_id: str, translation) 
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Create translation")
-    new_id = resp.json()["id"]
+    new_id = _json(resp, "Create translation")["id"]
     translation.set_meta('cloud_translation_id', new_id)
     translation.save_all()
     return new_id
@@ -295,7 +313,7 @@ def sync_cards(base_url: str, token: str, project_id: str, cards: list[dict]) ->
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Card sync")
-    return resp.json()
+    return _json(resp, "Card sync")
 
 
 def sync_translation_cards(
@@ -312,7 +330,7 @@ def sync_translation_cards(
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Card sync")
-    return resp.json()
+    return _json(resp, "Card sync")
 
 
 # --------------------------------------------------------------------------- #
@@ -331,7 +349,7 @@ def create_storage_project(base_url: str, token: str, title: str, data: dict) ->
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Create storage project")
-    return resp.json()
+    return _json(resp, "Create storage project")
 
 
 def list_storage_projects(base_url: str, token: str) -> list[dict]:
@@ -343,7 +361,7 @@ def list_storage_projects(base_url: str, token: str) -> list[dict]:
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "List storage projects")
-    return resp.json()
+    return _json(resp, "List storage projects")
 
 
 def get_storage_project(
@@ -367,7 +385,7 @@ def get_storage_project(
     _raise_for_status(
         resp, "Get storage project", {404: "Project not found, or you don't have access to it."}
     )
-    return resp.json()
+    return _json(resp, "Get storage project")
 
 
 def list_storage_files(base_url: str, token: str, storage_project_id: str) -> list[dict]:
@@ -382,7 +400,7 @@ def list_storage_files(base_url: str, token: str, storage_project_id: str) -> li
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "List project files")
-    return resp.json()
+    return _json(resp, "List project files")
 
 
 def patch_storage_project(base_url: str, token: str, storage_project_id: str, patch: dict) -> dict:
@@ -400,7 +418,7 @@ def patch_storage_project(base_url: str, token: str, storage_project_id: str, pa
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Sync storage project", {404: "You no longer have write access."})
-    return resp.json()
+    return _json(resp, "Sync storage project")
 
 
 def upload_storage_file(
@@ -454,7 +472,7 @@ def add_storage_share(base_url: str, token: str, storage_project_id: str, email:
     _raise_for_status(
         resp, "Share project", {404: "No account with that email.", 400: "Invalid share."}
     )
-    return resp.json()
+    return _json(resp, "Share project")
 
 
 def list_storage_shares(base_url: str, token: str, storage_project_id: str) -> list[dict]:
@@ -467,7 +485,7 @@ def list_storage_shares(base_url: str, token: str, storage_project_id: str) -> l
     except requests.RequestException as exc:
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "List shares")
-    return resp.json()
+    return _json(resp, "List shares")
 
 
 def remove_storage_share(base_url: str, token: str, storage_project_id: str, user_id: str) -> None:

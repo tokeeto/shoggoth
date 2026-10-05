@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 from shoggoth.cloud import client, folder, merge, upload
 from shoggoth.files import get_last_path, set_last_path
 from shoggoth.i18n import tr
+from shoggoth.project_writer import atomic_write
 
 
 def _attach_open_projects(window):
@@ -82,19 +83,26 @@ def _create_cloud_project(window, name, source_project=None, data=None):
     root = folder.project_dir(cloud_id)
     root.mkdir(parents=True, exist_ok=True)
 
-    local = upload.relocate_resources(source_project, root) if source_project else copy.deepcopy(data)
+    # Nothing below may touch the source project until its cloud copy is
+    # safely on disk: any failure leaves it open, unchanged and unsaved edits
+    # intact.
     try:
+        local = upload.relocate_resources(source_project, root) if source_project else copy.deepcopy(data)
         # The relocated project is the real content -- send it now so anyone
         # the project is shared with sees the same relative paths we do.
         patched = client.patch_storage_project(base_url, token, cloud_id, merge.to_wire(local))
-    except client.PublishError as exc:
+        version = int(patched['version'])
+        local.setdefault('meta', {}).update({
+            'celaeno_id': cloud_id, 'celaeno_version': version,
+            'celaeno_synced_at': time.time(), 'celaeno_role': 'owner',
+        })
+        path = folder.project_file(cloud_id)
+        atomic_write(path, json.dumps(local, indent=4))
+        if json.loads(path.read_text(encoding='utf-8')) != local:
+            raise OSError(f"{path} did not read back as written")
+    except (client.PublishError, OSError, ValueError, KeyError, TypeError) as exc:
         QMessageBox.warning(window, tr("MENU_CLOUD_SAVE_TO_CLOUD"), str(exc))
         return False
-    local.setdefault('meta', {}).update({
-        'celaeno_id': cloud_id, 'celaeno_version': patched['version'],
-        'celaeno_synced_at': time.time(), 'celaeno_role': 'owner',
-    })
-    folder.project_file(cloud_id).write_text(json.dumps(local, indent=4), encoding='utf-8')
 
     if source_project is not None:
         source_project.clear_dirty()  # its content lives on in the cloud copy
