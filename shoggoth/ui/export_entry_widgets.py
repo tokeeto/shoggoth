@@ -410,6 +410,10 @@ class ArkhamBuildEntryWidget(QWidget):
         self.project = project
         layout = QVBoxLayout(self)
 
+        notice = QLabel(tr("PE_AB_WIP_NOTICE"))
+        notice.setWordWrap(True)
+        layout.addWidget(notice)
+
         self._thumbnails_cb = QCheckBox(tr("PE_AB_EXPORT_THUMBNAILS"))
         layout.addWidget(self._thumbnails_cb)
 

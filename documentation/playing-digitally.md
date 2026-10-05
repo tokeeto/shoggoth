@@ -29,7 +29,9 @@ The exported object points to the card images *on your computer*, so other playe
 
 ## arkham.build
 
-[arkham.build](https://arkham.build) is a popular deck builder that supports fan-made content. An **arkham.build** entry creates `<project name>_arkham_build.json` in your project folder, describing every card in the arkham.build format: types, classes, costs, traits, text, deckbuilding requirements and signature cards.
+> **Work in progress.** The arkham.build export is not finished, which is why the entry is labelled **arkham.build (WIP)** and Shoggoth reminds you after each export. If something in the exported file is wrong or missing, report it to the Shoggoth team, not to the arkham.build team.
+
+[arkham.build](https://arkham.build) is a popular deck builder that supports fan-made content. An **arkham.build (WIP)** entry creates `<project name>_arkham_build.json` in your project folder, describing every card in the arkham.build format: types, classes, costs, traits, text, deckbuilding requirements and signature cards.
 
 For card images to show up in arkham.build, they must be hosted online. Enter an **Image URL pattern** with `{code}` where the card's code goes:
 
@@ -37,7 +39,7 @@ For card images to show up in arkham.build, they must be hosted online. Enter an
 https://example.com/my-project/{code}.jpg
 ```
 
-Back images use `{code}_back`. Leave the pattern empty to leave out image links.
+Back images use `{code}_back`. Leave the pattern empty to leave out image links: images are never embedded in the file itself.
 
 To get your content listed on arkham.build, contact the arkham.build team.
 

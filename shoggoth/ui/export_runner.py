@@ -20,7 +20,7 @@ import traceback
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QProgressDialog
+from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
 from shoggoth import telemetry
 from shoggoth.export_profile import ExportEntry, USES_SCOPE
@@ -234,14 +234,14 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
     return tr(key).format(path=path), image_paths, str(path)
 
 
-def _run_arkham_build(project, renderer, d):
+def _run_arkham_build(project, d):
     """Returns (result_path_str, produced_paths)."""
     from shoggoth import arkham_build
     # d['export_thumbnails'] is a placeholder for a not-yet-implemented
     # feature and has no effect yet. arkham.build always exports the whole
     # project's JSON regardless of the profile's card scope -- the schema
     # describes the full project, not a card subset.
-    data = arkham_build.export_project(project, renderer, image_pattern=d['url_pattern'])
+    data = arkham_build.export_project(project, image_pattern=d['url_pattern'])
     output_path = project.folder / f"{project.name}_arkham_build.json"
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -282,6 +282,7 @@ def run_profile(parent, project, renderer, profile_data):
     card_faces = {}  # {card.id: {'front', 'back'}}, for the card manifest
     tts_result = None  # {'image_paths', 'wrapper_path', 'sync'} from the most recent TTS entry this window
     attempted_kinds = set()  # actual export kinds run this call, for telemetry ('publish' excluded)
+    arkham_build_exported = False
 
     for raw_entry in profile_data.get('entries', []):
         entry = ExportEntry(raw_entry, project)
@@ -320,7 +321,8 @@ def run_profile(parent, project, renderer, profile_data):
 
         elif kind == 'arkham_build':
             try:
-                path, data_paths = _run_arkham_build(project, renderer, settings)
+                path, data_paths = _run_arkham_build(project, settings)
+                arkham_build_exported = True
                 produced['data'].extend(data_paths)
                 results.append(tr("PE_RESULT_ARKHAM_BUILD").format(path=path))
             except Exception as e:
@@ -365,6 +367,11 @@ def run_profile(parent, project, renderer, profile_data):
 
     if attempted_kinds:
         telemetry.record_export(attempted_kinds)
+
+    if arkham_build_exported:
+        # The arkham.build team asked for this: their users were reporting
+        # our export's shortcomings to them.
+        QMessageBox.warning(parent, tr("PE_AB_WIP_TITLE"), tr("PE_AB_WIP_NOTICE"))
 
     return results, errors
 
