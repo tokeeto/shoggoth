@@ -2,6 +2,7 @@
 Export helpers - shared utilities for exporting cards to various formats
 """
 import json
+import re
 
 # Mapping from Shoggoth card types (Card.card_type) to expected front/back pairs
 # Format: card_type -> (export_type, expected_back_type)
@@ -100,6 +101,10 @@ CLASS_TO_FACTION = {
     'neutral': 'neutral',
 }
 
+TTS_USES_MAP = {
+    "supplies": "Supply",
+    "bounties": "Bounty",
+}
 
 def get_card_export_type(card):
     """
@@ -437,6 +442,24 @@ def build_gm_notes(card):
     loc_back = _sced_location_data(card.back)
     if loc_back:
         notes['locationBack'] = loc_back
+
+    # uses data (Note: this assumes english and does not support multiple uses)
+    match = re.match(r"Uses \((\d+) ([^)]+)\)\.", front_text)
+
+    if match:
+        count = int(match.group(1))
+        raw_type = match.group(2)
+
+        if raw_type in TTS_USES_MAP:
+            type_str = TTS_USES_MAP[raw_type]
+        elif raw_type.endswith("s"):
+            type_str = raw_type[:-1]
+        
+        notes['uses'] = [{
+            "count": count,
+            "type": type_str.capitalize(),
+            "token": "resource",
+        }]
 
     # load manually defined metadata if possible
     manual_metadata = card.get_meta('tts_metadata')
