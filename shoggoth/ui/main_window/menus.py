@@ -161,8 +161,8 @@ def _create_tools_menu(window, menubar):
                 window.reset_assets_dialog)
     _add_action(window, tools_menu, tr("MENU_CLEAR_CACHE"),
                 window.clear_cache)
-    _add_action(window, tools_menu, tr("MENU_SHOW_SNIPPET_FILE"),
-                lambda: snippet_loader.open_snippet_file())
+    _add_action(window, tools_menu, tr("MENU_SHOW_SNIPPET_FOLDER"),
+                lambda: snippet_loader.open_snippet_folder())
     _add_action(window, tools_menu, tr("MENU_SHOGGOTH_LOCATION"),
                 lambda: help_dialogs.open_shoggoth_location(window))
 

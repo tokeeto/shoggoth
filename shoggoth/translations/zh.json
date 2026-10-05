@@ -43,7 +43,7 @@
   "MENU_CHECK_UPDATES": "检查更新(&U)...",
   "MENU_RESET_ASSETS": "重置资源包(&R)...",
   "MENU_CLEAR_CACHE": "清除缓存(&C)",
-  "MENU_SHOW_SNIPPET_FILE": "显示片段文件(&S)",
+  "MENU_SHOW_SNIPPET_FOLDER": "显示片段文件位置(&S)",
   "MENU_SHOGGOTH_LOCATION": "打开 Shoggoth 位置(&S)",
   "MENU_ADD_FADED_EDGE": "淡化图像边缘(&F)...",
   "MENU_HELP": "帮助(&H)",

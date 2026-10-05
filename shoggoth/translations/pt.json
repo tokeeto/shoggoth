@@ -47,7 +47,7 @@
   "MENU_CHECK_UPDATES": "Verificar &Atualizações...",
   "MENU_RESET_ASSETS": "&Repor Pacote de Recursos...",
   "MENU_CLEAR_CACHE": "&Limpar Cache",
-  "MENU_SHOW_SNIPPET_FILE": "Mostrar Ficheiro de &Excertos",
+  "MENU_SHOW_SNIPPET_FOLDER": "Mostrar Localização do Ficheiro de &Excertos",
   "MENU_SHOGGOTH_LOCATION": "Abrir &Localização do Shoggoth",
   "MENU_ADD_FADED_EDGE": "&Desvanecer Contorno da Imagem...",
   "MENU_HELP": "Aj&uda",
