@@ -43,7 +43,7 @@
   "MENU_CHECK_UPDATES": "Buscar &Actualizaciones...",
   "MENU_RESET_ASSETS": "&Restablecer Paquete de Recursos...",
   "MENU_CLEAR_CACHE": "&Vaciar Caché",
-  "MENU_SHOW_SNIPPET_FILE": "Mostrar Archivo de &Fragmentos",
+  "MENU_SHOW_SNIPPET_FOLDER": "Mostrar Ubicación del Archivo de &Fragmentos",
   "MENU_SHOGGOTH_LOCATION": "Abrir &Ubicación de Shoggoth",
   "MENU_ADD_FADED_EDGE": "&Desvanecer borde de imagen...",
   "MENU_HELP": "A&yuda",

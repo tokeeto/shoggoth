@@ -43,7 +43,7 @@
   "MENU_CHECK_UPDATES": "Prüfe auf &Updates...",
   "MENU_RESET_ASSETS": "Asset-Paket &zurücksetzen...",
   "MENU_CLEAR_CACHE": "&Cache leeren",
-  "MENU_SHOW_SNIPPET_FILE": "&Snippet-Datei anzeigen",
+  "MENU_SHOW_SNIPPET_FOLDER": "&Snippet-Speicherort anzeigen",
   "MENU_SHOGGOTH_LOCATION": "&Shoggoth-Ordner öffnen",
   "MENU_ADD_FADED_EDGE": "&Bildrand ausblenden...",
   "MENU_HELP": "&Hilfe",

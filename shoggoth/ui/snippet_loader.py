@@ -9,6 +9,9 @@ is intentional - see the demo file's docstring.
 """
 from pathlib import Path
 
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QDesktopServices
+
 from shoggoth.files import root_dir
 from shoggoth.ui.text_snippets import Branch, CallLeaf
 
@@ -68,13 +71,10 @@ def ensure_snippet_file() -> Path:
     return path
 
 
-def open_snippet_file():
-    """Ensure the snippet file exists, then open it with the OS default handler."""
-    from PySide6.QtCore import QUrl
-    from PySide6.QtGui import QDesktopServices
-
+def open_snippet_folder():
+    """Ensure the snippet file exists, then open its containing folder."""
     path = ensure_snippet_file()
-    QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+    QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
 
 def load_user_snippets():

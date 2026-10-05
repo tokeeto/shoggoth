@@ -34,7 +34,7 @@
   "MENU_CHECK_UPDATES": "Check for &Updates...",
   "MENU_RESET_ASSETS": "&Reset Asset Pack...",
   "MENU_CLEAR_CACHE": "&Clear Cache",
-  "MENU_SHOW_SNIPPET_FILE": "Show &Snippet File",
+  "MENU_SHOW_SNIPPET_FOLDER": "Show &Snippet File Location",
   "MENU_SHOGGOTH_LOCATION": "Open &Shoggoth Location",
   "MENU_ADD_FADED_EDGE": "&Fade edge of image...",
   "MENU_HELP": "&Help",

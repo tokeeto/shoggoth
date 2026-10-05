@@ -43,7 +43,7 @@
   "MENU_CHECK_UPDATES": "Vérifier les mises à jour...",
   "MENU_RESET_ASSETS": "&Réinitialiser le pack de ressources...",
   "MENU_CLEAR_CACHE": "&Vider le cache",
-  "MENU_SHOW_SNIPPET_FILE": "Afficher le fichier d'e&xtraits",
+  "MENU_SHOW_SNIPPET_FOLDER": "Afficher l'emplacement du fichier d'e&xtraits",
   "MENU_SHOGGOTH_LOCATION": "Ouvrir l'emplacement de &Shoggoth",
   "MENU_ADD_FADED_EDGE": "Estomper le &bord de l'image...",
   "MENU_HELP": "&Aide",
