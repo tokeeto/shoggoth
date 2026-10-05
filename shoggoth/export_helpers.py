@@ -434,6 +434,10 @@ def build_gm_notes(card):
         if clues is not None:
             notes['clueThresholdPerInvestigator' if per else 'clueThreshold'] = clues
 
+    # scenario reference card:
+    if front_type == 'chaos':
+        notes['tokens'] = build_token_data(card)
+
     # location data
     loc_front = _sced_location_data(card.front)
     if loc_front:
@@ -467,6 +471,49 @@ def build_gm_notes(card):
         notes.update(manual_metadata)
 
     return notes
+
+
+def get_modifier(text):
+    """
+    Extract the numeric modifier from the beginning of the text.
+
+    Examples:
+        "-2 abc" -> -2
+        "-8. If .." -> -8
+        "-X. Do something" -> -999
+    """
+    text = text.strip()
+
+    if text.startswith("-X"):
+        return -999
+
+    match = re.match(r"(-?\d+)", text)
+    if match:
+        return int(match.group(1))
+
+    return 0
+
+
+def build_token_data(data):
+    token_data = {
+        "front": {},
+        "back": {},
+    }
+
+    for side in ("front", "back"):
+        for entry in data.get(side, {}).get("entries", []):
+            text = entry.get("text", "")
+            modifier = get_modifier(text)
+
+            for token_id in entry.get("token", []):
+                token_name = token_id.replace("_", " ").title()
+
+                token_data[side][token_name] = {
+                    "description": text,
+                    "modifier": modifier,
+                }
+
+    return token_data
 
 
 def build_gm_notes_string(card):
