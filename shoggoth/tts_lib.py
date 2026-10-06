@@ -12,9 +12,9 @@ from shoggoth import tts_sync
 # with bleed (trim=None skips the FFG/MTG trim crop entirely -- see
 # renderer.TRIM_SIZES). Do NOT reuse the 'mtg' trim here: it crops to
 # 1500x2079 at full scale, which is not a valid TTS card image size.
-TTS_IMAGE_SIZE = {'width': 750, 'height': 1050, 'bleed': 36, 'trim': None}
+TTS_IMAGE_SIZE = {'width': 1500, 'height': 2100, 'bleed': 72, 'trim': None}
 TTS_IMAGE_FORMAT = 'webp'
-TTS_IMAGE_QUALITY = 95
+TTS_IMAGE_QUALITY = 80
 
 wrapper_template = {
     "SaveName": "",
