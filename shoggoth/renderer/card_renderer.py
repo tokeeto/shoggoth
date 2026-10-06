@@ -367,7 +367,7 @@ class CardRenderer:
                         vips_image.write_to_memory()
                     )
 
-                # Center the SVG inside the requested size.
+                # Center the SVG inside the requested size
                 result = Image.new('RGBA', size, (0, 0, 0, 0))
                 x = (size[0] - image.width) // 2
                 y = (size[1] - image.height) // 2
