@@ -355,12 +355,10 @@ class CardRenderer:
             if str(path).lower().endswith('.pdf'):
                 with perf.span('Render PDF page to bitmap'):
                     self.resized_cache[(path, size)] = _render_pdf_page(path, size)
-            elif str(path).endswith('.svg'):
+            elif str(path).lower().endswith('.svg'):
                 with perf.span('Load+rasterize SVG (vips)'):
                     vips_image = pyvips.Image.new_from_file(str(path), revalidate=True)
-                    svg_scale = size[0]/vips_image.width
-                    if svg_scale > (size[1]/vips_image.height):
-                        svg_scale = size[1]/vips_image.height
+                    svg_scale = min(size[0] / vips_image.width, size[1] / vips_image.height)
                     vips_image = pyvips.Image.new_from_file(str(path), scale=svg_scale, revalidate=True)
                 with perf.span('Convert vips buffer to PIL'):
                     image = Image.frombytes(
@@ -368,7 +366,14 @@ class CardRenderer:
                         (vips_image.width, vips_image.height),
                         vips_image.write_to_memory()
                     )
-                self.resized_cache[(path, size)] = image
+
+                # Center the SVG inside the requested size.
+                result = Image.new('RGBA', size, (0, 0, 0, 0))
+                x = (size[0] - image.width) // 2
+                y = (size[1] - image.height) // 2
+                result.paste(image, (x, y), image)
+
+                self.resized_cache[(path, size)] = result
             else:
                 img = self.get_cached(path)
                 if img.size == size:
