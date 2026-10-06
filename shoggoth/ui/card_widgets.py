@@ -644,9 +644,11 @@ class IllustrationWidget(QWidget):
         self.pan_y_input = LabeledLineEdit(tr("FIELD_PAN_Y"))
         self.pan_x_input = LabeledLineEdit(tr("FIELD_PAN_X"))
         self.scale_input = LabeledLineEdit(tr("FIELD_SCALE"))
+        self.rotation_input = LabeledLineEdit(tr("FIELD_ROTATION"))
         placement_layout.addWidget(self.pan_y_input)
         placement_layout.addWidget(self.pan_x_input)
         placement_layout.addWidget(self.scale_input)
+        placement_layout.addWidget(self.rotation_input)
         self.mirror_checkbox = QCheckBox(tr("FIELD_MIRROR"))
         placement_layout.addWidget(self.mirror_checkbox)
 
@@ -675,6 +677,7 @@ class IllustrationWidget(QWidget):
         self.pan_x_input.input.textChanged.connect(self.sync_viewport)
         self.pan_y_input.input.textChanged.connect(self.sync_viewport)
         self.scale_input.input.textChanged.connect(self.sync_viewport)
+        self.rotation_input.input.textChanged.connect(self.sync_viewport)
         self.mirror_checkbox.toggled.connect(self.sync_viewport)
 
         self.sync_viewport()
@@ -744,7 +747,7 @@ class IllustrationWidget(QWidget):
             pan_y=self._field_float(self.pan_y_input),
             scale=self._field_float(self.scale_input) or None,
             mirror=self.mirror_checkbox.isChecked(),
-            rotation=self.face.get('illustration_rotation', 0),
+            rotation=self._field_float(self.rotation_input),
             orientation=self.face.get('orientation', 'vertical'),
         )
         self.position_view.setVisible(self.position_view.has_image())
@@ -772,6 +775,7 @@ class IllustrationWidget(QWidget):
         try:
             self.pan_x_input.setText('')
             self.pan_y_input.setText('')
+            self.rotation_input.setText('')
             self.scale_input.setText('')
         finally:
             self._committing = False

@@ -330,6 +330,7 @@
   "FIELD_PAN_X": "Verschiebung X",
   "FIELD_PAN_Y": "Verschiebung Y",
   "FIELD_SCALE": "Skalierung",
+  "FIELD_ROTATION": "Rotation",
   "FIELD_MIRROR": "Spiegeln",
   "TOOLTIP_POSITION_VIEW": "Klicken zum Auswählen, dann ziehen, um die Illustration zu verschieben, scrollen zum Zoomen, Doppelklick setzt auf automatische Einpassung zurück",
   "MSG_POSITION_VIEW_LOCKED": "Bild anklicken, um das Verschieben freizuschalten",
