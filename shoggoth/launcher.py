@@ -78,13 +78,16 @@ def _wait_for_unlock(exe_path: Path) -> bool:
 def _swap(staging_dir: Path, install_dir: Path, status_cb=None) -> None:
     """Replace install_dir's contents with staging_dir's, with rollback on failure."""
     old_dir = install_dir.parent / (install_dir.name + "_old")
+
     if old_dir.exists():
         shutil.rmtree(old_dir, ignore_errors=True)
 
     if status_cb:
         status_cb("Installing update...")
 
+    # Current installation folder is now old_dir
     install_dir.rename(old_dir)
+
     try:
         try:
             staging_dir.rename(install_dir)
@@ -94,14 +97,18 @@ def _swap(staging_dir: Path, install_dir: Path, status_cb=None) -> None:
             logger.info("Cross-volume rename failed, falling back to copy")
             shutil.copytree(staging_dir, install_dir)
             shutil.rmtree(staging_dir, ignore_errors=True)
+
+        # Preserve existing .env file
+        old_env = old_dir / ".env"
+        if old_env.is_file():
+            shutil.copy2(old_env, install_dir / ".env")
+
     except Exception:
         logger.exception("Swap failed, rolling back")
         if install_dir.exists():
             shutil.rmtree(install_dir, ignore_errors=True)
         old_dir.rename(install_dir)
         raise
-
-    shutil.rmtree(old_dir, ignore_errors=True)
 
 
 def _show_error(message: str) -> None:
