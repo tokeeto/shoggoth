@@ -640,17 +640,22 @@ class IllustrationWidget(QWidget):
         self.artist_input = LabeledLineEdit(tr("FIELD_ARTIST"))
         right_layout.addWidget(self.artist_input)
 
+        # Position
         placement_layout = QHBoxLayout()
-        self.pan_y_input = LabeledLineEdit(tr("FIELD_PAN_Y"))
-        self.pan_x_input = LabeledLineEdit(tr("FIELD_PAN_X"))
-        self.scale_input = LabeledLineEdit(tr("FIELD_SCALE"))
-        self.rotation_input = LabeledLineEdit(tr("FIELD_ROTATION"))
+        self.pan_y_input = LabeledLineEdit(tr("FIELD_PAN_Y"), step=1)
+        self.pan_x_input = LabeledLineEdit(tr("FIELD_PAN_X"), step=1)
         placement_layout.addWidget(self.pan_y_input)
         placement_layout.addWidget(self.pan_x_input)
-        placement_layout.addWidget(self.scale_input)
+
+        # Rotation
+        rotation_supported = face is None or face.get('type') != 'investigator'
+        self.rotation_input = LabeledLineEdit(tr("FIELD_ROTATION"), step=0.5)
+        self.rotation_input.setVisible(rotation_supported)
         placement_layout.addWidget(self.rotation_input)
-        self.mirror_checkbox = QCheckBox(tr("FIELD_MIRROR"))
-        placement_layout.addWidget(self.mirror_checkbox)
+
+        # Scale
+        self.scale_input = LabeledLineEdit(tr("FIELD_SCALE"), step=0.01)
+        placement_layout.addWidget(self.scale_input)
 
         # Scale quality warning indicator
         self.scale_warning = QLabel("?")
@@ -658,6 +663,10 @@ class IllustrationWidget(QWidget):
         self.scale_warning.setAlignment(Qt.AlignCenter)
         self.scale_warning.hide()
         placement_layout.addWidget(self.scale_warning)
+
+        # Mirror
+        self.mirror_checkbox = QCheckBox(tr("FIELD_MIRROR"))
+        placement_layout.addWidget(self.mirror_checkbox)
         placement_layout.addStretch(1)
 
         right_layout.addLayout(placement_layout)
