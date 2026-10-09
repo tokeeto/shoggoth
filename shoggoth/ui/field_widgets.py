@@ -4,6 +4,7 @@ Field widgets for Shoggoth using PySide6
 Compact style: every field is a small static uppercase label directly above its input
 (no floating-label animation) — see compact_theme.py / the "Card Editor Style Guide" doc.
 """
+import math
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QLabel, QPushButton
 )
@@ -136,7 +137,8 @@ class LabeledLineEdit(CompactLabeledField):
                 if value.is_integer():
                     self.input.setText(str(int(value)))
                 else:
-                    self.input.setText(str(value))
+                    # Round to 4 decimal places
+                    self.input.setText(str(round(value, 4)))
 
                 self.input.selectAll()
                 return
