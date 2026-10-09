@@ -167,6 +167,7 @@ class IconBrowserDialog(QDialog):
         self.copy_button.clicked.connect(self._copy_reference)
         buttons.addWidget(self.copy_button)
         self.insert_button = QPushButton(tr("BTN_ICON_BROWSER_INSERT"))
+        self.insert_button.setEnabled(False)
         self.insert_button.clicked.connect(self._insert_reference)
         buttons.addWidget(self.insert_button)
         layout.addLayout(buttons)
@@ -179,6 +180,9 @@ class IconBrowserDialog(QDialog):
         self._scan_timer.timeout.connect(self._scan_icon_batch)
         self.finished.connect(self._stop_icon_scan)
         self.set_insert_target(insert_target)
+        self._application = QApplication.instance()
+        if self._application is not None:
+            self._application.focusChanged.connect(self._on_focus_changed)
         QTimer.singleShot(0, self._start_icon_scan)
 
     def set_insert_target(self, widget):
@@ -190,6 +194,11 @@ class IconBrowserDialog(QDialog):
         self.insert_button.setEnabled(widget is not None)
         if widget is not None:
             widget.destroyed.connect(self._insert_target_destroyed)
+
+    def _on_focus_changed(self, _old, new):
+        if (isinstance(new, (QLineEdit, QTextEdit, QPlainTextEdit))
+                and not new.isReadOnly() and new.window() is self.parentWidget()):
+            self.set_insert_target(new)
 
     def _insert_target_destroyed(self, *_args):
         self._insert_target = None
@@ -269,6 +278,8 @@ class IconBrowserDialog(QDialog):
     def _stop_icon_scan(self, *_args):
         self._scan_stopped = True
         self._scan_timer.stop()
+        if self._application is not None:
+            self._application.focusChanged.disconnect(self._on_focus_changed)
         for iterator in self._scan_stack:
             iterator.close()
         self._scan_stack.clear()
