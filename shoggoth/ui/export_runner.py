@@ -217,7 +217,7 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
     # encounter-sets/cards scopes) exports the resolved card list as one
     # flat TTS bag via export_player_cards, which accepts any card list.
     if update_file and Path(update_file).exists():
-        status = tts_lib.update_file(cards, folder, update_file)
+        status = tts_lib.update_file(cards, folder, update_file, d['export_images'])
         path = update_file
     elif scope_type == 'campaign':
         status, path = tts_lib.export_campaign(project, folder, sync=sync)
