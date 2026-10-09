@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, QSize, QRect, QTimer
-from PySide6.QtGui import QColor, QIcon, QPen, QPalette
+from PySide6.QtGui import QColor, QFont, QIcon, QPen, QPalette
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
     QListView, QMessageBox, QPushButton, QPlainTextEdit, QStyledItemDelegate,
@@ -60,22 +60,22 @@ class IconFileModel(QAbstractListModel):
 class IconItemDelegate(QStyledItemDelegate):
     """Draw consistent square previews and a frame-only selection state."""
 
-    _PREVIEW_SIZE = 76
-    _ICON_SIZE = 64
+    PREVIEW_SIZE = 76
+    ICON_SIZE = 64
 
     def paint(self, painter, option, index):
         painter.save()
         rect = option.rect
-        preview = QSize(self._PREVIEW_SIZE, self._PREVIEW_SIZE)
+        preview = QSize(self.PREVIEW_SIZE, self.PREVIEW_SIZE)
         left = rect.left() + (rect.width() - preview.width()) // 2
         preview_rect = QRect(left, rect.top() + 3, preview.width(), preview.height())
 
         painter.fillRect(preview_rect, QColor("#e8e8e8"))
         icon = index.data(Qt.ItemDataRole.DecorationRole)
         if icon is not None and not icon.isNull():
-            pixmap = icon.pixmap(QSize(self._ICON_SIZE, self._ICON_SIZE))
+            pixmap = icon.pixmap(QSize(self.ICON_SIZE, self.ICON_SIZE))
             pixmap = pixmap.scaled(
-                QSize(self._ICON_SIZE, self._ICON_SIZE),
+                QSize(self.ICON_SIZE, self.ICON_SIZE),
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
@@ -88,13 +88,16 @@ class IconItemDelegate(QStyledItemDelegate):
             painter.drawPixmap(icon_rect, pixmap)
 
         if option.state & QStyle.StateFlag.State_Selected:
-            painter.setPen(QPen(QColor("#4285c5"), 2))
+            painter.setPen(QPen(QColor("#4285c5"), 4))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(preview_rect.adjusted(1, 1, -1, -1))
 
-        text_rect = rect.adjusted(2, self._PREVIEW_SIZE + 5, -2, 0)
+        text_rect = rect.adjusted(2, self.PREVIEW_SIZE + 5, -2, 0)
         label = index.data(Qt.ItemDataRole.DisplayRole) or ""
-        label = option.fontMetrics.elidedText(
+        label_font = QFont(option.font)
+        label_font.setPointSizeF(max(1.0, label_font.pointSizeF() - 1.0))
+        painter.setFont(label_font)
+        label = painter.fontMetrics().elidedText(
             label, Qt.TextElideMode.ElideMiddle, text_rect.width()
         )
         painter.setPen(option.palette.color(QPalette.ColorRole.Text))
@@ -110,6 +113,8 @@ class IconItemDelegate(QStyledItemDelegate):
 
 class IconBrowserDialog(QDialog):
     """Visual picker for SVG/PNG icons in a project's ``icons`` directory."""
+
+    white_icons_inverted = False
 
     def __init__(self, project, insert_target=None, parent=None):
         super().__init__(parent)
@@ -151,8 +156,8 @@ class IconBrowserDialog(QDialog):
         self.reference.setReadOnly(True)
         footer.addWidget(self.reference, 1)
         self.white_checkbox = QCheckBox(tr("LABEL_ICON_BROWSER_WHITE"))
-        self.white_checkbox.setChecked(True)
-        self.white_checkbox.toggled.connect(self._update_reference)
+        self.white_checkbox.setChecked(self.white_icons_inverted)
+        self.white_checkbox.toggled.connect(self._set_white_icons_inverted)
         footer.addWidget(self.white_checkbox)
         layout.addLayout(footer)
 
@@ -278,9 +283,13 @@ class IconBrowserDialog(QDialog):
 
         path = html.escape(index.data(Qt.ItemDataRole.UserRole), quote=True)
         color = ' color="inverted"' if self.white_checkbox.isChecked() else ""
-        self.reference.setText(f'<image src="{path}"{color}>')
+        self.reference.setText(f'<image src="./{path}"{color}>')
         self.copy_button.setEnabled(True)
         self.insert_button.setEnabled(self._insert_target is not None)
+
+    def _set_white_icons_inverted(self, checked):
+        type(self).white_icons_inverted = checked
+        self._update_reference()
 
     def _copy_reference(self):
         if self.reference.text():
@@ -346,4 +355,5 @@ def open_icon_browser(window):
             window.file_browser.active_project_changed.disconnect(dialog._active_project_changed_slot)
 
         dialog.finished.connect(disconnect_project_signal)
+
     dialog.show()
