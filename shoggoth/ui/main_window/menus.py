@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QActionGroup
 
 from shoggoth.i18n import get_available_languages, tr
 from shoggoth.ui.main_window import cloud, exports, help_dialogs, image_tools, projects
-from shoggoth.ui import snippet_loader
+from shoggoth.ui import snippet_loader, icon_browser
 
 
 def create_menus(window):
@@ -168,6 +168,8 @@ def _create_tools_menu(window, menubar):
 
     tools_menu.addSeparator()
 
+    _add_action(window, tools_menu, tr("MENU_ICON_BROWSER"),
+                lambda: icon_browser.open_icon_browser(window))
     _add_action(window, tools_menu, tr("MENU_ADD_FADED_EDGE"),
                 lambda: image_tools.open_fade_edge_dialog(window))
 

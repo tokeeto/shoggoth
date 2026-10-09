@@ -18,7 +18,7 @@ The actual behavior lives in the sibling modules:
 """
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QStatusBar,
-    QMessageBox, QDockWidget,
+    QMessageBox, QDockWidget, QApplication, QLineEdit, QTextEdit, QPlainTextEdit,
 )
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QIcon
@@ -73,6 +73,8 @@ class ShoggothMainWindow(QMainWindow):
         self.current_editor = None
         self.current_guide = None
         self.current_guide_editor = None
+        self._last_edit_widget = None
+        QApplication.instance().focusChanged.connect(self._remember_edit_focus)
         card_lang = self.config.get('Shoggoth', 'language', 'en')
         self.card_renderer = CardRenderer(locale=card_lang, hyphenation_enabled=True)
         self.file_watcher = None
@@ -205,6 +207,18 @@ class ShoggothMainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage(tr("STATUS_READY"))
+
+    def _remember_edit_focus(self, _old, new):
+        """Keep the last main-window text control for modeless insert tools."""
+        if (isinstance(new, (QLineEdit, QTextEdit, QPlainTextEdit))
+                and not new.isReadOnly() and new.window() is self):
+            self._last_edit_widget = new
+            if not new.property("_shoggoth_focus_tracked"):
+                new.setProperty("_shoggoth_focus_tracked", True)
+                new.destroyed.connect(self._clear_last_edit_widget)
+
+    def _clear_last_edit_widget(self, *_args):
+        self._last_edit_widget = None
 
     # ── Facade: views ─────────────────────────────────────────────────────
     # Kept as window methods because the rest of the app (and shoggoth.app
