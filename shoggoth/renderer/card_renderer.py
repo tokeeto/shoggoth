@@ -506,6 +506,9 @@ class CardRenderer:
             lossless = quality == 100
             outputs = []
 
+            # Ensure each file path is only written once per export
+            exported_paths = set()
+
             # should each version (eg. 1/2 and 2/2) be printed seperately or as 1-2/2?
             faces = card.versions
             if not separate_versions:
@@ -517,15 +520,18 @@ class CardRenderer:
                     # if this is a repeated card, only export it once
                     if face['type'] in ('player', 'encounter') and not include_backs:
                         file_path = Path(folder) / f'{face["type"]}.{format}'
-                        if not file_path.exists():
-                            self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, rounded)
-                        outputs.append(str(file_path))
                     else:
                         face_letter = 'a' if name == 'front' else 'b'
                         file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter, index=index)
+                    
+                    outputs.append(str(file_path))
+
+                    if file_path not in exported_paths:
                         self._export_side(variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, rounded)
-                        outputs.append(str(file_path))
+                        exported_paths.add(file_path)
+
             return outputs
+            
         except Exception as e:
             print('failed to export card', card)
             print(e)
