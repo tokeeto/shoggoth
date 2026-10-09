@@ -359,6 +359,7 @@
   "FIELD_PAN_X": "Pan X",
   "FIELD_PAN_Y": "Pan Y",
   "FIELD_SCALE": "Scale",
+  "FIELD_ROTATION": "Rotation",
   "FIELD_MIRROR": "Mirror",
   "TOOLTIP_POSITION_VIEW": "Click to select, then drag to move the illustration, scroll to zoom, double-click to reset to automatic fit",
   "MSG_POSITION_VIEW_LOCKED": "Click image to unlock movement",

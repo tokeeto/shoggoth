@@ -798,6 +798,7 @@ class FaceEditor(QWidget):
         self.fields['illustration_pan_y'] = illustration.pan_y_input.input
         self.fields['illustration_pan_x'] = illustration.pan_x_input.input
         self.fields['illustration_scale'] = illustration.scale_input.input
+        self.fields['illustration_rotation'] = illustration.rotation_input.input
         self.fields['illustrator'] = illustration.artist_input.input
         self.fields['illustration_mirror'] = illustration.mirror_checkbox
 
@@ -806,6 +807,7 @@ class FaceEditor(QWidget):
         illustration.pan_y_input.input.textChanged.connect(lambda: self.on_field_changed('illustration_pan_y'))
         illustration.pan_x_input.input.textChanged.connect(lambda: self.on_field_changed('illustration_pan_x'))
         illustration.scale_input.input.textChanged.connect(lambda: self.on_field_changed('illustration_scale'))
+        illustration.rotation_input.input.textChanged.connect(lambda: self.on_field_changed('illustration_rotation'))
         illustration.artist_input.input.textChanged.connect(lambda: self.on_field_changed('illustrator'))
         illustration.mirror_checkbox.toggled.connect(lambda: self.on_field_changed('illustration_mirror'))
 

@@ -7,7 +7,7 @@ Compact style: every field is a small static uppercase label directly above its 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, QLabel, QPushButton
 )
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 
 from shoggoth.ui.text_editor import ArkhamTextEdit, ArkhamTextHighlighter, NbspTextEdit
 from shoggoth.ui.compact_widgets import TagChipsField, ClassChipsField
@@ -111,11 +111,39 @@ class LabeledLineEdit(CompactLabeledField):
 
     textChanged = Signal(str)
 
-    def __init__(self, label_text):
+    def __init__(self, label_text, step=None):
         super().__init__(label_text)
         self.input = QLineEdit()
         self.input.textChanged.connect(self.textChanged.emit)
         self._add_input(self.input)
+
+        if step is not None:
+            self.input.keyPressEvent = self._create_increment_handler(step)
+
+    def _create_increment_handler(self, step):
+        def key_press_event(event):
+            if event.key() in (Qt.Key_Up, Qt.Key_Down):
+                direction = 1 if event.key() == Qt.Key_Up else -1
+                multiplier = 10 if event.modifiers() & Qt.ControlModifier else 1
+
+                try:
+                    value = float(self.input.text())
+                except ValueError:
+                    value = 0
+
+                value += direction * multiplier * step
+
+                if value.is_integer():
+                    self.input.setText(str(int(value)))
+                else:
+                    self.input.setText(str(value))
+
+                self.input.selectAll()
+                return
+
+            QLineEdit.keyPressEvent(self.input, event)
+
+        return key_press_event
 
     def text(self):
         return self.input.text()
