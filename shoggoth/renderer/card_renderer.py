@@ -101,7 +101,8 @@ DEFAULT_TEXT_FIELDS = [
     'cost', 'name', 'traits', 'text', 'subtitle', 'label', 'index',
     'attack', 'evade', 'health', 'stamina', 'sanity', 'victory',
     'clues', 'doom', 'shroud', 'willpower', 'intellect',
-    'combat', 'agility', 'illustrator', 'copyright', 'collection', 'difficulty',
+    'combat', 'agility', 'illustrator', 'copyright', 'collection',
+    'collection_icon', 'collection_number', 'difficulty',
     'text1', 'text2', 'text3', 'chaos_extra', 'tracking',
 ]
 DEFAULT_IMAGE_FIELDS = [
