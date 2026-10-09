@@ -384,7 +384,7 @@ def export_player_cards(cards, image_folder, sync=True):
     return return_status, output_path
 
 
-def update_file(cards, image_folder, file_path_str):
+def update_file(cards, image_folder, file_path_str, export_images):
     return_status = 0
 
     # ------------------------------------------------------------
@@ -433,6 +433,11 @@ def update_file(cards, image_folder, file_path_str):
     # ------------------------------------------------------------
 
     fields_to_preserve = ["GUID", "Transform", "LuaScript", "LuaScriptState"]
+
+    # Keep existing image info if images weren't part of this export
+    if not export_images:
+        fields_to_preserve.append("CardId")
+        fields_to_preserve.append("CustomDeck")
 
     def update_object(obj):
         """
@@ -522,7 +527,8 @@ def update_file(cards, image_folder, file_path_str):
         # Rebuild deck data
         # --------------------------------------------------------
 
-        if obj.get("Name") == "Deck":
+        # Only rebuild decks if images were part of this export
+        if obj.get("Name") == "Deck" and export_images:
             rebuild_deck_data(obj)
 
         return obj
@@ -577,7 +583,7 @@ def update_file(cards, image_folder, file_path_str):
     print(f"IDs not found:    {stats['not_found']}")
     print(f"Invalid GMNotes:  {stats['invalid_gmnotes']}")
     print(f"Unused cards:     {len(unused_ids)}")
-    print(f"Unused file:      {output_path}")
+    print(f"Unused file:      {output_path if unused_ids else 'none'}")
 
     return return_status
 
