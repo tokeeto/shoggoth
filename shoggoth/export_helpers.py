@@ -448,22 +448,23 @@ def build_gm_notes(card):
         notes['locationBack'] = loc_back
 
     # uses data (Note: this assumes english and does not support multiple uses)
-    match = re.match(r"Uses \((\d+) ([^)]+)\)\.", front_text)
+    try:
+        match = re.match(r"Uses \((\d+) ([^)]+)\)\.", front_text)
+        if match:
+            count = int(match.group(1))
+            raw_type = match.group(2)
 
-    if match:
-        count = int(match.group(1))
-        raw_type = match.group(2)
+            type_str = TTS_USES_MAP.get(raw_type, raw_type)
+            if raw_type not in TTS_USES_MAP and raw_type.endswith("s"):
+                type_str = raw_type[:-1]
 
-        if raw_type in TTS_USES_MAP:
-            type_str = TTS_USES_MAP[raw_type]
-        elif raw_type.endswith("s"):
-            type_str = raw_type[:-1]
-        
-        notes['uses'] = [{
-            "count": count,
-            "type": type_str.capitalize(),
-            "token": "resource",
-        }]
+            notes['uses'] = [{
+                "count": count,
+                "type": type_str.capitalize(),
+                "token": "resource",
+            }]
+    except Exception:
+        pass
 
     # load manually defined metadata if possible
     manual_metadata = card.get_meta('tts_metadata')

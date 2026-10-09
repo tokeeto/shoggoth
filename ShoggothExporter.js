@@ -920,9 +920,9 @@ function convert_card(path, collection, image_folder) {
     }
     
     if (has_value(settings.get("Slot"))) {
-        let slots = [String(settings.get("Slot"))];
+        let slots = [String(settings.get("Slot")).toLowerCase()];
         if (has_value(settings.get("Slot2"))) {
-            slots.push(String(settings.get("Slot2")))
+            slots.push(String(settings.get("Slot2")).toLowerCase())
         };
         out["front"]["slot"] = slots.join(", ");
     }
