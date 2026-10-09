@@ -180,8 +180,9 @@ class IconBrowserDialog(QDialog):
         self._scan_timer.timeout.connect(self._scan_icon_batch)
         self.finished.connect(self._stop_icon_scan)
         self.set_insert_target(insert_target)
+
         self._application = QApplication.instance()
-        if self._application is not None:
+        if isinstance(self._application, QApplication):
             self._application.focusChanged.connect(self._on_focus_changed)
         QTimer.singleShot(0, self._start_icon_scan)
 
@@ -278,7 +279,7 @@ class IconBrowserDialog(QDialog):
     def _stop_icon_scan(self, *_args):
         self._scan_stopped = True
         self._scan_timer.stop()
-        if self._application is not None:
+        if isinstance(self._application, QApplication):
             self._application.focusChanged.disconnect(self._on_focus_changed)
         for iterator in self._scan_stack:
             iterator.close()
