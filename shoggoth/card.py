@@ -591,6 +591,7 @@ class TEMPLATES:
     def MINI_INVESTIGATOR(cls):
         card = cls.BASE()
         card['amount'] = 1
+        card['enumerated'] = 'ignored'
         card['front']['type'] = 'mini_investigator'
         card['back']['type'] = 'mini_investigator_back'
         return card
