@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QLabel, QScrollArea,
     QSizePolicy, QHBoxLayout, QPushButton, QButtonGroup
 )
-from PySide6.QtCore import Qt, QPoint, Signal
+from PySide6.QtCore import Qt, QPoint, QPointF, Signal
 from PySide6.QtGui import QWheelEvent, QMouseEvent, QPainter, QGuiApplication
 
 
@@ -96,14 +96,19 @@ class ZoomableImageLabel(QLabel):
         # Fit to widget first
         fit_size = original_size.scaled(available_size, Qt.KeepAspectRatio)
 
-        final_w = int(fit_size.width() * self.zoom_factor)
-        final_h = int(fit_size.height() * self.zoom_factor)
+        # Scale to physical pixels, so the painter can copy the pixmap 1:1
+        # instead of resampling it again on scaled displays (Windows at
+        # 125%/150%), which blurs it.
+        dpr = self.devicePixelRatioF()
+        final_w = max(1, round(fit_size.width() * self.zoom_factor * dpr))
+        final_h = max(1, round(fit_size.height() * self.zoom_factor * dpr))
 
         self._display_pixmap = self.original_pixmap.scaled(
             final_w, final_h,
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation
         )
+        self._display_pixmap.setDevicePixelRatio(dpr)
         self.update()
 
     def _update_cursor(self):
@@ -121,10 +126,24 @@ class ZoomableImageLabel(QLabel):
         super().paintEvent(event)
         if not self._display_pixmap:
             return
+        if self._display_pixmap.devicePixelRatio() != self.devicePixelRatioF():
+            # Moved to a screen with another scale factor
+            self._rebuild_scaled()
         painter = QPainter(self)
-        x = (self.width()  - self._display_pixmap.width())  // 2 + self.current_offset.x()
-        y = (self.height() - self._display_pixmap.height()) // 2 + self.current_offset.y()
-        painter.drawPixmap(x, y, self._display_pixmap)
+        size = self._display_pixmap.deviceIndependentSize()
+        pos = QPointF(
+            (self.width()  - size.width())  / 2 + self.current_offset.x(),
+            (self.height() - size.height()) / 2 + self.current_offset.y(),
+        )
+        # Snap to a whole physical pixel. With a fractional scale factor a
+        # whole logical coordinate lands between physical pixels, and the
+        # image is then resampled differently at every pan position.
+        to_device = painter.deviceTransform()
+        to_logical, invertible = to_device.inverted()
+        if invertible:
+            device_pos = to_device.map(pos)
+            pos = to_logical.map(QPointF(round(device_pos.x()), round(device_pos.y())))
+        painter.drawPixmap(pos, self._display_pixmap)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
