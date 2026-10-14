@@ -147,27 +147,6 @@ class Face:
         self.fallback
         return tuple(self._fallback_files)
 
-    def _resolved_classes(self):
-        """ This face's class list, resolving a 'classes': '<copy>' fallback
-            (e.g. investigator_back mirroring the front's class) by reading
-            the other side's raw class data directly.
-
-            Can't just call self.get('classes')/other_side.get('classes')
-            here: get() resolves through __getitem__, which for a face with
-            variant blocks calls tags() to evaluate them - and tags() is what
-            calls this, so that route recurses. Reading the stored values
-            directly (_stored: data + inherited faces) breaks the cycle.
-        """
-        def stored(face):
-            try:
-                return face._stored('classes')
-            except KeyError:
-                return None
-        classes = stored(self)
-        if classes == '<copy>' or (classes is None and self.fallback.get('classes') == '<copy>'):
-            classes = stored(self.other_side)
-        return classes if isinstance(classes, list) else []
-
     def tags(self):
         """ The set of tags variant blocks can match against:
             the card's class (or multi patterns when it has several classes),
@@ -175,7 +154,7 @@ class Face:
             card belongs to an encounter set).
         """
         tags = set()
-        classes = self._resolved_classes()
+        classes = self.get('classes', [])
         if len(classes) == 1:
             tags.add(classes[0])
         elif len(classes) > 1:
@@ -211,6 +190,11 @@ class Face:
             return self._stored(key)
         except KeyError:
             pass
+
+        # classes decide which variant/suffixed keys apply (tags() reads them),
+        # so they can't come from those themselves - that would recurse
+        if key == 'classes':
+            return self.fallback[key]
 
         # variant blocks: later blocks override earlier ones
         variants = self.fallback.get('variants')
@@ -273,7 +257,7 @@ class Face:
             self.card.dirty = True
 
     def get_class(self):
-        cls = self._resolved_classes()
+        cls = self.get('classes', [])
         if not cls:
             return None
         if len(cls) == 1:
@@ -282,7 +266,7 @@ class Face:
 
     def get_multi_patterns(self):
         """ Returns a number of patterns to match for multi class cards """
-        cls_count = len(self._resolved_classes())
+        cls_count = len(self.get('classes', []))
         # 1st - straight count: multi3
         yield f'multi{cls_count}'
         # 2nd - plus, ranging from highest to lowest: multi4+
