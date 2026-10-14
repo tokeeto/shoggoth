@@ -313,6 +313,9 @@ class ShoggothMainWindow(QMainWindow):
         if kind != 'cards':
             return
         self.update_card_in_tree(element_id, project)
+        if changed:
+            for card_id in project.inheriting_card_ids(element_id):
+                self.update_card_in_tree(card_id, project)
         if changed and self.current_card and self.current_card.id == element_id \
                 and self.current_card.project is project:
             self.preview.schedule_update()

@@ -7,7 +7,7 @@ from pathlib import Path
 from itertools import combinations
 
 import shoggoth
-from shoggoth.card import TEMPLATES, Card
+from shoggoth.card import TEMPLATES, FACE_NAMES, Card
 from shoggoth.encounter_set import EncounterSet, parse_number_span
 from shoggoth.export_profile import ExportProfile
 from shoggoth.guide import Guide
@@ -106,7 +106,7 @@ def sort_cards(cards):
     def group_key(group):
         inv = next((c for c in group if c.card_type == 'investigator'), group[0])
         return class_order.get(inv.get_class(), 15)
-    
+
     sorted_linked_groups = sorted(linked_groups.values(), key=group_key)
 
     # Group bonded cards together by the first ID of their parent
@@ -209,6 +209,12 @@ class Project:
     # (not per-instance) so the UI registers once and hears about every open
     # project, instead of being wired up project by project.
     _change_listeners = []
+
+    # card id -> card dict, see _card_data. Class-level defaults so subclasses
+    # skipping __init__ (ModificationProject) have them; always reassigned,
+    # never mutated, so instances don't share an index.
+    _card_index = {}
+    _card_index_key = None
 
     def __init__(self, file_path, data):
         self.file_path = file_path
@@ -376,10 +382,49 @@ class Project:
         # self.writer.save_project(self)
         self.writer.save_all()
 
+    def _card_data(self, card_id):
+        """ The stored dict of a card, by id, or None.
+
+            Backed by an id index, as inherited faces look their source up on
+            every field read. Cards get added, removed and replaced from many
+            places (UI, cloud merge, reload), so rather than having all of them
+            keep the index current, it is rebuilt whenever the card list is no
+            longer the one it was built from (other list object or length),
+            or it points at a dict that no longer has that id.
+        """
+        cards = self.data.get('cards', [])
+        key = (id(cards), len(cards))
+        entry = self._card_index.get(card_id)
+        if key != self._card_index_key or (entry is not None and entry.get('id') != card_id):
+            self._card_index = {c.get('id'): c for c in cards}
+            self._card_index_key = key
+            entry = self._card_index.get(card_id)
+        return entry
+
     def get_card(self, id):
-        for entry in self.data.get('cards', []):
-            if entry.get('id') == id:
-                return Card(entry, project=self)
+        entry = self._card_data(id)
+        return Card(entry, project=self) if entry is not None else None
+
+    def inheriting_card_ids(self, card_id):
+        """ Ids of the cards with a face inheriting from card_id, directly or
+            through other inheriting cards (see Face.inherit) - the cards whose
+            look changes when card_id does.
+        """
+        def sources(entry):
+            for name in FACE_NAMES:
+                link = (entry.get(name) or {}).get('inherit')
+                if isinstance(link, dict):
+                    yield link.get('card')
+
+        found, todo = set(), [card_id]
+        while todo:
+            source_id = todo.pop()
+            for entry in self.data.get('cards', []):
+                entry_id = entry.get('id')
+                if entry_id not in found and entry_id != card_id and source_id in sources(entry):
+                    found.add(entry_id)
+                    todo.append(entry_id)
+        return found
 
     @property
     def guides(self):

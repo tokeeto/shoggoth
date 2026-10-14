@@ -137,6 +137,11 @@ class TreeContextMenu:
         duplicate_action = QAction(tr("CTX_DUPLICATE"), self.parent)
         duplicate_action.triggered.connect(lambda: self.duplicate_card(card))
         menu.addAction(duplicate_action)
+
+        inherit_action = QAction(tr("CTX_NEW_INHERITING_CARD"), self.parent)
+        inherit_action.setToolTip(tr("HELP_INHERIT"))
+        inherit_action.triggered.connect(lambda: self.new_inheriting_card(card))
+        menu.addAction(inherit_action)
         
         menu.addSeparator()
         
@@ -485,6 +490,24 @@ class TreeContextMenu:
         card.project.add_card(new_data)
 
         print(f"Duplicated card: {card.name}")
+
+    def new_inheriting_card(self, card):
+        """Add a card in the same place whose faces inherit everything from
+        card's (see Face.inherit), and open it."""
+        from uuid import uuid4
+
+        new_data = json.loads(json.dumps(card.data))
+        new_data['id'] = str(uuid4())
+        new_data['name'] = tr("NAME_INHERITED_CARD", name=card.name)
+        for face in ('front', 'back'):
+            new_data[face] = {'type': new_data[face]['type'], 'inherit': {'card': card.id, 'face': face}}
+        card.project.add_card(new_data)
+
+        import shoggoth
+        shoggoth.app.refresh_tree()
+        new_card = card.project.get_card(new_data['id'])
+        shoggoth.app.show_card(new_card)
+        shoggoth.app.select_item_in_tree(new_card.id)
 
     def duplicate_selection(self, cards, guides):
         """Duplicate several cards and guides in place"""
