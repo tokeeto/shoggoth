@@ -877,7 +877,6 @@ class TreeContextMenu:
     def export_guide_to_pdf(self, guide):
         """Export a guide to PDF via a save-file dialog"""
         from shoggoth.pdf_exporter import check_prince_installed
-        import shoggoth
         if not check_prince_installed():
             from shoggoth.ui.prince_installer import PrinceInstallerDialog
             from PySide6.QtWidgets import QDialog

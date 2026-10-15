@@ -144,7 +144,7 @@ class Face:
     def fallback_files(self):
         """Project-local defaults files this face's fallback chain was loaded
         from (the asset pack's own defaults are not listed)."""
-        self.fallback
+        self.fallback  # noqa: B018 -- loading the fallback is what fills _fallback_files
         return tuple(self._fallback_files)
 
     def tags(self):
@@ -226,7 +226,7 @@ class Face:
                 keys |= set(variant.get('set', {}))
         return keys
 
-    def get(self, key, default=''):
+    def get(self, key, default:Any=''):
         try:
             result = self[key]
         except KeyError:
@@ -445,7 +445,7 @@ class Card:
             self.dirty = True
 
     @property
-    def encounter_number(self):
+    def encounter_number(self) -> None | str:
         if not self.encounter:
             return None
         return self.data.get('encounter_number', -1)
@@ -496,6 +496,7 @@ class Card:
     def versions(self):
         if not self.has_versions:
             return [self]
+        assert isinstance(self.encounter_number, str)
 
         versions = []
         r = self.encounter_number.split('-')

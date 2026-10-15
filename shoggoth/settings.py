@@ -24,7 +24,6 @@ def apply_appearance(color_scheme: str, ui_style: str):
     ui_style:     'system' | any QStyleFactory key (e.g. 'Fusion', 'Breeze')
     """
     from PySide6.QtWidgets import QApplication
-    from PySide6.QtCore import Qt
     app = QApplication.instance()
     if not app:
         return
@@ -259,7 +258,7 @@ class SettingsDialog(QDialog):
         self.prince_cmd_input.setPlaceholderText(tr("PLACEHOLDER_PRINCE"))
         prince_cmd_layout.addWidget(self.prince_cmd_input)
         
-        prince_cmd_label = QLabel(tr("HELP_PRINCE_COMMAND"))
+        prince_cmd_label = QLabel(tr("HELP_PRINCE_COMMAND"))  # noqa: F841 -- never added to the layout; TODO show it or drop it
         prince_layout.addRow(tr("LABEL_PRINCE_COMMAND"), prince_cmd_layout)
         prince_layout.addRow("", QLabel(tr("EXAMPLE_PRINCE_PATH")))
         

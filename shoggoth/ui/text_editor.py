@@ -1,8 +1,8 @@
 """
 Custom text editor widget for Arkham Horror card text with syntax highlighting and autocomplete
 """
-from PySide6.QtWidgets import QTextEdit, QPlainTextEdit, QCompleter, QToolTip, QFrame
-from PySide6.QtCore import Qt, QStringListModel, QRect, QPoint
+from PySide6.QtWidgets import QTextEdit, QPlainTextEdit, QCompleter, QFrame
+from PySide6.QtCore import Qt, QStringListModel
 from PySide6.QtGui import (
     QSyntaxHighlighter, QTextCharFormat, QColor, QFont,
     QTextCursor, QPalette, QFontDatabase
@@ -249,13 +249,13 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
             'Possessed', 'Room', 'Dionsaur', 'Service', 'New Orleans', 'Outsider', 'Skai',
             'Insight', 'Boon', 'Blessed', 'Illicit', 'Alexandria', 'Past', 'Creature',
             'Item', 'Expedition', 'Witch', 'Elite', 'Yithian', 'Leader', 'Syndicate',
-            'Vehicle', 'Cursed', 'Yuggoth', 'Eztli', 'Tower', 'Creature', 'Police', 'Central',
+            'Vehicle', 'Cursed', 'Yuggoth', 'Eztli', 'Tower', 'Police', 'Central',
             'Cosmos', 'Scholar', 'Flora', 'Veteran', 'Civic', 'Paris', 'Guest', 'Surface',
             'Eldritch', 'Servitor', 'Warden', 'Believer', 'Venice', 'Abandoned', 'Connection',
             'Paradox', 'Firearm', 'Covenant', 'Train', 'Restricted', 'Developed', 'Ancient',
             'Dinosaur', 'Dormant', 'Coastal', 'Oozified', 'Distortion', 'Scion', 'Pact',
             'Glyph', 'Evidence', 'Kadath', 'Ocean', 'Occult', 'Extraterrestrial', 'Instrument',
-            'Monster', 'Science', 'Item', 'Public', 'Task', 'Familiar', 'Conspirator',
+            'Monster', 'Science', 'Public', 'Task', 'Familiar', 'Conspirator',
             'Hybrid', 'Geist', 'Hazard', 'Desert', 'New York City', 'Ruined', 'Clairvoyant',
             'Song', 'Clover Club', 'Medic', 'Construct', 'Resolute', 'Wilderness Monster',
             'Kuala Lumpur', 'Obstacle', 'Crew', 'Tentacle', 'Second Floor', 'Campsite',

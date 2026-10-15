@@ -152,6 +152,7 @@ SIZE_RE = re.compile(r'<size (\d+)>', flags=re.IGNORECASE)
 MARGIN_RE = re.compile(r'<margin (\d+)(\s\d+)*>', flags=re.IGNORECASE)  # only the first number is used
 INDENT_RE = re.compile(r'<indent (\d+)>', flags=re.IGNORECASE)
 FONT_RE = re.compile(r'<font "(.+?)">', flags=re.IGNORECASE)
+COLOR_RE = re.compile(r'<color "(.+?)">', flags=re.IGNORECASE)
 IMAGE_RE = re.compile(r'<image(\s\w+=\".+?\"){1,}?>', flags=re.IGNORECASE)
 SPACING_RE = re.compile(r'<spacing ([\d.]+)>', flags=re.IGNORECASE)
 _ATTRIBUTE_RE = re.compile(r'(\w+)\s*=\s*"([^"]*)"')

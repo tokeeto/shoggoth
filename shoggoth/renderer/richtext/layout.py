@@ -328,9 +328,10 @@ class _Line:
                 if item.letter_spaced:
                     x += run.flush(commands, self.y, base, context)
                     run.reset(x)
-                    commands.append(_text_command(item.text, item.font, x, self.y, context))
+                    commands.append(_text_command(item.text, item.font, x, self.y, context,
+                                                  item.style.color))
                     _add_decorations(commands, item.style.strike, item.style.underline,
-                                     x, item.width, self.y, base, context)
+                                     x, item.width, self.y, base, context, item.style.color)
                     x += item.width
                 elif run.matches(item):
                     run.add(item)
@@ -438,7 +439,7 @@ class _Run:
     """Accumulates consecutive same-font, same-decoration text items so a line
     of ~20 items becomes 2-3 shaped draw calls."""
 
-    __slots__ = ('chars', 'width', 'font', 'x', 'strike', 'underline')
+    __slots__ = ('chars', 'width', 'font', 'x', 'strike', 'underline', 'color')
 
     def __init__(self, x):
         self.reset(x)
@@ -450,11 +451,13 @@ class _Run:
         self.x = x
         self.strike = False
         self.underline = False
+        self.color = None
 
     def begin(self, item):
         self.font = item.font
         self.strike = item.style.strike
         self.underline = item.style.underline
+        self.color = item.style.color
         self.chars = [item.text]
         self.width = item.width
 
@@ -465,7 +468,8 @@ class _Run:
     def matches(self, item):
         return (item.font is self.font
                 and item.style.strike == self.strike
-                and item.style.underline == self.underline)
+                and item.style.underline == self.underline
+                and item.style.color == self.color)
 
     def flush(self, commands, line_y, base_size, context):
         """Emit the run and return the x correction (true kerned advance minus
@@ -474,25 +478,26 @@ class _Run:
             return 0.0
         text = ''.join(self.chars)
         true_advance = self.font.getlength(text)
-        commands.append(_text_command(text, self.font, self.x, line_y, context))
+        commands.append(_text_command(text, self.font, self.x, line_y, context, self.color))
         _add_decorations(commands, self.strike, self.underline,
-                         self.x, self.width, line_y, base_size, context)
+                         self.x, self.width, line_y, base_size, context, self.color)
         return true_advance - self.width
 
 
-def _text_command(text, font, x, y, context):
-    return TextCommand(x, y, text, font, context.fill, context.outline, context.outline_fill)
+def _text_command(text, font, x, y, context, color=None):
+    return TextCommand(x, y, text, font, color or context.fill, context.outline, context.outline_fill)
 
 
-def _add_decorations(commands, strike, underline, x, width, y, base_size, context):
+def _add_decorations(commands, strike, underline, x, width, y, base_size, context, color=None):
+    fill = color or context.fill
     if strike:
         strike_y = int(y + base_size * STRIKETHROUGH_Y_FACTOR)
         commands.append(LineCommand(int(x), strike_y, int(x + width), strike_y,
-                                    context.fill, max(1, base_size // 16)))
+                                    fill, max(1, base_size // 16)))
     if underline:
         underline_y = int(y + base_size * UNDERLINE_Y_FACTOR)
         commands.append(LineCommand(int(x), underline_y, int(x + width), underline_y,
-                                    context.fill, max(1, base_size // 18)))
+                                    fill, max(1, base_size // 18)))
 
 
 class _LayoutPass:

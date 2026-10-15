@@ -146,7 +146,7 @@
                     "guardian"
                 ],
                 "traits": "Insight.",
-                "text": "Fast. Play after you defeat an enemy.\nDiscover 1 clue at your location.",
+                "text": "<color \"darkred\">Fast.</color> Play after you defeat an enemy.\n<u>Discover 1 clue</u> at your location.\n<color \"#1a6fd0\">Blue <action>, <color \"red\">red</color>, <u>blue again</u></color>.",
                 "flavor_text": "Just as I suspected!",
                 "level": "0",
                 "illustrator": "Mark Behm",

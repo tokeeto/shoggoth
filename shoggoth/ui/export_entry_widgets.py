@@ -366,7 +366,7 @@ class TtsEntryWidget(QWidget):
         layout.addWidget(self._folder)
         self._export_images_cb.toggled.connect(self._folder.setVisible)
 
-        from shoggoth.tts_lib import TTS_IMAGE_FORMAT, TTS_IMAGE_SIZE, TTS_IMAGE_QUALITY
+        from shoggoth.tts_lib import TTS_IMAGE_FORMAT, TTS_IMAGE_SIZE
         info = QLabel(tr("TTS_FORMAT_INFO").format(
             fmt=TTS_IMAGE_FORMAT.upper(), w=TTS_IMAGE_SIZE['width'], h=TTS_IMAGE_SIZE['height'],
         ))

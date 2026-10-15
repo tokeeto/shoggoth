@@ -1,8 +1,9 @@
 """Typography tuning. Fractions are of the current font size."""
 
 LINE_HEIGHT_FACTOR = 1.30
+# offsets from the text baseline (positive is down)
 STRIKETHROUGH_Y_FACTOR = -0.45
-UNDERLINE_Y_FACTOR = 0.88
+UNDERLINE_Y_FACTOR = 0.12        # same depth as the first line of a double underline
 DBL_UNDERLINE_Y_FACTOR = 0.12
 QUOTE_INDENT = 50                # text indent inside <blockquote>
 QUOTE_BAR_SPACING = 10           # gap between the two blockquote bars

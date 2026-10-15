@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem
 )
 from PySide6.QtCore import Qt, Signal, QThread
-from PySide6.QtGui import QPixmap, QImage, QCursor
+from PySide6.QtGui import QPixmap, QCursor
 from shoggoth.i18n import tr
 from shoggoth.renderer import renderer_for_card
 from shoggoth.ui.field_widgets import LabeledLineEdit, FieldWidget
@@ -275,7 +275,7 @@ class EncounterSetEditor(QWidget):
         for trait in card_traits:
             trait = trait.strip()
             if trait != '':
-                for copy in range(card.amount): 
+                for _copy in range(card.amount): 
                     trait_list.append(trait)
 
     def _build_cards_tab(self):

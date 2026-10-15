@@ -2,19 +2,21 @@
 
 `_tokenize` scans the string into `Token`s (running the string/token pre- and
 post-passes in `preprocess`). `_resolve_to_pieces` then folds every style-only
-token (`<b>`, `<font>`, `<indent>`, `<center>`, `<size>`, `<u>`, `<dbl>`,
+token (`<b>`, `<font>`, `<color>`, `<indent>`, `<center>`, `<size>`, `<u>`, `<dbl>`,
 `<blockquote>`, ...) into the `Style` of the pieces it covers and drops it, so
 the layout engine only sees space-occupying pieces (`TEXT`, `SPACE`, `ICON`,
 `IMAGE`, `HR`), flow breaks (`BREAK`, `PAR`, `HR_BREAK`, `VSPACE`) and the
 `VALIGN` marker.
 """
 
+from PIL import ImageColor
+
 from shoggoth.renderer.richtext import preprocess
 from shoggoth.renderer.richtext.model import (
     Align, Piece, PieceType, Style, Token, TokenType,
 )
 from shoggoth.renderer.richtext.tags import (
-    FONT_RE, IMAGE_RE, INDENT_RE, MARGIN_RE, SIZE_RE, SPACING_RE,
+    COLOR_RE, FONT_RE, IMAGE_RE, INDENT_RE, MARGIN_RE, SIZE_RE, SPACING_RE,
     parse_tag_attributes, trie_match,
 )
 
@@ -122,6 +124,15 @@ def _match_parametric(remaining, tokens, resources, project):
         tokens.append(Token(TokenType.FONT_PUSH, font=font_key, strike=missing))
         return len(match[0])
 
+    match = COLOR_RE.match(remaining)
+    if match:
+        tokens.append(Token(TokenType.COLOR_PUSH, _parse_color(match[1])))
+        return len(match[0])
+
+    if remaining.startswith('</color>'):
+        tokens.append(Token(TokenType.COLOR_POP))
+        return len('</color>')
+
     if remaining.startswith('</font>'):
         tokens.append(Token(TokenType.FONT_POP))
         return len('</font>')
@@ -144,11 +155,24 @@ def _match_parametric(remaining, tokens, resources, project):
     return 0
 
 
+def _parse_color(value):
+    """A `<color "...">` value (any Pillow color: name, hex, `rgb(...)`, ...)
+    as '#rrggbb' or '#rrggbbaa', which both Pillow and CSS (PDF text overlays)
+    understand. None for something that isn't a color: the text keeps the
+    color it had."""
+    try:
+        rgb = ImageColor.getrgb(value.strip())
+    except ValueError:
+        print(f'Unknown text color: {value!r}')
+        return None
+    return '#' + ''.join(f'{channel:02x}' for channel in rgb)
+
+
 def _resolve_to_pieces(tokens, base_font, base_align):
     # Scoped style state. <b>/<i>/... push `font` alone; <font "..."> pushes
     # `font` and `strike` together.
     state = {'font': base_font, 'strike': False, 'underline': False,
-             'align': base_align, 'indent': 0, 'size': None}
+             'align': base_align, 'indent': 0, 'size': None, 'color': None}
     stacks = {key: [] for key in state}
 
     def push(key, value):
@@ -171,7 +195,8 @@ def _resolve_to_pieces(tokens, base_font, base_align):
 
     def current_style():
         return Style(state['font'], state['size'], state['underline'], dbl_armed,
-                     state['strike'], state['align'], state['indent'], quote, hang)
+                     state['strike'], state['align'], state['indent'], quote, hang,
+                     state['color'])
 
     def add(piece_type, **fields):
         nonlocal line_has_content
@@ -245,5 +270,10 @@ def _resolve_to_pieces(tokens, base_font, base_align):
             push('indent', token.value)
         elif kind is TokenType.INDENT_POP:
             pop('indent', 0)
+        elif kind is TokenType.COLOR_PUSH:
+            # an invalid color keeps the current one, but still pairs with </color>
+            push('color', token.value or state['color'])
+        elif kind is TokenType.COLOR_POP:
+            pop('color', None)
 
     return pieces

@@ -92,7 +92,7 @@ def _export_numbered_cards(parent, renderer, cards, folder, kwargs):
             progress.setValue(i - cores)
         progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
 
-        def _target(card=card, kw=dict(kwargs, number=number)):
+        def _target(card=card, kw=dict(kwargs, number=number)):  # noqa: B006 -- binds per-iteration values
             outputs = renderer_for_card(renderer, card).export_card_images(card, str(folder), **kw)
             if outputs:
                 entries.extend((card, p) for p in outputs)

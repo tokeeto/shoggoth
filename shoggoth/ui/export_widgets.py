@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QRadioButton, QButtonGroup,
     QLabel, QLineEdit, QPushButton, QFileDialog,
-    QCheckBox, QProgressDialog, QListWidget, QListWidgetItem,
+    QProgressDialog, QListWidget, QListWidgetItem,
 )
 from PySide6.QtCore import Qt
 
@@ -287,7 +287,7 @@ def run_image_export(parent, renderer, cards, folder, **export_kwargs):
 
         progress.setLabelText(tr("MSG_EXPORTING_CARD").format(name=card.name))
 
-        def _target(card=card, kw=dict(export_kwargs)):
+        def _target(card=card, kw=dict(export_kwargs)):  # noqa: B006 -- binds per-iteration values
             outputs = renderer_for_card(renderer, card).export_card_images(card, str(folder), **kw)
             if outputs:
                 paths.extend(outputs)

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QCheckBox, QComboBox, QTabWidget, QTextEdit
 )
 from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtGui import QPixmap
 from PIL.ImageQt import ImageQt
 from pathlib import Path
 import threading

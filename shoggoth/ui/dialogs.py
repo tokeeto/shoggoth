@@ -6,10 +6,8 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QComboBox, QLabel,
     QDialogButtonBox, QFileDialog, QMessageBox
 )
-from PySide6.QtCore import Qt
 from pathlib import Path
 import json
-from uuid import uuid4
 
 import shoggoth
 from shoggoth import telemetry

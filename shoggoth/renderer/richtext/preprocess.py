@@ -21,6 +21,7 @@ CONTROL_TOKEN_TYPES = frozenset({
     TokenType.INDENT_PUSH, TokenType.INDENT_POP,
     TokenType.SIZE, TokenType.SIZE_POP,
     TokenType.FONT_PUSH, TokenType.FONT_POP,
+    TokenType.COLOR_PUSH, TokenType.COLOR_POP,
     TokenType.UNDERLINE, TokenType.DBL_UNDERLINE,
     TokenType.MARGIN, TokenType.LETTER_SPACING, TokenType.VALIGN,
 })

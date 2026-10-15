@@ -11,7 +11,7 @@ from typing import NamedTuple, Optional
 
 
 class TokenType(Enum):
-    """Kind of a tokenizer token. FORMAT..INDENT_POP are style-only: the parser
+    """Kind of a tokenizer token. FORMAT..COLOR_POP are style-only: the parser
     folds them into piece styles and the layout engine never sees them."""
 
     NEWLINE = auto()
@@ -35,6 +35,8 @@ class TokenType(Enum):
     SIZE_POP = auto()
     INDENT_PUSH = auto()     # <indent N>
     INDENT_POP = auto()      # </indent>
+    COLOR_PUSH = auto()      # <color "red">
+    COLOR_POP = auto()
 
 
 class PieceType(Enum):
@@ -81,6 +83,7 @@ class Style(NamedTuple):
     indent: int = 0               # <indent N>, px
     quote: bool = False           # inside <blockquote>
     hang: bool = False            # paragraph opened with a leading bullet glyph
+    color: Optional[str] = None   # <color "...">, '#rrggbb[aa]'; None = the text block's fill
 
 
 class Piece(NamedTuple):

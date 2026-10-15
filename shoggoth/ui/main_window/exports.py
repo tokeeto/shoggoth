@@ -201,6 +201,5 @@ def run_export_profile(window, profile_id):
 def open_prince_installer(window):
     """Open the Prince installer dialog."""
     from shoggoth.ui.prince_installer import PrinceInstallerDialog
-    from PySide6.QtWidgets import QDialog
     dialog = PrinceInstallerDialog(parent=window)
     dialog.exec()

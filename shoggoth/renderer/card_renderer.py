@@ -1,6 +1,5 @@
 from PIL import Image, ImageOps, ImageDraw
 import numpy as np
-import os
 import threading
 from collections import OrderedDict
 from contextlib import contextmanager
@@ -15,7 +14,6 @@ import pyvips
 import pypdfium2 as pdfium
 import re
 import json
-import functools
 import logging
 
 logging.getLogger('PIL').setLevel(logging.ERROR)
@@ -541,7 +539,7 @@ class CardRenderer:
         except Exception as e:
             print('failed to export card', card)
             print(e)
-            logger.error('failed to export card', card, exc_info=True)
+            logger.exception('failed to export card %s', card)
 
     def _export_side(self, variant, face, file_path, bleed, rotate, size, quality, lossless, text_as_html, rounded=False):
         """Render one face and save it, optionally writing an HTML text sidecar.
@@ -702,13 +700,13 @@ class CardRenderer:
         try:
             with perf.span('render_illustration (base layer)'):
                 self.render_illustration(card_image, side, s)
-        except Exception as e:
+        except Exception:
             logger.exception('Failed to render Illustration')
 
         try:
             with perf.span('render_template'):
                 self.render_template(card_image, side, bleed, template_bleed)
-        except Exception as e:
+        except Exception:
             logger.exception('Failed to render Template')
 
         if not template_bleed:
@@ -751,14 +749,15 @@ class CardRenderer:
                 with perf.span(func.__name__, at=func):
                     func(card_image, side, s)
             except Exception as e:
-                logging.debug(f'Failed in {func}:', e, exc_info=True)
+                # logged (not just printed): the visual check fails on these
+                logger.exception('Failed in %s', func.__name__)
                 print(f'Failed in {func}: {e}')
 
         if side['type'] == 'investigator' or side.get('illustration_on_top', False):
             try:
                 with perf.span('render_illustration (over-template layer)'):
                     self.render_illustration(card_image, side, s)
-            except Exception as e:
+            except Exception:
                 logger.exception('Failed to render Illustration second layer')
 
         # debug regions

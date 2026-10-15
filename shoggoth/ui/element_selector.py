@@ -451,7 +451,6 @@ class ElementSelectorDialog(QDialog):
             add(current.data(Qt.UserRole))
 
         first_visible = 0
-        vp = self.results_list.viewport()
         top_item = self.results_list.itemAt(0, 0)
         if top_item is not None:
             first_visible = self.results_list.row(top_item)

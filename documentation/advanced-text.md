@@ -99,6 +99,14 @@ Pixel values are in card pixels. A card is about 1500 pixels wide, and normal ru
 
 Text boxes aren't always rectangles. Many templates wrap text around the art or around icons, and Shoggoth follows those shapes automatically.
 
+## Colored text
+
+```
+<color "darkred">Forced</color> - When this card enters play...
+```
+
+Everything between `<color "...">` and `</color>` is drawn in that color, including icons and underlines. The color can be a name (`red`, `darkgreen`), a hex code (`#8b0000`) or `rgb(139, 0, 0)`. Colors can be nested: after an inner `</color>`, the text goes back to the outer color. An unknown color is ignored, and the text keeps its color.
+
 ## Images in text
 
 ```

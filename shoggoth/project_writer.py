@@ -34,10 +34,10 @@ class Writer:
             if value['id'] == card.id:
                 index = key
                 break
-        if index:
+        if index is not None:
             orig_data['cards'][index] = card.data
         else:
-            orig_data['cards'][card.id] = card.data
+            orig_data['cards'].append(card.data)
 
         self.project.set_dirty(card.id, False)
         self._write(orig_data)

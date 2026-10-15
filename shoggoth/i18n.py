@@ -4,7 +4,6 @@ Provides translation support for the user interface.
 """
 import json
 from pathlib import Path
-from typing import Optional
 
 # Directory containing translation files
 TRANSLATIONS_DIR = Path(__file__).parent / "translations"

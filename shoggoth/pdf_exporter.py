@@ -1,4 +1,3 @@
-import base64
 import platform
 import re
 import shoggoth
@@ -6,7 +5,6 @@ from shoggoth.card import natural_sort_key
 from shoggoth.renderer import CardRenderer, CARD_SIZES
 from shoggoth.settings import EXPORT_SIZES
 import subprocess
-from threading import Thread
 from time import time
 from pathlib import Path
 from shoggoth.files import prince_dir as _local_prince_dir
@@ -55,7 +53,7 @@ def _font_css(folder):
     return ''
 
 
-def _card_page(path, w_mm=_CARD_W_MM, h_mm=_CARD_H_MM):
+def _card_page(path, w_mm:float=_CARD_W_MM, h_mm:float=_CARD_H_MM):
     """One card page: the raster image plus, if the renderer wrote an HTML
     text sidecar next to it, the vector text overlay scaled from card pixels
     down to the printed size."""
@@ -350,5 +348,3 @@ def azao_pdf(cards, target_file_front, target_file_back, image_folder, size=None
         cwd=prince_cwd,
     )
     print(f"Azao pdf front time: {time()-start_time}")
-
-

@@ -367,7 +367,7 @@ def _apply_encounter_refs(text: str, guide=None) -> str:
             try:
                 value = getattr(es, prop)
                 return html_module.escape(str(value))
-            except AttributeError as e:
+            except AttributeError:
                 value = es.data.get(prop, '')
                 return html_module.escape(str(value))
         except Exception:

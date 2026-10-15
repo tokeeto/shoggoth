@@ -18,6 +18,7 @@ Every tag you can use in card text. For explanations and examples, see [Writing 
 | `<blockquote>` … `</blockquote>` | Story text style |
 | `<size N>` … `</size>` | Font size in card pixels |
 | `<font "name">` … `</font>` | Another font. See [Using your own fonts](fonts.md). |
+| `<color "red">` … `</color>` | Text color: a color name, `#rrggbb` or `rgb(r, g, b)`. See [Colored text](advanced-text.md#colored-text). |
 | `<indent N>` … `</indent>` | Indent by N pixels |
 | `<margin N>` | N pixels of vertical space |
 | `<spacing X>` | Letter spacing (1 is normal) |

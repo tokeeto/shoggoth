@@ -11,7 +11,6 @@ from shoggoth.card import TEMPLATES, FACE_NAMES, Card
 from shoggoth.encounter_set import EncounterSet, parse_number_span
 from shoggoth.export_profile import ExportProfile
 from shoggoth.guide import Guide
-from shoggoth.i18n import tr
 from shoggoth.project_writer import CloudWriter, Writer
 
 
@@ -620,7 +619,7 @@ class Project:
                 assert EncounterSet.is_valid(entry)
             except AssertionError:
                 print('Entry failed assertion, project is invalid: ', entry)
-                raise Exception('Invalid project file.')
+                raise Exception('Invalid project file.') from None
 
     @staticmethod
     def load(file_path):

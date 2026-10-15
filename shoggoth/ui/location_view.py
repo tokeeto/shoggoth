@@ -3,8 +3,7 @@ Location View - Visual editor for location connections in encounter sets
 """
 from shoggoth.i18n import tr
 from PySide6.QtWidgets import (
-    QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsPixmapItem,
-    QGraphicsPathItem, QGraphicsEllipseItem, QWidget, QVBoxLayout,
+    QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsPathItem, QGraphicsEllipseItem, QWidget, QVBoxLayout,
     QHBoxLayout, QPushButton, QLabel, QMenu, QCheckBox,
     QApplication, QDialog, QDialogButtonBox, QGridLayout,
     QScrollArea, QFrame, QTabBar, QInputDialog,
@@ -17,7 +16,6 @@ from PySide6.QtGui import (
 )
 import math
 from io import BytesIO
-from pathlib import Path
 from uuid import uuid4
 from shoggoth import files
 from shoggoth.files import overlay_dir
@@ -1048,7 +1046,7 @@ class LocationView(QGraphicsView):
         # Build connection symbol -> nodes mapping
         # Only include nodes that have a connection symbol (can be traveled to)
         symbol_to_nodes = {}
-        for key, node in self.location_nodes.items():
+        for node in self.location_nodes.values():
             connection = node.face.get('connection')
             # Skip nodes without a connection symbol - they cannot be traveled to
             if connection and connection != 'None':

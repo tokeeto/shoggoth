@@ -46,7 +46,29 @@ allow-direct-references = true
 dev = [
     "jurigged>=0.6.1",
     "pyinstaller>=6.19.0",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
 ]
 
 [project.scripts]
 shoggoth = "shoggoth.tool:run"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider"
+
+[tool.ruff]
+target-version = "py312"
+extend-exclude = ["plugins", "test_case"]
+
+[tool.ruff.lint]
+# Only rules that point at likely bugs, not style: pyflakes (undefined names,
+# unused imports/variables, redefinitions), syntax errors, and bugbear.
+select = ["F", "E9", "B"]
+ignore = [
+    "B008",  # function call in default argument: used deliberately for Qt/Path defaults
+    "B905",  # zip() without strict=
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B017"]  # pytest.raises(Exception) is fine in tests

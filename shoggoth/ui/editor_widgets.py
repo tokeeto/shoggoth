@@ -194,7 +194,7 @@ class IconComboBox(NoScrollComboBox):
         self.setIconSize(QSize(28, 28))
 
         # Add all symbols with icons
-        from PySide6.QtGui import QIcon, QPixmap
+        from PySide6.QtGui import QIcon
 
         for symbol in self.CONNECTION_SYMBOLS:
             if symbol == 'None':

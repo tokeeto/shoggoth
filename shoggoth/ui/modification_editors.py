@@ -13,7 +13,7 @@ import copy
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QGridLayout, QHBoxLayout, QLabel, QLineEdit, QScrollArea, QSplitter,
+    QGridLayout, QLabel, QLineEdit, QScrollArea, QSplitter,
     QToolButton, QVBoxLayout, QWidget,
 )
 

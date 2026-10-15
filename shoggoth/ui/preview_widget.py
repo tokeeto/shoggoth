@@ -3,8 +3,7 @@ Improved card preview widget with zoom, pan, and tabs
 """
 from shoggoth.i18n import tr
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTabWidget, QLabel, QScrollArea,
-    QSizePolicy, QHBoxLayout, QPushButton, QButtonGroup
+    QWidget, QVBoxLayout, QTabWidget, QLabel, QSizePolicy, QHBoxLayout, QPushButton, QButtonGroup
 )
 from PySide6.QtCore import Qt, QPoint, QPointF, Signal
 from PySide6.QtGui import QWheelEvent, QMouseEvent, QPainter, QGuiApplication

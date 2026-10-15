@@ -330,7 +330,7 @@ def _format_customization_options(entries):
     """
     # TODO: arkham.build may expect a specific JSON format
     options = []
-    for i, entry in enumerate(entries):
+    for entry in entries:
         if len(entry) >= 3:
             options.append({
                 "xp": entry[0],

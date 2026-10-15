@@ -131,7 +131,7 @@ class IconsWidget(QWidget):
         rows_layout.setContentsMargins(0, 0, 0, 0)
         rows_layout.setSpacing(2)
 
-        for pos, neg, name in self.ICONS:
+        for pos, _neg, name in self.ICONS:
             icon_path = overlay_dir / 'svg' / f"skill_icon_{pos}.svg"
             counter = _IconCounter(icon_path, pos, name)
             counter.stepped.connect(lambda step, k=pos: self._on_stepped(k, step))
@@ -195,7 +195,7 @@ class IconsWidget(QWidget):
 
         conflict = any(raw_pos[pos] > 0 and raw_neg[pos] > 0 for pos, neg, _ in self.ICONS)
 
-        for pos, neg, _ in self.ICONS:
+        for pos, _neg, _ in self.ICONS:
             self.counts[pos] = raw_pos[pos] - raw_neg[pos]
             self.counters[pos].set_count(self.counts[pos])
 
