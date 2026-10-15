@@ -170,6 +170,7 @@ def show_guide(window, guide):
     from shoggoth.ui.guide_editor import GuideEditor
     editor = GuideEditor(guide)
     editor.guide_content_changed.connect(window.guide_preview_widget.schedule_render)
+    editor.section_opened.connect(window.guide_preview_widget.show_section)
     _mount(window, editor, scroll=False)
 
     window.current_guide = guide

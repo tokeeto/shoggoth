@@ -16,7 +16,9 @@ import sys
 import threading
 from io import BytesIO
 from shoggoth.i18n import tr
-from shoggoth.guide import SECTION_TYPES, GuideSection
+from shoggoth.guide import (
+    SECTION_TYPES, GuideSection, PAGE_MAP_PRINCE_ARGS, parse_page_map, with_page_map_script,
+)
 
 GUIDE_FORMAT_LABELS = {
     'a4': 'A4',
@@ -108,6 +110,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
 
 class PDFPageRenderer(QThread):
     page_ready = Signal(int, object)
+    layout_ready = Signal(object, object)  # page count (int | None), {section_id: start page}
 
     def __init__(self, guide, page_number):
         super().__init__()
@@ -129,21 +132,21 @@ class PDFPageRenderer(QThread):
             if not prince_cmd or self._stop:
                 return
 
-            html = self.guide.to_html()
+            html = with_page_map_script(self.guide.to_html())
             if self._stop:
                 return
 
             popen_kwargs = {
                 'stdin': subprocess.PIPE,
                 'stdout': subprocess.PIPE,
-                'stderr': subprocess.DEVNULL,
+                'stderr': subprocess.PIPE,
             }
             if sys.platform == 'win32':
                 popen_kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
 
             proc = subprocess.Popen(
                 [prince_cmd, '-', '--raster-output=-', '--raster-format=jpg',
-                 f'--raster-pages={self.page_number}'],
+                 f'--raster-pages={self.page_number}', *PAGE_MAP_PRINCE_ARGS],
                 cwd=prince_cwd,
                 **popen_kwargs,
             )
@@ -156,12 +159,19 @@ class PDFPageRenderer(QThread):
                 proc.wait()
                 return
 
-            stdout, _ = proc.communicate(input=html.encode())
+            stdout, stderr = proc.communicate(input=html.encode())
 
             with self._proc_lock:
                 self._proc = None
 
-            if self._stop or proc.returncode != 0 or not stdout:
+            if self._stop or proc.returncode != 0:
+                return
+
+            page_map = parse_page_map(stderr.decode(errors='replace'))
+            if page_map is not None:
+                self.layout_ready.emit(*page_map)
+
+            if not stdout:
                 return
 
             img = Image.open(BytesIO(stdout))
@@ -1004,6 +1014,9 @@ class GuidePDFPreviewWidget(QWidget):
         self.render_thread = None
         self.render_timer = None
         self._fit_on_next_render = False
+        self.section_pages = {}  # section_id -> start page, from the last render
+        self._pending_section = None  # jump here when the next page map arrives
+        self._auto_navigating = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -1047,6 +1060,8 @@ class GuidePDFPreviewWidget(QWidget):
         self.guide = guide
         self.current_page = 1
         self._fit_on_next_render = True
+        self.section_pages = {}
+        self._pending_section = None
         self.page_spin.blockSignals(True)
         self.page_spin.setValue(1)
         self.page_spin.blockSignals(False)
@@ -1071,7 +1086,34 @@ class GuidePDFPreviewWidget(QWidget):
             self.render_thread.wait(500)
         self.render_thread = PDFPageRenderer(self.guide, page_number)
         self.render_thread.page_ready.connect(self._on_page_rendered)
+        self.render_thread.layout_ready.connect(self._on_layout_ready)
         self.render_thread.start()
+
+    def show_section(self, section_id):
+        """Go to the page the section starts on. The known page map may predate
+        the latest edits (or lack a new section), so re-render and correct the
+        page once the fresh map arrives."""
+        self._pending_section = section_id
+        if section_id in self.section_pages:
+            self._go_to_page(self.section_pages[section_id])
+        self.schedule_render()
+
+    def _go_to_page(self, page_number):
+        self._auto_navigating = True
+        try:
+            self.page_spin.setValue(page_number)
+        finally:
+            self._auto_navigating = False
+
+    def _on_layout_ready(self, page_count, section_pages):
+        self.section_pages = section_pages
+        if page_count:
+            self.page_label.setText(tr("LABEL_OF_PAGES").format(total=page_count))
+        if self._pending_section is not None:
+            page = section_pages.get(self._pending_section)
+            self._pending_section = None
+            if page is not None and page != self.current_page:
+                self._go_to_page(page)
 
     def _on_page_rendered(self, page_number, pixmap):
         if page_number != self.current_page:
@@ -1083,6 +1125,9 @@ class GuidePDFPreviewWidget(QWidget):
             self.pdf_viewer.update_pixmap(pixmap)
 
     def _on_page_spin_changed(self, page_number):
+        if not self._auto_navigating:
+            # The user picked a page; don't pull them away when the map arrives.
+            self._pending_section = None
         self.current_page = page_number
         self._render_page(page_number)
 
@@ -1120,6 +1165,7 @@ class GuideEditor(QWidget):
     """Stacked overview/section editor panel. PDF preview lives in a separate dock."""
 
     guide_content_changed = Signal()
+    section_opened = Signal(str)  # section_id
 
     def __init__(self, guide):
         super().__init__()
@@ -1161,6 +1207,7 @@ class GuideEditor(QWidget):
         self._editor_slot_layout.addWidget(editor)
         self._active_editor = editor
         self.stack.setCurrentIndex(1)
+        self.section_opened.emit(section_id)
 
     def _show_overview(self):
         if self._active_editor:

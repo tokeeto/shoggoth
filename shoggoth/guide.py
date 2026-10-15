@@ -779,3 +779,53 @@ class Guide:
             cwd=prince_cwd,
             **kwargs,
         )
+
+
+# ── Page map (which page each section starts on) ─────────────────────────────
+
+# Injected into preview HTML only. Prince's box tracking reports the page each
+# section's first box landed on once layout is complete; the result goes to
+# the log (stderr with --structured-log) so stdout stays the raster image.
+_PAGE_MAP_MARKER = 'SHOGGOTH_PAGES '
+_PAGE_MAP_SCRIPT = """<script>
+Prince.trackBoxes = true;
+Prince.addEventListener("complete", function () {
+  var out = {pages: (typeof PDF !== "undefined" && PDF.pages) ? PDF.pages.length : null, sections: {}};
+  var els = document.querySelectorAll("[data-shoggoth-id]");
+  for (var i = 0; i < els.length; i++) {
+    var boxes = els[i].getPrinceBoxes();
+    if (boxes.length) out.sections[els[i].getAttribute("data-shoggoth-id")] = boxes[0].pageNum;
+  }
+  console.log("%s" + JSON.stringify(out));
+}, false);
+</script>""" % _PAGE_MAP_MARKER
+
+# Prince flags needed for the page map script to run and report.
+PAGE_MAP_PRINCE_ARGS = ['--javascript', '--structured-log=normal']
+
+
+def with_page_map_script(html: str) -> str:
+    """Return html with the page map script added at the end of <body>."""
+    head, sep, tail = html.rpartition('</body>')
+    if not sep:
+        return html + _PAGE_MAP_SCRIPT
+    return head + _PAGE_MAP_SCRIPT + sep + tail
+
+
+def parse_page_map(log: str) -> 'tuple[int | None, dict[str, int]] | None':
+    """Parse Prince's structured log for the page map script's output.
+
+    Returns (page_count, {section_id: start_page}), or None if the script
+    reported nothing (old Prince, JavaScript failure)."""
+    for line in log.splitlines():
+        _, sep, payload = line.partition(_PAGE_MAP_MARKER)
+        if not sep:
+            continue
+        try:
+            data = json.loads(payload)
+        except ValueError:
+            return None
+        pages = data.get('pages')
+        sections = {str(k): int(v) for k, v in (data.get('sections') or {}).items()}
+        return (int(pages) if pages else None), sections
+    return None
