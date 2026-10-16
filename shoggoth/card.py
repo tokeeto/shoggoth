@@ -47,6 +47,24 @@ def matches(when, tags):
     return False
 
 
+# path -> ((mtime, size), parsed defaults file). Shared by every face that
+# uses the file, so the parsed data must never be mutated.
+_defaults_cache = {}
+
+
+def load_defaults_file(path):
+    """ The parsed defaults file at path, re-read only when it changed on disk """
+    stat = path.stat()
+    stamp = (stat.st_mtime_ns, stat.st_size)
+    cached = _defaults_cache.get(path)
+    if cached and cached[0] == stamp:
+        return cached[1]
+    with path.open('r', encoding='utf-8') as f:
+        data = json.load(f)
+    _defaults_cache[path] = (stamp, data)
+    return data
+
+
 class Face:
     def __init__(self, data, card):
         self.data = data
@@ -58,34 +76,32 @@ class Face:
         return self.data == other.data
 
     def __build_fallback(self, name):
-        """ Builds the fallback recursively """
-        fallback = {}
-        if path := self.card.project.find_file(name):
-            defaults_path = path
-            self._fallback_files.append(path)
-        else:
-            defaults_path = defaults_dir / f'{name}.json'
-
-        try:
-            with defaults_path.open('r', encoding='utf-8') as f:
-                fallback = json.load(f)
-                if fallback.get('parent'):
-                    parent = self.__build_fallback(fallback['parent'])
-                    # variant blocks accumulate along the parent chain
-                    # (child blocks last, so they win), while plain keys
-                    # merge with the child overriding the parent
-                    variants = (parent.get('variants') or []) + (fallback.get('variants') or [])
-                    fallback = parent | fallback
-                    if variants:
-                        fallback['variants'] = variants
-        except Exception as e:
-            print('exception when loading fallback:', e)
-            return {}
-
-        return fallback
+        """ The defaults files for type `name` as a list: its own file
+            first, then its parent's, and so on up the chain. A file that
+            can't be read ends the chain there.
+        """
+        layers, seen = [], set()
+        while name and name not in seen:
+            seen.add(name)
+            if path := self.card.project.find_file(name):
+                self._fallback_files.append(path)
+            else:
+                path = defaults_dir / f'{name}.json'
+            try:
+                layer = load_defaults_file(path)
+            except Exception as e:
+                print('exception when loading fallback:', e)
+                break
+            layers.append(layer)
+            name = layer.get('parent')
+        return layers
 
     @property
     def fallback(self):
+        """ The defaults chain, one parsed file per entry, most specific
+            first (see __build_fallback). Shared with other faces: never
+            mutate it.
+        """
         if self._fallback is None:
             self._fallback_files = []
             self._fallback = self.__build_fallback(self.data['type'])
@@ -114,30 +130,23 @@ class Face:
         card = self.card.project.get_card(link['card'])
         return card.get_face(link['face']) if card else None
 
-    def _stored(self, key, _seen=None):
-        """ The value stored for key on this face, or on the face it
-            inherits from (recursively). Defaults files are not consulted.
-            Raises KeyError when no face in the chain stores the key.
-            Inheritance cycles are cut where they loop.
+    def _inherit_chain(self):
+        """ The data of this face, then of the face it inherits from, and
+            so on (see inherit). Inheritance cycles are cut where they loop.
 
             'type' is never inherited in practice: every face stores its own.
         """
-        if key in self.data:
-            return self.data[key]
-        _seen = _seen or set()
-        _seen.add(id(self.data))
-        source = self.inherited_face
-        if source is None or id(source.data) in _seen:
-            raise KeyError(key)
-        return source._stored(key, _seen)
-
-    def _stored_keys(self):
-        """ Every key _stored can answer for """
-        keys, seen, face = set(), set(), self
+        seen, face = set(), self
         while face is not None and id(face.data) not in seen:
             seen.add(id(face.data))
-            keys |= set(face.data)
+            yield face.data
             face = face.inherited_face
+
+    def _stored_keys(self):
+        """ Every key stored on this face or a face it inherits from """
+        keys = set()
+        for data in self._inherit_chain():
+            keys |= set(data)
         return keys - {'inherit'}
 
     @property
@@ -184,46 +193,67 @@ class Face:
                 raise KeyError(key)
         return value
 
-    def _resolve(self, key):
-        """ __getitem__ without the '<copy>' step """
-        try:
-            return self._stored(key)
-        except KeyError:
-            pass
+    def _values(self, key):
+        """ Every value this face has for key, highest priority first:
+            stored on this face, on the faces it inherits from, the matching
+            variant blocks of every defaults file (most specific file first,
+            later blocks first), then the files' plain values (most specific
+            first). A parent's variant block beats a child's plain value.
+        """
+        for data in self._inherit_chain():
+            if key in data:
+                yield data[key]
 
-        # classes decide which variant/suffixed keys apply (tags() reads them),
+        # classes decide which variant blocks apply (tags() reads them),
         # so they can't come from those themselves - that would recurse
-        if key == 'classes':
-            return self.fallback[key]
+        if key != 'classes':
+            tags = None
+            for layer in self.fallback:
+                for variant in reversed(layer.get('variants') or []):
+                    values = variant.get('set') or {}
+                    if key in values:
+                        if tags is None:
+                            tags = self.tags()
+                        if matches(variant.get('when'), tags):
+                            yield values[key]
 
-        # variant blocks: later blocks override earlier ones
-        variants = self.fallback.get('variants')
-        if variants:
-            tags = self.tags()
-            for variant in reversed(variants):
-                values = variant.get('set', {})
-                if key in values and matches(variant.get('when'), tags):
-                    return values[key]
+        for layer in self.fallback:
+            if key in layer:
+                yield layer[key]
 
-        # legacy flat '<key>_<class>' lookup for old-format defaults files
-        cls = self.get_class()
-        if cls == 'multi':
-            for pattern in self.get_multi_patterns():
-                if f'{key}_{pattern}' in self.fallback:
-                    return self.fallback[f'{key}_{pattern}']
-        if f'{key}_{cls}' in self.fallback:
-            return self.fallback[f'{key}_{cls}']
-        return self.fallback[key]
+    def _resolve(self, key):
+        """ __getitem__ without the '<copy>' step: the highest priority
+            value (see _values). A dict with "$inherit": true is laid over
+            the next value down instead of replacing it, so it only needs
+            the fields it changes.
+        """
+        overlays = []
+        for value in self._values(key):
+            if not (isinstance(value, dict) and value.get('$inherit')):
+                break
+            overlays.append(value)
+        else:
+            if not overlays:
+                raise KeyError(key)
+            value = {}
+
+        if overlays:
+            for overlay in reversed(overlays):
+                value = (value if isinstance(value, dict) else {}) | overlay
+            del value['$inherit']  # a fresh dict: the merge above made it
+        return value
 
     def visible_keys(self):
-        """ All keys resolvable on this face: card data, active variant
-            blocks, and the base fallback.
+        """ All keys resolvable on this face: card data, then per defaults
+            file its plain keys and those of its active variant blocks.
         """
-        keys = (self._stored_keys() | set(self.fallback)) - {'variants', 'parent'}
+        keys = self._stored_keys()
         tags = self.tags()
-        for variant in self.fallback.get('variants') or []:
-            if matches(variant.get('when'), tags):
-                keys |= set(variant.get('set', {}))
+        for layer in self.fallback:
+            keys |= set(layer) - {'variants', 'parent'}
+            for variant in layer.get('variants') or []:
+                if matches(variant.get('when'), tags):
+                    keys |= set(variant.get('set') or {})
         return keys
 
     def get(self, key, default:Any=''):
@@ -263,15 +293,6 @@ class Face:
         if len(cls) == 1:
             return cls[0]
         return 'multi'
-
-    def get_multi_patterns(self):
-        """ Returns a number of patterns to match for multi class cards """
-        cls_count = len(self.get('classes', []))
-        # 1st - straight count: multi3
-        yield f'multi{cls_count}'
-        # 2nd - plus, ranging from highest to lowest: multi4+
-        for n in range(cls_count, 0, -1):
-            yield f'multi{n}+'
 
     @property
     def card_types(self):

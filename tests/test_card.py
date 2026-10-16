@@ -1,5 +1,5 @@
 """How a face resolves its values: stored data, inheritance, the defaults
-chain with its variant blocks, legacy class suffixes and '<copy>'."""
+chain with its variant blocks, '$inherit' overlays and '<copy>'."""
 import pytest
 
 from shoggoth.card import matches, natural_sort_key
@@ -120,24 +120,89 @@ def test_encounter_pseudo_tag(defaults):
     assert project.get_card('e').front['collection'] == 'encounter'
 
 
-def test_legacy_class_suffix_keys(defaults):
-    defaults('asset', {'name': 'plain', 'name_weakness': 'weak', 'template_multi3': 'm3', 'template_multi2+': 'm2+', 'template': 't'})
+def test_legacy_class_suffix_keys_are_plain_keys(defaults):
+    defaults('asset', {'name': 'plain', 'name_weakness': 'weak'})
+    face = make_project(card_data('w', front={'type': 'asset', 'classes': ['weakness']})).get_card('w').front
+    assert face['name'] == 'plain'
+
+
+def test_parent_variant_beats_child_plain_value(defaults):
+    defaults('base', {'k': 'base', 'variants': [{'when': 'weakness', 'set': {'k': 'base variant'}}]})
+    defaults('asset', {'parent': 'base', 'k': 'asset'})
     project = make_project(
         card_data('w', front={'type': 'asset', 'classes': ['weakness']}),
-        card_data('m3', front={'type': 'asset', 'classes': ['a', 'b', 'c']}),
-        card_data('m4', front={'type': 'asset', 'classes': ['a', 'b', 'c', 'd']}),
-        card_data('one', front={'type': 'asset', 'classes': ['a']}),
+        card_data('g', front={'type': 'asset', 'classes': ['guardian']}),
     )
-    assert project.get_card('w').front['name'] == 'weak'
-    assert project.get_card('m3').front['template'] == 'm3'
-    assert project.get_card('m4').front['template'] == 'm2+'
-    assert project.get_card('one').front['template'] == 't'
+    assert project.get_card('w').front['k'] == 'base variant'
+    assert project.get_card('g').front['k'] == 'asset'
 
 
-def test_variants_beat_legacy_suffixes(defaults):
-    defaults('asset', {'name_weakness': 'legacy', 'variants': [{'when': 'weakness', 'set': {'name': 'variant'}}]})
-    face = make_project(card_data('w', front={'type': 'asset', 'classes': ['weakness']})).get_card('w').front
-    assert face['name'] == 'variant'
+def test_parent_cycle_does_not_loop(defaults):
+    defaults('asset', {'parent': 'base', 'a': 'asset'})
+    defaults('base', {'parent': 'asset', 'b': 'base'})
+    face = make_project(card_data('x')).get_card('x').front
+    assert (face['a'], face['b']) == ('asset', 'base')
+
+
+# ── "$inherit" ───────────────────────────────────────────────────────────
+
+REGION = {'x': 1, 'y': 2, 'width': 3, 'height': 4}
+
+
+def test_inherit_dict_in_face_overlays_defaults(defaults):
+    defaults('asset', {'region': REGION})
+    face = make_project(card_data('x', front={'type': 'asset', 'region': {'$inherit': True, 'y': 20, 'extra': 5}})).get_card('x').front
+    assert face['region'] == {'x': 1, 'y': 20, 'width': 3, 'height': 4, 'extra': 5}
+
+
+def test_dict_without_inherit_replaces(defaults):
+    defaults('asset', {'region': REGION})
+    face = make_project(card_data('x', front={'type': 'asset', 'region': {'y': 20}})).get_card('x').front
+    assert face['region'] == {'y': 20}
+
+
+def test_inherit_chains_through_every_layer(defaults):
+    defaults('base', {'region': REGION, 'variants': [{'when': 'seeker', 'set': {'region': {'$inherit': True, 'x': 10}}}]})
+    defaults('asset', {'parent': 'base', 'region': {'$inherit': True, 'width': 30}})
+    project = make_project(
+        card_data('src', front={'type': 'asset', 'region': {'$inherit': True, 'height': 40}}),
+        card_data('x', front={'type': 'asset', 'classes': ['seeker'], 'inherit': {'card': 'src', 'face': 'front'},
+                              'region': {'$inherit': True, 'y': 20}}),
+    )
+    # face > inherited face > base.json's variant > asset.json > base.json
+    assert project.get_card('x').front['region'] == {'x': 10, 'y': 20, 'width': 30, 'height': 40}
+
+
+def test_inherit_stops_at_first_plain_dict(defaults):
+    defaults('base', {'region': REGION})
+    defaults('asset', {'parent': 'base', 'region': {'y': 2}})
+    face = make_project(card_data('x', front={'type': 'asset', 'region': {'$inherit': True, 'x': 1}})).get_card('x').front
+    assert face['region'] == {'x': 1, 'y': 2}
+
+
+def test_inherit_with_nothing_below(defaults):
+    defaults('asset', {})
+    face = make_project(card_data('x', front={'type': 'asset', 'region': {'$inherit': True, 'x': 1}})).get_card('x').front
+    assert face['region'] == {'x': 1}
+
+
+def test_inherit_never_mutates_shared_defaults(defaults):
+    defaults('asset', {'region': REGION})
+    project = make_project(
+        card_data('a', front={'type': 'asset', 'region': {'$inherit': True, 'x': 100}}),
+        card_data('b'),
+    )
+    assert project.get_card('a').front['region']['x'] == 100
+    assert project.get_card('b').front['region'] == REGION
+
+
+def test_defaults_file_reloads_when_changed(defaults):
+    defaults('asset', {'k': 'old'})
+    card = make_project(card_data('x')).get_card('x')
+    assert card.front['k'] == 'old'
+    defaults('asset', {'k': 'new, and longer'})
+    card.reload_fallback()
+    assert card.front['k'] == 'new, and longer'
 
 
 def test_project_local_defaults_file_wins(defaults, tmp_path):
