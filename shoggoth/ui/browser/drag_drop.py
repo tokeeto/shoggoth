@@ -296,7 +296,7 @@ class DraggableTreeWidget(QTreeWidget):
                 card.set('encounter_set', None)
                 card.set('investigator', None)
                 card.front.set('classes', [drop_data])
-                if card.back.get('type') == 'encounter':
+                if card.back.card_type == 'encounter':
                     card.back.set('type', 'player')
 
             elif drop_type == 'other':
@@ -304,7 +304,7 @@ class DraggableTreeWidget(QTreeWidget):
                 card.set('encounter_set', None)
                 card.set('investigator', None)
                 card.front.set('classes', ['guardian', 'seeker'])
-                if card.back.get('type') == 'encounter':
+                if card.back.card_type == 'encounter':
                     card.back.set('type', 'player')
 
             elif drop_type == 'investigator':
