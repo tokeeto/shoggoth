@@ -400,7 +400,7 @@ def update_file(cards, image_folder, file_path_str, export_images):
 
         # special handling for ID since the TTS mod uses that to match mini-card and investigator
         card_id = card.id
-        if card.front.get('type', '') == 'mini_investigator':
+        if card.card_type == 'mini_investigator':
             card_id = card.get('investigator_id', '00000') + '-m'
 
         id_to_card[card_id] = card_to_tts(card, image_id, image_folder)

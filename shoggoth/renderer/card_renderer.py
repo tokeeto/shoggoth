@@ -612,11 +612,7 @@ class CardRenderer:
     def text_replacement(self, field, value, side):
         """ handles advanced text replacement fields """
         value = value.replace('<name>', side.card.name)
-        if side == side.card.front:
-            other_side = side.card.back
-        else:
-            other_side = side.card.front
-        value = value.replace('<copy>', other_side.get(field, '<copy>'))
+        value = value.replace('<copy>', side.other_side.get(field, '<copy>'))
         if side.card.project.icon:
             path = side.card.project.find_file(side.card.project.icon)
             value = value.replace('<exi>', f'<image src="{path}" color="inverted">')
@@ -1495,7 +1491,7 @@ class CardRenderer:
             but this allows for easy json formatting of the card.
             It's essentially just a list of image and text.
         """
-        if side['type'] != 'customizable':
+        if side.card_type != 'customizable':
             return
 
         entries = side.get('entries', [])

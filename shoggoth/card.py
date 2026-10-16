@@ -336,18 +336,11 @@ class Face:
             candidates.append(card_type)
         return [c for c in dict.fromkeys(candidates) if c]
 
-    def get_editor(self):
-        """ Returns the expected editor type for this face
-            This will usually be the same as a the type, but
-            some types might be using a parent editor instead.
-        """
-        return self.get('editor', self.get('type'))
-
     @property
     def other_side(self):
-        if self == self.card.front:
-            return self.card.back
-        return self.card.front
+        # identity, not ==: Face.__eq__ compares data, and both sides of
+        # e.g. a story card can hold identical data
+        return self.card.back if self is self.card.front else self.card.front
 
 
 def split_folder(folder):
@@ -589,19 +582,6 @@ class Card:
     def is_valid(data):
         return 'front' in data and 'back' in data
 
-    @staticmethod
-    def new(name) -> dict[str, Any]:
-        return {
-            'name': name,
-            'id': str(uuid4()),
-            'front': {
-                'type': 'asset'
-            },
-            'back': {
-                'type': 'player'
-            }
-        }
-
     def save(self):
         self.project.writer.save_card(self)
         self.dirty = False
@@ -611,22 +591,10 @@ class Card:
 class TEMPLATES:
     @classmethod
     def get(cls, name):
-        return {
-            'investigator': cls.INVESTIGATOR(),
-            'mini_investigator': cls.MINI_INVESTIGATOR(),
-            'asset': cls.ASSET(),
-            'event': cls.EVENT(),
-            'skill': cls.SKILL(),
-            'story': cls.STORY(),
-            'treachery': cls.TREACHERY(),
-            'enemy': cls.ENEMY(),
-            'location': cls.LOCATION(),
-            'act': cls.ACT(),
-            'agenda': cls.AGENDA(),
-            'scenario': cls.SCENARIO(),
-            'enemy_weakness': cls.ENEMY_WEAKNESS(),
-            'treachery_weakness': cls.TREACHERY_WEAKNESS(),
-        }.get(name, cls.BASE())
+        """ A fresh card dict for the template called name ('asset',
+            'enemy_weakness', ...); unknown names get BASE.
+        """
+        return getattr(cls, str(name).upper(), cls.BASE)()
 
     @classmethod
     def BASE(cls):
