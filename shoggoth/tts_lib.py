@@ -261,6 +261,10 @@ def card_to_tts(card, id, image_folder):
     if card.front.card_type == 'location' and card.back.card_type == 'location' and card.front.get('name') != card.back.get('name'):
         data['HideWhenFaceDown'] = True
 
+    # Handle cards with regular backs
+    if back_type in DEFAULT_IMAGES:
+        data['HideWhenFaceDown'] = True
+
     data['Nickname'] = remove_formatting_tags(card.name)
     data['CardID'] = id * 100
     data['GMNotes'] = build_gm_notes_string(card)
