@@ -16,7 +16,7 @@ Shoggoth is not affiliated with, or endorsed by, Fantasy Flight Games.
 
 1. **[Getting started](getting-started.md)**: install Shoggoth, first launch, and a tour of the window.
 2. **[Your first project](first-project.md)**: create a project, set it up, and scaffold a scenario, campaign or investigator in one click.
-3. **[Making a card](making-cards.md)**: create cards, fill them in, and handle copies, backs, classes and weaknesses.
+3. **[Making a card](making-cards.md)**: create cards, fill them in, and handle copies, backs, classes, weaknesses and cards based on other cards.
 
 ## Everyday card making
 

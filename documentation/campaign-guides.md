@@ -30,6 +30,8 @@ A guide is a list of **sections**, each a chunk of pages with its own look. Add 
 
 Double-click a section, or select it and click **Edit Section**, to write it. New sections start with example text in the right structure, so replace it as you go.
 
+To turn a section into another kind, select it and pick the new kind from **Change Type**. Its text stays as it is. Changing to **Scenario** asks which encounter set it is for. Pick **Scenario** on a scenario section to link it to a different set; the section's references to the old set (`[encounter:…]`) then point to the new one.
+
 ## Writing
 
 Sections are written in **Markdown**, a simple plain-text format:

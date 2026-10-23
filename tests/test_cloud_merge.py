@@ -1,7 +1,9 @@
 """The cloud merge decision table (shoggoth/cloud/merge.py)."""
 import pytest
 
-from shoggoth.cloud.merge import from_wire, local_changes, plan_patch, plan_snapshot, to_wire
+from shoggoth.cloud.merge import (
+    fingerprint, from_wire, local_changes, plan_patch, plan_snapshot, to_wire, wire_base,
+)
 
 SYNCED_AT = 100.0
 OLD, NEW = 50.0, 200.0
@@ -35,7 +37,7 @@ def decisions(plan):
 
 
 @pytest.mark.parametrize('local_t, remote_t, expected', [
-    (OLD, OLD, 'take'),      # neither changed, contents differ: the server is truth
+    (OLD, OLD, 'conflict'),  # neither stamped, contents differ: one side was edited unstamped, ask
     (OLD, NEW, 'take'),
     (NEW, OLD, 'push'),
     (NEW, NEW, 'conflict'),
@@ -106,3 +108,52 @@ def test_local_changes():
     data = local_project(card('a', 'x', OLD), card('b', 'y', NEW))
     deleted = {'gone': {'kind': 'cards', 'at': NEW}}
     assert local_changes(data, SYNCED_AT, deleted) == {('cards', 'b'), ('cards', 'gone')}
+
+
+# --- the base: changes that carry no timestamp ---------------------------------
+
+def test_unstamped_local_edit_is_pushed_not_reverted():
+    """The project file edited outside Shoggoth (or by code that didn't mark
+    the element dirty): the timestamp is old, but the content differs from
+    what the cloud last held."""
+    remote = remote_wire(card('c', 'cloud', OLD))
+    base = wire_base(remote)
+    plan = plan_snapshot(local_project(card('c', 'edited by hand', OLD)), remote, SYNCED_AT, {}, base=base)
+    assert decisions(plan) == {'c': 'push'}
+
+
+def test_unstamped_remote_edit_is_taken():
+    old = card('c', 'before', OLD)
+    base = {'cards/c': fingerprint(old)}
+    plan = plan_snapshot(local_project(old), remote_wire(card('c', 'after', OLD)), SYNCED_AT, {}, base=base)
+    assert decisions(plan) == {'c': 'take'}
+
+
+def test_base_beats_timestamps_both_ways():
+    base = {'cards/c': fingerprint(card('c', 'base', OLD))}
+    both = plan_snapshot(local_project(card('c', 'mine', OLD)), remote_wire(card('c', 'theirs', OLD)),
+                         SYNCED_AT, {}, base=base)
+    assert decisions(both) == {'c': 'conflict'}
+    # A newer stamp on content equal to the base is not a change
+    plan = plan_snapshot(local_project(card('c', 'base', NEW)), remote_wire(card('c', 'theirs', OLD)),
+                         SYNCED_AT, {}, base=base)
+    assert decisions(plan) == {'c': 'take'}
+
+
+def test_unstamped_project_field_edit():
+    remote = remote_wire(name='Cloud', meta={'modified': OLD})
+    local = local_project(name='Edited', meta={'modified': OLD})
+    assert plan_snapshot(local, remote, SYNCED_AT, {}).conflicts
+    plan = plan_snapshot(local, remote, SYNCED_AT, {}, base=wire_base(remote))
+    assert plan.push_project['name'] == 'Edited'
+
+
+def test_local_changes_uses_base():
+    remote = remote_wire(card('a', 'x', OLD), card('b', 'y', OLD))
+    data = local_project(card('a', 'x', OLD), card('b', 'edited', OLD))
+    assert local_changes(data, SYNCED_AT, {}) == set()
+    assert local_changes(data, SYNCED_AT, {}, wire_base(remote)) == {('cards', 'b')}
+
+
+def test_wire_base_ignores_timestamps():
+    assert wire_base(remote_wire(card('c', 'x', OLD))) == wire_base(remote_wire(card('c', 'x', NEW)))

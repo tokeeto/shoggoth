@@ -64,6 +64,19 @@ Right-click a card in the tree:
 
 You can select several cards at once with Shift-click or Ctrl-click, and copy, delete or transfer them together. You can also **drag** cards to another encounter set or class group.
 
+## Cards based on another card: inheritance
+
+A duplicate is on its own once it's made. Inheritance keeps the link: a side that **inherits from** another card's side uses that side's values for every field it doesn't fill in itself. Fill in only what's different, and changes to the original show up on the inheriting card too. It's handy for a run of locations that share art and text but differ in name and clues, or several versions of the same enemy.
+
+- Right-click a card and choose **New Inheriting Card** to make a card whose front and back inherit from that card's front and back.
+- Or use **Inherits from**, next to the type selector at the top of any side: **Change** picks the card, **Front**/**Back** chooses which of its sides, **Go to** opens it, and **Clear** removes the link.
+
+Empty text fields show the inherited value greyed out; dropdowns and number fields simply show it. Type in a field to override it; clear the field to go back to the inherited value. If the original card is deleted, the row says *Missing card* and the side falls back to its own type's defaults.
+
+Inherit from a side of the same general type: a location from a location, an asset from an asset. Not an asset from an enemy. Fields that only one of the types has, or that the two types place differently, won't give you what you expect.
+
+Only inheriting directly from a side is supported. You *can* inherit from a side that itself inherits from another one, but how values pass through more than one link is undefined and may change in later versions.
+
 ## The Meta tab
 
 Nothing on the **Meta** tab is printed on the card. It's for you, your collaborators, and the exporters.

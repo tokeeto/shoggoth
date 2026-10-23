@@ -1,8 +1,8 @@
 """How a face resolves its values: stored data, inheritance, the defaults
-chain with its variant blocks, '$inherit' overlays and '<copy>'."""
+chain with its variant blocks, 'inherit' overlays and '<copy>'."""
 import pytest
 
-from shoggoth.card import matches, natural_sort_key
+from shoggoth.card import invalidate_defaults, matches, natural_sort_key
 from shoggoth.project import Project, parse_legacy_collection, migrate_legacy_collection_fields
 
 from conftest import card_data, project_data
@@ -144,14 +144,14 @@ def test_parent_cycle_does_not_loop(defaults):
     assert (face['a'], face['b']) == ('asset', 'base')
 
 
-# ── "$inherit" ───────────────────────────────────────────────────────────
+# ── "inherit" ───────────────────────────────────────────────────────────
 
 REGION = {'x': 1, 'y': 2, 'width': 3, 'height': 4}
 
 
 def test_inherit_dict_in_face_overlays_defaults(defaults):
     defaults('asset', {'region': REGION})
-    face = make_project(card_data('x', front={'type': 'asset', 'region': {'$inherit': True, 'y': 20, 'extra': 5}})).get_card('x').front
+    face = make_project(card_data('x', front={'type': 'asset', 'region': {'inherit': True, 'y': 20, 'extra': 5}})).get_card('x').front
     assert face['region'] == {'x': 1, 'y': 20, 'width': 3, 'height': 4, 'extra': 5}
 
 
@@ -162,34 +162,35 @@ def test_dict_without_inherit_replaces(defaults):
 
 
 def test_inherit_chains_through_every_layer(defaults):
-    defaults('base', {'region': REGION, 'variants': [{'when': 'seeker', 'set': {'region': {'$inherit': True, 'x': 10}}}]})
-    defaults('asset', {'parent': 'base', 'region': {'$inherit': True, 'width': 30}})
+    defaults('base', {'variants': [{'when': 'seeker', 'set': {'region': {'inherit': True, 'x': 10}}}]})
+    defaults('asset', {'parent': 'base', 'region': {'inherit': True, 'width': 30}})
+    defaults('event', {'region': REGION})
     project = make_project(
-        card_data('src', front={'type': 'asset', 'region': {'$inherit': True, 'height': 40}}),
-        card_data('x', front={'type': 'asset', 'classes': ['seeker'], 'inherit': {'card': 'src', 'face': 'front'},
-                              'region': {'$inherit': True, 'y': 20}}),
+        card_data('src', front={'type': 'asset', 'classes': ['seeker'], 'region': {'inherit': True, 'height': 40}}),
+        card_data('x', front={'type': 'event', 'inherit': {'card': 'src', 'face': 'front'},
+                              'region': {'inherit': True, 'y': 20}}),
     )
-    # face > inherited face > base.json's variant > asset.json > base.json
+    # face > inherited face > its base.json variant > its asset.json > the face's own event.json
     assert project.get_card('x').front['region'] == {'x': 10, 'y': 20, 'width': 30, 'height': 40}
 
 
 def test_inherit_stops_at_first_plain_dict(defaults):
     defaults('base', {'region': REGION})
     defaults('asset', {'parent': 'base', 'region': {'y': 2}})
-    face = make_project(card_data('x', front={'type': 'asset', 'region': {'$inherit': True, 'x': 1}})).get_card('x').front
+    face = make_project(card_data('x', front={'type': 'asset', 'region': {'inherit': True, 'x': 1}})).get_card('x').front
     assert face['region'] == {'x': 1, 'y': 2}
 
 
 def test_inherit_with_nothing_below(defaults):
     defaults('asset', {})
-    face = make_project(card_data('x', front={'type': 'asset', 'region': {'$inherit': True, 'x': 1}})).get_card('x').front
+    face = make_project(card_data('x', front={'type': 'asset', 'region': {'inherit': True, 'x': 1}})).get_card('x').front
     assert face['region'] == {'x': 1}
 
 
 def test_inherit_never_mutates_shared_defaults(defaults):
     defaults('asset', {'region': REGION})
     project = make_project(
-        card_data('a', front={'type': 'asset', 'region': {'$inherit': True, 'x': 100}}),
+        card_data('a', front={'type': 'asset', 'region': {'inherit': True, 'x': 100}}),
         card_data('b'),
     )
     assert project.get_card('a').front['region']['x'] == 100
@@ -198,11 +199,13 @@ def test_inherit_never_mutates_shared_defaults(defaults):
 
 def test_defaults_file_reloads_when_changed(defaults):
     defaults('asset', {'k': 'old'})
-    card = make_project(card_data('x')).get_card('x')
-    assert card.front['k'] == 'old'
+    project = make_project(card_data('x'), card_data('y'))
+    # Both loaded before the edit, like the cards the project tree holds
+    x, y = project.get_card('x'), project.get_card('y')
+    assert x.front['k'] == y.front['k'] == 'old'
     defaults('asset', {'k': 'new, and longer'})
-    card.reload_fallback()
-    assert card.front['k'] == 'new, and longer'
+    invalidate_defaults()
+    assert x.front['k'] == y.front['k'] == 'new, and longer'
 
 
 def test_project_local_defaults_file_wins(defaults, tmp_path):
@@ -254,6 +257,32 @@ def test_inherit_from_other_card(defaults):
     assert child['text'] == 'shared'
     assert child['traits'] == 'Own.'
     assert project.inheriting_card_ids('source') == {'child'}
+
+
+def test_inherit_takes_source_defaults_before_own(defaults):
+    defaults('act', {'collection_total': '<esn>/<est>', 'text': 'act text'})
+    defaults('fullart', {'collection_total': None, 'text': 'fullart text', 'own': 'fullart only'})
+    project = make_project(
+        card_data('source', front={'type': 'act'}),
+        card_data('child', front={'type': 'fullart', 'inherit': {'card': 'source', 'face': 'front'}}),
+    )
+    child = project.get_card('child').front
+    assert child['collection_total'] == '<esn>/<est>'
+    assert child['text'] == 'act text'
+    assert child['own'] == 'fullart only'
+    assert {'collection_total', 'own'} <= child.visible_keys()
+
+
+def test_inherited_variants_match_the_source(defaults):
+    defaults('asset', {'template': 'neutral', 'variants': [
+        {'when': 'seeker', 'set': {'template': 'seeker'}},
+        {'when': 'guardian', 'set': {'template': 'guardian'}},
+    ]})
+    project = make_project(
+        card_data('source', front={'type': 'asset', 'classes': ['seeker']}),
+        card_data('child', front={'type': 'asset', 'classes': ['guardian'], 'inherit': {'card': 'source', 'face': 'front'}}),
+    )
+    assert project.get_card('child').front['template'] == 'seeker'
 
 
 def test_inherit_from_deleted_card_falls_back_to_defaults(defaults):

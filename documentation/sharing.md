@@ -61,6 +61,10 @@ Your own copy is never thrown away because the cloud misbehaves:
 - If Shoggoth can't reach the cloud, or the cloud reports an error, it tells you once and keeps your project exactly as it is. Keep working and saving as usual. Your saved changes are sent as soon as the cloud accepts them again, even if you close Shoggoth in the meantime.
 - If the cloud copy is missing cards, encounter sets or guides that you still have, Shoggoth asks before removing anything. Choose **Keep and Upload Again** to keep them and send them back up. This is the default. Choose **Remove Here** only if you know a collaborator deleted them.
 
+### Editing a cloud project's file by hand
+
+A cloud project is an ordinary project file on your disk. Right-click the project in the tree and open its folder to find it. You can edit it in a text editor, for example to search and replace across all cards. Do this **while Shoggoth is closed**. The next time you open the project, Shoggoth finds what you changed and sends it to the cloud. If a collaborator changed the same card, encounter set or guide in the meantime, you're asked which version to keep, as for any other conflict.
+
 ## Publishing to the Library of Celaeno
 
 The [Library of Celaeno](https://celaeno.cards) is a community library of fan-made Arkham Horror content. When your project is ready for others to play, you can submit it from Shoggoth.
