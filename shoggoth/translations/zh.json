@@ -564,6 +564,7 @@
   "FILTER_PDF_FILES": "PDF 文件 (*.pdf)",
   "LABEL_SECTIONS": "章节：",
   "BTN_EDIT_SECTION": "编辑章节",
+  "BTN_CHANGE_SECTION_TYPE": "更改类型",
   "LABEL_ADD_SECTION": "添加章节：",
   "OPT_NONE_DASHES": "— 无 —",
   "DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO": "为场景选择遭遇牌组",

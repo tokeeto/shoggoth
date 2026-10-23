@@ -12,7 +12,7 @@ from PySide6.QtGui import QPixmap, QFont, QFontDatabase
 from shoggoth.ui.editor_widgets import NoScrollComboBox, ALL_CARD_TYPES, FULLART_CARD_TYPES, CHAPTER2_CARD_TYPES
 from shoggoth.ui.field_widgets import (
     LabeledLineEdit, LabeledTraitEdit, LabeledTextEdit, ClassSelectorWidget, CompactLabeledField,
-    UniqueNameField
+    UniqueNameField, UniqueToggle
 )
 from shoggoth.ui.card_widgets import IllustrationWidget
 from shoggoth.ui.text_editor import flavor_editor_font
@@ -64,7 +64,11 @@ class FaceEditor(QWidget):
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
 
-        # Always add type selector first
+        # Always add type selector first, with the inherit row beside it
+        self.top_row = QHBoxLayout()
+        self.top_row.setContentsMargins(0, 0, 0, 0)
+        self.top_row.setSpacing(16)
+        self.main_layout.addLayout(self.top_row)
         self.add_type_selector()
         self.add_inherit_row()
 
@@ -112,7 +116,7 @@ class FaceEditor(QWidget):
         type_layout.addWidget(self.type_combo)
         type_widget = QWidget()
         type_widget.setLayout(type_layout)
-        self.main_layout.addWidget(type_widget)
+        self.top_row.addWidget(type_widget, 0, Qt.AlignTop)
 
     def _on_type_committed(self, _=None):
         """Handle type field commit (Enter, focus loss, or dropdown selection)"""
@@ -159,7 +163,7 @@ class FaceEditor(QWidget):
 
         widget = QWidget()
         widget.setLayout(column)
-        self.main_layout.addWidget(widget)
+        self.top_row.addWidget(widget, 1, Qt.AlignTop)
         self._refresh_inherit_row()
 
     def _refresh_inherit_row(self):
@@ -397,7 +401,7 @@ class FaceEditor(QWidget):
         """Return True if the field's widget has a compact-label wrapper that supports
         showing an inherited/fallback value as placeholder text. Most fields register
         their raw input (parent is the wrapper); a few (UniqueNameField) register the
-        wrapper itself, since the wrapper needs to see the full raw value."""
+        wrapper itself, since the input isn't its direct child."""
         widget = self.fields.get(field_name)
         if widget is None:
             return False
@@ -432,6 +436,8 @@ class FaceEditor(QWidget):
         """Set widget value based on type"""
         if isinstance(widget, ClassSelectorWidget):
             widget.set_classes(value)
+        elif isinstance(widget, UniqueToggle):
+            widget.setValue(value)
         elif isinstance(widget, (Stepper, PerStepper, IconStatField, IconCountField, TagChipsField, UniqueNameField)):
             widget.setText(str(value) if value else '')
         elif isinstance(widget, SegmentedToggle):
@@ -452,6 +458,8 @@ class FaceEditor(QWidget):
         """Get widget value based on type"""
         if isinstance(widget, ClassSelectorWidget):
             return widget.get_classes()
+        elif isinstance(widget, UniqueToggle):
+            return widget.value()
         elif isinstance(widget, (Stepper, PerStepper, IconStatField, IconCountField, TagChipsField, UniqueNameField)):
             return widget.text()
         elif isinstance(widget, SegmentedToggle):
@@ -543,12 +551,15 @@ class FaceEditor(QWidget):
         return widget
 
     def _build_name_field(self, field_name):
-        """Name field with the unique-toggle star — see UniqueNameField. Registered as
-        the wrapper itself (not .input) since it owns the raw "<unique>..." value."""
+        """Name field with the unique-toggle star — see UniqueNameField. The name is
+        registered as the wrapper (for its placeholder); the star as "<field>_unique"."""
         widget = UniqueNameField(tr("FIELD_NAME"))
         widget.textChanged.connect(lambda: self.on_field_changed(field_name))
         self.fields[field_name] = widget
         self.field_containers[field_name] = widget
+        unique_field = f"{field_name}_unique"
+        widget.unique_btn.toggled.connect(lambda: self.on_field_changed(unique_field))
+        self.fields[unique_field] = widget.unique_btn
         return widget
 
     def add_name_field(self, field_name="name"):

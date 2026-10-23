@@ -23,11 +23,22 @@ Missing timestamps count as 0 (older than any sync). Timestamps from two
 machines' clocks are compared against `synced_at` only, never against each
 other, so a little clock skew between collaborators is tolerated.
 
+Timestamps only see edits that went through Shoggoth's model. Edits that
+didn't -- the project file changed in a text editor, or code that forgot to
+mark its element dirty -- carry no new stamp. So sync also keeps a **base**:
+{base_key: fingerprint} of what the cloud held for each element when we last
+agreed on it. Where an element's base is known, "changed" means "its content
+differs from the base", whatever the timestamps say; timestamps decide only
+for elements without one (and then "neither changed, contents differ" is
+asked about rather than settled for the cloud, since we can't tell).
+
 Wire format: the cloud stores `cards`, `encounter_sets` and `guides` as dicts
 keyed by element id (so a PATCH can name single elements); a local project
 file keeps them as lists. `to_wire`/`from_wire` convert.
 """
 import copy
+import hashlib
+import json
 from dataclasses import dataclass, field
 
 ELEMENT_KINDS = ('cards', 'encounter_sets', 'guides')
@@ -60,6 +71,39 @@ def _content(element):
 
 def same_content(a, b) -> bool:
     return _content(a) == _content(b)
+
+
+def fingerprint(element) -> str | None:
+    """A hash of an element's content (its edit timestamp excluded), or None
+    for an absent element."""
+    if element is None:
+        return None
+    text = json.dumps(_content(element), sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha1(text.encode('utf-8')).hexdigest()
+
+
+def base_key(kind, element_id) -> str:
+    """The key of an element in a base dict; the project's own fields are
+    'project'."""
+    return 'project' if kind == 'project' else f'{kind}/{element_id}'
+
+
+def wire_base(wire: dict) -> dict:
+    """The base for a whole cloud snapshot: what the cloud holds, element by
+    element."""
+    base = {base_key(kind, element_id): fingerprint(element)
+            for kind in ELEMENT_KINDS for element_id, element in (wire.get(kind) or {}).items()
+            if element is not None}
+    base['project'] = fingerprint(project_fields(from_wire(wire)))
+    return base
+
+
+def _changed(element, base_print, timestamp_says):
+    """Whether one side changed an element since the last sync: by content
+    when the base is known, else by its timestamp."""
+    if base_print is not None:
+        return fingerprint(element) != base_print
+    return timestamp_says
 
 
 def element_name(element) -> str:
@@ -130,15 +174,16 @@ class Plan:
                     or self.take_project or self.push_project)
 
 
-def _decide(local, remote, synced_at, tombstone, remote_deleted=False, prefer_local=False):
+def _decide(local, remote, synced_at, tombstone, remote_deleted=False, prefer_local=False,
+            base_print=None):
     """Returns one of 'none' | 'take' | 'remove' | 'push' | 'push_delete' |
     'conflict' for one element. `local`/`remote` are element dicts or None.
     `prefer_local`: the cloud is known to have lost data, so where it hasn't
     changed since the last sync, our copy is re-sent rather than replaced or
-    removed."""
-    local_t, remote_t = modified(local), modified(remote)
-    local_changed = local_t > synced_at
-    remote_changed = remote_t > synced_at
+    removed. `base_print`: the element's fingerprint in the base, or None if
+    unknown."""
+    local_changed = _changed(local, base_print, modified(local) > synced_at)
+    remote_changed = _changed(remote, base_print, modified(remote) > synced_at)
 
     if remote is not None and local is not None:
         if same_content(local, remote):
@@ -147,7 +192,11 @@ def _decide(local, remote, synced_at, tombstone, remote_deleted=False, prefer_lo
             return 'conflict'
         if local_changed or (prefer_local and not remote_changed):
             return 'push'
-        return 'take'  # remote changed, or neither did (server is truth)
+        if remote_changed:
+            return 'take'
+        # Neither changed by its timestamps, yet they differ: one side was
+        # edited without a stamp and, with no base, we can't tell which.
+        return 'conflict'
 
     if remote is not None:  # absent locally
         if tombstone:
@@ -163,8 +212,9 @@ def _decide(local, remote, synced_at, tombstone, remote_deleted=False, prefer_lo
 
 
 def _plan_element(plan, kind, element_id, local, remote, synced_at, tombstone, remote_deleted=False,
-                  prefer_local=False):
-    decision = _decide(local, remote, synced_at, tombstone, remote_deleted, prefer_local)
+                  prefer_local=False, base=None):
+    decision = _decide(local, remote, synced_at, tombstone, remote_deleted, prefer_local,
+                       (base or {}).get(base_key(kind, element_id)))
     if decision == 'take':
         plan.take.append((kind, element_id, remote))
     elif decision == 'remove':
@@ -177,13 +227,14 @@ def _plan_element(plan, kind, element_id, local, remote, synced_at, tombstone, r
         plan.conflicts.append(Conflict(kind, element_id, local, remote))
 
 
-def _plan_project(plan, local_data, remote_fields, synced_at, prefer_local=False):
+def _plan_project(plan, local_data, remote_fields, synced_at, prefer_local=False, base=None):
     local_fields = project_fields(local_data)
     if same_content(local_fields, remote_fields):
         return
-    local_changed = modified(local_fields) > synced_at
-    remote_changed = modified(remote_fields) > synced_at
-    if local_changed and remote_changed:
+    base_print = (base or {}).get('project')
+    local_changed = _changed(local_fields, base_print, modified(local_fields) > synced_at)
+    remote_changed = _changed(remote_fields, base_print, modified(remote_fields) > synced_at)
+    if local_changed and remote_changed or not (local_changed or remote_changed or prefer_local):
         plan.conflicts.append(Conflict('project', local_data.get('id', ''), local_fields, remote_fields))
     elif local_changed or (prefer_local and not remote_changed):
         plan.push_project = local_fields
@@ -196,41 +247,45 @@ def _local_index(local_data, kind):
 
 
 def plan_snapshot(local_data: dict, remote_wire: dict, synced_at: float, deleted: dict,
-                  prefer_local: bool = False) -> Plan:
+                  prefer_local: bool = False, base: dict | None = None) -> Plan:
     """Plan for a whole cloud snapshot: elements absent on one side are
     treated as deleted there (or new here) per the rules above. `deleted` is
     the local tombstone dict {id: {'kind', 'at'}}. `prefer_local`: see
-    _decide."""
+    _decide. `base`: see the module docstring."""
     plan = Plan()
     for kind in ELEMENT_KINDS:
         local, remote = _local_index(local_data, kind), remote_wire.get(kind) or {}
         for element_id in list(dict.fromkeys([*local, *remote])):
             _plan_element(plan, kind, element_id, local.get(element_id), remote.get(element_id),
-                          synced_at, element_id in deleted, prefer_local=prefer_local)
-    _plan_project(plan, local_data, project_fields(from_wire(remote_wire)), synced_at, prefer_local)
+                          synced_at, element_id in deleted, prefer_local=prefer_local, base=base)
+    _plan_project(plan, local_data, project_fields(from_wire(remote_wire)), synced_at, prefer_local, base)
     return plan
 
 
-def local_changes(local_data: dict, synced_at: float, deleted: dict) -> set:
-    """{(kind, id)} of everything changed locally since `synced_at`: edited
-    elements, the project's own fields ('project', project id) and every
-    deletion not yet confirmed by the cloud (tombstones). What a "nothing new
-    in the cloud" answer still leaves us to send -- e.g. a save whose push
-    failed before Shoggoth was closed."""
+def local_changes(local_data: dict, synced_at: float, deleted: dict, base: dict | None = None) -> set:
+    """{(kind, id)} of everything changed locally since `synced_at` (or,
+    where the base is known, differing from it): edited elements, the
+    project's own fields ('project', project id) and every deletion not yet
+    confirmed by the cloud (tombstones). What a "nothing new in the cloud"
+    answer still leaves us to send -- e.g. a save whose push failed before
+    Shoggoth was closed, or an edit made to the file outside Shoggoth."""
+    base = base or {}
     keys = set()
     for kind in ELEMENT_KINDS:
         for element_id, element in _local_index(local_data, kind).items():
-            if modified(element) > synced_at:
+            if _changed(element, base.get(base_key(kind, element_id)), modified(element) > synced_at):
                 keys.add((kind, element_id))
     for element_id, tombstone in deleted.items():
         if tombstone.get('kind') in ELEMENT_KINDS:
             keys.add((tombstone['kind'], element_id))
-    if modified(project_fields(local_data)) > synced_at:
+    fields = project_fields(local_data)
+    if _changed(fields, base.get('project'), modified(fields) > synced_at):
         keys.add(('project', local_data.get('id', '')))
     return keys
 
 
-def plan_patch(local_data: dict, patch: dict, synced_at: float, deleted: dict) -> Plan:
+def plan_patch(local_data: dict, patch: dict, synced_at: float, deleted: dict,
+               base: dict | None = None) -> Plan:
     """Plan for one live patch: only the elements the patch names are
     considered, and a null value means "deleted in the cloud" explicitly
     (rather than merely absent from a snapshot)."""
@@ -239,11 +294,11 @@ def plan_patch(local_data: dict, patch: dict, synced_at: float, deleted: dict) -
         local = _local_index(local_data, kind)
         for element_id, remote in (patch.get(kind) or {}).items():
             _plan_element(plan, kind, element_id, local.get(element_id), remote,
-                          synced_at, element_id in deleted, remote_deleted=remote is None)
+                          synced_at, element_id in deleted, remote_deleted=remote is None, base=base)
     remote_fields = {k: v for k, v in patch.items() if k not in ELEMENT_KINDS}
     if remote_fields:
         merged_remote = {**project_fields(local_data), **remote_fields}
-        _plan_project(plan, local_data, merged_remote, synced_at)
+        _plan_project(plan, local_data, merged_remote, synced_at, base=base)
     return plan
 
 

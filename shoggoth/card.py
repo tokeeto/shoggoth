@@ -65,11 +65,26 @@ def load_defaults_file(path):
     return data
 
 
+# Bumped by invalidate_defaults(). A face rebuilds its fallback chain when
+# the generation it was built in is stale, so Card objects that outlive a
+# defaults edit (e.g. the ones the project tree holds) pick it up too.
+_defaults_generation = 0
+
+
+def invalidate_defaults():
+    """ Make every face rebuild its fallback chain on next access (after a
+        defaults file changed on disk)
+    """
+    global _defaults_generation
+    _defaults_generation += 1
+
+
 class Face:
     def __init__(self, data, card):
         self.data = data
         self.card = card
         self._fallback = None
+        self._fallback_generation = None
         self._fallback_files = []
 
     def __eq__(self, other):
@@ -102,9 +117,10 @@ class Face:
             first (see __build_fallback). Shared with other faces: never
             mutate it.
         """
-        if self._fallback is None:
+        if self._fallback is None or self._fallback_generation != _defaults_generation:
             self._fallback_files = []
             self._fallback = self.__build_fallback(self.data['type'])
+            self._fallback_generation = _defaults_generation
         return self._fallback
 
     @property
@@ -131,30 +147,27 @@ class Face:
         return card.get_face(link['face']) if card else None
 
     def _inherit_chain(self):
-        """ The data of this face, then of the face it inherits from, and
-            so on (see inherit). Inheritance cycles are cut where they loop.
+        """ This face, then the face it inherits from, and so on (see
+            inherit). Inheritance cycles are cut where they loop.
 
             'type' is never inherited in practice: every face stores its own.
         """
         seen, face = set(), self
         while face is not None and id(face.data) not in seen:
             seen.add(id(face.data))
-            yield face.data
+            yield face
             face = face.inherited_face
-
-    def _stored_keys(self):
-        """ Every key stored on this face or a face it inherits from """
-        keys = set()
-        for data in self._inherit_chain():
-            keys |= set(data)
-        return keys - {'inherit'}
 
     @property
     def fallback_files(self):
-        """Project-local defaults files this face's fallback chain was loaded
-        from (the asset pack's own defaults are not listed)."""
-        self.fallback  # noqa: B018 -- loading the fallback is what fills _fallback_files
-        return tuple(self._fallback_files)
+        """Project-local defaults files this face's fallback chain, and those
+        of the faces it inherits from, were loaded from (the asset pack's own
+        defaults are not listed)."""
+        files = []
+        for face in self._inherit_chain():
+            face.fallback  # noqa: B018 -- loading the fallback is what fills _fallback_files
+            files += [path for path in face._fallback_files if path not in files]
+        return tuple(files)
 
     def tags(self):
         """ The set of tags variant blocks can match against:
@@ -179,7 +192,8 @@ class Face:
 
     def __getitem__(self, key):
         """ The face's value for key, fully resolved: stored on this face,
-            else inherited (see inherit), else from the defaults chain; a
+            else from the face it inherits from (see inherit; its defaults
+            included), else from this face's defaults chain; a
             '<copy>' is then replaced by the other side's value.
             Raises KeyError when nothing provides one.
 
@@ -195,15 +209,26 @@ class Face:
 
     def _values(self, key):
         """ Every value this face has for key, highest priority first:
-            stored on this face, on the faces it inherits from, the matching
-            variant blocks of every defaults file (most specific file first,
-            later blocks first), then the files' plain values (most specific
-            first). A parent's variant block beats a child's plain value.
+            stored on this face, then everything the face it inherits from
+            has (its stored value, its own source's, ..., then its defaults
+            chain), then this face's own defaults chain (see _default_values).
+            So an inheriting face is its source plus what it stores, and only
+            falls back on its own type's defaults for what the source has no
+            value for at all.
         """
-        for data in self._inherit_chain():
-            if key in data:
-                yield data[key]
+        chain = list(self._inherit_chain())
+        for face in chain:
+            if key in face.data:
+                yield face.data[key]
+        for face in reversed(chain):
+            yield from face._default_values(key)
 
+    def _default_values(self, key):
+        """ This face's defaults chain for key: the matching variant blocks
+            of every defaults file (most specific file first, later blocks
+            first), then the files' plain values (most specific first). A
+            parent's variant block beats a child's plain value.
+        """
         # classes decide which variant blocks apply (tags() reads them),
         # so they can't come from those themselves - that would recurse
         if key != 'classes':
@@ -223,13 +248,13 @@ class Face:
 
     def _resolve(self, key):
         """ __getitem__ without the '<copy>' step: the highest priority
-            value (see _values). A dict with "$inherit": true is laid over
+            value (see _values). A dict with "inherit": true is laid over
             the next value down instead of replacing it, so it only needs
             the fields it changes.
         """
         overlays = []
         for value in self._values(key):
-            if not (isinstance(value, dict) and value.get('$inherit')):
+            if not (isinstance(value, dict) and value.get('inherit')):
                 break
             overlays.append(value)
         else:
@@ -240,20 +265,23 @@ class Face:
         if overlays:
             for overlay in reversed(overlays):
                 value = (value if isinstance(value, dict) else {}) | overlay
-            del value['$inherit']  # a fresh dict: the merge above made it
+            del value['inherit']  # a fresh dict: the merge above made it
         return value
 
     def visible_keys(self):
-        """ All keys resolvable on this face: card data, then per defaults
-            file its plain keys and those of its active variant blocks.
+        """ All keys resolvable on this face: per face in the inherit chain
+            its stored keys, then per defaults file its plain keys and those
+            of its active variant blocks.
         """
-        keys = self._stored_keys()
-        tags = self.tags()
-        for layer in self.fallback:
-            keys |= set(layer) - {'variants', 'parent'}
-            for variant in layer.get('variants') or []:
-                if matches(variant.get('when'), tags):
-                    keys |= set(variant.get('set') or {})
+        keys = set()
+        for face in self._inherit_chain():
+            keys |= set(face.data) - {'inherit'}
+            tags = face.tags()
+            for layer in face.fallback:
+                keys |= set(layer) - {'variants', 'parent'}
+                for variant in layer.get('variants') or []:
+                    if matches(variant.get('when'), tags):
+                        keys |= set(variant.get('set') or {})
         return keys
 
     def get(self, key, default:Any=''):
@@ -274,16 +302,12 @@ class Face:
                 raise ValueError('a face must have a type')
             self._fallback = None
 
-        changed = self.data.get(key) != value
+        if self.data.get(key) != value:
+            self.data[key] = value
+            if value is None:
+                del self.data[key]
 
-        self.data[key] = value
-        if value is None:
-            del self.data[key]
-
-        # Marking dirty (after the data is in place) notifies the project's
-        # change listeners -- that's how the UI learns it should re-render/
-        # refresh the tree, rather than this model code calling into the app.
-        if changed:
+            # Marking dirty notifies the UI's change listeners
             self.card.dirty = True
 
     def get_class(self):
@@ -338,8 +362,6 @@ class Face:
 
     @property
     def other_side(self):
-        # identity, not ==: Face.__eq__ compares data, and both sides of
-        # e.g. a story card can hold identical data
         return self.card.back if self is self.card.front else self.card.front
 
 
@@ -412,11 +434,6 @@ class Card:
         if 'encounter_set' not in self.data or not self.data['encounter_set']:
             return None
         return self.project.get_encounter_set(self.data['encounter_set'])
-
-    def reload_fallback(self):
-        """ Invalidates the fallback cache, forcing a reload of the file """
-        self.front._fallback = None
-        self.back._fallback = None
 
     @property
     def name(self):

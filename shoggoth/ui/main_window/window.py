@@ -25,6 +25,7 @@ from PySide6.QtGui import QIcon
 
 import shoggoth
 from shoggoth import telemetry
+from shoggoth.card import invalidate_defaults
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import FileWatcher
 from shoggoth.files import asset_dir, path_key
@@ -330,14 +331,11 @@ class ShoggothMainWindow(QMainWindow):
         self.clear_cache()
 
     def clear_cache(self):
-        """Tools -> Clear Cache: drop renderer image/font caches and the
-        current card's cached defaults (fallback), then redraw the preview.
-        Other cards need no reset: Project.cards builds fresh Card objects
-        (and so fresh fallbacks) on every access."""
+        """Tools -> Clear Cache: drop renderer image/font caches and every
+        face's cached defaults (fallback), then redraw the preview."""
         self.card_renderer.clear_asset_caches()
         self.card_renderer.clear_illustration_caches()
-        if self.current_card:
-            self.current_card.reload_fallback()
+        invalidate_defaults()
         self.preview.rerender_now()
 
     def on_location_connections_changed(self, affected_cards):
@@ -533,10 +531,11 @@ class ShoggothMainWindow(QMainWindow):
                 return
         # Read via self: the renderer is replaced on language change
         self.card_renderer.invalidate_files(paths)
+        if any(str(p).lower().endswith('.json') for p in paths):
+            # template/defaults changes: every card, not just the shown one
+            # (the tree holds Card objects with their fallback already built)
+            invalidate_defaults()
         if self.current_card:
-            if any(str(p).lower().endswith('.json') for p in paths):
-                # template/defaults changes
-                self.current_card.reload_fallback()
             self.preview.rerender_now()
 
     def _check_for_updates_startup(self):

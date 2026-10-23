@@ -287,8 +287,7 @@ class PerStepper(QWidget):
 
     Several stat fields (enemy attack/health/evade, location/act clue thresholds, agenda
     doom thresholds) can be printed as "X per investigator" — the toggle appends/removes a
-    literal "<per>" suffix on the *stored* value, same idea as UniqueNameField's "<unique>"
-    prefix toggle on the name field, just suffixed and shared across these stepper fields
+    literal "<per>" suffix on the *stored* value, shared across these stepper fields
     instead of being its own one-off widget.
     """
 

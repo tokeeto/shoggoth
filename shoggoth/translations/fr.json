@@ -564,6 +564,7 @@
   "FILTER_PDF_FILES": "Fichiers PDF (*.pdf)",
   "LABEL_SECTIONS": "Sections :",
   "BTN_EDIT_SECTION": "Modifier la section",
+  "BTN_CHANGE_SECTION_TYPE": "Changer le type",
   "LABEL_ADD_SECTION": "Ajouter une section :",
   "OPT_NONE_DASHES": "— Aucun —",
   "DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO": "Choisir un set de rencontre pour le scénario",

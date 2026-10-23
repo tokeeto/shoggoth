@@ -28,10 +28,6 @@ class EncounterSet:
         self.project = project
         if 'id' not in self.data:
             self.data['id'] = str(uuid4())
-            # A freshly-generated id only exists in memory until the project
-            # is saved - mark it dirty so an unsaved-changes prompt/save
-            # actually persists it, instead of it being silently regenerated
-            # (and no longer matching e.g. a saved session selection) next load.
             self.dirty = True
         self.get = self.data.get
         self.__getitem__ = self.data.__getitem__
@@ -146,4 +142,3 @@ class EncounterSet:
             meta.pop(key, None)
         else:
             meta[key] = value
-

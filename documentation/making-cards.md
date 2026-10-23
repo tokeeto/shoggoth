@@ -20,7 +20,7 @@ The card editor has a tab for each side, **Front** and **Back**, plus **Meta** a
 A few things are worth knowing:
 
 - **The card name** is shared by both sides. A side's own *Name* field defaults to `<name>`, which means "the card's name". Replace it if one side needs a different title, like the two sides of an act or a location whose revealed side has a different name.
-- **Unique**: the unique toggle next to the name puts the unique symbol in front of it.
+- **Unique**: the star next to the name puts the unique symbol in front of it. It sets the side's `name_unique` field to `<unique>`, which the template prints before the name, so the name itself stays just the name (and `<name>` references to it don't pick up the symbol). Projects made before this change have `<unique>` typed into the name; remove it there and turn the star on instead.
 - **Per investigator**: the toggle next to numbers such as clues, health or doom adds the per-investigator symbol.
 - **Leave a field empty** to use the template's default. You rarely need to fill everything in.
 - **Text fields** support formatting and icons, like `<b>Fight.</b>` or `<action>`. See [Writing card text](writing-text.md).

@@ -603,6 +603,7 @@
   "FILTER_PDF_FILES": "Файлы PDF (*.pdf)",
   "LABEL_SECTIONS": "Разделы:",
   "BTN_EDIT_SECTION": "Редактировать раздел",
+  "BTN_CHANGE_SECTION_TYPE": "Изменить тип",
   "LABEL_ADD_SECTION": "Добавить раздел:",
   "OPT_NONE_DASHES": "— Нет —",
   "DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO": "Выберите набор контактов для сценария",

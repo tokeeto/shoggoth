@@ -873,6 +873,7 @@ class TreeContextMenu:
         for section in new_data.get('sections', []):
             section['id'] = uuid.uuid4().hex[:8]
         guide.project.data.setdefault('guides', []).append(new_data)
+        guide.project.set_dirty(new_data['id'])
 
     def export_guide_to_pdf(self, guide):
         """Export a guide to PDF via a save-file dialog"""

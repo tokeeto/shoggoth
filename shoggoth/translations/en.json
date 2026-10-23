@@ -600,6 +600,7 @@
   "FILTER_PDF_FILES": "PDF Files (*.pdf)",
   "LABEL_SECTIONS": "Sections:",
   "BTN_EDIT_SECTION": "Edit Section",
+  "BTN_CHANGE_SECTION_TYPE": "Change Type",
   "LABEL_ADD_SECTION": "Add section:",
   "OPT_NONE_DASHES": "— None —",
   "DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO": "Choose Encounter Set for Scenario",
