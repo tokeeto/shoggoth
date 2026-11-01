@@ -4,9 +4,10 @@ The check to run before tagging a release:
 
     uv run python scripts/release_check.py
 
-It runs the whole test suite -- including the tests that need the installed
-asset pack, which the build on GitHub can't run -- and refuses to pass if any
-test is skipped, or if a `RELEASE-BLOCKER` note is left in the code. When
+It runs the whole test suite -- including the tests that need the asset pack
+in SHOGGOTH_ASSET_DIR (usually set in .env), which the build on GitHub can't
+run -- and refuses to pass if that folder has no pack, or if a
+`RELEASE-BLOCKER` note is left in the code. When
 everything passes it writes release_check.json, a record of exactly which
 code was checked. Commit that file with the release.
 
@@ -21,6 +22,7 @@ Leave a note for yourself wherever something isn't finished:
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -87,13 +89,16 @@ def run(pytest_args):
         print('Unfinished work is marked in the code:\n  ' + '\n  '.join(blockers))
         return 1
 
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / '.env')
     sys.path.insert(0, str(ROOT))
     from shoggoth import files, updater
-    if not files.defaults_dir.is_dir():
-        print(f'The asset pack is not installed ({files.asset_dir}): start Shoggoth once to download it.')
+    if not files.custom_asset_dir or not files.defaults_dir.is_dir():
+        print(f'No asset pack to test against ({files.asset_dir}): set SHOGGOTH_ASSET_DIR in .env.')
         return 1
 
-    result = subprocess.run([sys.executable, '-m', 'pytest', '--release', *pytest_args], cwd=ROOT)
+    env = {**os.environ, 'SHOGGOTH_REQUIRE_ASSETS': '1'}
+    result = subprocess.run([sys.executable, '-m', 'pytest', *pytest_args], cwd=ROOT, env=env)
     if result.returncode != 0:
         print('\nThe release check failed. Nothing was recorded.')
         return result.returncode

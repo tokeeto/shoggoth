@@ -184,6 +184,7 @@ def test_text_conversion(export, snapshot):
     snapshot(export(_project(cards=[card]))["data"]["cards"])
 
 
+@pytest.mark.assets
 def test_investigator_deckbuilding(export, snapshot):
     investigator = {
         "id": "inv-01",
@@ -575,6 +576,7 @@ def test_enemy_location(export, snapshot):
     snapshot(export(_project(cards=[card]), settings)["data"]["cards"])
 
 
+@pytest.mark.assets
 def test_full_art_act_and_agenda(export, snapshot):
     act = {
         "id": "act-02",

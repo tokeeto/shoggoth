@@ -162,7 +162,7 @@ def main():
     else:
         check_git(tag)
     run_step('Lint', ['uv', 'run', 'ruff', 'check'])
-    # tests marked `assets` skip without the asset pack; a release runs them all
+    # tests marked `assets` skip without the pack in SHOGGOTH_ASSET_DIR; a release runs them all
     run_step('Tests', ['uv', 'run', 'pytest'], env={'SHOGGOTH_REQUIRE_ASSETS': '1'})
 
     print('\n── Visual check ──')
