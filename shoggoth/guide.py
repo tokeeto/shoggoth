@@ -615,8 +615,9 @@ class GuideSection:
                 self.markdown,
             )
 
-    def to_dict(self) -> dict:
-        d = {'id': self.id, 'type': self.type, 'name': self.name, 'markdown': self.markdown}
+    def to_dict(self, with_id=True) -> dict:
+        d = {'id': self.id} if with_id else {}
+        d.update({'type': self.type, 'name': self.name, 'markdown': self.markdown})
         if self.encounter_set_id:
             d['encounter_set_id'] = self.encounter_set_id
         return d
@@ -697,11 +698,27 @@ class Guide:
         self._set('chapter', value)
 
     @property
+    def is_in_file(self) -> bool:
+        """Whether the guide is stored in its own file (see shoggoth.guide_file)."""
+        return bool(self.data.get('file'))
+
+    @property
     def sections(self) -> list:
-        return [GuideSection.from_dict(s) for s in self.data.get('sections', [])]
+        # A section without a stored id (all of them, in a guide file) is
+        # identified by its position
+        return [GuideSection.from_dict({'id': f's{index + 1}', **s})
+                for index, s in enumerate(self.data.get('sections', []))]
 
     def save_sections(self, sections: list):
-        self.data['sections'] = [s.to_dict() for s in sections]
+        if self.is_in_file:
+            # Not stored: renumbered here so callers holding these sections
+            # (e.g. to open the one just added) see the ids they'll have
+            for index, section in enumerate(sections):
+                section.id = f's{index + 1}'
+        stored = [s.to_dict(with_id=not self.is_in_file) for s in sections]
+        if stored == self.data.get('sections'):
+            return
+        self.data['sections'] = stored
         self.dirty = True
         self.project.save_all()
 

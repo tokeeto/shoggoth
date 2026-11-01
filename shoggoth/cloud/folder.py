@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 
 from shoggoth import files
+from shoggoth.guide_file import SUFFIX as GUIDE_SUFFIX
 
 PROVIDER = 'celaeno'
 PROJECT_FILE = 'project.shoggoth'
@@ -46,13 +47,13 @@ def is_in_cloud_cache(path, provider: str = PROVIDER) -> bool:
 def is_ignored(rel_path: str, project_name: str = PROJECT_FILE) -> bool:
     """Files sync must never upload/download as resources: dotfiles and
     dot-folders (including our own state dir), atomic-write temp files, and
-    the project file itself (which travels as the project's JSON, not as a
-    resource)."""
+    the project file itself and guide files (which travel inside the
+    project's JSON, not as resources)."""
     parts = Path(rel_path).parts
     if any(part.startswith('.') for part in parts):
         return True
     name = parts[-1] if parts else ''
-    return name.endswith('.tmp') or rel_path == project_name
+    return name.endswith('.tmp') or name.endswith(GUIDE_SUFFIX) or rel_path == project_name
 
 
 def rel_posix(root: Path, path) -> str | None:

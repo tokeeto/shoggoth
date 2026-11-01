@@ -1031,9 +1031,16 @@ class SectionEditorPanel(QWidget):
 
     def flush(self):
         """Force-save any pending changes immediately."""
-        if self.save_timer and self.save_timer.isActive():
+        if self.has_pending_edits():
             self.save_timer.stop()
-        self._save_to_guide()
+            self._save_to_guide()
+
+    def has_pending_edits(self) -> bool:
+        return bool(self.save_timer and self.save_timer.isActive())
+
+    def discard_pending(self):
+        if self.save_timer:
+            self.save_timer.stop()
 
 
 # ── Guide PDF preview widget (lives in the detachable dock) ───────────────────
@@ -1250,6 +1257,19 @@ class GuideEditor(QWidget):
         self.stack.setCurrentIndex(0)
         self.guide_content_changed.emit()
 
-    def cleanup(self):
+    def has_pending_edits(self) -> bool:
+        """Typed text not yet in the guide (saved after a short pause)."""
+        return bool(self._active_editor and self._active_editor.has_pending_edits())
+
+    def discard_pending(self):
+        """Drops typed text not yet saved, e.g. before reloading the guide."""
+        if self._active_editor:
+            self._active_editor.discard_pending()
+
+    def flush(self):
+        """Saves typed text not yet in the guide."""
         if self._active_editor:
             self._active_editor.flush()
+
+    def cleanup(self):
+        self.flush()

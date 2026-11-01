@@ -19,6 +19,13 @@ brings it in step with the server in the background:
   changes that carry no new timestamp -- above all, the project file edited
   outside Shoggoth while it was closed -- instead of mistaking them for stale
   copies and replacing them with the cloud's.
+* **Guide files**: a guide stored in its own file (shoggoth.guide_file)
+  travels inside the project's JSON like any other guide; its file is
+  written locally on save and is not synced as a resource. One whose file
+  is missing here is left out of the merge (it's taken from the cloud, never
+  sent as empty). The project and guide files are watched for outside edits
+  like any project's; reloading them pushes what changed (`resync`,
+  `element_saved`).
 * **Live**: a WebSocket per project delivers other clients' patches, merged
   the same way. Local edits are shared when the project is *saved*, not as they
   are made: until then they exist only in memory (and can be discarded by
@@ -103,6 +110,16 @@ class _Session:
     @property
     def deleted(self) -> dict:
         return self.meta.setdefault('celaeno_deleted', {})
+
+
+def _local_data(project):
+    """The project's data as the merge should see it: without guides whose
+    file is missing here (we don't have them, so they mustn't look emptied)."""
+    missing = project.missing_guide_files
+    if not missing:
+        return project.data
+    return {**project.data,
+            'guides': [g for g in project.data.get('guides', []) if g.get('id') not in missing]}
 
 
 class _FolderHandler(FileSystemEventHandler):
@@ -274,7 +291,7 @@ class CloudSyncController(QObject):
             # push never got through (failed, or Shoggoth closed first).
             if not session.read_only:
                 for kind, element_id in merge.local_changes(
-                        session.project.data, session.synced_at, session.deleted, session.base):
+                        _local_data(session.project), session.synced_at, session.deleted, session.base):
                     self._queue(session, kind, element_id)
             if session.pending:
                 self._flush_push(session)
@@ -287,7 +304,7 @@ class CloudSyncController(QObject):
 
         project = session.project
         prefer_local, session.prefer_local = session.prefer_local, False
-        plan = merge.plan_snapshot(project.data, detail['data'], session.synced_at, session.deleted,
+        plan = merge.plan_snapshot(_local_data(project), detail['data'], session.synced_at, session.deleted,
                                    prefer_local=prefer_local, base=session.base)
         changed, touched = self._resolve_and_apply(session, plan, snapshot=True)
         # Whatever we keep or push from here on, this is what the cloud holds now.
@@ -472,7 +489,8 @@ class CloudSyncController(QObject):
             return
 
         patch = self._without_own_echo(session, message.get('patch', {}))
-        plan = merge.plan_patch(session.project.data, patch, session.synced_at, session.deleted, session.base)
+        plan = merge.plan_patch(_local_data(session.project), patch, session.synced_at, session.deleted,
+                                session.base)
         changed, touched = self._resolve_and_apply(session, plan)
         self._update_base_from_patch(session, patch)
         session.meta['celaeno_version'] = version
@@ -521,6 +539,8 @@ class CloudSyncController(QObject):
 
         for kind, element_id, element in plan.take:
             merge.apply_take(project.data, kind, element_id, element)
+            if kind == 'guides':
+                project.missing_guide_files.pop(element_id, None)  # its file is written on save
             session.unsaved.discard((kind, element_id))
             session.deleted.pop(element_id, None)
             session.remote_floor = max(session.remote_floor, merge.modified(element))
@@ -620,6 +640,26 @@ class CloudSyncController(QObject):
         session.pending |= saved
         self._flush_push(session)
 
+    def element_saved(self, project, kind, element_id):
+        """An element now holds what's on disk without having been saved by
+        us (a guide reloaded from its file): send it, like a save."""
+        session = self.session_for(project)
+        if session is None or session.read_only:
+            return
+        session.unsaved.discard((kind, element_id))
+        session.pending.add((kind, element_id))
+        self._flush_push(session)
+
+    def resync(self, project):
+        """The project was reloaded from its file (edited outside Shoggoth):
+        nothing in memory is unsaved any more, and a pull finds what changed
+        against the base and sends it."""
+        session = self.session_for(project)
+        if session is None:
+            return
+        session.unsaved.clear()
+        self._start_pull(session)
+
     def _build_patch(self, session, keys):
         data = session.project.data
         patch = {}
@@ -632,6 +672,8 @@ class CloudSyncController(QObject):
                 session.sent[('project', element_id)] = merge.modified(fields)
                 session.sent_prints[(kind, element_id)] = merge.fingerprint(fields)
                 continue
+            if kind == 'guides' and element_id in session.project.missing_guide_files:
+                continue  # we don't have it: nothing to send
             element = next((e for e in data.get(kind, []) if e.get('id') == element_id), None)
             if element is not None:
                 self._stamp_if_unstamped(session, kind, element_id, element)
@@ -800,6 +842,8 @@ class CloudSyncController(QObject):
         project = session.project
         if session.unsaved or project.dirty:
             return
+        if project.has_external_changes():
+            return  # edited outside Shoggoth, not yet resolved: never overwrite that
         try:
             project.save_all()
         except OSError as exc:

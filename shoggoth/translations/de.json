@@ -1182,5 +1182,14 @@
   "CARD_LABEL_DECK_SIZE": "Deckgröße",
   "CARD_KEYWORD_PERMANENT": "Dauerhaft",
   "CARD_KEYWORD_EXCEPTIONAL": "Außergewöhnlich",
-  "CARD_KEYWORD_MYRIAD": "Unzählig"
+  "CARD_KEYWORD_MYRIAD": "Unzählig",
+  "CTX_GUIDE_TO_FILE": "In eigener Datei speichern...",
+  "CTX_GUIDE_INLINE": "In Projektdatei speichern",
+  "DLG_STORE_GUIDE_IN_FILE": "Leitfaden in eigener Datei speichern",
+  "FILTER_GUIDE_FILES": "Leitfaden-Dateien (*.guide.md)",
+  "MSG_GUIDE_FILE_OUTSIDE_CLOUD": "Die Leitfaden-Dateien eines Cloud-Projekts müssen in seinem Ordner liegen:\n{folder}",
+  "MSG_GUIDE_FILE_IN_USE": "In {path} ist bereits ein anderer Leitfaden gespeichert.",
+  "DLG_GUIDE_FILE_CHANGED": "Leitfaden-Datei geändert",
+  "MSG_GUIDE_FILE_CHANGED_UNSAVED": "Die Datei des Leitfadens \"{name}\" wurde außerhalb von Shoggoth geändert:\n{path}\n\nDu hast ungespeicherte Änderungen an diesem Leitfaden. Beim Neuladen der Datei gehen sie verloren.",
+  "STATUS_GUIDE_RELOADED": "✓ Leitfaden {name} aus seiner Datei neu geladen"
 }

@@ -1197,5 +1197,14 @@
   "CARD_LABEL_DECK_SIZE": "Deck Size",
   "CARD_KEYWORD_PERMANENT": "Permanent",
   "CARD_KEYWORD_EXCEPTIONAL": "Exceptional",
-  "CARD_KEYWORD_MYRIAD": "Myriad"
+  "CARD_KEYWORD_MYRIAD": "Myriad",
+  "CTX_GUIDE_TO_FILE": "Store in Separate File...",
+  "CTX_GUIDE_INLINE": "Store in Project File",
+  "DLG_STORE_GUIDE_IN_FILE": "Store Guide in Separate File",
+  "FILTER_GUIDE_FILES": "Guide Files (*.guide.md)",
+  "MSG_GUIDE_FILE_OUTSIDE_CLOUD": "A cloud project's guide files must be inside its folder:\n{folder}",
+  "MSG_GUIDE_FILE_IN_USE": "Another guide is already stored in {path}.",
+  "DLG_GUIDE_FILE_CHANGED": "Guide File Changed",
+  "MSG_GUIDE_FILE_CHANGED_UNSAVED": "The file of the guide \"{name}\" was changed outside Shoggoth:\n{path}\n\nYou have changes to this guide that aren't saved yet. Reloading the file discards them.",
+  "STATUS_GUIDE_RELOADED": "✓ Reloaded the guide {name} from its file"
 }

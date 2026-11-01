@@ -1176,5 +1176,14 @@
   "CARD_LABEL_DECK_SIZE": "Taille du Deck",
   "CARD_KEYWORD_PERMANENT": "Permanent",
   "CARD_KEYWORD_EXCEPTIONAL": "Exceptionnel",
-  "CARD_KEYWORD_MYRIAD": "Myriade"
+  "CARD_KEYWORD_MYRIAD": "Myriade",
+  "CTX_GUIDE_TO_FILE": "Enregistrer dans un fichier séparé...",
+  "CTX_GUIDE_INLINE": "Enregistrer dans le fichier du projet",
+  "DLG_STORE_GUIDE_IN_FILE": "Enregistrer le guide dans un fichier séparé",
+  "FILTER_GUIDE_FILES": "Fichiers de guide (*.guide.md)",
+  "MSG_GUIDE_FILE_OUTSIDE_CLOUD": "Les fichiers de guide d'un projet cloud doivent se trouver dans son dossier :\n{folder}",
+  "MSG_GUIDE_FILE_IN_USE": "Un autre guide est déjà enregistré dans {path}.",
+  "DLG_GUIDE_FILE_CHANGED": "Fichier de guide modifié",
+  "MSG_GUIDE_FILE_CHANGED_UNSAVED": "Le fichier du guide « {name} » a été modifié en dehors de Shoggoth :\n{path}\n\nCe guide a des modifications non enregistrées. Recharger le fichier les supprimera.",
+  "STATUS_GUIDE_RELOADED": "✓ Guide {name} rechargé depuis son fichier"
 }

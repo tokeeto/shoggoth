@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 import time
 from uuid import uuid4
@@ -7,11 +8,12 @@ from pathlib import Path
 from itertools import combinations
 
 import shoggoth
+from shoggoth import guide_file
 from shoggoth.card import TEMPLATES, FACE_NAMES, Card
 from shoggoth.encounter_set import EncounterSet, parse_number_span
 from shoggoth.export_profile import ExportProfile
 from shoggoth.guide import Guide
-from shoggoth.project_writer import CloudWriter, Writer
+from shoggoth.project_writer import CloudWriter, Writer, atomic_write
 
 
 type_order = {
@@ -198,6 +200,12 @@ def _fingerprint(data):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
+def _text_print(text):
+    """ Hash of a guide file's text, line endings aside. """
+    text = text.replace('\r\n', '\n')
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
 class Project:
     """ Class to handle project files
 
@@ -215,6 +223,13 @@ class Project:
     _card_index = {}
     _card_index_key = None
 
+    # Guides stored in their own files (see shoggoth.guide_file): guide id ->
+    # hash of the file's text when we last read or wrote it, and guide id ->
+    # path of files that couldn't be read. Class-level defaults for the same
+    # reason; reassigned per instance by _load_guide_files.
+    _guide_prints = {}
+    missing_guide_files = {}
+
     def __init__(self, file_path, data):
         self.file_path = file_path
         self.data = data
@@ -225,6 +240,7 @@ class Project:
         # Fingerprint of what the file on disk held when we last read or wrote
         # it (None: unknown, e.g. a project that hasn't been saved yet).
         self._disk_fingerprint = None
+        self._load_guide_files()
 
     @classmethod
     def add_change_listener(cls, callback):
@@ -688,17 +704,163 @@ class Project:
         self.data = data
         self.id = data['id']
         self._disk_fingerprint = fingerprint
+        self._load_guide_files()
 
     def save_as(self, file_path):
         """Points the project at a new file and writes it there; the old file
-        is left as it is."""
+        is left as it is. Guides in their own files stay where they are: the
+        project's references to them are rewritten for its new folder."""
         old_path = self.file_path
+        old_refs = {id(entry): entry['file'] for entry in self.data.get('guides', []) if entry.get('file')}
+        guide_paths = {key: self.guide_path(entry) for entry in self.data.get('guides', [])
+                       if (key := id(entry)) in old_refs}
         self.file_path = str(file_path)
+        for entry in self.data.get('guides', []):
+            if id(entry) in guide_paths:
+                entry['file'] = self.guide_reference(guide_paths[id(entry)])
         try:
             self.save_all()
         except Exception:
             self.file_path = old_path
+            for entry in self.data.get('guides', []):
+                if id(entry) in old_refs:
+                    entry['file'] = old_refs[id(entry)]
             raise
+
+    # ── Guides in their own files (see shoggoth.guide_file) ───────────────
+
+    def guide_path(self, entry) -> Path:
+        """Where a file-backed guide entry's file is."""
+        path = Path(entry['file'])
+        return path if path.is_absolute() else self.folder / path
+
+    def guide_reference(self, path) -> str:
+        """How the project file refers to a guide file: relative to the
+        project's folder ('/'-separated), or absolute when that's impossible
+        (another drive on Windows)."""
+        path = Path(path).absolute()
+        try:
+            return Path(os.path.relpath(path, self.folder.absolute())).as_posix()
+        except ValueError:
+            return str(path)
+
+    def guide_file_paths(self) -> dict:
+        """{guide id: path} of every guide stored in its own file."""
+        if self.is_modification:
+            return {}  # their guides are the parent's, read from its files
+        return {entry['id']: self.guide_path(entry) for entry in self.data.get('guides', [])
+                if entry.get('file') and entry.get('id')}
+
+    def _load_guide_files(self):
+        self._guide_prints = {}
+        self.missing_guide_files = {}
+        for entry in self.data.get('guides', []):
+            if entry.get('file') and entry.get('id'):
+                self._load_guide_file(entry)
+
+    def _load_guide_file(self, entry):
+        """Fills a file-backed guide entry from its file. A file that can't be
+        read is never written over: unless the entry carries its content
+        itself (a guide just taken from the cloud, written out on the next
+        save), it's listed in `missing_guide_files` and left alone."""
+        path = self.guide_path(entry)
+        try:
+            text = path.read_text(encoding='utf-8')
+        except (OSError, UnicodeDecodeError):
+            if 'sections' not in entry:
+                self.missing_guide_files[entry['id']] = str(path)
+            return
+        name = path.name
+        default_name = name[:-len(guide_file.SUFFIX)] if name.endswith(guide_file.SUFFIX) else path.stem
+        content = guide_file.parse(text, default_name)
+        kept = {key: entry[key] for key in guide_file.PROJECT_KEYS if key in entry}
+        entry.clear()  # in place: Guide objects hold on to this dict
+        entry.update(kept)
+        entry.update(content)
+        self._guide_prints[entry['id']] = _text_print(text)
+        self.missing_guide_files.pop(entry['id'], None)
+
+    def _write_guide_file(self, entry):
+        """Writes a guide's file, unless it already holds this text."""
+        text = guide_file.serialize(entry)
+        printed = _text_print(text)
+        path = self.guide_path(entry)
+        if self._guide_prints.get(entry['id']) == printed and path.exists():
+            # Unchanged here. Should the file have been changed outside
+            # meanwhile, that change is kept (and is the user's to resolve).
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(path, text)
+        self._guide_prints[entry['id']] = printed
+        self.missing_guide_files.pop(entry['id'], None)
+
+    def file_data(self):
+        """The project's data as its file stores it: file-backed guides
+        reduced to their reference, after writing their files."""
+        guides = self.data.get('guides')
+        if not any(entry.get('file') for entry in guides or []):
+            return self.data
+        stored = []
+        for entry in guides:
+            if not entry.get('file'):
+                stored.append(entry)
+                continue
+            stored.append({key: entry[key] for key in guide_file.PROJECT_KEYS if key in entry})
+            if entry.get('id') not in self.missing_guide_files or self.is_dirty(entry.get('id')):
+                self._write_guide_file(entry)
+        return {**self.data, 'guides': stored}
+
+    def changed_guide_files(self) -> list:
+        """Ids of guides whose file was changed outside Shoggoth since we last
+        read or wrote it (like `has_external_changes`, for guide files). A
+        file that can't be read isn't reported: another change event follows."""
+        changed = []
+        for guide_id, path in self.guide_file_paths().items():
+            try:
+                text = path.read_text(encoding='utf-8')
+            except (OSError, UnicodeDecodeError):
+                continue
+            if _text_print(text) != self._guide_prints.get(guide_id):
+                changed.append(guide_id)
+        return changed
+
+    def reload_guide(self, guide_id):
+        """Replaces a guide's content with its file's, discarding unsaved
+        changes to it."""
+        for entry in self.data.get('guides', []):
+            if entry.get('id') == guide_id and entry.get('file'):
+                self.missing_guide_files.pop(guide_id, None)
+                entry.pop('sections', None)
+                self._load_guide_file(entry)
+                self.set_dirty(guide_id, False)
+
+    def acknowledge_guide_file(self, guide_id):
+        """Accepts a guide file's current text as what we last saw, so it
+        stops being reported; the next save writes our version over it."""
+        path = self.guide_file_paths().get(guide_id)
+        if path is not None:
+            self._guide_prints[guide_id] = _text_print(path.read_text(encoding='utf-8'))
+
+    def store_guide_in_file(self, guide_id, path):
+        """Moves a guide out of the project file into its own file (written
+        on the next save)."""
+        entry = self._guide_entry(guide_id)
+        entry['file'] = self.guide_reference(path)
+        for section in entry.get('sections', []):
+            section.pop('id', None)  # sections in a file go by position
+        self._guide_prints.pop(guide_id, None)
+        self.set_dirty(guide_id)
+
+    def store_guide_inline(self, guide_id):
+        """Moves a guide back into the project file. Its file is left on disk."""
+        entry = self._guide_entry(guide_id)
+        entry.pop('file', None)
+        self._guide_prints.pop(guide_id, None)
+        self.missing_guide_files.pop(guide_id, None)
+        self.set_dirty(guide_id)
+
+    def _guide_entry(self, guide_id):
+        return next(entry for entry in self.data.get('guides', []) if entry.get('id') == guide_id)
 
     def add_encounter_set(self, name):
         if 'encounter_sets' not in self.data:

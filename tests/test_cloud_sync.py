@@ -103,3 +103,39 @@ def test_push_success_updates_base(controller, tmp_path):
     controller._build_patch(session, keys)
     controller._on_push_finished('cloud', True, 300.0, keys, 4)
     assert session.base['guides/g'] == merge.fingerprint(session.project.data['guides'][0])
+
+
+def test_guide_with_missing_file_is_restored_from_the_cloud(controller, tmp_path):
+    """Never pushed as empty: taken from the cloud, its file written on save."""
+    cloud_data = project_data('cloud text')
+    cloud_data['guides'][0]['file'] = 'guides/g.guide.md'
+    cloud = merge.to_wire(cloud_data)
+    local = project_data('')
+    local['guides'] = [{'id': 'g', 'file': 'guides/g.guide.md', 'meta': {'modified': OLD}}]
+    session = attach(controller, tmp_path, local, base=merge.wire_base(cloud))
+    assert 'g' in session.project.missing_guide_files
+    controller._apply_snapshot('cloud', {'data': cloud, 'version': 4}, 200.0)
+    assert ('guides', 'g') not in session.pending
+    assert markdown(session.project) == 'cloud text'
+    session.project.save_all()
+    assert 'cloud text' in (tmp_path / 'guides' / 'g.guide.md').read_text(encoding='utf-8')
+
+
+def test_hand_edited_guide_file_is_pushed(controller, tmp_path):
+    """The guide file edited while Shoggoth was closed: the project file
+    didn't change, but the content read from the guide file differs from
+    the base."""
+    data = project_data('cloud text')
+    data['guides'][0]['file'] = 'g.guide.md'
+    cloud = merge.to_wire(data)
+    from shoggoth import guide_file
+    entry = dict(data['guides'][0], sections=[{'type': 'blank', 'name': 'S', 'markdown': 'edited by hand'}])
+    (tmp_path / 'g.guide.md').write_text(guide_file.serialize(entry), encoding='utf-8')
+    local = project_data('')
+    local['guides'] = [{'id': 'g', 'file': 'g.guide.md', 'meta': {'modified': OLD}}]
+    session = attach(controller, tmp_path, local, base=merge.wire_base(cloud))
+    controller._apply_snapshot('cloud', None, 200.0)  # 304
+    assert ('guides', 'g') in session.pending
+    patch = controller._build_patch(session, session.pending)
+    assert patch['guides']['g']['sections'][0]['markdown'] == 'edited by hand'
+    assert patch['guides']['g']['file'] == 'g.guide.md'
