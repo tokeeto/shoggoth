@@ -63,6 +63,7 @@ DEFAULT_SETTINGS = {
         'update_file': None
     },
     'arkham_build': {
+        'upload_adapter': 'manual',
         'url_prefix': None,
     },
     'guides': {

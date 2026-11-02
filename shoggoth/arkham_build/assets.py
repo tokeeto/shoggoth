@@ -3,7 +3,6 @@ import re
 import shutil
 from html import escape
 
-from shoggoth.arkham_build.output import export_file, export_url
 from shoggoth.files import overlay_dir
 from shoggoth.renderer.richtext.tags import parse_tag_attributes
 
@@ -11,13 +10,13 @@ _IMAGE_TAG_PATTERN = re.compile(r"<image(?=\s|>)", re.IGNORECASE)
 
 
 class ImageAssetExporter:
-    def __init__(self, project, url_prefix):
+    def __init__(self, project, adapter):
         self.project = project
-        self.url_prefix = url_prefix
+        self.adapter = adapter
         self._urls_by_path = {}
 
     def export(self, source):
-        if not self.url_prefix or not source:
+        if not self.adapter.images_enabled or not source:
             return None
 
         path = self.project.find_file(source)
@@ -35,11 +34,11 @@ class ImageAssetExporter:
             digest = hashlib.file_digest(image, "sha256").hexdigest()
 
         filename = f"assets/{digest}{path.suffix}"
-        destination = export_file(self.project, filename)
+        destination = self.adapter.export_file(filename)
         if not destination.exists():
             shutil.copyfile(path, destination)
 
-        url = export_url(self.url_prefix, self.project, filename)
+        url = self.adapter.image_url(filename)
         self._urls_by_path[path] = url
         return url
 

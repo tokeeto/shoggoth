@@ -147,6 +147,36 @@ def ensure_project(base_url: str, token: str, project) -> tuple[str, str | None]
     return new_id, data.get("public_url")
 
 
+def ensure_artifact_target(base_url: str, token: str, artifact_key: str) -> tuple[str, str | None]:
+    """Find or create a cloud folder for exported files. Leave the source project unchanged."""
+    try:
+        resp = requests.get(
+            f"{base_url}/projects", headers=_auth_headers(token), timeout=_METADATA_TIMEOUT
+        )
+    except requests.RequestException as exc:
+        raise PublishError(f"Could not reach {base_url}: {exc}") from exc
+    _raise_for_status(resp, "Find artifact target")
+
+    for project in _json(resp, "Find artifact target"):
+        metadata = project.get("metadata") or {}
+        if metadata.get("shoggoth_artifact_key") == artifact_key:
+            return project["id"], project.get("public_url")
+
+    try:
+        resp = requests.post(
+            f"{base_url}/projects",
+            json={"title": artifact_key, "metadata": {"shoggoth_artifact_key": artifact_key}},
+            headers=_auth_headers(token),
+            timeout=_METADATA_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        raise PublishError(f"Could not reach {base_url}: {exc}") from exc
+    _raise_for_status(resp, "Create artifact target")
+
+    data = _json(resp, "Create artifact target")
+    return data["id"], data.get("public_url")
+
+
 class _ProgressFile:
     """Wraps an open binary file object, reporting read progress."""
 
