@@ -58,7 +58,7 @@ Explicit values replace generated values for the same field. Fields inside `back
 
 ### Card images and icons
 
-Enter an **Image URL prefix** for the server where you will host the images:
+Enter a **URL prefix** for the server where you will host the images:
 
 ```
 https://example.com/cards
