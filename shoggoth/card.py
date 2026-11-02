@@ -11,6 +11,13 @@ FOLDER_SEPARATOR = '/'
 FACE_NAMES = ('front', 'back')
 
 
+def base_class(value):
+    """ The game class of a stored class value: a parallel investigator's
+        'parallel_guardian' only picks a template, in play it is a Guardian.
+    """
+    return value.removeprefix('parallel_')
+
+
 def natural_sort_key(value):
     """ Split a value like a project_number ('12', '128a') into chunks so
         sorting compares numeric chunks numerically and text chunks as
@@ -315,7 +322,7 @@ class Face:
         if not cls:
             return None
         if len(cls) == 1:
-            return cls[0]
+            return base_class(cls[0])
         return 'multi'
 
     @property
@@ -555,7 +562,7 @@ class Card:
         if len(classes) > 1:
             return 'multi'
         else:
-            return classes[0]
+            return base_class(classes[0])
 
     def set(self, key, value):
         changed = self.data.get(key) != value

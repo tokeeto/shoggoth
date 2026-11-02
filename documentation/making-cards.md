@@ -32,6 +32,7 @@ The **Classes** row decides the card's color and frame.
 
 - **Click** a class to choose it. **Shift-click** or **Ctrl-click** adds more classes, which makes a multi-class card.
 - **Special ▾** has *Weakness*, *Basic Weakness*, *Specialist* and *Reward*. Encounter card types show *Weakness* and *Basic Weakness* as buttons directly.
+- For investigators, **Special ▾** also has the parallel versions of the classes, including Neutral, such as *Parallel Guardian*. These use the parallel frame, and the card still counts as a Guardian in sorting and exports.
 - You can also type a **custom class** name. It's useful together with [your own card types](custom-card-types.md).
 
 A weakness treachery or enemy is simply the normal treachery or enemy type with the *Weakness* or *Basic Weakness* class. The frame, the "WEAKNESS" label and the player card back follow automatically.

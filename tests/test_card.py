@@ -2,7 +2,7 @@
 chain with its variant blocks, 'inherit' overlays and '<copy>'."""
 import pytest
 
-from shoggoth.card import invalidate_defaults, matches, natural_sort_key
+from shoggoth.card import base_class, invalidate_defaults, matches, natural_sort_key
 from shoggoth.project import Project, parse_legacy_collection, migrate_legacy_collection_fields
 
 from conftest import card_data, project_data
@@ -340,3 +340,14 @@ def test_migrate_legacy_collection_fields():
     assert migrate_legacy_collection_fields(data) == 1
     assert data['cards'][0]['front'] == {'collection_total': '1/2', 'collection_icon': 'x', 'collection_number': '1'}
     assert migrate_legacy_collection_fields(data) == 0
+
+
+# ── parallel classes ─────────────────────────────────────────────────────
+
+def test_parallel_class_counts_as_its_base_class():
+    project = make_project(card_data('p', front={'type': 'asset', 'classes': ['parallel_mystic']}))
+    card = project.get_card('p')
+    assert card.get_class() == 'mystic'
+    assert card.front.get_class() == 'mystic'
+    assert card.front.tags() == {'parallel_mystic'}
+    assert base_class('weakness') == 'weakness'

@@ -13,7 +13,7 @@ from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.field_widgets import ClassSelectorWidget, LabeledLineEdit
 from shoggoth.ui.text_editor import ArkhamTextEdit
 from shoggoth.ui.editor_widgets import NoScrollComboBox
-from shoggoth.ui.compact_widgets import PLAYER_CLASSES, SegmentedToggle
+from shoggoth.ui.compact_widgets import PARALLEL_CLASSES, PLAYER_CLASSES, SegmentedToggle
 from shoggoth.util.shape_alpha import FADE_DISTANCE
 from shoggoth.i18n import tr
 
@@ -26,7 +26,7 @@ class InvestigatorEditor(FaceEditor):
         self.add_identity_row()
 
         # Classes
-        classes_widget = ClassSelectorWidget(default_classes=PLAYER_CLASSES)
+        classes_widget = ClassSelectorWidget(default_classes=PLAYER_CLASSES, special_classes=PARALLEL_CLASSES)
         classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_widget
         self.field_containers['classes'] = classes_widget
@@ -176,7 +176,7 @@ class InvestigatorBackEditor(FaceEditor):
         self.add_identity_row()
 
         # Classes
-        classes_widget = ClassSelectorWidget(default_classes=PLAYER_CLASSES)
+        classes_widget = ClassSelectorWidget(default_classes=PLAYER_CLASSES, special_classes=PARALLEL_CLASSES)
         classes_widget.classesChanged.connect(lambda: self.on_field_changed('classes'))
         self.fields['classes'] = classes_widget
         self.field_containers['classes'] = classes_widget
