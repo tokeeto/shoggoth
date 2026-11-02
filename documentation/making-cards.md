@@ -20,7 +20,7 @@ The card editor has a tab for each side, **Front** and **Back**, plus **Meta** a
 A few things are worth knowing:
 
 - **The card name** is shared by both sides. A side's own *Name* field defaults to `<name>`, which means "the card's name". Replace it if one side needs a different title, like the two sides of an act or a location whose revealed side has a different name.
-- **Unique**: the unique toggle next to the name puts the unique symbol in front of it.
+- **Unique**: the star next to the name puts the unique symbol in front of it. It sets the side's `name_unique` field to `<unique>`, which the template prints before the name, so the name itself stays just the name (and `<name>` references to it don't pick up the symbol). Projects made before this change have `<unique>` typed into the name; remove it there and turn the star on instead.
 - **Per investigator**: the toggle next to numbers such as clues, health or doom adds the per-investigator symbol.
 - **Leave a field empty** to use the template's default. You rarely need to fill everything in.
 - **Text fields** support formatting and icons, like `<b>Fight.</b>` or `<action>`. See [Writing card text](writing-text.md).
@@ -32,6 +32,7 @@ The **Classes** row decides the card's color and frame.
 
 - **Click** a class to choose it. **Shift-click** or **Ctrl-click** adds more classes, which makes a multi-class card.
 - **Special ▾** has *Weakness*, *Basic Weakness*, *Specialist* and *Reward*. Encounter card types show *Weakness* and *Basic Weakness* as buttons directly.
+- For investigators, **Special ▾** also has the parallel versions of the classes, including Neutral, such as *Parallel Guardian*. These use the parallel frame, and the card still counts as a Guardian in sorting and exports.
 - You can also type a **custom class** name. It's useful together with [your own card types](custom-card-types.md).
 
 A weakness treachery or enemy is simply the normal treachery or enemy type with the *Weakness* or *Basic Weakness* class. The frame, the "WEAKNESS" label and the player card back follow automatically.
@@ -63,6 +64,19 @@ Right-click a card in the tree:
 - **Delete** removes it. There's no undo, so save regularly.
 
 You can select several cards at once with Shift-click or Ctrl-click, and copy, delete or transfer them together. You can also **drag** cards to another encounter set or class group.
+
+## Cards based on another card: inheritance
+
+A duplicate is on its own once it's made. Inheritance keeps the link: a side that **inherits from** another card's side uses that side's values for every field it doesn't fill in itself. Fill in only what's different, and changes to the original show up on the inheriting card too. It's handy for a run of locations that share art and text but differ in name and clues, or several versions of the same enemy.
+
+- Right-click a card and choose **New Inheriting Card** to make a card whose front and back inherit from that card's front and back.
+- Or use **Inherits from**, next to the type selector at the top of any side: **Change** picks the card, **Front**/**Back** chooses which of its sides, **Go to** opens it, and **Clear** removes the link.
+
+Empty text fields show the inherited value greyed out; dropdowns and number fields simply show it. Type in a field to override it; clear the field to go back to the inherited value. If the original card is deleted, the row says *Missing card* and the side falls back to its own type's defaults.
+
+Inherit from a side of the same general type: a location from a location, an asset from an asset. Not an asset from an enemy. Fields that only one of the types has, or that the two types place differently, won't give you what you expect.
+
+Only inheriting directly from a side is supported. You *can* inherit from a side that itself inherits from another one, but how values pass through more than one link is undefined and may change in later versions.
 
 ## The Meta tab
 

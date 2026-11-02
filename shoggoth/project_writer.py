@@ -18,7 +18,7 @@ class Writer:
             orig_data[key] = project.data[key]
 
         self.dirty = False
-        self._write(project.data)
+        self._write(project.file_data())
 
     def _write(self, data):
         """Writes the project file, and tells the project what it now holds."""
@@ -43,9 +43,10 @@ class Writer:
         self._write(orig_data)
 
     def save_all(self):
-        """Save data to file"""
+        """Save data to file (and the files of guides stored in their own)"""
+        data = self.project.file_data()  # before clear_dirty: it checks what was edited
         self.project.clear_dirty()
-        self._write(self.project.data)
+        self._write(data)
 
     def save_face(self):
         pass

@@ -48,7 +48,7 @@ These tags expand to the bold keyword with its dash. They're also translated aut
 - **Enter** starts a new paragraph, with a little space above it, the way separate abilities are laid out on official cards.
 - **Shift+Enter** breaks the line without starting a new paragraph (the same as `<br>`).
 - **Shift+Space** inserts a non-breaking space, which keeps two words on the same line, such as a number and its unit: `2 damage`.
-- Start lines with `- ` (dash and space) to make a **bulleted list**. Shoggoth indents it and adds bullet icons.
+- Start lines with `- ` (dash and space) to make a **bulleted list**. Shoggoth adds bullet icons, keeps the items close together, and doesn't indent them.
 
 ## Punctuation
 
@@ -63,7 +63,7 @@ On story cards and act and agenda backs, story passages go in `<blockquote>...</
 
 ## When the text doesn't fit
 
-If there's too much text, Shoggoth shrinks the font until it fits, down to half the normal size. It also avoids leaving a single word alone on the last line. If the text still looks cramped, shorten it, turn on [hyphenation](first-project.md#project-settings) for the project, or see [Advanced text](advanced-text.md#fine-tuning-layout) for manual layout control.
+If there's too much text, Shoggoth shrinks the font until it fits, down to half the normal size. If the text still looks cramped, shorten it, turn on [hyphenation](first-project.md#project-settings) for the project, or see [Advanced text](advanced-text.md#fine-tuning-layout) for manual layout control.
 
 ## Quick reference inside Shoggoth
 

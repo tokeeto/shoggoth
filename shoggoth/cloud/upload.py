@@ -12,6 +12,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from shoggoth import files
+from shoggoth.guide_file import SUFFIX as GUIDE_SUFFIX
 
 # Card face fields that can point at a user-supplied file
 IMAGE_KEYS = (
@@ -66,6 +67,22 @@ def relocate_resources(project, dest_dir: Path) -> dict:
         for element in data.get(kind, []):
             if not element.get('id'):
                 element['id'] = str(uuid4())
+
+    # A guide stored in its own file goes to the new folder's guides/. The
+    # entry carries the guide's content (read when the project was opened),
+    # and the file is written there on the cloud copy's first save.
+    taken = set()
+    for guide in data.get('guides', []):
+        if not guide.get('file'):
+            continue
+        name = Path(guide['file']).name
+        stem = name[:-len(GUIDE_SUFFIX)] if name.endswith(GUIDE_SUFFIX) else Path(name).stem
+        target, counter = f'guides/{stem}{GUIDE_SUFFIX}', 1
+        while target in taken:
+            target = f'guides/{stem}_{counter}{GUIDE_SUFFIX}'
+            counter += 1
+        taken.add(target)
+        guide['file'] = target
 
     if data.get('icon'):
         data['icon'] = relocate(data['icon'])

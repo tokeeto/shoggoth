@@ -234,7 +234,7 @@ class TranslationEditor(QWidget):
         face = getattr(self.card, side)
         original_face = getattr(self.original, side) if self.original else None
         original_data = original_face.data if original_face else {}
-        is_investigator_back = face.get_editor() == 'investigator_back'
+        is_investigator_back = face.editor_candidates()[0] == 'investigator_back'
 
         fields = list(TRANSLATION_FACE_FIELDS)
         fields += [(name, None, LINE) for name in _extra_text_fields(face)]

@@ -9,7 +9,7 @@ from shoggoth.arkham_build.text import (
     map_text,
     resolve_text,
 )
-from shoggoth.card import Card, Face
+from shoggoth.card import Card, Face, base_class
 from shoggoth.card_translations import load_card_translations
 
 # Numeric fields and their per-investigator flags.
@@ -168,6 +168,7 @@ def _factions(face: Face) -> dict[str, str]:
     # Encounter templates may default to a class that doesn't apply to the card.
     if "classes" not in face.data and _is_encounter_card(face.card):
         classes = []
+    classes = [base_class(c) for c in classes]
     factions = list(dict.fromkeys(c for c in classes if c in _FACTIONS))
     factions = factions or [_default_faction(face)]
     return dict(zip(("faction_code", "faction2_code", "faction3_code"), factions))

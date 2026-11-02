@@ -70,7 +70,7 @@ def move_card(card, target):
         card.set('encounter_set', encounter_set.id)
     elif _is_player_context(context):
         card.set('encounter_set', None)
-        if card.back.get('type') == 'encounter':
+        if card.back.card_type == 'encounter':
             card.back.set('type', 'player')
         cls = _target_class(card, context)[1]
         if context.get('investigator'):

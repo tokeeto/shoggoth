@@ -564,6 +564,7 @@
   "FILTER_PDF_FILES": "Archivos PDF (*.pdf)",
   "LABEL_SECTIONS": "Secciones:",
   "BTN_EDIT_SECTION": "Editar sección",
+  "BTN_CHANGE_SECTION_TYPE": "Cambiar tipo",
   "LABEL_ADD_SECTION": "Añadir sección:",
   "OPT_NONE_DASHES": "— Ninguno —",
   "DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO": "Elegir conjunto de encuentros para el escenario",
@@ -1175,5 +1176,14 @@
   "CARD_LABEL_DECK_SIZE": "Tamaño de mazo",
   "CARD_KEYWORD_PERMANENT": "Permanente",
   "CARD_KEYWORD_EXCEPTIONAL": "Excepcional",
-  "CARD_KEYWORD_MYRIAD": "Miríada"
+  "CARD_KEYWORD_MYRIAD": "Miríada",
+  "CTX_GUIDE_TO_FILE": "Guardar en un archivo aparte...",
+  "CTX_GUIDE_INLINE": "Guardar en el archivo del proyecto",
+  "DLG_STORE_GUIDE_IN_FILE": "Guardar la guía en un archivo aparte",
+  "FILTER_GUIDE_FILES": "Archivos de guía (*.guide.md)",
+  "MSG_GUIDE_FILE_OUTSIDE_CLOUD": "Los archivos de guía de un proyecto en la nube deben estar dentro de su carpeta:\n{folder}",
+  "MSG_GUIDE_FILE_IN_USE": "Ya hay otra guía guardada en {path}.",
+  "DLG_GUIDE_FILE_CHANGED": "Archivo de guía modificado",
+  "MSG_GUIDE_FILE_CHANGED_UNSAVED": "El archivo de la guía \"{name}\" se ha modificado fuera de Shoggoth:\n{path}\n\nTienes cambios sin guardar en esta guía. Al recargar el archivo se perderán.",
+  "STATUS_GUIDE_RELOADED": "✓ Guía {name} recargada desde su archivo"
 }

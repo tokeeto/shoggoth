@@ -598,8 +598,26 @@ class GuideSection:
             content = _DEFAULT_MARKDOWN.get(section_type,  f'# {name}\n\n')
         return cls(section_type, name, content, encounter_set_id=encounter_set_id)
 
-    def to_dict(self) -> dict:
-        d = {'id': self.id, 'type': self.type, 'name': self.name, 'markdown': self.markdown}
+    def change_type(self, section_type: str, encounter_set_id: str | None = None):
+        """Turn this section into another type, keeping its text. Only scenarios
+        link an encounter set; relinking a scenario to another set rewrites the
+        markdown's references to the old set so they follow."""
+        old_es_id = self.encounter_set_id
+        self.type = section_type
+        if section_type != 'scenario':
+            self.encounter_set_id = None
+            return
+        self.encounter_set_id = encounter_set_id
+        if old_es_id and encounter_set_id and old_es_id != encounter_set_id:
+            self.markdown = re.sub(
+                r'\[(enc|encounter):' + re.escape(old_es_id) + r'(?=[:\]])',
+                lambda m: f'[{m.group(1)}:{encounter_set_id}',
+                self.markdown,
+            )
+
+    def to_dict(self, with_id=True) -> dict:
+        d = {'id': self.id} if with_id else {}
+        d.update({'type': self.type, 'name': self.name, 'markdown': self.markdown})
         if self.encounter_set_id:
             d['encounter_set_id'] = self.encounter_set_id
         return d
@@ -631,13 +649,27 @@ class Guide:
         if 'sections' not in self.data:
             self.data['sections'] = []
 
+    def _set(self, key, value):
+        if self.data.get(key) != value:
+            self.data[key] = value
+            self.dirty = True
+
+    @property
+    def dirty(self):
+        return self.project.is_dirty(self.id)
+
+    @dirty.setter
+    def dirty(self, value):
+        # Also stamps the guide, which is how cloud sync knows it changed
+        self.project.set_dirty(self.id, value)
+
     @property
     def name(self) -> str:
         return self.data.get('name', 'Unnamed Guide')
 
     @name.setter
     def name(self, value: str):
-        self.data['name'] = value
+        self._set('name', value)
 
     @property
     def front_page(self) -> str:
@@ -645,7 +677,7 @@ class Guide:
 
     @front_page.setter
     def front_page(self, value: str):
-        self.data['front_page'] = value
+        self._set('front_page', value)
 
     @property
     def format(self) -> str:
@@ -654,7 +686,7 @@ class Guide:
 
     @format.setter
     def format(self, value: str):
-        self.data['format'] = value
+        self._set('format', value)
 
     @property
     def chapter(self) -> str:
@@ -663,14 +695,31 @@ class Guide:
 
     @chapter.setter
     def chapter(self, value: str):
-        self.data['chapter'] = value
+        self._set('chapter', value)
+
+    @property
+    def is_in_file(self) -> bool:
+        """Whether the guide is stored in its own file (see shoggoth.guide_file)."""
+        return bool(self.data.get('file'))
 
     @property
     def sections(self) -> list:
-        return [GuideSection.from_dict(s) for s in self.data.get('sections', [])]
+        # A section without a stored id (all of them, in a guide file) is
+        # identified by its position
+        return [GuideSection.from_dict({'id': f's{index + 1}', **s})
+                for index, s in enumerate(self.data.get('sections', []))]
 
     def save_sections(self, sections: list):
-        self.data['sections'] = [s.to_dict() for s in sections]
+        if self.is_in_file:
+            # Not stored: renumbered here so callers holding these sections
+            # (e.g. to open the one just added) see the ids they'll have
+            for index, section in enumerate(sections):
+                section.id = f's{index + 1}'
+        stored = [s.to_dict(with_id=not self.is_in_file) for s in sections]
+        if stored == self.data.get('sections'):
+            return
+        self.data['sections'] = stored
+        self.dirty = True
         self.project.save_all()
 
     @property

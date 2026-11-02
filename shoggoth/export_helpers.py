@@ -4,6 +4,8 @@ Build SCED metadata for Tabletop Simulator card exports.
 import json
 import re
 
+from shoggoth.card import base_class
+
 TTS_USES_MAP = {
     "supplies": "Supply",
     "bounties": "Bounty",
@@ -173,9 +175,9 @@ def build_gm_notes(card):
     # class / faction
     classes = card.front.get('classes', [])
     if isinstance(classes, str):
-        classes = {c.strip().lower() for c in classes.split(',') if c}
+        classes = {base_class(c.strip().lower()) for c in classes.split(',') if c}
     else:
-        classes = {str(c).strip().lower() for c in classes if c}
+        classes = {base_class(str(c).strip().lower()) for c in classes if c}
 
     if front_type in _ENCOUNTER_TYPES:
         notes['class'] = 'Mythos'

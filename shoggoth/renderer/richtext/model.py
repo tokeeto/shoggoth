@@ -23,12 +23,13 @@ class TokenType(Enum):
     BREAK = auto()
     MARGIN = auto()
     LETTER_SPACING = auto()
-    VALIGN = auto()          # <valign>
+    VALIGN = auto()          # <align top|center|bottom>, <valign>
     FORMAT = auto()          # <b> <i> <bi> <icon>
     ALIGN = auto()           # <center> <left> <right>
     STORY = auto()           # <blockquote>
     UNDERLINE = auto()       # <u>
     DBL_UNDERLINE = auto()   # <dbl>
+    STRIKE = auto()          # <s>
     FONT_PUSH = auto()       # <font "name">
     FONT_POP = auto()
     SIZE = auto()            # <size N>
@@ -53,7 +54,7 @@ class PieceType(Enum):
     HR_BREAK = auto()        # a rule alone on its line
     VSPACE = auto()          # <margin N>
     LETTER_SPACING = auto()  # <spacing N>, stripped before layout
-    VALIGN = auto()          # <valign>: center the rest of the text vertically
+    VALIGN = auto()          # <align center|bottom>: vertical anchor for the rest of the text
 
 
 class Align(Enum):
@@ -78,11 +79,10 @@ class Style(NamedTuple):
     size: Optional[int] = None    # None = shrinkable base size; int = fixed <size N>
     underline: bool = False
     dbl_underline: bool = False
-    strike: bool = False          # missing-font marker
+    strike: bool = False          # <s>, or the missing-font marker
     align: Align = Align.LEFT
     indent: int = 0               # <indent N>, px
     quote: bool = False           # inside <blockquote>
-    hang: bool = False            # paragraph opened with a leading bullet glyph
     color: Optional[str] = None   # <color "...">, '#rrggbb[aa]'; None = the text block's fill
 
 
@@ -95,6 +95,7 @@ class Piece(NamedTuple):
     color: Optional[str] = None   # IMAGE
     px: int = 0                   # VSPACE
     spacing: float = 1.0          # LETTER_SPACING
+    valign: str = ''              # VALIGN: 'center' or 'bottom'
 
 
 class TextCommand(NamedTuple):

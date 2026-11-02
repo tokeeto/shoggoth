@@ -160,77 +160,62 @@ class LabeledLineEdit(CompactLabeledField):
 UNIQUE_TAG = "<unique>"
 
 
+class UniqueToggle(QPushButton):
+    """Checkable star holding a "<name>_unique" field: "<unique>" when checked, "" when not.
+
+    The defaults attach that field in front of the name (`attach_before`), so the name
+    field itself stays free of the tag."""
+
+    def __init__(self, parent=None):
+        super().__init__("★", parent)
+        self.setCheckable(True)
+        self.setProperty("role", "unique-btn")
+        self.setFixedSize(28, 28)
+        self.setToolTip(tr("TOOLTIP_UNIQUE"))
+
+    def value(self):
+        return UNIQUE_TAG if self.isChecked() else ""
+
+    def setValue(self, value):
+        self.setChecked(value == UNIQUE_TAG)
+
+
 class UniqueNameField(CompactLabeledField):
     """Name field with a toggleable "unique" star to its left.
 
-    Many cards are unique — printed as "<unique>Count Dracula" (or "<unique><name>")
-    rather than just "Count Dracula". The star toggles that literal "<unique>" prefix
-    on the *stored* value; the display field itself only ever shows the name text.
-    No trimming beyond the exact "<unique>" tag — whatever else is in the value is
-    respected as-is.
+    The star (`unique_btn`, a UniqueToggle) is a separate field — "name_unique" for the
+    "name" field — so the name value is just the name; this wrapper's text() is the
+    name text only.
     """
 
     textChanged = Signal(str)
 
     def __init__(self, label_text):
         super().__init__(label_text)
-        self._unique = False
-        self._updating = False
 
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(4)
 
-        self.unique_btn = QPushButton("★")
-        self.unique_btn.setCheckable(True)
-        self.unique_btn.setProperty("role", "unique-btn")
-        self.unique_btn.setFixedSize(28, 28)
-        self.unique_btn.setToolTip(tr("TOOLTIP_UNIQUE"))
-        self.unique_btn.toggled.connect(self._on_toggle_unique)
+        self.unique_btn = UniqueToggle()
         row.addWidget(self.unique_btn)
 
         self.input = QLineEdit()
-        self.input.textChanged.connect(self._on_changed)
+        self.input.textChanged.connect(self.textChanged.emit)
         row.addWidget(self.input)
 
         row_widget = QWidget()
         row_widget.setLayout(row)
         self._add_input(row_widget)
 
-    def _on_changed(self, *_):
-        if not self._updating:
-            self.textChanged.emit(self.text())
-
-    def _on_toggle_unique(self, checked):
-        """Turning the star on with no name text yet: pull in the placeholder (the
-        "<name>" render macro, or an inherited name) as real text, so the stored
-        value reads "<unique><name>" rather than just "<unique>" with nothing to show."""
-        if checked and not self.input.text() and self.input.placeholderText():
-            self._updating = True
-            self.input.setText(self.input.placeholderText())
-            self._updating = False
-        self._on_changed()
-
     def text(self):
-        """The raw stored value: the <unique> tag (if toggled) plus the field text, verbatim."""
-        prefix = UNIQUE_TAG if self.unique_btn.isChecked() else ""
-        return prefix + self.input.text()
+        return self.input.text()
 
     def setText(self, value):
-        """Load a raw stored value: a literal leading "<unique>" (if present) becomes the
-        toggle state; everything else goes into the field untouched — no trimming."""
-        self._updating = True
-        value = value or ""
-        unique = value.startswith(UNIQUE_TAG)
-        self.unique_btn.setChecked(unique)
-        self.input.setText(value[len(UNIQUE_TAG):] if unique else value)
-        self._updating = False
+        self.input.setText(value or "")
 
     def setPlaceholderText(self, text):
-        text = text or ""
-        if text.startswith(UNIQUE_TAG):
-            text = text[len(UNIQUE_TAG):]
-        self.input.setPlaceholderText(text)
+        self.input.setPlaceholderText(text or "")
         self._has_placeholder = bool(text)
 
 
@@ -265,7 +250,7 @@ class ClassSelectorWidget(QWidget):
 
     classesChanged = Signal()
 
-    def __init__(self, parent=None, default_classes=None):
+    def __init__(self, parent=None, default_classes=None, special_classes=None):
         super().__init__(parent)
 
         layout = QVBoxLayout(self)
@@ -276,7 +261,7 @@ class ClassSelectorWidget(QWidget):
         label.setProperty("role", "field-label")
         layout.addWidget(label)
 
-        self.chips = ClassChipsField(default_classes=default_classes)
+        self.chips = ClassChipsField(default_classes=default_classes, special_classes=special_classes)
         self.chips.changed.connect(self.classesChanged.emit)
         layout.addWidget(self.chips)
 

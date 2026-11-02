@@ -564,6 +564,7 @@
   "FILTER_PDF_FILES": "PDF 文件 (*.pdf)",
   "LABEL_SECTIONS": "章节：",
   "BTN_EDIT_SECTION": "编辑章节",
+  "BTN_CHANGE_SECTION_TYPE": "更改类型",
   "LABEL_ADD_SECTION": "添加章节：",
   "OPT_NONE_DASHES": "— 无 —",
   "DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO": "为场景选择遭遇牌组",
@@ -1175,5 +1176,14 @@
   "CARD_LABEL_DECK_SIZE": "卡牌张数|牌组卡牌张数",
   "CARD_KEYWORD_PERMANENT": "永久",
   "CARD_KEYWORD_EXCEPTIONAL": "卓越",
-  "CARD_KEYWORD_MYRIAD": "多重"
+  "CARD_KEYWORD_MYRIAD": "多重",
+  "CTX_GUIDE_TO_FILE": "存储为单独文件...",
+  "CTX_GUIDE_INLINE": "存储在项目文件中",
+  "DLG_STORE_GUIDE_IN_FILE": "将向导存储为单独文件",
+  "FILTER_GUIDE_FILES": "向导文件 (*.guide.md)",
+  "MSG_GUIDE_FILE_OUTSIDE_CLOUD": "云项目的向导文件必须位于其文件夹内：\n{folder}",
+  "MSG_GUIDE_FILE_IN_USE": "{path} 中已存储了另一份向导。",
+  "DLG_GUIDE_FILE_CHANGED": "向导文件已更改",
+  "MSG_GUIDE_FILE_CHANGED_UNSAVED": "向导\"{name}\"的文件已在 Shoggoth 之外被更改：\n{path}\n\n此向导有尚未保存的更改。重新加载文件将丢弃这些更改。",
+  "STATUS_GUIDE_RELOADED": "✓ 已从文件重新加载向导 {name}"
 }

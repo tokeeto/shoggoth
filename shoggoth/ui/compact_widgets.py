@@ -34,6 +34,12 @@ CLASS_CHIP_COLORS = {
     'weakness': ('#ffffff', '#111111'),
     'basic weakness': ('#ffffff', '#111111'),
     'reward': ('#8a6d1f', '#fdf6e3'),
+    'parallel_guardian': ('#2a5f8f', '#eaf3fb'),
+    'parallel_seeker': ('#c9a227', '#2b2205'),
+    'parallel_rogue': ('#2e7d46', '#eafbf0'),
+    'parallel_survivor': ('#a5322f', '#fbeaea'),
+    'parallel_mystic': ('#5c3f8f', '#f1eafb'),
+    'parallel_neutral': ('#6b6f76', '#f2f2f3'),
 }
 # Per-container default toggle rows (see ClassChipsField) — each face editor passes the
 # preset that matches what its card type actually needs, rather than one shared list.
@@ -44,6 +50,10 @@ ENCOUNTER_CLASSES = ['weakness', 'basic weakness', 'neutral']
 # "reward" is never a default toggle on either row — unlike weakness, it's always
 # secondary, never a card's main class — so it only ever surfaces here.
 SPECIAL_CANDIDATES = ['specialist', 'weakness', 'basic weakness', 'reward']
+# Added to the "Special" popover of investigator faces only (see ClassChipsField's
+# special_classes). Each picks the matching investigator_parallel_* template.
+PARALLEL_CLASSES = ['parallel_guardian', 'parallel_seeker', 'parallel_rogue',
+                    'parallel_mystic', 'parallel_survivor', 'parallel_neutral']
 _DEFAULT_CLASS_CHIP_COLOR = ('#5a5f66', '#f2f2f3')
 
 _CLASS_LABEL_KEYS = {
@@ -51,6 +61,9 @@ _CLASS_LABEL_KEYS = {
     'survivor': 'CLASS_SURVIVOR', 'mystic': 'CLASS_MYSTIC', 'neutral': 'CLASS_NEUTRAL',
     'specialist': 'CLASS_SPECIALIST', 'weakness': 'CLASS_WEAKNESS', 'basic weakness': 'CLASS_BASIC_WEAKNESS',
     'reward': 'CLASS_REWARD',
+    'parallel_guardian': 'CLASS_PARALLEL_GUARDIAN', 'parallel_seeker': 'CLASS_PARALLEL_SEEKER',
+    'parallel_rogue': 'CLASS_PARALLEL_ROGUE', 'parallel_mystic': 'CLASS_PARALLEL_MYSTIC',
+    'parallel_survivor': 'CLASS_PARALLEL_SURVIVOR', 'parallel_neutral': 'CLASS_PARALLEL_NEUTRAL',
 }
 
 
@@ -287,8 +300,7 @@ class PerStepper(QWidget):
 
     Several stat fields (enemy attack/health/evade, location/act clue thresholds, agenda
     doom thresholds) can be printed as "X per investigator" — the toggle appends/removes a
-    literal "<per>" suffix on the *stored* value, same idea as UniqueNameField's "<unique>"
-    prefix toggle on the name field, just suffixed and shared across these stepper fields
+    literal "<per>" suffix on the *stored* value, shared across these stepper fields
     instead of being its own one-off widget.
     """
 
@@ -921,7 +933,8 @@ class _ClassSpecialPopover(QWidget):
     def __init__(self, field):
         super().__init__(field, Qt.Popup)
         self.field = field
-        candidates = [v for v in SPECIAL_CANDIDATES if v not in field.default_classes]
+        candidates = [v for v in SPECIAL_CANDIDATES + field.special_classes
+                      if v not in field.default_classes]
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -961,17 +974,19 @@ class ClassChipsField(QWidget):
     """Chip editor for the card Class field: an always-visible row of toggle buttons
     for the container's own default classes (e.g. Guardian/Seeker/... for player cards,
     Weakness/Basic Weakness/Neutral for encounter cards — see PLAYER_CLASSES/
-    ENCOUNTER_CLASSES), a "Special ▾" popover for everything else, and overflow chips
+    ENCOUNTER_CLASSES), a "Special ▾" popover for everything else (SPECIAL_CANDIDATES
+    plus the container's own special_classes), and overflow chips
     for arbitrary legacy/custom values already present in the data (never silently
     dropped). Plain click selects a single value; Shift/Ctrl-click combines multiple.
     """
 
     changed = Signal()
 
-    def __init__(self, default_classes=None, parent=None):
+    def __init__(self, default_classes=None, parent=None, special_classes=None):
         super().__init__(parent)
         self._values = []
         self.default_classes = list(default_classes) if default_classes else list(PLAYER_CLASSES)
+        self.special_classes = list(special_classes) if special_classes else []
 
         self.flow = QHBoxLayout(self)
         self.flow.setContentsMargins(6, 4, 6, 4)

@@ -3,7 +3,7 @@
 `_tokenize` scans the string into `Token`s (running the string/token pre- and
 post-passes in `preprocess`). `_resolve_to_pieces` then folds every style-only
 token (`<b>`, `<font>`, `<color>`, `<indent>`, `<center>`, `<size>`, `<u>`, `<dbl>`,
-`<blockquote>`, ...) into the `Style` of the pieces it covers and drops it, so
+`<s>`, `<blockquote>`, ...) into the `Style` of the pieces it covers and drops it, so
 the layout engine only sees space-occupying pieces (`TEXT`, `SPACE`, `ICON`,
 `IMAGE`, `HR`), flow breaks (`BREAK`, `PAR`, `HR_BREAK`, `VSPACE`) and the
 `VALIGN` marker.
@@ -89,7 +89,6 @@ def _tokenize(text, tags, resources, *, project, french_punctuation):
 
     if french_punctuation:
         tokens = preprocess.merge_french_spacing(tokens)
-    tokens = preprocess.prevent_runts(tokens)
     tokens = preprocess.collapse_control_lines(tokens)
     tokens = preprocess.merge_hr_breaks(tokens)
     return tokens
@@ -170,7 +169,7 @@ def _parse_color(value):
 
 def _resolve_to_pieces(tokens, base_font, base_align):
     # Scoped style state. <b>/<i>/... push `font` alone; <font "..."> pushes
-    # `font` and `strike` together.
+    # `font` and `strike` together (a found font leaves an outer <s> in effect).
     state = {'font': base_font, 'strike': False, 'underline': False,
              'align': base_align, 'indent': 0, 'size': None, 'color': None}
     stacks = {key: [] for key in state}
@@ -187,30 +186,23 @@ def _resolve_to_pieces(tokens, base_font, base_align):
 
     quote = False
     dbl_armed = False          # </dbl> seen; twin underline goes under this line
-    hang = False               # paragraph opened with a leading bullet glyph
-    line_has_content = False
     line_start = 0             # index in `pieces` of this line's first entry
 
     pieces = []
 
     def current_style():
         return Style(state['font'], state['size'], state['underline'], dbl_armed,
-                     state['strike'], state['align'], state['indent'], quote, hang,
+                     state['strike'], state['align'], state['indent'], quote,
                      state['color'])
 
     def add(piece_type, **fields):
-        nonlocal line_has_content
         pieces.append(Piece(piece_type, current_style(), **fields))
-        line_has_content = True
 
     def line_break(piece_type):
-        nonlocal line_has_content, hang, dbl_armed, line_start
+        nonlocal dbl_armed, line_start
         pieces.append(Piece(piece_type, current_style()))
-        line_has_content = False
         dbl_armed = False
         line_start = len(pieces)
-        if piece_type is not PieceType.BREAK:   # <br> keeps the bullet hang
-            hang = False
 
     for token in tokens:
         kind = token.type
@@ -224,11 +216,7 @@ def _resolve_to_pieces(tokens, base_font, base_align):
         elif kind is TokenType.TEXT:
             add(PieceType.SPACE) if token.value == ' ' else add(PieceType.TEXT, text=token.value)
         elif kind is TokenType.FONT_ICON:
-            at_line_start = not line_has_content
             add(PieceType.ICON, glyph=token.value)
-            if token.value == 'b' and at_line_start:
-                hang = True
-                pieces[-1] = pieces[-1]._replace(style=pieces[-1].style._replace(hang=True))
         elif kind is TokenType.IMAGE_ICON:
             add(PieceType.IMAGE, src=token.value, color=token.color)
         elif kind is TokenType.HR:
@@ -238,7 +226,8 @@ def _resolve_to_pieces(tokens, base_font, base_align):
         elif kind is TokenType.LETTER_SPACING:
             pieces.append(Piece(PieceType.LETTER_SPACING, spacing=token.value))
         elif kind is TokenType.VALIGN:
-            pieces.append(Piece(PieceType.VALIGN))
+            if token.value != 'top':    # top is where text goes anyway
+                pieces.append(Piece(PieceType.VALIGN, valign=token.value))
         elif kind is TokenType.FORMAT:
             set_scope('font', token.value, token.start, base_font)
         elif kind is TokenType.ALIGN:
@@ -248,6 +237,8 @@ def _resolve_to_pieces(tokens, base_font, base_align):
             quote = token.start
         elif kind is TokenType.UNDERLINE:
             set_scope('underline', True, token.start, False)
+        elif kind is TokenType.STRIKE:
+            set_scope('strike', True, token.start, False)
         elif kind is TokenType.DBL_UNDERLINE:
             # </dbl> arms a twin underline for its line: retro-mark every piece
             # already on the line, and keep it armed for any that still follow.
@@ -258,7 +249,7 @@ def _resolve_to_pieces(tokens, base_font, base_align):
                         style=pieces[index].style._replace(dbl_underline=True))
         elif kind is TokenType.FONT_PUSH:
             push('font', token.font)
-            push('strike', token.strike)
+            push('strike', token.strike or state['strike'])
         elif kind is TokenType.FONT_POP:
             pop('font', base_font)
             pop('strike', False)

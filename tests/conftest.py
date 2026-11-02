@@ -1,18 +1,29 @@
-"""Shared fixtures for the fast test suite.
+"""Shared fixtures for the test suite.
 
-Nothing here needs the asset pack, a network connection or a display: the
-defaults files a test relies on are written by the test itself (see the
-`defaults` fixture), so results don't change when the asset pack does.
-Rendering against the real asset pack is the visual check's job
-(scripts/visual_check.py).
+Most tests need no asset pack, network connection or display: the defaults
+files a test relies on are written by the test itself (see the `defaults`
+fixture), so results don't change when the asset pack does. Those are what the
+build on GitHub runs.
+
+Tests marked `assets` run against the SHOGGOTH_ASSET_DIR folder (usually set in
+.env), never the installed pack, and skip when it isn't set. Rendering against
+the real asset pack is the visual check's job (scripts/visual_check.py).
 """
 import json
 import os
+from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
 # Never open windows, even if a test imports Qt modules.
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
+# Both before anything imports shoggoth.files, which reads the variable once.
+load_dotenv(Path(__file__).parent.parent / '.env')
+if not os.environ.get('SHOGGOTH_ASSET_DIR'):
+    # A folder that doesn't exist, so the installed pack is never picked up.
+    os.environ['SHOGGOTH_ASSET_DIR'] = str(Path(__file__).parent / 'no_asset_pack')
 
 import shoggoth.card  # noqa: E402
 from shoggoth.project import Project  # noqa: E402
@@ -72,19 +83,19 @@ def defaults(tmp_path, monkeypatch):
 
 
 def pytest_configure(config):
-    config.addinivalue_line('markers', 'assets: needs the installed asset pack (fonts, templates, ...)')
+    config.addinivalue_line('markers', 'assets: needs the asset pack in SHOGGOTH_ASSET_DIR (fonts, templates, ...)')
 
 
 def pytest_collection_modifyitems(config, items):
-    """Tests marked `assets` skip when the asset pack isn't installed (as in
-    CI) -- unless SHOGGOTH_REQUIRE_ASSETS is set (scripts/release.py sets it),
-    which turns that skip into a failure."""
+    """Tests marked `assets` skip without an asset pack in SHOGGOTH_ASSET_DIR
+    (as in CI) -- unless SHOGGOTH_REQUIRE_ASSETS is set (the release scripts
+    set it), which turns that skip into a failure."""
     from shoggoth.files import font_dir
     if font_dir.is_dir() and any(font_dir.iterdir()):
         return
     if os.environ.get('SHOGGOTH_REQUIRE_ASSETS'):
-        raise pytest.UsageError(f'SHOGGOTH_REQUIRE_ASSETS is set, but there is no asset pack at {font_dir.parent}')
-    skip = pytest.mark.skip(reason='asset pack not installed')
+        raise pytest.UsageError(f'SHOGGOTH_REQUIRE_ASSETS is set, but there is no asset pack at {font_dir.parent}: set SHOGGOTH_ASSET_DIR in .env')
+    skip = pytest.mark.skip(reason='no asset pack in SHOGGOTH_ASSET_DIR')
     for item in items:
         if 'assets' in item.keywords:
             item.add_marker(skip)

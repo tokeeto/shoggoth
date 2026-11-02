@@ -14,6 +14,7 @@ Every tag you can use in card text. For explanations and examples, see [Writing 
 | `<t>` … `</t>`, `[[` … `]]` | Trait style (bold italic) |
 | `<u>` … `</u>` | Underline |
 | `<dbl>` … `</dbl>` | Double underline (headings) |
+| `<s>` … `</s>` | Strikethrough |
 | `<center>`, `<left>`, `<right>` (and closing tags) | Alignment |
 | `<blockquote>` … `</blockquote>` | Story text style |
 | `<size N>` … `</size>` | Font size in card pixels |
@@ -22,7 +23,7 @@ Every tag you can use in card text. For explanations and examples, see [Writing 
 | `<indent N>` … `</indent>` | Indent by N pixels |
 | `<margin N>` | N pixels of vertical space |
 | `<spacing X>` | Letter spacing (1 is normal) |
-| `<valign>` | Vertically center the text from this line on |
+| `<align top>`, `<align center>`, `<align bottom>` | Vertical position of the text from this line on. See [Vertical alignment](advanced-text.md#vertical-alignment). |
 | `<br>` | Line break |
 | `<hr>` | Horizontal rule |
 | `<image src="path" color="…">` | An inline image. `color` is optional: `inverted` or a color. |

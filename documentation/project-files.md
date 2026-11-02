@@ -41,6 +41,7 @@ A Shoggoth project is a plain, readable JSON file. Most people never need to ope
 - Each side has a **type** and only the fields that differ from that type's defaults. Everything else comes from the type (see [Making your own card types](custom-card-types.md)). You can leave out any field you don't need.
 - **Ids** tie everything together: encounter sets, [references](advanced-text.md#referring-to-other-cards), links between investigators and their cards, translations, and cloud sync. Don't change them. When you add cards by hand, give each one a new unique id (any unique string works, and Shoggoth uses UUIDs).
 - **Paths** can be relative to the project file (recommended) or absolute.
+- A guide can be kept in a `.guide.md` file of its own. Its entry in `guides` then only says where the file is: `{"id": "…", "file": "guides/campaign.guide.md"}`. See [Keeping a guide in its own file](campaign-guides.md#keeping-a-guide-in-its-own-file) for that file's format.
 
 The quickest way to learn the format is to make a card in Shoggoth and look at its **JSON** tab. The tab shows the card exactly as it's stored, and you can edit it there too.
 

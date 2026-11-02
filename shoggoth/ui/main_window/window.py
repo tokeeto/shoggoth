@@ -25,6 +25,7 @@ from PySide6.QtGui import QIcon
 
 import shoggoth
 from shoggoth import telemetry
+from shoggoth.card import invalidate_defaults
 from shoggoth.renderer import CardRenderer
 from shoggoth.file_monitor import FileWatcher
 from shoggoth.files import asset_dir, path_key
@@ -330,14 +331,11 @@ class ShoggothMainWindow(QMainWindow):
         self.clear_cache()
 
     def clear_cache(self):
-        """Tools -> Clear Cache: drop renderer image/font caches and the
-        current card's cached defaults (fallback), then redraw the preview.
-        Other cards need no reset: Project.cards builds fresh Card objects
-        (and so fresh fallbacks) on every access."""
+        """Tools -> Clear Cache: drop renderer image/font caches and every
+        face's cached defaults (fallback), then redraw the preview."""
         self.card_renderer.clear_asset_caches()
         self.card_renderer.clear_illustration_caches()
-        if self.current_card:
-            self.current_card.reload_fallback()
+        invalidate_defaults()
         self.preview.rerender_now()
 
     def on_location_connections_changed(self, affected_cards):
@@ -484,17 +482,18 @@ class ShoggothMainWindow(QMainWindow):
 
     @staticmethod
     def _project_watch_paths(project):
-        """The files an open project depends on: its own file, and for a
-        modification also the parent project it's applied to."""
-        paths = []
-        if project.is_file_backed:
-            paths.append(project.file_path)
+        """The files an open project depends on: its own file and its guide
+        files, and for a modification also the parent project it's applied
+        to (and the parent's guide files)."""
+        paths = [project.file_path, *map(str, project.guide_file_paths().values())]
         if project.is_modification:
             paths.append(project.parent_path)
+            paths.extend(map(str, project.parent.guide_file_paths().values()))
         return paths
 
     def watch_project_file(self, project):
-        """Watch an open project's file for outside changes, for as long as it stays open"""
+        """Watch an open project's files for outside changes, for as long as
+        it stays open. Call again when a guide moves into a file of its own."""
         for path in self._project_watch_paths(project):
             self.file_watcher.watch_file(path, pinned=True)
 
@@ -514,29 +513,38 @@ class ShoggothMainWindow(QMainWindow):
     @Slot(object)
     def _handle_file_changed(self, paths):
         """Handle file system changes on main thread - refresh preview when relevant files change"""
-        # Project files aren't render inputs; they're checked for outside edits
-        project_files = {path_key(p.file_path): p for p in self.open_projects if p.is_file_backed}
+        # Project and guide files aren't render inputs; they're checked for outside edits
+        project_files = {path_key(p.file_path): p for p in self.open_projects}
+        guide_files = {path_key(path): (p, guide_id) for p in self.open_projects
+                       for guide_id, path in p.guide_file_paths().items()}
         parent_files = {}
         for p in self.open_projects:
             if p.is_modification:
-                parent_files.setdefault(path_key(p.parent_path), []).append(p)
+                for path in [p.parent_path, *p.parent.guide_file_paths().values()]:
+                    parent_files.setdefault(path_key(path), []).append(p)
         changed_keys = {path_key(p) for p in paths}
         changed_projects = [project_files[k] for k in changed_keys if k in project_files]
-        changed_parents = [m for k in changed_keys if k in parent_files for m in parent_files[k]]
-        if changed_projects or changed_parents:
-            paths = {p for p in paths if path_key(p) not in project_files and path_key(p) not in parent_files}
+        changed_guides = [guide_files[k] for k in changed_keys if k in guide_files]
+        changed_parents = list({id(m): m for k in changed_keys if k in parent_files
+                                for m in parent_files[k]}.values())
+        ours = project_files.keys() | guide_files.keys() | parent_files.keys()
+        if changed_projects or changed_guides or changed_parents:
+            paths = {p for p in paths if path_key(p) not in ours}
             for project in changed_projects:
                 projects.check_external_change(self, project)
+            for project, guide_id in changed_guides:
+                projects.check_guide_change(self, project, guide_id)
             for modification in changed_parents:
                 projects.parent_changed(self, modification)
             if not paths:
                 return
         # Read via self: the renderer is replaced on language change
         self.card_renderer.invalidate_files(paths)
+        if any(str(p).lower().endswith('.json') for p in paths):
+            # template/defaults changes: every card, not just the shown one
+            # (the tree holds Card objects with their fallback already built)
+            invalidate_defaults()
         if self.current_card:
-            if any(str(p).lower().endswith('.json') for p in paths):
-                # template/defaults changes
-                self.current_card.reload_fallback()
             self.preview.rerender_now()
 
     def _check_for_updates_startup(self):

@@ -39,10 +39,15 @@ FORMATTING_TAGS = {
     '</u>': Token(TokenType.UNDERLINE, start=False),
     '<dbl>': Token(TokenType.DBL_UNDERLINE, start=True),
     '</dbl>': Token(TokenType.DBL_UNDERLINE, start=False),
+    '<s>': Token(TokenType.STRIKE, start=True),
+    '</s>': Token(TokenType.STRIKE, start=False),
     '<br>': Token(TokenType.BREAK),
     '<hr>': Token(TokenType.HR),
     '</indent>': Token(TokenType.INDENT_POP),
-    '<valign>': Token(TokenType.VALIGN),
+    '<align top>': Token(TokenType.VALIGN, 'top'),
+    '<align center>': Token(TokenType.VALIGN, 'center'),
+    '<align bottom>': Token(TokenType.VALIGN, 'bottom'),
+    '<valign>': Token(TokenType.VALIGN, 'center'),
 }
 
 REPLACEMENT_TAGS = {
@@ -195,7 +200,7 @@ _TOKEN_HELP = {
     TokenType.INDENT_POP: 'end indent',
     TokenType.UNDERLINE: 'underline',
     TokenType.DBL_UNDERLINE: 'double underline heading',
-    TokenType.VALIGN: 'vertically center the text from this line on',
+    TokenType.STRIKE: 'strikethrough',
 }
 
 
@@ -221,6 +226,8 @@ class TagTable:
         for tag, token in FORMATTING_TAGS.items():
             if token.type in (TokenType.FORMAT, TokenType.ALIGN, TokenType.STORY):
                 description = token.value.value if isinstance(token.value, Align) else token.value
+            elif token.type is TokenType.VALIGN:
+                description = f'vertically align the text from this line on: {token.value}'
             else:
                 description = _TOKEN_HELP.get(token.type, token.type.name.lower())
             lines.append(f'  {tag}  ({description})')

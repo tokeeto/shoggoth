@@ -14,6 +14,18 @@ brings it in step with the server in the background:
   folder, so sync mirrors the folder -- downloads files the cloud has that we
   don't (or that changed), and uploads files added/changed locally, found by a
   folder monitor (anything that isn't a file sync itself just wrote).
+* **Base**: what the cloud held for each element when we last agreed
+  (`.celaeno/base.json`, content fingerprints). It lets the merge see local
+  changes that carry no new timestamp -- above all, the project file edited
+  outside Shoggoth while it was closed -- instead of mistaking them for stale
+  copies and replacing them with the cloud's.
+* **Guide files**: a guide stored in its own file (shoggoth.guide_file)
+  travels inside the project's JSON like any other guide; its file is
+  written locally on save and is not synced as a resource. One whose file
+  is missing here is left out of the merge (it's taken from the cloud, never
+  sent as empty). The project and guide files are watched for outside edits
+  like any project's; reloading them pushes what changed (`resync`,
+  `element_saved`).
 * **Live**: a WebSocket per project delivers other clients' patches, merged
   the same way. Local edits are shared when the project is *saved*, not as they
   are made: until then they exist only in memory (and can be discarded by
@@ -66,6 +78,8 @@ class _Session:
         self.pulling = False
         self.upload_queue = set()   # rel paths touched on disk, not yet uploaded
         self.manifest = folder.read_manifest(self.root)
+        self.base = folder.read_base(self.root)  # see shoggoth.cloud.merge; main thread only
+        self.sent_prints = {}       # {(kind, id): fingerprint} of the push in flight
         self.lock = threading.Lock()  # guards manifest (touched from worker threads)
         self.socket = None
         self.observer = None
@@ -96,6 +110,16 @@ class _Session:
     @property
     def deleted(self) -> dict:
         return self.meta.setdefault('celaeno_deleted', {})
+
+
+def _local_data(project):
+    """The project's data as the merge should see it: without guides whose
+    file is missing here (we don't have them, so they mustn't look emptied)."""
+    missing = project.missing_guide_files
+    if not missing:
+        return project.data
+    return {**project.data,
+            'guides': [g for g in project.data.get('guides', []) if g.get('id') not in missing]}
 
 
 class _FolderHandler(FileSystemEventHandler):
@@ -230,8 +254,9 @@ class CloudSyncController(QObject):
         session.pulling = True
         base_url, token = self._credentials()
         # A full snapshot (no since_version) when the cloud lost data: the
-        # version we know is no longer meaningful there.
-        since = None if session.prefer_local else session.version
+        # version we know is no longer meaningful there. Also when we have no
+        # base yet: the snapshot establishes it.
+        since = None if session.prefer_local or not session.base else session.version
         started = time.time()
 
         def task():
@@ -266,7 +291,7 @@ class CloudSyncController(QObject):
             # push never got through (failed, or Shoggoth closed first).
             if not session.read_only:
                 for kind, element_id in merge.local_changes(
-                        session.project.data, session.synced_at, session.deleted):
+                        _local_data(session.project), session.synced_at, session.deleted, session.base):
                     self._queue(session, kind, element_id)
             if session.pending:
                 self._flush_push(session)
@@ -279,9 +304,11 @@ class CloudSyncController(QObject):
 
         project = session.project
         prefer_local, session.prefer_local = session.prefer_local, False
-        plan = merge.plan_snapshot(project.data, detail['data'], session.synced_at, session.deleted,
-                                   prefer_local=prefer_local)
+        plan = merge.plan_snapshot(_local_data(project), detail['data'], session.synced_at, session.deleted,
+                                   prefer_local=prefer_local, base=session.base)
         changed, touched = self._resolve_and_apply(session, plan, snapshot=True)
+        # Whatever we keep or push from here on, this is what the cloud holds now.
+        self._set_base(session, merge.wire_base(detail['data']))
         version = int(detail.get('version') or 0)
         session.meta['celaeno_version'] = version if prefer_local else max(session.version, version)
         if not session.pending and not session.pushing:
@@ -462,8 +489,10 @@ class CloudSyncController(QObject):
             return
 
         patch = self._without_own_echo(session, message.get('patch', {}))
-        plan = merge.plan_patch(session.project.data, patch, session.synced_at, session.deleted)
+        plan = merge.plan_patch(_local_data(session.project), patch, session.synced_at, session.deleted,
+                                session.base)
         changed, touched = self._resolve_and_apply(session, plan)
+        self._update_base_from_patch(session, patch)
         session.meta['celaeno_version'] = version
         if not session.pending and not session.pushing:
             self._mark_synced(session, time.time())
@@ -510,6 +539,8 @@ class CloudSyncController(QObject):
 
         for kind, element_id, element in plan.take:
             merge.apply_take(project.data, kind, element_id, element)
+            if kind == 'guides':
+                project.missing_guide_files.pop(element_id, None)  # its file is written on save
             session.unsaved.discard((kind, element_id))
             session.deleted.pop(element_id, None)
             session.remote_floor = max(session.remote_floor, merge.modified(element))
@@ -609,19 +640,80 @@ class CloudSyncController(QObject):
         session.pending |= saved
         self._flush_push(session)
 
+    def element_saved(self, project, kind, element_id):
+        """An element now holds what's on disk without having been saved by
+        us (a guide reloaded from its file): send it, like a save."""
+        session = self.session_for(project)
+        if session is None or session.read_only:
+            return
+        session.unsaved.discard((kind, element_id))
+        session.pending.add((kind, element_id))
+        self._flush_push(session)
+
+    def resync(self, project):
+        """The project was reloaded from its file (edited outside Shoggoth):
+        nothing in memory is unsaved any more, and a pull finds what changed
+        against the base and sends it."""
+        session = self.session_for(project)
+        if session is None:
+            return
+        session.unsaved.clear()
+        self._start_pull(session)
+
     def _build_patch(self, session, keys):
         data = session.project.data
         patch = {}
+        session.sent_prints = {}
         for kind, element_id in keys:
             if kind == 'project':
+                self._stamp_if_unstamped(session, kind, element_id, data)
                 fields = merge.project_fields(data)
                 patch.update(fields)
                 session.sent[('project', element_id)] = merge.modified(fields)
+                session.sent_prints[(kind, element_id)] = merge.fingerprint(fields)
                 continue
+            if kind == 'guides' and element_id in session.project.missing_guide_files:
+                continue  # we don't have it: nothing to send
             element = next((e for e in data.get(kind, []) if e.get('id') == element_id), None)
+            if element is not None:
+                self._stamp_if_unstamped(session, kind, element_id, element)
             patch.setdefault(kind, {})[element_id] = copy.deepcopy(element)  # None = deleted
             session.sent[(kind, element_id)] = merge.modified(element) if element else -1
+            session.sent_prints[(kind, element_id)] = merge.fingerprint(element)
         return patch
+
+    def _stamp_if_unstamped(self, session, kind, element_id, element):
+        """An element going out whose timestamp doesn't show it changed (it
+        was edited outside Shoggoth, found by the base) gets stamped now, so
+        collaborators' Shoggoths -- deciding by timestamp where they lack a
+        base -- see it as the newer copy."""
+        stamped = merge.modified(merge.project_fields(element) if kind == 'project' else element)
+        if stamped <= session.synced_at:
+            session.project.stamp(element)
+
+    # ── Base bookkeeping ─────────────────────────────────────────────────
+
+    def _set_base(self, session, base):
+        session.base = base
+        try:
+            folder.write_base(session.root, base)
+        except OSError as exc:
+            self.status.emit(str(exc))
+
+    def _update_base_from_patch(self, session, patch):
+        base = dict(session.base)
+        for kind in merge.ELEMENT_KINDS:
+            for element_id, element in (patch.get(kind) or {}).items():
+                key = merge.base_key(kind, element_id)
+                if element is None:
+                    base.pop(key, None)
+                else:
+                    base[key] = merge.fingerprint(element)
+        if any(k not in merge.ELEMENT_KINDS for k in patch):
+            # A patch may carry only some of the project's fields: we no
+            # longer know the cloud's whole set, so timestamps decide again.
+            base.pop('project', None)
+        self._set_base(session, base)
 
     def _without_own_echo(self, session, patch):
         """Drops elements from an incoming patch that are just the server
@@ -686,6 +778,13 @@ class CloudSyncController(QObject):
             session.push_timer.start(_RETRY_MS)
             return
         session.warned = False
+        base = dict(session.base)
+        for (kind, element_id), print_ in session.sent_prints.items():
+            if print_ is None:
+                base.pop(merge.base_key(kind, element_id), None)
+            else:
+                base[merge.base_key(kind, element_id)] = print_
+        self._set_base(session, base)
         if 0 < version < session.version:
             # Our push bumped the cloud's version, yet it's behind one we
             # already had: the cloud copy was reset or restored and has lost
@@ -743,6 +842,8 @@ class CloudSyncController(QObject):
         project = session.project
         if session.unsaved or project.dirty:
             return
+        if project.has_external_changes():
+            return  # edited outside Shoggoth, not yet resolved: never overwrite that
         try:
             project.save_all()
         except OSError as exc:

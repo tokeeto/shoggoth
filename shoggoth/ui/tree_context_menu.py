@@ -262,6 +262,15 @@ class TreeContextMenu:
         export_action.triggered.connect(lambda: self.export_guide_to_pdf(guide))
         menu.addAction(export_action)
 
+        if not guide.project.is_modification:  # a modification's guides are its parent's
+            if guide.is_in_file:
+                storage_action = QAction(tr("CTX_GUIDE_INLINE"), self.parent)
+                storage_action.triggered.connect(lambda: self.store_guide_inline(guide))
+            else:
+                storage_action = QAction(tr("CTX_GUIDE_TO_FILE"), self.parent)
+                storage_action.triggered.connect(lambda: self.store_guide_in_file(guide))
+            menu.addAction(storage_action)
+
         menu.addSeparator()
 
         delete_action = QAction(tr("CTX_DELETE"), self.parent)
@@ -870,9 +879,79 @@ class TreeContextMenu:
         new_data = copy.deepcopy(guide.data)
         new_data['id'] = str(uuid.uuid4())
         new_data['name'] = f"{guide.name} (Copy)"
+        new_data.pop('file', None)  # the copy goes into the project file, not over the original's
+        new_data.pop('meta', None)
         for section in new_data.get('sections', []):
             section['id'] = uuid.uuid4().hex[:8]
         guide.project.data.setdefault('guides', []).append(new_data)
+        guide.project.set_dirty(new_data['id'])
+
+    def store_guide_in_file(self, guide):
+        """Moves a guide out of the project file into a .guide.md file of its
+        own (see shoggoth.guide_file)."""
+        import re
+        from pathlib import Path
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        import shoggoth
+        from shoggoth.files import path_key
+        from shoggoth.guide_file import SUFFIX
+        project = guide.project
+        slug = re.sub(r'[^\w-]+', '-', guide.name.lower()).strip('-') or 'guide'
+        path, _ = QFileDialog.getSaveFileName(
+            self.parent, tr("DLG_STORE_GUIDE_IN_FILE"), str(project.folder / f'{slug}{SUFFIX}'),
+            tr("FILTER_GUIDE_FILES"))
+        if not path:
+            return
+        if not path.endswith(SUFFIX):
+            path = (path[:-len('.md')] if path.endswith('.md') else path) + SUFFIX
+        path = Path(path)
+        if project.is_cloud_project:
+            # Collaborators get it at the same place in their copy of the folder
+            try:
+                path.resolve().relative_to(project.folder.resolve())
+            except ValueError:
+                QMessageBox.warning(self.parent, tr("DLG_STORE_GUIDE_IN_FILE"),
+                                    tr("MSG_GUIDE_FILE_OUTSIDE_CLOUD").format(folder=project.folder))
+                return
+        in_use = {path_key(p) for other in shoggoth.app.open_projects
+                  for p in other.guide_file_paths().values()}
+        if path_key(path) in in_use:
+            QMessageBox.warning(self.parent, tr("DLG_STORE_GUIDE_IN_FILE"),
+                                tr("MSG_GUIDE_FILE_IN_USE").format(path=path))
+            return
+        self._flush_guide_editor(guide)
+        project.store_guide_in_file(guide.id, path)
+        project.save_all()
+        shoggoth.app.watch_project_file(project)
+        shoggoth.app.refresh_tree()
+        self._reshow_guide(guide)
+
+    def store_guide_inline(self, guide):
+        """Moves a guide back into the project file; its file stays on disk."""
+        import shoggoth
+        self._flush_guide_editor(guide)
+        guide.project.store_guide_inline(guide.id)
+        guide.project.save_all()
+        shoggoth.app.refresh_tree()
+        self._reshow_guide(guide)
+
+    @staticmethod
+    def _flush_guide_editor(guide):
+        import shoggoth
+        window = shoggoth.app
+        shown = getattr(window, 'current_guide', None)
+        if shown is not None and shown.id == guide.id and shown.project is guide.project:
+            window.current_guide_editor.flush()
+
+    @staticmethod
+    def _reshow_guide(guide):
+        """Section ids change with the storage (a guide file numbers them by
+        position): an open editor of the guide must be rebuilt."""
+        import shoggoth
+        window = shoggoth.app
+        shown = getattr(window, 'current_guide', None)
+        if shown is not None and shown.id == guide.id and shown.project is guide.project:
+            window.nav.refresh_current()
 
     def export_guide_to_pdf(self, guide):
         """Export a guide to PDF via a save-file dialog"""

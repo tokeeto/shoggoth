@@ -233,10 +233,11 @@ def _resolve_external_change(window, project):
         box.setWindowTitle(tr("DLG_PROJECT_FILE_CHANGED"))
         box.setText(tr("MSG_PROJECT_FILE_CHANGED_UNSAVED" if unsaved else "MSG_PROJECT_FILE_CHANGED")
                     .format(name=project['name'], path=project.file_path))
-        save_as_btn = box.addButton(tr("BTN_SAVE_AS"), QMessageBox.AcceptRole)
+        # A cloud project lives in the cloud folder: it can't be saved elsewhere
+        save_as_btn = box.addButton(tr("BTN_SAVE_AS"), QMessageBox.AcceptRole) if project.is_file_backed else None
         reload_btn = box.addButton(tr("BTN_RELOAD_FROM_DISK"), QMessageBox.DestructiveRole)
         keep_btn = box.addButton(tr("BTN_KEEP_MY_VERSION"), QMessageBox.RejectRole)
-        box.setDefaultButton(save_as_btn if unsaved else reload_btn)
+        box.setDefaultButton(save_as_btn if unsaved and save_as_btn else reload_btn)
         box.setEscapeButton(keep_btn)
         box.exec()
 
@@ -244,7 +245,7 @@ def _resolve_external_change(window, project):
         if clicked == reload_btn:
             reload_project(window, project)
             return
-        if clicked == save_as_btn:
+        if save_as_btn is not None and clicked == save_as_btn:
             if save_project_as(window, project):
                 return
             continue  # cancelled the file dialog: ask again
@@ -259,14 +260,86 @@ def _resolve_external_change(window, project):
 def reload_project(window, project):
     """Replace a project's in-memory state with what's in its file, losing any
     unsaved changes."""
+    _discard_guide_edits(window, project)
     try:
         project.reload()
     except Exception as e:
         QMessageBox.critical(window, tr("DLG_ERROR"), tr("ERR_RELOAD_PROJECT").format(error=e))
         return
 
+    window.watch_project_file(project)  # its guide files may be others now
     _rebuild_views(window, project)
+    # A cloud project sends what was changed in the file
+    window.cloud.resync(project)
     window.status_bar.showMessage(tr("STATUS_RELOADED").format(name=project['name']), 5000)
+
+
+def _shown_guide_editor(window, project, guide_id=None):
+    """The editor of the guide being shown, if it belongs to `project` (and
+    is guide `guide_id`, when given)."""
+    guide = getattr(window, 'current_guide', None)
+    editor = getattr(window, 'current_guide_editor', None)
+    if guide is None or editor is None or guide.project is not project:
+        return None
+    if guide_id is not None and guide.id != guide_id:
+        return None
+    return editor
+
+
+def _discard_guide_edits(window, project, guide_id=None):
+    """Before content is replaced from disk: typed text the guide editor
+    hasn't saved yet must not be written over it when the view closes."""
+    editor = _shown_guide_editor(window, project, guide_id)
+    if editor is not None:
+        editor.discard_pending()
+
+
+_prompting_guides = set()  # (id(project), guide id) with a "guide file changed" dialog open
+
+
+def check_guide_change(window, project, guide_id):
+    """Called when a watched guide file changed on disk. Unless its content
+    really changed, nothing happens. Otherwise the guide is reloaded from it,
+    after asking only if there are edits here that reloading would lose."""
+    key = (id(project), guide_id)
+    if key in _prompting_guides or not any(p is project for p in window.open_projects):
+        return
+    if guide_id not in project.changed_guide_files():
+        return
+    editor = _shown_guide_editor(window, project, guide_id)
+    unsaved = project.is_dirty(guide_id) or (editor is not None and editor.has_pending_edits())
+    guide = project.get_guide(guide_id)
+    name = guide.name if guide else guide_id
+    if unsaved:
+        _prompting_guides.add(key)
+        try:
+            box = QMessageBox(window)
+            box.setIcon(QMessageBox.Warning)
+            box.setWindowTitle(tr("DLG_GUIDE_FILE_CHANGED"))
+            box.setText(tr("MSG_GUIDE_FILE_CHANGED_UNSAVED").format(
+                name=name, path=project.guide_file_paths().get(guide_id, '')))
+            reload_btn = box.addButton(tr("BTN_RELOAD_FROM_DISK"), QMessageBox.DestructiveRole)
+            keep_btn = box.addButton(tr("BTN_KEEP_MY_VERSION"), QMessageBox.RejectRole)
+            box.setDefaultButton(keep_btn)
+            box.setEscapeButton(keep_btn)
+            box.exec()
+            if box.clickedButton() is not reload_btn:
+                try:
+                    project.acknowledge_guide_file(guide_id)
+                except OSError:
+                    pass
+                window.status_bar.showMessage(tr("STATUS_KEPT_OWN_VERSION").format(name=name), 5000)
+                return
+        finally:
+            _prompting_guides.discard(key)
+
+    _discard_guide_edits(window, project, guide_id)
+    project.reload_guide(guide_id)
+    window.file_browser.refresh()
+    if editor is not None:
+        window.nav.refresh_current()
+    window.cloud.element_saved(project, 'guides', guide_id)
+    window.status_bar.showMessage(tr("STATUS_GUIDE_RELOADED").format(name=name), 5000)
 
 
 def _rebuild_views(window, project, full=True):
@@ -296,7 +369,7 @@ def parent_changed(window, project):
     saved in its own tab): apply the modification, unsaved changes included,
     to the new version of it. Events that don't change its content (e.g.
     saving the parent without edits) are ignored."""
-    if not project.parent.has_external_changes():
+    if not (project.parent.has_external_changes() or project.parent.changed_guide_files()):
         return
     try:
         project.refresh_parent()

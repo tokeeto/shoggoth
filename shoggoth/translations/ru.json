@@ -603,6 +603,7 @@
   "FILTER_PDF_FILES": "Файлы PDF (*.pdf)",
   "LABEL_SECTIONS": "Разделы:",
   "BTN_EDIT_SECTION": "Редактировать раздел",
+  "BTN_CHANGE_SECTION_TYPE": "Изменить тип",
   "LABEL_ADD_SECTION": "Добавить раздел:",
   "OPT_NONE_DASHES": "— Нет —",
   "DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO": "Выберите набор контактов для сценария",
@@ -1201,5 +1202,14 @@
   "CARD_LABEL_DECK_SIZE": "Размер колоды",
   "CARD_KEYWORD_PERMANENT": "Постоянный|Постоянная|Постоянное",
   "CARD_KEYWORD_EXCEPTIONAL": "Исключительный|Исключительная|Исключительное|Исключительные",
-  "CARD_KEYWORD_MYRIAD": "Мириада"
+  "CARD_KEYWORD_MYRIAD": "Мириада",
+  "CTX_GUIDE_TO_FILE": "Хранить в отдельном файле...",
+  "CTX_GUIDE_INLINE": "Хранить в файле проекта",
+  "DLG_STORE_GUIDE_IN_FILE": "Хранить журнал в отдельном файле",
+  "FILTER_GUIDE_FILES": "Файлы журналов (*.guide.md)",
+  "MSG_GUIDE_FILE_OUTSIDE_CLOUD": "Файлы журналов облачного проекта должны находиться в его папке:\n{folder}",
+  "MSG_GUIDE_FILE_IN_USE": "В {path} уже хранится другой журнал.",
+  "DLG_GUIDE_FILE_CHANGED": "Файл журнала изменён",
+  "MSG_GUIDE_FILE_CHANGED_UNSAVED": "Файл журнала «{name}» был изменён вне Shoggoth:\n{path}\n\nВ этом журнале есть несохранённые изменения. При перезагрузке файла они будут потеряны.",
+  "STATUS_GUIDE_RELOADED": "✓ Журнал {name} перезагружен из файла"
 }

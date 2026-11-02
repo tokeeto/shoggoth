@@ -1,8 +1,10 @@
 """Pure transforms applied around tokenization: two string passes before the
-tokenizer (bullet shorthand, smart quotes) and four token passes after it
-(French spacing, runt prevention, ink-free line collapsing, `<hr>` merging).
+tokenizer (bullet shorthand, smart quotes) and three token passes after it
+(French spacing, ink-free line collapsing, `<hr>` merging).
 Each takes a value and returns a new one.
 """
+
+import re
 
 from shoggoth.renderer.richtext.constants import FRENCH_SPACED_PUNCT
 from shoggoth.renderer.richtext.model import Token, TokenType
@@ -22,33 +24,21 @@ CONTROL_TOKEN_TYPES = frozenset({
     TokenType.SIZE, TokenType.SIZE_POP,
     TokenType.FONT_PUSH, TokenType.FONT_POP,
     TokenType.COLOR_PUSH, TokenType.COLOR_POP,
-    TokenType.UNDERLINE, TokenType.DBL_UNDERLINE,
+    TokenType.UNDERLINE, TokenType.DBL_UNDERLINE, TokenType.STRIKE,
     TokenType.MARGIN, TokenType.LETTER_SPACING, TokenType.VALIGN,
 })
 
 _SPACE = Token(TokenType.TEXT, ' ')
 _NEWLINE = Token(TokenType.NEWLINE)
 
+_BULLET_LINE = re.compile(r'^- (.*)(\n(?=- ))?', re.MULTILINE)
+
 
 def expand_bullet_shorthand(text):
-    """Turn Markdown-ish "- item" lines into `<indent 25><bullet> item`."""
-    lines = text.split('\n')
-    result = []
-    in_list = False
-    for line in lines:
-        if line.startswith('- '):
-            if not in_list:
-                result.append('<indent 25>')
-                in_list = True
-            result.append('<bullet> ' + line[2:])
-        else:
-            if in_list:
-                result.append('</indent>')
-                in_list = False
-            result.append(line)
-    if in_list:
-        result.append('</indent>')
-    return '\n'.join(result)
+    """Turn "- item" lines into `<bullet> item`, with only a line break (not a
+    paragraph gap) between consecutive items."""
+    return _BULLET_LINE.sub(
+        lambda match: f'<bullet> {match[1]}' + ('<br>' if match[2] else ''), text)
 
 
 def apply_smart_quotes(text):
@@ -101,40 +91,6 @@ def merge_french_spacing(tokens):
         else:
             result.append(token)
             index += 1
-    return result
-
-
-def _merge_last_two_words(paragraph):
-    """Fuse a paragraph's last two plain-text words into one non-breaking token."""
-    last_space = next((i for i in range(len(paragraph) - 1, -1, -1)
-                       if paragraph[i] == _SPACE), None)
-    if last_space is None:
-        return list(paragraph)
-
-    tail = paragraph[last_space + 1:]
-    if not tail or any(not _is_word(token) for token in tail):
-        return list(paragraph)
-
-    before = last_space - 1
-    if before < 0 or not _is_word(paragraph[before]):
-        return list(paragraph)
-
-    combined = paragraph[before].value + ' ' + ''.join(token.value for token in tail)
-    return list(paragraph[:before]) + [Token(TokenType.TEXT, combined)]
-
-
-def prevent_runts(tokens):
-    """Fuse the last two words of every paragraph so no line is a lone word."""
-    result = []
-    paragraph = []
-    for token in tokens:
-        if token.type is TokenType.NEWLINE:
-            result.extend(_merge_last_two_words(paragraph))
-            result.append(token)
-            paragraph = []
-        else:
-            paragraph.append(token)
-    result.extend(_merge_last_two_words(paragraph))
     return result
 
 

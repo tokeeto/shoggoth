@@ -30,6 +30,8 @@ A guide is a list of **sections**, each a chunk of pages with its own look. Add 
 
 Double-click a section, or select it and click **Edit Section**, to write it. New sections start with example text in the right structure, so replace it as you go.
 
+To turn a section into another kind, select it and pick the new kind from **Change Type**. Its text stays as it is. Changing to **Scenario** asks which encounter set it is for. Pick **Scenario** on a scenario section to link it to a different set; the section's references to the old set (`[encounter:…]`) then point to the new one.
+
 ## Writing
 
 Sections are written in **Markdown**, a simple plain-text format:
@@ -94,6 +96,46 @@ Location maps come from the [location view](locations.md): arrange the locations
 Click **Export PDF** or **Export HTML** in the guide editor, or add a **Guides** entry to an export setup (see [Exporting card images](exporting.md)). PDF export uses Prince, just like card PDFs (see [Printing your cards](printing.md)). Rendering a long guide can take a little while.
 
 > **Tip:** use relative image paths (like `images/map.png`) in guides too, so they keep working when you share the project. In hand-written HTML inside a guide, wrap the path in braces, like `<img src="{./images/map.png}">`, and Shoggoth resolves it relative to the project folder.
+
+## Keeping a guide in its own file
+
+A guide is normally stored inside the project file. You can store it in a file of its own instead: right-click the guide in the tree and choose **Store in Separate File...**. Use this when you want to:
+
+- write the guide in your favourite text editor,
+- keep the project in git, where a separate guide file shows exactly which lines changed,
+- or search and replace across the whole guide.
+
+The file ends in `.guide.md` and is ordinary Markdown with a few extra lines. Nothing else changes: you edit the guide in Shoggoth exactly as before, and Shoggoth saves it to its file. **Store in Project File** moves it back. The separate file then stays on your disk, unused, until you delete it.
+
+A guide file looks like this:
+
+```
+---
+name: The Night of the Zealot
+format: a4
+chapter: ch1
+front_page: images/cover.png
+---
+
+[section cover: Cover]
+
+# The Night of the Zealot
+
+[section scenario: The Gathering | set: 3f2a9c1e-…]
+
+# Scenario I: The Gathering
+
+:::story
+*You and your partner have been investigating…*
+:::
+```
+
+- The lines between the two `---` lines at the top are the guide's settings: its name, the **paper format** (`a4`, `letter` or `75x95`), the **chapter** style (`ch1` or `ch2`) and the **front page**.
+- `[section kind: Name]` starts a section. Everything up to the next such line is that section's text. The kinds are `cover`, `intro`, `prelude`, `interlude`, `scenario` and `blank`.
+- A scenario's encounter set follows as `| set:` and the set's id. You can see the id in the encounter set's **JSON** tab.
+- To add a section, write a new `[section …]` line. To reorder sections, move their text around.
+
+If you change the file in a text editor while the guide is open in Shoggoth, Shoggoth reloads it. It only asks first when you have changes to the guide that aren't saved yet. Text before the first `[section …]` line becomes a section without a name.
 
 ---
 

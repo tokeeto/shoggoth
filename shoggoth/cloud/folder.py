@@ -13,11 +13,13 @@ import os
 from pathlib import Path
 
 from shoggoth import files
+from shoggoth.guide_file import SUFFIX as GUIDE_SUFFIX
 
 PROVIDER = 'celaeno'
 PROJECT_FILE = 'project.shoggoth'
 STATE_DIR = '.celaeno'
 _MANIFEST = 'files.json'
+_BASE = 'base.json'
 
 
 def provider_dir(provider: str = PROVIDER) -> Path:
@@ -45,13 +47,13 @@ def is_in_cloud_cache(path, provider: str = PROVIDER) -> bool:
 def is_ignored(rel_path: str, project_name: str = PROJECT_FILE) -> bool:
     """Files sync must never upload/download as resources: dotfiles and
     dot-folders (including our own state dir), atomic-write temp files, and
-    the project file itself (which travels as the project's JSON, not as a
-    resource)."""
+    the project file itself and guide files (which travel inside the
+    project's JSON, not as resources)."""
     parts = Path(rel_path).parts
     if any(part.startswith('.') for part in parts):
         return True
     name = parts[-1] if parts else ''
-    return name.endswith('.tmp') or rel_path == project_name
+    return name.endswith('.tmp') or name.endswith(GUIDE_SUFFIX) or rel_path == project_name
 
 
 def rel_posix(root: Path, path) -> str | None:
@@ -117,3 +119,24 @@ def is_untouched(root: Path, rel_path: str, manifest: dict) -> bool:
     except OSError:
         return False
     return record.get('size') == stat.st_size and record.get('mtime_ns') == stat.st_mtime_ns
+
+
+# --- the sync base ----------------------------------------------------------
+# What the cloud held for each element when we last agreed on it, as content
+# fingerprints (see shoggoth.cloud.merge). Kept beside the project rather than
+# in it, so editing the project file by hand can't touch it.
+
+def read_base(root: Path) -> dict:
+    try:
+        base = json.loads((root / STATE_DIR / _BASE).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+    return base if isinstance(base, dict) else {}
+
+
+def write_base(root: Path, base: dict) -> None:
+    path = root / STATE_DIR / _BASE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix('.tmp')
+    tmp.write_text(json.dumps(base), encoding='utf-8')
+    os.replace(tmp, path)

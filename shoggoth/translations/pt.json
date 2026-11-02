@@ -568,6 +568,7 @@
   "FILTER_PDF_FILES": "Ficheiros PDF (*.pdf)",
   "LABEL_SECTIONS": "Secções:",
   "BTN_EDIT_SECTION": "Editar Secção",
+  "BTN_CHANGE_SECTION_TYPE": "Alterar Tipo",
   "LABEL_ADD_SECTION": "Adicionar secção:",
   "OPT_NONE_DASHES": "— Nenhum —",
   "DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO": "Escolher Conjunto de Encontro para o Cenário",
@@ -1198,5 +1199,14 @@
   "TAG_BTN_IMAGE": "Imagem",
   "CARD_KEYWORD_PERMANENT": "Permanente",
   "CARD_KEYWORD_EXCEPTIONAL": "Excepcional",
-  "CARD_KEYWORD_MYRIAD": "Miríade"
+  "CARD_KEYWORD_MYRIAD": "Miríade",
+  "CTX_GUIDE_TO_FILE": "Guardar num Ficheiro Separado...",
+  "CTX_GUIDE_INLINE": "Guardar no Ficheiro do Projeto",
+  "DLG_STORE_GUIDE_IN_FILE": "Guardar Guia num Ficheiro Separado",
+  "FILTER_GUIDE_FILES": "Ficheiros de Guia (*.guide.md)",
+  "MSG_GUIDE_FILE_OUTSIDE_CLOUD": "Os ficheiros de guia de um projeto na nuvem têm de estar dentro da pasta dele:\n{folder}",
+  "MSG_GUIDE_FILE_IN_USE": "Já está guardado outro guia em {path}.",
+  "DLG_GUIDE_FILE_CHANGED": "Ficheiro de Guia Alterado",
+  "MSG_GUIDE_FILE_CHANGED_UNSAVED": "O ficheiro do guia '{name}' foi alterado fora do Shoggoth:\n{path}\n\nTem alterações a este guia que ainda não foram guardadas. Recarregar o ficheiro elimina-as.",
+  "STATUS_GUIDE_RELOADED": "✓ Guia {name} recarregado a partir do ficheiro"
 }

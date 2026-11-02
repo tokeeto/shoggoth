@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSpinBox, QTextEdit, QFileDialog,
     QFrame, QMessageBox, QLineEdit, QStackedWidget,
-    QListWidget, QListWidgetItem, QComboBox, QDialog,
+    QListWidget, QListWidgetItem, QComboBox, QDialog, QMenu,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer
 from PySide6.QtGui import (
@@ -348,8 +348,15 @@ class GuideOverviewPanel(QWidget):
         down_btn.clicked.connect(self._move_down)
         del_btn = QPushButton(tr("DLG_DELETE"))
         del_btn.clicked.connect(self._delete_section)
+        type_btn = QPushButton(tr("BTN_CHANGE_SECTION_TYPE"))
+        type_menu = QMenu(type_btn)
+        for stype in SECTION_TYPES:
+            action = type_menu.addAction(tr(SECTION_LABEL_KEYS.get(stype, stype)))
+            action.triggered.connect(lambda checked=False, t=stype: self._change_section_type(t))
+        type_btn.setMenu(type_menu)
         edit_row.addWidget(up_btn)
         edit_row.addWidget(down_btn)
+        edit_row.addWidget(type_btn)
         edit_row.addStretch()
         edit_row.addWidget(del_btn)
         layout.addLayout(edit_row)
@@ -467,6 +474,30 @@ class GuideOverviewPanel(QWidget):
         # Select and open the newly added section
         self.section_edit_requested.emit(new_section.id)
 
+    def _change_section_type(self, section_type: str):
+        sid = self._current_id()
+        if sid is None:
+            return
+        sections = self.guide.sections
+        section = next((s for s in sections if s.id == sid), None)
+        if section is None:
+            return
+        if section_type == section.type and section_type != 'scenario':
+            return
+        es_id = None
+        if section_type == 'scenario':
+            # Also when it already is one: picking again relinks it to another set
+            dlg = ScenarioEncounterPickerDialog(self.guide, self, selected_id=section.encounter_set_id)
+            if dlg.exec() != QDialog.Accepted:
+                return
+            es_id = dlg.selected_id()
+        # A name still at the old type's default follows the type
+        if section.name == tr(SECTION_LABEL_KEYS.get(section.type, section.type)):
+            section.name = tr(SECTION_LABEL_KEYS.get(section_type, section_type))
+        section.change_type(section_type, es_id)
+        self.guide.save_sections(sections)
+        self.refresh()
+
     def _delete_section(self):
         sid = self._current_id()
         if sid is None:
@@ -538,11 +569,12 @@ class GuideOverviewPanel(QWidget):
 # ── Scenario encounter set picker dialog ──────────────────────────────────────
 
 class ScenarioEncounterPickerDialog(QDialog):
-    """Pick an encounter set when creating a new scenario section."""
+    """Pick an encounter set when creating a scenario section or turning one into it."""
 
-    def __init__(self, guide, parent=None):
+    def __init__(self, guide, parent=None, selected_id=None):
         super().__init__(parent)
         self.guide = guide
+        self._initial_id = selected_id
         self.setWindowTitle(tr("DLG_CHOOSE_ENCOUNTER_SET_FOR_SCENARIO"))
         self.setMinimumSize(300, 350)
         self._setup_ui()
@@ -575,6 +607,8 @@ class ScenarioEncounterPickerDialog(QDialog):
                 item = QListWidgetItem(es.name)
                 item.setData(Qt.UserRole, es.id)
                 self._list.addItem(item)
+                if es.id == self._initial_id:
+                    self._list.setCurrentItem(item)
         except Exception:
             pass
 
@@ -997,9 +1031,16 @@ class SectionEditorPanel(QWidget):
 
     def flush(self):
         """Force-save any pending changes immediately."""
-        if self.save_timer and self.save_timer.isActive():
+        if self.has_pending_edits():
             self.save_timer.stop()
-        self._save_to_guide()
+            self._save_to_guide()
+
+    def has_pending_edits(self) -> bool:
+        return bool(self.save_timer and self.save_timer.isActive())
+
+    def discard_pending(self):
+        if self.save_timer:
+            self.save_timer.stop()
 
 
 # ── Guide PDF preview widget (lives in the detachable dock) ───────────────────
@@ -1216,6 +1257,19 @@ class GuideEditor(QWidget):
         self.stack.setCurrentIndex(0)
         self.guide_content_changed.emit()
 
-    def cleanup(self):
+    def has_pending_edits(self) -> bool:
+        """Typed text not yet in the guide (saved after a short pause)."""
+        return bool(self._active_editor and self._active_editor.has_pending_edits())
+
+    def discard_pending(self):
+        """Drops typed text not yet saved, e.g. before reloading the guide."""
+        if self._active_editor:
+            self._active_editor.discard_pending()
+
+    def flush(self):
+        """Saves typed text not yet in the guide."""
         if self._active_editor:
             self._active_editor.flush()
+
+    def cleanup(self):
+        self.flush()
