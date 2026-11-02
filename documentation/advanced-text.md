@@ -88,16 +88,41 @@ For when the automatic layout isn't quite right:
 | `<indent 40>` ... `</indent>` | Indent a block of lines by that many pixels |
 | `<margin 20>` | Add that much vertical space |
 | `<spacing 1.1>` | Letter spacing. Values above 1 spread letters apart, below 1 squeeze them together. |
-| `<valign>` | Vertically center the text from this line on, in the rest of the text box |
+| `<align center>`, `<align bottom>` | Vertical position of the text from this line on. See [Vertical alignment](#vertical-alignment). |
 | `<hr>` | A horizontal rule across the text box |
 | `<u>` ... `</u>` | Underline |
 | `<dbl>` ... `</dbl>` | Double underline, as used for headings on some story cards |
+| `<s>` ... `</s>` | Strikethrough |
 | `<blockquote>` ... `</blockquote>` | Story text style, as on story cards and act/agenda backs |
 | `<br>` | Line break within a paragraph |
 
 Pixel values are in card pixels. A card is about 1500 pixels wide, and normal rules text is around 70 pixels tall. To see the exact text box a field is drawn in, turn on **Settings → Display → Show layout regions**.
 
 Text boxes aren't always rectangles. Many templates wrap text around the art or around icons, and Shoggoth follows those shapes automatically.
+
+## Vertical alignment
+
+Text starts at the top of its text box. The `<align>` tag places the text from its line on somewhere else:
+
+| Tag | Effect |
+|---|---|
+| `<align top>` | At the top of the text box. This is the default. |
+| `<align center>` | Centered in the rest of the text box. |
+| `<align bottom>` | At the bottom, so the last line sits as low as it can. |
+
+`<valign>` is a shorthand for `<align center>`.
+
+You can use several in one text, to keep one part at the top and another at the bottom. They must come in the order top, center, bottom, and each is optional. The center part is then centered in the space left between the two others:
+
+```
+This stays at the top.
+<align center>
+This is centered between the two.
+<align bottom>
+This sits at the bottom.
+```
+
+Any other order or combination has no defined result.
 
 ## Colored text
 

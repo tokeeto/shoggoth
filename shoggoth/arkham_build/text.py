@@ -56,6 +56,7 @@ _TAG_REMOVALS = re.compile(
             r"<margin\s+\d+(?:\s+\d+)*>",
             r"<spacing\s+(?:\d+(?:\.\d*)?|\.\d+)>",
             "<valign>",
+            r"<align\s+(?:top|center|bottom)>",
             r"<image(?:\s+[^>]*)?>",
             "<resource>",
             "<clues>",

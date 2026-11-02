@@ -207,8 +207,8 @@ class ArkhamTextHighlighter(QSyntaxHighlighter):
             'for', 'prey', 'rev', 'spawn', 'obj', 'objective', 'center', 'left',
             'right', 'story', 'blockquote', 'quote', 'dquote', 'quoteend', 'dquoteend',
             'n', 'name', 'copy', 'exi', 'exn', 'esn', 'est', 'esi', 'copyright',
-            'image', 'margin',
-            '/center', '/left', '/right', '/story', '/blockquote'
+            'image', 'margin', 's', 'align', 'valign',
+            '/center', '/left', '/right', '/story', '/blockquote', '/s'
         }
 
         self.format_tags = {
@@ -477,12 +477,13 @@ class ArkhamTextEdit(_LiveTextEditMixin, QTextEdit):
         tags = [
             # Formatting tags
             '<b>', '</b>', '<i>', '</i>', '<bi>', '</bi>', '<t>', '</t>',
-            '[[', ']]',
+            '[[', ']]', '<s>', '</s>',
 
             # Special text tags
             '<for>', '<prey>', '<rev>', '<spawn>', '<obj>', '<objective>',
             '<center>', '</center>', '<left>', '</left>', '<right>', '</right>',
             '<story>', '</story>', '<blockquote>', '</blockquote>',
+            '<align top>', '<align center>', '<align bottom>',
 
             # Icon tags - stats
             '<agility>', '<agi>', '[agility]',

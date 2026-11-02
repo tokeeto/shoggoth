@@ -71,13 +71,11 @@ class LayoutEngine:
         follows the target-size glyph advances, keeping spacing and kerning
         within a line consistent instead of mixing full-size positions with
         target-size glyphs."""
-        if valignment == 'center':
-            pieces = [Piece(PieceType.VALIGN)] + list(pieces)
+        if valignment in ('center', 'bottom'):
+            pieces = [Piece(PieceType.VALIGN, valign=valignment)] + list(pieces)
         lines, size, fitted = self._fit(pieces, region, polygon, font_size,
                                         min_font_size, letter_spacing)
-        if fitted.valign_line is not None:
-            lines = self._center(pieces, region, polygon, size, letter_spacing,
-                                 lines, fitted)
+        lines = self._anchor(pieces, region, polygon, size, letter_spacing, lines, fitted)
         if scale and scale != 1.0:
             lines = _scale_lines(lines, scale, self.resources, letter_spacing)
             region = _Box(region.x * scale, region.y * scale,
@@ -118,61 +116,109 @@ class LayoutEngine:
 
         return lines, size, layout_pass
 
-    def _center(self, pieces, region, polygon, size, letter_spacing, lines, fitted):
-        """Vertically center the lines from `<valign>`'s line on, within the
-        band between that line's top and the region's bottom, keeping the
-        fitted size. Balances the ink box (cap height of the block's first
-        line to descender of its last), so top and bottom gaps look equal.
-
-        Without a polygon, line breaks don't depend on Y, so the block is just
-        shifted. With one, moving text down changes the band widths and so
-        the line count, so the offset is searched for: a fixed-point step
-        (move by half the remaining imbalance) inside a bisection bracket.
-        `lo` is the largest offset known to fit without sitting below center,
-        `hi` the smallest known not to. The step usually lands in one or two
-        passes; the bracket guarantees termination when there's no exact
-        fixed point (e.g. one line more fits exactly when shifted down), and
-        in that case the text stays at `lo`, a bit above center rather than
-        overflowing or sinking low."""
-        start, top = fitted.valign_line, fitted.valign_top
+    def _anchor(self, pieces, region, polygon, size, letter_spacing, lines, fitted):
+        """Apply `<align bottom>` and `<align center>`, keeping the fitted size.
+        Text splits into top -> center -> bottom sections: the bottom section
+        drops until its last line touches the region's bottom, then the center
+        section is centered in the band left between the two others. The gaps
+        are between ink boxes (see `_ink_extent`), so they look equal."""
         limit = region.y + region.height
-        balance = _imbalance(lines, start, top, limit)
-        if balance is None or balance < 2:
-            return lines
-        if not polygon:
-            for line in lines[start:]:
-                line.y += math.floor(balance / 2)
-            return lines
 
-        best, lo, hi = lines, 0, None
-        tried = {0}
-        guess = math.floor(balance / 2)
-        tolerance = max(1, size // 10)   # a bracket this narrow isn't worth a pass
-        for _ in range(_MAX_VALIGN_PASSES):
-            if hi is not None and hi - lo <= tolerance:
-                break
-            if hi is not None and not lo < guess < hi:
-                guess = (lo + hi) // 2
-            if guess <= lo or guess in tried:
-                break
-            tried.add(guess)
-            candidate, fits, _ = _LayoutPass(
-                self.resources, pieces, region, polygon, size, 1.0, letter_spacing,
-                False, valign_line=start, valign_offset=guess).build()
-            balance = _imbalance(candidate, start, top, limit) if fits else None
-            if balance is not None and balance >= 0:
-                best, lo = candidate, guess
-            else:
-                hi = guess
-            guess = guess + math.floor(balance / 2) if balance is not None else hi
-        return best
+        def layout(**anchors):
+            return _LayoutPass(self.resources, pieces, region, polygon, size, 1.0,
+                               letter_spacing, False, **anchors)
+
+        bottom_line, bottom_y = fitted.bottom_line, fitted.bottom_y
+        if bottom_line is not None:
+            def attempt_bottom(offset):
+                candidate, fits, _ = layout(bottom_y=bottom_y + offset).build()
+                return candidate, _bottom_gap(candidate, bottom_line, limit) if fits else None
+
+            lines, offset = _settle(lines, bottom_line, None,
+                                    _bottom_gap(lines, bottom_line, limit), 1,
+                                    polygon, size, attempt_bottom)
+            bottom_y += offset
+            block = _ink_block(lines, bottom_line, None)
+            if block:
+                limit = block[0].y - _ink_extent(block[0])[0]
+
+        start, top = fitted.center_line, fitted.center_top
+        if start is not None:
+            def attempt_center(offset):
+                # The bottom section stays pinned while this one re-wraps, so
+                # the line it starts on can change: ask each pass.
+                candidate = layout(center_offset=offset, bottom_y=bottom_y)
+                built, fits, _ = candidate.build()
+                balance = _imbalance(built, start, candidate.bottom_line, top, limit)
+                return built, balance if fits else None
+
+            lines, _ = _settle(lines, start, bottom_line,
+                               _imbalance(lines, start, bottom_line, top, limit), 2,
+                               polygon, size, attempt_center)
+        return lines
 
 
-def _imbalance(lines, start, top, limit):
-    """Bottom gap minus top gap of the ink of `lines[start:]` within the band
+def _settle(lines, start, end, balance, divisor, polygon, size, attempt):
+    """Move `lines[start:end]` down by `balance / divisor`. Returns the resulting
+    lines and the offset used.
+
+    Without a polygon, line breaks don't depend on Y, so the block is just
+    shifted. With one, moving text down changes the band widths and so the line
+    count, so the offset is searched for through `attempt(offset)` -> (lines,
+    new balance, or None if it doesn't fit): a fixed-point step (move by the
+    remaining balance / divisor) inside a bisection bracket. `lo` is the largest
+    offset known to fit without going past the target, `hi` the smallest known
+    not to. The step usually lands in one or two passes; the bracket guarantees
+    termination when there's no exact fixed point (e.g. one line more fits
+    exactly when shifted down), and in that case the text stays at `lo`, a bit
+    high rather than overflowing or sinking low."""
+    if balance is None or balance < divisor:
+        return lines, 0
+    guess = math.floor(balance / divisor)
+    if not polygon:
+        for line in lines[start:end]:
+            line.y += guess
+        return lines, guess
+
+    best, lo, hi = lines, 0, None
+    tried = {0}
+    tolerance = max(1, size // 10)   # a bracket this narrow isn't worth a pass
+    for _ in range(_MAX_VALIGN_PASSES):
+        if hi is not None and hi - lo <= tolerance:
+            break
+        if hi is not None and not lo < guess < hi:
+            guess = (lo + hi) // 2
+        if guess <= lo or guess in tried:
+            break
+        tried.add(guess)
+        candidate, balance = attempt(guess)
+        if balance is not None and balance >= 0:
+            best, lo = candidate, guess
+        else:
+            hi = guess
+        guess = guess + math.floor(balance / divisor) if balance is not None else hi
+    return best, lo
+
+
+def _ink_block(lines, start, end):
+    """The lines of `lines[start:end]` that draw something."""
+    return [line for line in lines[start:end] if line.is_rule or line.items]
+
+
+def _bottom_gap(lines, start, limit):
+    """Space between the ink of the last line and `limit`. None if `lines[start:]`
+    draws nothing."""
+    block = _ink_block(lines, start, None)
+    if not block:
+        return None
+    return limit - (block[-1].y + _ink_extent(block[-1])[1])
+
+
+def _imbalance(lines, start, end, top, limit):
+    """Bottom gap minus top gap of the ink of `lines[start:end]` within the band
     `top`..`limit`; positive means the block sits above center. None if the
     block draws nothing."""
-    block = [line for line in lines[start:] if line.is_rule or line.items]
+    block = _ink_block(lines, start, end)
     if not block:
         return None
     above, _ = _ink_extent(block[0])
@@ -237,11 +283,8 @@ def _scale_lines(lines, scale, resources, letter_spacing):
         new.quote = line.quote
         new.quote_first = line.quote_first
         new.has_dbl = line.has_dbl
-        new.hang = line.hang
         if line.quote:
             new.text_indent = QUOTE_INDENT * scale
-        elif line.hang:
-            new.text_indent = resources.width_cache.width('b ', font_at('icon', line.size_px))
         new.items = [scale_item(item) for item in line.items]
         scaled.append(new)
     return scaled
@@ -253,14 +296,14 @@ class _Line:
 
     __slots__ = ('is_rule', 'items', 'y', 'block_indent', 'text_indent', 'align',
                  'size_px', 'line_height', 'quote', 'quote_first', 'has_dbl',
-                 'line_width', 'hang')
+                 'line_width')
 
     def __init__(self):
         self.is_rule = False
         self.items = []
         self.y = 0.0
         self.block_indent = 0        # <indent N>, raw px, feeds the polygon carry
-        self.text_indent = 0         # resolved quote indent OR bullet hang
+        self.text_indent = 0         # resolved quote indent
         self.align = Align.LEFT
         self.size_px = 0
         self.line_height = 0
@@ -268,7 +311,6 @@ class _Line:
         self.quote_first = False     # first line of a run of quote lines
         self.has_dbl = False
         self.line_width = 0.0        # scratch, used only while building
-        self.hang = False            # continuation line of a bullet paragraph
 
     def pop_unspaced_tail(self):
         """If this line has any items after its last plain space, remove that
@@ -506,7 +548,7 @@ class _LayoutPass:
     returns (None, False, fraction)."""
 
     def __init__(self, resources, pieces, region, polygon, base_size, scale,
-                 letter_spacing, forced, valign_line=None, valign_offset=0):
+                 letter_spacing, forced, center_offset=0, bottom_y=None):
         self.resources = resources
         self.pieces = pieces
         self.region = region
@@ -523,18 +565,19 @@ class _LayoutPass:
         self._fraction = 1.0
 
         self._line = None
-        self._first_of_paragraph = True
-        self._bullet_paragraph = False
 
-        # <valign>: `valign_line` is the index of the line the first marker
-        # landed on and `valign_top` that line's top, before any offset.
-        # `valign_offset` (from LayoutEngine._center) moves that line and
-        # everything after it down.
-        self.valign_line = None
-        self.valign_top = None
-        self._offset_line = valign_line
-        self._offset = valign_offset
-        self._applied_offset = 0
+        # <align center>: `center_line` is the index of the line the first
+        # marker landed on and `center_top` that line's top, before any offset.
+        # <align bottom>: the same in `bottom_line`/`bottom_y` (that line's
+        # baseline). The anchors from LayoutEngine._anchor then move those
+        # lines and everything after them: `center_offset` down by that much,
+        # `bottom_y` to that baseline, or as far as the text above allows.
+        self.center_line = None
+        self.center_top = None
+        self.bottom_line = None
+        self.bottom_y = None
+        self._center_offset = center_offset
+        self._bottom_y = bottom_y
 
     # ── measurement ─────────────────────────────────────────────────────
     def _size_px(self, style):
@@ -568,22 +611,12 @@ class _LayoutPass:
                                               self.left, self.region.width)
         return poly_right - max(self.left + block_indent, poly_left) - text_indent
 
-    def _text_indent(self, style, size_px):
-        """A quote's fixed indent (wins) or a bullet's hanging indent (only once
-        the paragraph has wrapped past its first physical line)."""
-        if style.quote:
-            return int(QUOTE_INDENT * self.scale)
-        if self._bullet_paragraph and not self._first_of_paragraph:
-            return self._width('b ', self._font('icon', size_px))
-        return 0
+    def _text_indent(self, style):
+        return int(QUOTE_INDENT * self.scale) if style.quote else 0
 
     # ── line lifecycle ─────────────────────────────────────────────────
     def _open_line(self):
-        if self._offset and len(self.lines) == self._offset_line:
-            self.y += self._offset
-            self._applied_offset = self._offset
         self._line = _Line()
-        self._line.hang = self._bullet_paragraph and not self._first_of_paragraph
 
     def _close_line(self, closing_style):
         line = self._line
@@ -599,8 +632,6 @@ class _LayoutPass:
         line.has_dbl = any(item.style.dbl_underline for item in items)
         if line.quote:
             line.text_indent = int(QUOTE_INDENT * self.scale)
-        elif line.hang:
-            line.text_indent = self._width('b ', self._font('icon', size_px))
         else:
             line.text_indent = 0
         self.lines.append(line)
@@ -614,7 +645,6 @@ class _LayoutPass:
         tail = self._line.pop_unspaced_tail()
         self._close_line(style)
         self.y += self._size_px(style)
-        self._first_of_paragraph = False
         self._open_line()
         if tail:
             self._line.items = tail
@@ -639,9 +669,7 @@ class _LayoutPass:
                 continue
 
             if kind is PieceType.VALIGN:
-                if self.valign_line is None:
-                    self.valign_line = len(self.lines)
-                    self.valign_top = self.y - self._applied_offset - self.base_size
+                self._mark_anchor(piece.valign)
                 continue
 
             if kind is PieceType.VSPACE:
@@ -657,9 +685,6 @@ class _LayoutPass:
                     advance = size_px
                 self._close_line(style)
                 self.y += advance
-                self._first_of_paragraph = kind is PieceType.PAR
-                if kind is PieceType.PAR:
-                    self._bullet_paragraph = False
                 self._open_line()
                 check_overflow = True
                 continue
@@ -681,8 +706,6 @@ class _LayoutPass:
                 rule.size_px = size_px
                 self.lines.append(rule)
                 self.y += line_height
-                self._first_of_paragraph = True
-                self._bullet_paragraph = False
                 self._open_line()
                 check_overflow = True
                 continue
@@ -705,19 +728,17 @@ class _LayoutPass:
                 font = self._font('icon', size_px)
                 item = _Item(PieceType.TEXT, self._width(piece.glyph, font), style,
                              text=piece.glyph, font=font, face='icon')
-                if piece.glyph == 'b' and not self._line.items:
-                    self._bullet_paragraph = True
             elif kind is PieceType.IMAGE:
                 regular = self._font('regular', size_px)
                 icon = self.resources.get_icon(piece.src, int(regular.size), color=piece.color)
                 item = _Item(PieceType.IMAGE, icon.width if icon else 0, style, icon=icon,
                              font=regular, src=piece.src, color=piece.color)
             else:  # inline HR
-                text_indent = self._text_indent(style, size_px)
+                text_indent = self._text_indent(style)
                 width = self._wrap_width(self.y, style.indent, text_indent, size_px)
                 item = _Item(PieceType.HR, width, style)
 
-            text_indent = self._text_indent(style, size_px)
+            text_indent = self._text_indent(style)
             if self._line.line_width + item.width > self._wrap_width(
                     self.y, style.indent, text_indent, size_px):
                 self._wrap_line(style)
@@ -735,6 +756,17 @@ class _LayoutPass:
         self._mark_quote_runs()
         return self.lines, True, 1.0
 
+    def _mark_anchor(self, valign):
+        if valign == 'center' and self.center_line is None:
+            self.center_line = len(self.lines)
+            self.center_top = self.y - self.base_size
+            self.y += self._center_offset
+        elif valign == 'bottom' and self.bottom_line is None:
+            self.bottom_line = len(self.lines)
+            self.bottom_y = self.y
+            if self._bottom_y is not None:
+                self.y = max(self.y, self._bottom_y)
+
     def _mark_quote_runs(self):
         """First line of every run of consecutive quote lines gets the short top
         bar; a non-quote or rule line ends a run."""
@@ -750,7 +782,7 @@ class _LayoutPass:
         font = self._font(style.font, size_px)
         while True:
             width = self._spaced_width(text, font)
-            text_indent = self._text_indent(style, size_px)
+            text_indent = self._text_indent(style)
             available = self._wrap_width(self.y, style.indent, text_indent, size_px)
             if self._line.line_width + width <= available:
                 break
@@ -769,7 +801,6 @@ class _LayoutPass:
                 self._line.items.extend(self._text_items(head, font, style))
                 self._close_line(style)
                 self.y += size_px
-                self._first_of_paragraph = False
                 self._open_line()
             else:
                 self._wrap_line(style)
