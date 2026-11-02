@@ -21,7 +21,7 @@ from concurrent.futures import CancelledError
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMessageBox, QProgressDialog
+from PySide6.QtWidgets import QProgressDialog
 
 from shoggoth import telemetry
 from shoggoth.export_profile import ExportEntry, USES_SCOPE

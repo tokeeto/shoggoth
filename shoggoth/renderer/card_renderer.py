@@ -14,7 +14,6 @@ from pathlib import Path
 import pyvips
 import pypdfium2 as pdfium
 import re
-import json
 import logging
 
 logging.getLogger('PIL').setLevel(logging.ERROR)

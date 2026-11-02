@@ -56,7 +56,7 @@ def test_blank_to_scenario_links_set():
 
 def test_guide_edits_mark_it_changed(tmp_path):
     """Cloud sync only sends what was marked changed (and stamped)."""
-    from shoggoth.guide import Guide, GuideSection
+    from shoggoth.guide import GuideSection
     from shoggoth.project import Project
     data = {'id': 'p', 'name': 'P', 'cards': [], 'encounter_sets': [],
             'guides': [{'id': 'g', 'name': 'Guide', 'sections': []}],
