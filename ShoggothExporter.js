@@ -535,49 +535,95 @@ function apply_portrait_geometry(face, geometry) {
     if (geometry.rotation) face["illustration_rotation"] = geometry.rotation;
 }
 
+// Warnings go to the script console's error stream (shown in red in SE's
+// script output window); SE has no console.warn.
+function warn(message) {
+    Console.err.println("WARNING: " + message);
+}
+
+// First free name for `file_name` in `folder` ("x.png", "0_x.png", ...), or
+// null when none of them is free.
+function free_image_name(folder, file_name) {
+    let name = file_name;
+    let counter = 0;
+    while (new File(folder, name).exists()) {
+        if (counter > 35) return null;
+        name = counter + "_" + file_name;
+        counter++;
+    }
+    return name;
+}
+
+// Write an in-memory image under `file_name` (the intended name, usually the
+// last part of the original path), keeping its format where ImageIO can.
+// ImageIO.write silently returns false for formats it has no writer for and
+// for JPEGs with an alpha channel (SE keeps images as ARGB), so JPEGs are
+// flattened to RGB and anything else unwritable is saved as PNG instead.
+// Returns the written file's name, or null.
+function write_image(image, file_name, folder) {
+    if (image == null) return null;
+    let name = String(file_name) || "image.png";
+    let dot = name.lastIndexOf(".");
+    let stem = dot > 0 ? name.substring(0, dot) : name;
+    let format = dot > 0 ? name.substring(dot + 1).toLowerCase() : "png";
+
+    let out_image = image;
+    if ((format == "jpg" || format == "jpeg") && image.getColorModel().hasAlpha()) {
+        out_image = new java.awt.image.BufferedImage(
+            image.getWidth(), image.getHeight(), java.awt.image.BufferedImage.TYPE_INT_RGB,
+        );
+        let g = out_image.createGraphics();
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, image.getWidth(), image.getHeight());
+        g.drawImage(image, 0, 0, null);
+        g.dispose();
+    }
+
+    let attempts = [[name, format, out_image], [stem + ".png", "png", image]];
+    for (let attempt of attempts) {
+        let out_name = free_image_name(folder, attempt[0]);
+        if (out_name == null) return null;
+        let out_file = new File(folder, out_name);
+        try {
+            if (ImageIO.write(attempt[2], attempt[1], out_file)) return out_name;
+        } catch (e) {
+            println("  writing " + out_name + " failed: " + e);
+        }
+        out_file.delete();
+    }
+    return null;
+}
+
 function extract_images(card, collection, image_folder) {
     let script_parts = card.getClassName().split("/");
     let script_name = script_parts[script_parts.length - 1];
     let bindings = PORTRAITS[script_name];
     if (!bindings) return;
     for (let i = 0; i < bindings.length; i++) {
+        let source = null;
         try {
             let portrait = card.getPortrait(i);
             let source_raw = portrait.getSource();
             if (source_raw == null) continue;
-            let source = String(source_raw);
+            source = String(source_raw);
             if (source == "") continue;
             if (source in collection.images) continue;
-            collection.images[source] = "";
+            // on failure the original path is kept, so users can see in
+            // Shoggoth which image didn't make it
+            collection.images[source] = source;
 
+            // the image is stored in the card itself, so this works even when
+            // the source file no longer exists; the source path only names it
             let parts = source.replace(/\\/g, "/").split("/");
             let portrait_name = parts[parts.length - 1];
-            let format_parts = portrait_name.split(".");
-            let portrait_format = format_parts[format_parts.length - 1];
-
-            let new_path = new File(image_folder, portrait_name);
-            let counter = 0;
-            while (new_path.exists()) {
-                new_path = new File(image_folder, counter + "_" + portrait_name);
-                counter++;
-                if (counter > 35) {
-                    println(
-                        "ERROR: " +
-                            card.getName() +
-                            " failed to find suitable name for image " +
-                            portrait_name,
-                    );
-                    break;
-                }
+            let written = write_image(portrait.getImage(), portrait_name, image_folder);
+            if (written) {
+                collection.images[source] = "./images/" + written;
+            } else {
+                warn(card.getName() + ": failed to save image, keeping original path " + source);
             }
-            collection.images[source] = "./images/" + new_path.getName();
-            ImageIO.write(
-                portrait.getImage(),
-                portrait_format,
-                new File(String(new_path)),
-            );
         } catch (e){
-            println("Failed to extract portrait", e);
+            warn(card.getName() + ": failed to extract image " + (source || "#" + i) + ": " + e);
         }
     }
 }
@@ -648,7 +694,7 @@ function extract_resource_icon(set_key, collection, image_folder) {
         collection.images[cache_key] = "./images/" + out_file.getName();
         return collection.images[cache_key];
     } catch (e) {
-        println("Failed to extract set icon " + res_path + ": " + e);
+        warn("failed to extract set icon " + res_path + ": " + e);
         return null;
     }
 }
@@ -715,13 +761,20 @@ function extract_user_encounter_icon(set_key, collection, image_folder) {
             if (icon_path == "") return null;
             let cache_key = "file://" + icon_path;
             if (cache_key in collection.images) return collection.images[cache_key];
-            let source_file = new File(icon_path);
-            if (!source_file.exists()) return null;
-            let image = ImageIO.read(source_file);
-            if (image == null) return null;
-            let out_file = new File(image_folder, "set_" + set_key + ".png");
-            ImageIO.write(image, "png", out_file);
-            collection.images[cache_key] = "./images/" + out_file.getName();
+            // failures keep the original path (see extract_images)
+            collection.images[cache_key] = icon_path;
+            try {
+                let source_file = new File(icon_path);
+                let image = source_file.exists() ? ImageIO.read(source_file) : null;
+                let written = write_image(image, "set_" + set_key + ".png", image_folder);
+                if (written) {
+                    collection.images[cache_key] = "./images/" + written;
+                } else {
+                    warn("Encounter set " + name + ": icon not found or unreadable, keeping original path " + icon_path);
+                }
+            } catch (e) {
+                warn("Encounter set " + name + ": failed to extract icon " + icon_path + ": " + e);
+            }
             return collection.images[cache_key];
         }
     } catch (e) {}
@@ -793,6 +846,37 @@ function has_value(val){
         return false;
     }
     return val;
+}
+
+// Copy an image file referenced by path (e.g. the TemplateReplacement
+// settings) into the image folder, once, and return its project-relative
+// path. The bytes are copied as-is so the original format is kept. When the
+// file can't be copied, the original path is returned (and a warning
+// printed, naming `label`), so users can see which image didn't make it.
+function extract_file_image(file_path, collection, image_folder, label) {
+    let source = String(file_path);
+    let cache_key = "file://" + source;
+    if (collection.images[cache_key]) return collection.images[cache_key];
+    try {
+        let source_file = new File(source);
+        if (!source_file.exists()) {
+            warn(label + ": image not found, keeping original path " + source);
+            return source;
+        }
+        let name = String(source_file.getName());
+        let out_name = free_image_name(image_folder, name);
+        if (out_name == null) {
+            warn(label + ": no free file name for image, keeping original path " + source);
+            return source;
+        }
+        let out_file = new File(image_folder, out_name);
+        Files.copy(source_file.toPath(), out_file.toPath());
+        collection.images[cache_key] = "./images/" + out_file.getName();
+        return collection.images[cache_key];
+    } catch (e) {
+        warn(label + ": failed to copy image " + source + ": " + e);
+        return source;
+    }
 }
 
 function convert_card(path, collection, image_folder) {
@@ -1073,6 +1157,20 @@ function convert_card(path, collection, image_folder) {
         }
     }
 
+    // replacement templates: an image path replacing the face's template
+    let template_front = has_value(settings.get("TemplateReplacement"));
+    if (template_front) {
+        out["front"]["template"] = extract_file_image(
+            template_front, collection, image_folder, out["name"] + " (front template)",
+        );
+    }
+    let template_back = has_value(settings.get("TemplateReplacementBack"));
+    if (template_back) {
+        out["back"]["template"] = extract_file_image(
+            template_back, collection, image_folder, out["name"] + " (back template)",
+        );
+    }
+
     // clues
     if (has_value(settings.get("Clues"))) {
         out["front"]["clues"] =
@@ -1171,6 +1269,10 @@ function convert_card(path, collection, image_folder) {
     }
     if (has_value(settings.get("FlavorBack"))) {
         out["back"]["flavor_text"] = settings.get("FlavorBack");
+    }
+    // investigator backs keep their flavor text in InvStoryBack
+    if (has_value(settings.get("InvStoryBack"))) {
+        out["back"]["flavor_text"] = settings.get("InvStoryBack");
     }
     if (has_value(settings.get("VictoryBack"))) {
         out["back"]["victory"] = settings.get("VictoryBack");

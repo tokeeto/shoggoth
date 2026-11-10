@@ -14,7 +14,6 @@ already uses elsewhere in this dialog's own call chain.
 import json
 import logging
 import threading
-from urllib.parse import quote
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
@@ -155,7 +154,7 @@ class PublishProgressDialog(QDialog):
             else:
                 base_project = Project.load(self.project.file_path)
             self._log_signal.emit(tr("MSG_PUBLISH_ENSURING_PROJECT"))
-            project_id, ensured_public_url = publish_client.ensure_project(
+            project_id, _ = publish_client.ensure_project(
                 self.base_url, self.token, base_project
             )
 
@@ -178,7 +177,7 @@ class PublishProgressDialog(QDialog):
 
             self._upload_about_md(project_id, translation_id)
 
-            uploaded = {}  # remote path ("tts/x.png") -> local path, for uploaded TTS images
+            uploaded = {}  # local path -> public URL, for uploaded TTS images
             tts_image_paths = set(self.tts_result['image_paths']) if self.tts_result else set()
 
             for kind, path, remote_name in self.files:
@@ -188,43 +187,16 @@ class PublishProgressDialog(QDialog):
                 self._log_signal.emit(tr("MSG_PUBLISH_UPLOADING").format(name=remote_name))
                 result = self._upload(project_id, translation_id, kind, remote_name, path)
                 if path in tts_image_paths:
-                    uploaded[result["path"]] = path
+                    uploaded[path] = result.get("url")
 
             if self._cancel_event.is_set():
                 self._complete_signal.emit(False, True, tr("MSG_PUBLISH_CANCELLED"))
                 return
 
-            if translation_id is None:
-                # public_url is reachable as soon as the server has minted the
-                # project's share (ensure_project's own response, above) --
-                # the desktop no longer self-publishes, so there's no separate
-                # "publish" call to make here anymore.
-                public_url = ensured_public_url
-                if public_url and base_project.get_meta("cloud_public_url") != public_url:
-                    # Cached so a *translation* publish (below) can build TTS
-                    # download links without any live, authorized call back
-                    # to the server -- the translator already has this exact
-                    # file locally (translation.project_path points at it),
-                    # which is the only way they could be translating this
-                    # project at all.
-                    base_project.set_meta("cloud_public_url", public_url)
-                    base_project.save_all()
-                published = {"public_url": public_url}
-            else:
-                # Translations inherit the parent project's share instead of
-                # minting their own -- see this class's docstring. public_url
-                # comes from the base project's own local cache (set above,
-                # the last time *that* project was uploaded from any machine),
-                # not a live call -- if the base project has never been
-                # uploaded, or was uploaded from a copy of the file that never
-                # made it back here, this is just None and TTS URL rewriting
-                # below is skipped, same as before.
-                published = {"public_url": base_project.get_meta("cloud_public_url")}
-
             if self.tts_result:
                 if uploaded:
                     self._log_signal.emit(tr("MSG_PUBLISH_REWRITING_TTS"))
-                    self._rewrite_tts_urls(published, uploaded)
+                    self._rewrite_tts_urls(uploaded)
                 self._upload_tts_json(project_id, translation_id)
 
             count = len(self.files)
@@ -232,7 +204,7 @@ class PublishProgressDialog(QDialog):
                 self._summary = tr("MSG_PUBLISH_TRANSLATION_SUCCESS").format(count=count)
             else:
                 self._summary = tr("MSG_PUBLISH_SUCCESS").format(
-                    count=count, url=published.get("public_url") or ""
+                    count=count, url=f"{self.base_url}/p/{project_id}"
                 )
             self._complete_signal.emit(True, False, self._summary)
         except publish_client.PublishError as exc:
@@ -298,18 +270,10 @@ class PublishProgressDialog(QDialog):
                 self.tts_result["wrapper_path"],
             )
 
-    def _rewrite_tts_urls(self, published, uploaded):
-        """uploaded: remote path ("tts/x.png") -> local path, for every
-        uploaded TTS image this run. URLs are built the same way the server's
-        own storage.public_file_url() does, off the project's public share
-        base (`published["public_url"]`) -- no extra round trip needed."""
-        public_url = published.get("public_url")
-        if not public_url:
-            return
-        path_to_url = {
-            local_path: f"{public_url}/download?path=/{quote(remote_path, safe='/')}"
-            for remote_path, local_path in uploaded.items()
-        }
+    def _rewrite_tts_urls(self, uploaded):
+        """uploaded: local path -> the public URL the server returned for it,
+        for every uploaded TTS image this run."""
+        path_to_url = {path: url for path, url in uploaded.items() if url}
 
         wrapper_path = self.tts_result["wrapper_path"]
         with open(wrapper_path, encoding="utf-8") as fh:

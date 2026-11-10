@@ -102,11 +102,9 @@ def ensure_project(base_url: str, token: str, project) -> tuple[str, str | None]
     at first creation) -- so meta changes reach the server even on a publish
     run where no files ended up selected.
 
-    `public_url` is populated as soon as the server has minted the project's
-    Nextcloud share (at creation time now -- see shoggoth_web's
-    storage.ensure_share), independent of whether an admin has published it:
-    the desktop no longer self-publishes, so this is the only way it learns
-    the share link (needed for TTS URL rewriting).
+    `public_url` is the project's public folder (see shoggoth_web's
+    storage.public_root_url), independent of whether an admin has published
+    it. File URLs come from the upload responses, not from this.
 
     Reuses `project.get_meta('cloud_project_id')` if it still resolves (exists
     and is owned by this token); otherwise mints a new server-side project and
