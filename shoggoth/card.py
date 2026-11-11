@@ -259,8 +259,26 @@ class Face:
             the next value down instead of replacing it, so it only needs
             the fields it changes.
         """
+        return self._merge_values(self._values(key), key)
+
+    def default_value(self, key, default=None):
+        """ What _resolve(key) would give if this face stored nothing for
+            key itself: the face it inherits from, then the defaults chain.
+            For editor logic that adjusts a stored override relative to the
+            value underneath it. Returns default when nothing provides one.
+        """
+        values = self._values(key)
+        if key in self.data:
+            next(values)  # this face's own value always comes first
+        try:
+            return self._merge_values(values, key)
+        except KeyError:
+            return default
+
+    @staticmethod
+    def _merge_values(values, key):
         overlays = []
-        for value in self._values(key):
+        for value in values:
             if not (isinstance(value, dict) and value.get('inherit')):
                 break
             overlays.append(value)

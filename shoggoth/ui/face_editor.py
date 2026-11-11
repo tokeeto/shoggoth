@@ -627,6 +627,53 @@ class FaceEditor(QWidget):
                 widget.blockSignals(False)
                 widget.setCursorPosition(prefix_len + len(text))
         self.on_field_changed(field_name)
+        if not self.updating:
+            self._fit_text_region_to_victory(field_name)
+
+    def _fit_text_region_to_victory(self, victory_field, text_field='text'):
+        """Keep the rules text clear of the Victory box.
+
+        With a victory value, a text region whose bottom (y + height) runs past
+        the victory region's top is shortened by storing
+        {"inherit": true, "height": <victory y - text y>} over the default
+        region. Without one, that height override is dropped again (and the
+        whole entry when nothing else is left in it), so the text gets its
+        full default size back. A text region the user stored outright (no
+        "inherit") is theirs and left alone, as are other keys of an inherit
+        overlay."""
+        region_key = f'{text_field}_region'
+        own = self.face.data.get(region_key)
+        if own is not None and not (isinstance(own, dict) and own.get('inherit')):
+            return
+        overlay = dict(own or {'inherit': True})
+
+        if self.face.data.get(victory_field):
+            base = self.face.default_value(region_key)
+            victory_region = self.face.get(f'{victory_field}_region')
+            if not (isinstance(base, dict) and isinstance(victory_region, dict)):
+                return
+            try:
+                text_y = int(base.get('y', 0))
+                text_bottom = text_y + int(base.get('height', 0))
+                victory_y = int(victory_region['y'])
+            except (KeyError, TypeError, ValueError):
+                return
+            if text_bottom <= victory_y or victory_y <= text_y:
+                return  # already clear (or the victory box isn't below the text)
+            overlay['height'] = victory_y - text_y
+        else:
+            overlay.pop('height', None)
+
+        new_value = overlay if set(overlay) - {'inherit'} else None
+        if new_value == own:
+            return
+        self.face.set(region_key, new_value)
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
 
     def add_victory_field(self, label=None, field_name="victory"):
         """Helper to add the Victory field with bare-number auto-formatting"""

@@ -59,6 +59,12 @@ These tags expand to the bold keyword with its dash. They're also translated aut
 
 Most card types have a separate **Flavor** field. Shoggoth places it under the rules text, centered and in italics, like on official cards, so you don't need to format it yourself.
 
+## Victory
+
+The text gets the whole text box until you fill in **Victory**. When you do, and the Victory line would sit on top of the text, Shoggoth shortens the text box so it ends where Victory begins. Clear Victory again and the text gets its full space back. If you've set your own text box size (see [Advanced text](advanced-text.md#fine-tuning-layout)), Shoggoth leaves it alone.
+
+## Story passages
+
 On story cards and act and agenda backs, story passages go in `<blockquote>...</blockquote>`, which gives them the indented story style. The *Story* button above the text field inserts this for you.
 
 ## When the text doesn't fit
