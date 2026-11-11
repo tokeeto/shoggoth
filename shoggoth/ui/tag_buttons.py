@@ -17,6 +17,9 @@ from shoggoth.i18n import tr
 TAG_BUTTON_SPECS = {
     'story': {'kind': 'pair', 'label': "TAG_BTN_STORY", 'start': '<blockquote>', 'end': '</blockquote>'},
     'forced': {'kind': 'single', 'label': "TAG_BTN_FORCED", 'tag': '<for>'},
+    'revelation': {'kind': 'single', 'label': "TAG_BTN_REVELATION", 'tag': '<rev>'},
+    'put_into_play': {'kind': 'single', 'label': "TAG_BTN_PUT_INTO_PLAY",
+                      'tag': '<rev> Put <name> into play in your threat area.'},
     'elder_sign': {'kind': 'single', 'icon_glyph': 'E', 'tag': '<elder_sign>'},
     'bold': {'kind': 'pair', 'label': "TAG_BTN_BOLD", 'start': '<b>', 'end': '</b>', 'style': 'bold'},
     'italic': {'kind': 'pair', 'label': "TAG_BTN_ITALIC", 'start': '<i>', 'end': '</i>', 'style': 'italic'},
@@ -28,6 +31,8 @@ TAG_BUTTON_SPECS = {
 DEFAULT_TAG_BUTTONS = ('forced', 'elder_sign', 'bold', 'italic', 'valign', 'image')
 # Campaign text (act/agenda backs, story) is mostly blockquote prose
 STORY_TAG_BUTTONS = ('story',) + DEFAULT_TAG_BUTTONS
+# Treacheries: Revelation, and the common "put into your threat area" opener
+TREACHERY_TAG_BUTTONS = ('revelation', 'put_into_play') + DEFAULT_TAG_BUTTONS
 
 _icon_family = None
 

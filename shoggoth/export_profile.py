@@ -15,15 +15,15 @@ dict instead of `entries`. Those aren't converted -- a profile missing
 
 ENTRY_KINDS = ('images', 'pdf', 'tts', 'arkham_build', 'guides', 'publish')
 
-# Whether an entry of this kind has its own card scope. arkham.build and
-# Guides always operate on the whole project; Publish operates on whatever
+# Whether an entry of this kind has its own card scope. Guides always
+# operate on the whole project; Publish operates on whatever
 # earlier entries in the run already produced, not a card selection of its
 # own.
 USES_SCOPE = {
     'images': True,
     'pdf': True,
     'tts': True,
-    'arkham_build': False,
+    'arkham_build': True,
     'guides': False,
     'publish': False,
 }
@@ -108,7 +108,8 @@ class ExportEntry:
     def __init__(self, data, project):
         self.project = project
         self.data = data
-        self.data.setdefault('scope', default_scope())
+        if not self.data.get('scope'):
+            self.data['scope'] = default_scope()
         kind = self.data.get('type')
         if 'settings' not in self.data:
             self.data['settings'] = default_settings_for(kind) if kind in DEFAULT_SETTINGS else {}

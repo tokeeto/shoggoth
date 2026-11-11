@@ -1202,6 +1202,8 @@
   "BTN_REROLL_SEED": "New Random Texture",
   "TAG_BTN_STORY": "Story",
   "TAG_BTN_FORCED": "Forced",
+  "TAG_BTN_REVELATION": "Revelation",
+  "TAG_BTN_PUT_INTO_PLAY": "Put into…",
   "TAG_BTN_BOLD": "Bold",
   "TAG_BTN_ITALIC": "Italic",
   "TAG_BTN_VALIGN": "Valign",

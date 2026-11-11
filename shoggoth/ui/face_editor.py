@@ -790,10 +790,10 @@ class FaceEditor(QWidget):
         self._target_layout().addWidget(widget)
         return widget
 
-    def add_footer_row(self):
+    def add_footer_row(self, expanded=False):
         """Add the "additional text fields" fold (call inside a "Print & credits" band —
         this does not open one itself)."""
-        self.add_extra_fields_section()
+        self.add_extra_fields_section(expanded=expanded)
 
     def add_token_area_widget(self):
         """Enable/height/title controls for a bottom-of-card token/tracking box (Chaos,
@@ -846,7 +846,7 @@ class FaceEditor(QWidget):
             if field not in self.fields and self.face.get(f'{field}_region')
         ]
 
-    def add_extra_fields_section(self):
+    def add_extra_fields_section(self, expanded=False):
         """Add a collapsed fold holding Copyright plus extra_text_fields(), one line edit
         each. Copyright lives here (rather than as its own always-visible row) since it's
         set-once-and-forget for most cards."""
@@ -888,6 +888,7 @@ class FaceEditor(QWidget):
             content.setVisible(checked)
             toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
         toggle.toggled.connect(on_toggled)
+        toggle.setChecked(expanded)
 
         self._target_layout().addWidget(section)
 

@@ -8,7 +8,7 @@ Every widget exposes the same pair of methods:
   apply(entry)  -- entry: {'id', 'type', 'scope', 'settings'}; populate the UI
   read() -> {'scope': dict|None, 'settings': dict}
               -- 'scope' is None for kinds with no card scope of their own
-                 (arkham.build, Guides -- see export_profile.USES_SCOPE)
+                 (Guides -- see export_profile.USES_SCOPE)
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QLabel,
@@ -411,6 +411,9 @@ class ArkhamBuildEntryWidget(QWidget):
         self.project = project
         layout = QVBoxLayout(self)
 
+        self._scope_selector = ProfileScopeSelector(project)
+        layout.addWidget(self._scope_selector)
+
         upload_form = QFormLayout()
         self._upload_combo = QComboBox()
         self._upload_combo.addItem(tr("AB_UPLOAD_MANUAL"), "manual")
@@ -445,6 +448,7 @@ class ArkhamBuildEntryWidget(QWidget):
         self._cloud_hint.setVisible(not manual and not logged_in)
 
     def apply(self, entry):
+        self._scope_selector.set_scope(entry.get('scope') or {})
         d = entry.get('settings', {})
         index = self._upload_combo.findData(d.get('upload_adapter', 'manual'))
         self._upload_combo.setCurrentIndex(max(0, index))
@@ -456,7 +460,7 @@ class ArkhamBuildEntryWidget(QWidget):
             'upload_adapter': self._upload_combo.currentData(),
             'url_prefix': self._url_input.text().strip() or None,
         }
-        return {'scope': None, 'settings': settings}
+        return {'scope': self._scope_selector.read_scope(), 'settings': settings}
 
 
 class GuidesEntryWidget(QWidget):

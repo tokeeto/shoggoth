@@ -235,9 +235,11 @@ def _run_tts(parent, project, renderer, cards, scope_type, d):
     return tr(key).format(path=path), image_paths, str(path)
 
 
-def _run_arkham_build(project, settings, renderer, parent=None):
-    """Returns (result_path_str, produced_paths)."""
-    return run_arkham_build_export(project, settings, renderer, parent)
+def _run_arkham_build(project, settings, renderer, cards, scope_type, parent=None):
+    """Returns (result_path_str, produced_paths). An 'all' scope exports the
+    whole project unfiltered (every encounter set, even empty ones)."""
+    card_ids = None if scope_type == 'all' else [card.id for card in cards]
+    return run_arkham_build_export(project, settings, renderer, parent, card_ids=card_ids)
 
 
 def _run_guides(project, d):
@@ -312,7 +314,9 @@ def run_profile(parent, project, renderer, profile_data):
 
         elif kind == 'arkham_build':
             try:
-                path, data_paths = _run_arkham_build(project, settings, renderer, parent)
+                path, data_paths = _run_arkham_build(
+                    project, settings, renderer, cards, entry.scope.get('type', 'all'), parent
+                )
                 produced['data'].extend(data_paths)
                 results.append(tr("PE_RESULT_ARKHAM_BUILD").format(path=path))
             except CancelledError:

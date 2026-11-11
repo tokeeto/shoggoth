@@ -145,8 +145,16 @@ def ensure_project(base_url: str, token: str, project) -> tuple[str, str | None]
     return new_id, data.get("public_url")
 
 
-def ensure_artifact_target(base_url: str, token: str, artifact_key: str) -> tuple[str, str | None]:
-    """Find or create a cloud folder for exported files. Leave the source project unchanged."""
+def ensure_artifact_target(
+    base_url: str, token: str, artifact_key: str, title: str
+) -> tuple[str, str | None]:
+    """Find or create a cloud folder for exported files. Leave the source project unchanged.
+
+    The target is found again by `artifact_key` (stored in the server project's
+    metadata), so `title` is only used when creating it: the server derives the
+    storage folder name (``<slug>-<id[:8]>``) from it, just like a regular
+    publish does from the project name.
+    """
     try:
         resp = requests.get(
             f"{base_url}/projects", headers=_auth_headers(token), timeout=_METADATA_TIMEOUT
@@ -163,7 +171,7 @@ def ensure_artifact_target(base_url: str, token: str, artifact_key: str) -> tupl
     try:
         resp = requests.post(
             f"{base_url}/projects",
-            json={"title": artifact_key, "metadata": {"shoggoth_artifact_key": artifact_key}},
+            json={"title": title, "metadata": {"shoggoth_artifact_key": artifact_key}},
             headers=_auth_headers(token),
             timeout=_METADATA_TIMEOUT,
         )

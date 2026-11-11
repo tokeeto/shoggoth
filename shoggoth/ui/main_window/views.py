@@ -64,6 +64,7 @@ def _begin_view(window, project, nav_type, nav_id, card=None, remember=True):
     window.nav.push(nav_type, nav_id)
     # Stop watching the previous card's files; a card's render re-registers its own
     window.file_watcher.clear_files()
+    window.preview.rewatch_pinned_files()
     clear_editor(window)
     if remember:
         window.session.set_last_selected(nav_id, nav_type, project)

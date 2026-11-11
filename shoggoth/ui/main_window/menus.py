@@ -250,6 +250,9 @@ def _create_view_menu(window, menubar):
     window.toggle_preview_action.triggered.connect(window.toggle_preview)
     view_menu.addAction(window.toggle_preview_action)
 
+    _add_action(window, view_menu, tr("New Preview Window"),
+                window.preview.open_extra_window)
+
     # Toggle Project Tree
     window.toggle_tree_action = QAction("Show Project Tree", window)
     window.toggle_tree_action.setCheckable(True)

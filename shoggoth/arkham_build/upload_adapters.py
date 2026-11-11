@@ -66,7 +66,8 @@ class CelaenoUploadAdapter:
         report(tr("MSG_PUBLISH_ENSURING_PROJECT"))
 
         self.project_id, self.public_url = client.ensure_artifact_target(
-            self.base_url, token, f"arkham-build/{project.id}"
+            self.base_url, token, f"arkham-build/{project.id}",
+            project.name or "arkham-build",
         )
 
         if not self.public_url:

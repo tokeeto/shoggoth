@@ -11,7 +11,8 @@ from shoggoth.ui.face_editor import FaceEditor
 from shoggoth.ui.text_editor import PlainJsonTextEdit
 from shoggoth.ui.player_editors import AssetEditor, EventEditor, SkillEditor, CustomizableEditor
 from shoggoth.ui.encounter_editors import (
-    EnemyEditor, TreacheryEditor, LocationEditor, LocationBackEditor, EnemyLocationEditor
+    EnemyEditor, TreacheryEditor, LocationEditor, LocationBackEditor, EnemyLocationEditor,
+    ConcealedEditor, ConcealedBackEditor,
 )
 from shoggoth.ui.campaign_editors import (
     ActEditor, ActBackEditor, AgendaEditor, AgendaBackEditor, ChaosEditor, StoryEditor
@@ -123,16 +124,39 @@ class JsonEditor(FaceEditor):
             text = self.json_editor.toPlainText()
             if text.strip():
                 data = json.loads(text)
-                # Update face data
-                self.face.data = data
-                # Emit type_changed if type changed (to potentially switch editor)
-                if 'type' in data and data['type'] != self.face.get('type'):
-                    self.type_changed.emit()
+                if not isinstance(data, dict):
+                    raise json.JSONDecodeError("a face must be a JSON object", text, 0)
+                old_type = self.face.data.get('type')
+                # Update the face dict in place: card.data['front'/'back'] is the same
+                # object, and that is what gets saved and what the card's JSON tab shows.
+                # Rebinding face.data would split the two apart.
+                self.face.data.clear()
+                self.face.data.update(data)
+                if data.get('type') != old_type:
+                    self.face._fallback = None
+                    self.updating = True
+                    self.set_widget_value(self.type_combo, data.get('type', ''))
+                    self.updating = False
+                self.face.card.dirty = True
+                self._emit_data_changed()
+                # Switch editor only once the type/"editor" names one that exists
+                # (rebuilding on every keystroke of a type name would lose the cursor).
+                if editor_class_for_face(self.face) is not JsonEditor:
+                    self.type_changed.emit(self.face)
+                    return
                 self.status_label.setText(tr("STATUS_SAVED"))
                 self.status_label.setStyleSheet("color: green; padding: 5px;")
         except json.JSONDecodeError as e:
             self.status_label.setText(tr("STATUS_JSON_INVALID").format(error=str(e)[:50]))
             self.status_label.setStyleSheet("color: red; padding: 5px;")
+
+    def _emit_data_changed(self):
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'data_changed'):
+                parent.data_changed.emit()
+                break
+            parent = parent.parent()
 
 
 # Mapping of editor types to classes
@@ -159,13 +183,20 @@ EDITOR_MAPPING = {
     'chaos': ChaosEditor,
     'customizable': CustomizableEditor,
     'story': StoryEditor,
+    'concealed': ConcealedEditor,
+    'concealed_decoy': ConcealedEditor,
+    'concealed_back': ConcealedBackEditor,
 }
+
+
+def editor_class_for_face(face):
+    """The editor class get_editor_for_face would build for this face"""
+    return next(
+        (EDITOR_MAPPING[name] for name in face.editor_candidates() if name in EDITOR_MAPPING),
+        JsonEditor,
+    )
 
 
 def get_editor_for_face(face, parent=None):
     """Get the appropriate editor for a face"""
-    editor_class = next(
-        (EDITOR_MAPPING[name] for name in face.editor_candidates() if name in EDITOR_MAPPING),
-        JsonEditor,
-    )
-    return editor_class(face, parent)
+    return editor_class_for_face(face)(face, parent)

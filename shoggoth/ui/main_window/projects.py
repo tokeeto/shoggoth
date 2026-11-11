@@ -105,6 +105,8 @@ def close_project(window, project=None):
 
     # Update file browser
     window.file_browser.remove_project(project)
+    # Preview windows pinned to one of its cards follow the current card again
+    window.preview.on_project_closed(project)
 
     # Update active project
     if window.active_project == project:

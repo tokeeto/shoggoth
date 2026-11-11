@@ -266,7 +266,9 @@ class ImprovedCardPreview(QWidget):
     trim_changed = Signal(str)  # 'ffg' or 'mtg'
     original_toggled = Signal(bool)  # show the unmodified card of a modification
 
-    def __init__(self):
+    def __init__(self, controls=True):
+        """`controls=False` leaves out the trim/original toggles (a secondary
+        preview window mirrors the main preview's settings)."""
         super().__init__()
 
         layout = QVBoxLayout()
@@ -302,7 +304,11 @@ class ImprovedCardPreview(QWidget):
         self._original_btn.setVisible(False)
         self._original_btn.toggled.connect(self.original_toggled.emit)
         trim_row.addWidget(self._original_btn)
-        layout.addLayout(trim_row)
+        if controls:
+            layout.addLayout(trim_row)
+        else:
+            for btn in (self._ffg_btn, self._mtg_btn, self._original_btn):
+                btn.setVisible(False)
 
         self.tabs = QTabWidget()
 
@@ -351,3 +357,65 @@ class ImprovedCardPreview(QWidget):
 
     def show_back(self):
         self.tabs.setCurrentIndex(1)
+
+
+class PreviewWindow(QWidget):
+    """A detached, top-level card preview (View → New Preview Window).
+
+    Unpinned, it renders nothing itself: `PreviewController` hands it the same
+    images as the docked preview, so it always shows the current card. Pinned,
+    it keeps showing the card it was pinned to, and the controller renders that
+    card for it. Being a child of the main window (with the `Qt.Window` flag)
+    it closes along with it."""
+
+    pin_toggled = Signal(bool)
+    # Emitted from a render thread for a pinned card; queued onto the main thread
+    render_result = Signal(int, object, object)  # version, front_image, back_image
+
+    def __init__(self, parent, side=0):
+        super().__init__(parent, Qt.Window)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+        # Pinned card (set by PreviewController), and its render bookkeeping
+        self.pinned_project = None
+        self.pinned_card_id = None
+        self.render_version = 0
+        self.renderer = None  # own CardRenderer when the card needs other settings
+        self.watched_files = set()
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(5, 5, 5, 0)
+        self.pin_btn = QPushButton(tr("Pin to This Card"))
+        self.pin_btn.setCheckable(True)
+        self.pin_btn.setToolTip(tr("Keep showing this card when you open another one"))
+        self.pin_btn.toggled.connect(self.pin_toggled.emit)
+        top_row.addWidget(self.pin_btn)
+        top_row.addStretch()
+        layout.addLayout(top_row)
+
+        self.preview = ImprovedCardPreview(controls=False)
+        self.preview.tabs.setCurrentIndex(side)
+        layout.addWidget(self.preview)
+        self.setLayout(layout)
+        self.resize(460, 710)
+        self.set_card_title('')
+
+    @property
+    def pinned(self):
+        return self.pinned_card_id is not None
+
+    def set_pinned_state(self, pinned):
+        """Reflect the pin state on the button without emitting pin_toggled."""
+        self.pin_btn.blockSignals(True)
+        self.pin_btn.setChecked(pinned)
+        self.pin_btn.blockSignals(False)
+
+    def set_card_title(self, name):
+        title = tr("Card Preview")
+        if name:
+            title = f"{title} – {name}"
+        if self.pinned:
+            title = f"{title} ({tr('pinned')})"
+        self.setWindowTitle(title)

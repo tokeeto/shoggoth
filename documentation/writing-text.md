@@ -12,7 +12,7 @@ Card text in Shoggoth is plain text with a few **tags** mixed in: short codes in
 | `<i>Some flavor.</i>` | *Some flavor.* (italic) |
 | `<t>Ally</t>` or `[[Ally]]` | ***Ally*** (the bold italic style used for traits in rules text) |
 
-In a text field, **Ctrl+B**, **Ctrl+I** and **Ctrl+T** wrap the selected text in bold, italic and trait tags. The button row above text fields inserts the most common tags with one click.
+In a text field, **Ctrl+B**, **Ctrl+I** and **Ctrl+T** wrap the selected text in bold, italic and trait tags. The button row above text fields inserts the most common tags with one click. On treacheries it also has *Revelation*, which inserts `<rev>`, and *Put into…*, which inserts `<rev> Put <name> into play in your threat area.` (`<name>` becomes the card's name).
 
 You don't need tags in the **Traits** field. Type `Item. Weapon. Firearm.` and Shoggoth styles it for you.
 

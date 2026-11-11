@@ -31,7 +31,7 @@ To make one:
 
 1. Click **Add New...** next to _Export setup_ and give it a name.
 2. Click **Add Entry** for each export you want, and set its options. Use ▲ and ▼ to reorder entries.
-3. For images, PDF and TTS, choose the **scope**: all cards, player cards, campaign cards, specific encounter sets, or specific hand-picked cards.
+3. For images, PDF, TTS and arkham.build, choose the **scope**: all cards, player cards, campaign cards, specific encounter sets, or specific hand-picked cards.
 4. Click **Export**. The setup is saved and run.
 
 Once saved, a setup can be run straight from **Export → Setups** without opening the dialog. Change something on a card, then run "Print shop" again.
@@ -63,17 +63,7 @@ For a one-off export that you don't want to keep as a setup, use **Export → On
 
 ## arkham.build uploads
 
-The **arkham.build** entry has an **Upload** dropdown:
-
-- **Manual**: Set the URL prefix. After export, upload the generated
-  project ID folder to that URL. Leave the prefix empty to export JSON without
-  images. Existing setups use this option by default.
-- **Celaeno cloud**: Sign in to Library of Celaeno from the **Cloud** menu.
-  The entry uploads card images, thumbnails, icons, text images, and JSON.
-  The JSON contains public image URLs and an update URL. You do not need a
-  separate **Submit to cloud** entry for this export.
-
-Both options keep a local JSON file in the export folder under `arkham-build`.
+The **arkham.build** entry can upload its images and data to the Library of Celaeno for you, or leave the files for you to host yourself. See [arkham.build](playing-digitally.md#arkhambuild) in *Playing digitally*.
 
 ## Default settings
 

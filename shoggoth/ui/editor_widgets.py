@@ -22,7 +22,7 @@ ALL_CARD_TYPES = [
     'player', 'encounter', 'enemy_deck',
     'act_agenda_full', 'act_agenda_full_back',
     'mini_investigator', 'mini_investigator_back',
-    'concealed', 'concealed_back',
+    'concealed', 'concealed_decoy', 'concealed_back',
 ]
 FULLART_CARD_TYPES = [
     'fullart_asset',

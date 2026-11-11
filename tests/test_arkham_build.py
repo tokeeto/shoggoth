@@ -38,7 +38,7 @@ def _normalize(data):
 def export(tmp_path):
     """Export a project dict to arkham.build JSON."""
 
-    def run(project_data, settings=None):
+    def run(project_data, settings=None, card_ids=None):
         project = Project(str(tmp_path / "project.json"), project_data)
         data = arkham_build.export_project(
             project,
@@ -47,6 +47,7 @@ def export(tmp_path):
             card_executor=lambda cards, export_card: [
                 export_card(card) for card in cards
             ],
+            card_ids=card_ids,
         )
         return _normalize(data)
 
@@ -283,6 +284,54 @@ def test_investigator_deckbuilding(export, snapshot):
     )
 
     snapshot(export(project)["data"]["cards"])
+
+
+def _card(card_id, name, **fields):
+    return {
+        "id": card_id,
+        "name": name,
+        "amount": 1,
+        "front": {"type": "asset", "classes": ["neutral"], "cost": "1", "level": "0"},
+        "back": {"type": "player"},
+        **fields,
+    }
+
+
+def test_selected_cards(export):
+    investigator = {
+        "id": "inv-01",
+        "name": "Tess Tester",
+        "amount": 1,
+        "front": {"type": "investigator", "classes": ["guardian"]},
+        "back": {"type": "investigator_back", "entries": [["<b>Deck Size:</b>", "30."]]},
+    }
+    signature = _card("sig-01", "Tess's Checklist", investigator="Tess Tester")
+    other = _card("other-01", "Spare Pencil")
+    cultist = _card(
+        "enc-01", "Cultist", encounter_set="enc-cult",
+        front={"type": "enemy"}, back={"type": "encounter"},
+    )
+    project = _project(cards=[investigator, signature, other, cultist])
+
+    everything = export(project)
+    assert [c["code"] for c in everything["data"]["cards"]] == [
+        "inv-01", "sig-01", "other-01", "enc-01"
+    ]
+    assert len(everything["data"]["encounter_sets"]) == 2
+
+    # Only the selected cards, and only the encounter sets they use.
+    partial = export(project, card_ids=["enc-01", "sig-01"])
+    assert [c["code"] for c in partial["data"]["cards"]] == ["sig-01", "enc-01"]
+    assert [es["code"] for es in partial["data"]["encounter_sets"]] == ["enc-cult"]
+    assert partial["data"]["packs"] == everything["data"]["packs"]
+    # The investigator isn't exported, so the signature isn't restricted to it.
+    assert "restrictions" not in partial["data"]["cards"][0]
+
+    # The investigator only requires signatures that are exported too.
+    alone = export(project, card_ids=["inv-01"])
+    assert alone["data"]["cards"][0]["deck_requirements"] == (
+        "size:30, random:subtype:basicweakness"
+    )
 
 
 def test_linked_back(export, snapshot):

@@ -1,7 +1,7 @@
 """Build arkham.build export documents and run export dialogs."""
 import datetime
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from concurrent.futures import CancelledError, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, NotRequired, TypedDict
@@ -44,7 +44,14 @@ def export_project(
     *,
     card_executor: CardExecutor,
     adapter: UploadAdapter | None = None,
+    card_ids: Collection[str] | None = None,
 ) -> ExportedProject:
+    """Export the project, or only the cards in `card_ids` when given.
+
+    A partial export is self-contained: deckbuilding links are only made
+    between exported cards, and only encounter sets that hold an exported
+    card are listed.
+    """
     assert renderer is not None, "A configured renderer is required"
     assert callable(card_executor), "A card executor is required"
 
@@ -54,16 +61,24 @@ def export_project(
 
     assets = ImageAssetExporter(project, adapter)
 
+    card_data = data["cards"]
+    encounter_sets = data.get("encounter_sets", [])
+    if card_ids is not None:
+        card_ids = set(card_ids)
+        card_data = [card for card in card_data if card["id"] in card_ids]
+        used_sets = {card.get("encounter_set") for card in card_data}
+        encounter_sets = [es for es in encounter_sets if es["id"] in used_sets]
+
     return {
         "meta": _project_meta(data),
         "data": {
             "cards": _export_cards(
-                project, adapter, renderer, card_executor, assets
+                project, card_data, adapter, renderer, card_executor, assets
             ),
             "packs": [_export_group(data, assets)],
             "encounter_sets": [
                 _export_group(encounter_set, assets)
-                for encounter_set in data.get("encounter_sets", [])
+                for encounter_set in encounter_sets
             ],
         },
     }
@@ -81,12 +96,13 @@ def _export_group(data: _GroupData, assets: ImageAssetExporter) -> ExportedGroup
 
 def _export_cards(
     project: Project,
+    card_data: list[dict[str, Any]],
     adapter: UploadAdapter,
     renderer: CardRenderer,
     card_executor: CardExecutor,
     assets: ImageAssetExporter,
 ) -> list[dict[str, object]]:
-    cards = [Card(data, project) for data in project.data["cards"]]
+    cards = [Card(data, project) for data in card_data]
     records_by_id = {}
     targets_by_id: dict[str, list[ImageTarget]] = {}
 
@@ -146,8 +162,10 @@ class _ExportDialog(QDialog):
         settings: Mapping[str, Any],
         renderer: CardRenderer,
         parent: QWidget | None,
+        card_ids: Collection[str] | None = None,
     ) -> None:
         super().__init__(parent)
+        self._card_ids = card_ids
         self.setWindowTitle(tr("PE_SECTION_ARKHAM_BUILD"))
         self._cancelled = threading.Event()
         self.error: Exception | None = None
@@ -205,6 +223,7 @@ class _ExportDialog(QDialog):
             data = export_project(
                 project, settings, renderer,
                 card_executor=self._execute_cards, adapter=adapter,
+                card_ids=self._card_ids,
             )
 
             self._check_cancelled()
@@ -224,8 +243,9 @@ def run_arkham_build_export(
     settings: Mapping[str, Any],
     renderer: CardRenderer,
     parent: QWidget | None = None,
+    card_ids: Collection[str] | None = None,
 ) -> tuple[str, list[str]]:
-    dialog = _ExportDialog(project, settings, renderer, parent)
+    dialog = _ExportDialog(project, settings, renderer, parent, card_ids)
     dialog._thread.start()
     dialog.exec()
     dialog._thread.join()

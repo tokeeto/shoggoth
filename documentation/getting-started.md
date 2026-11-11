@@ -39,6 +39,7 @@ The window has three parts:
 The preview has a few handy toggles:
 
 - **Trim: FFG / MTG** switches between the two common card sizes: the narrower official size (61.5×88 mm) and the wider size most print shops use (63.5×88 mm).
+- **View → New Preview Window** opens another preview in its own window, which you can place anywhere, for example on a second screen. It opens on the other side of the card, so with the main preview you can see the front and back at the same time. It shows the card you're editing and updates as you type. You can open as many as you like. Click **Pin to This Card** to keep a window on the card it shows, even after you open another card. This lets you compare two cards side by side. A pinned window still updates when its card changes. Click the button again to make the window follow the card you're editing.
 - **File → Settings → Display** can show the *bleed* (the extra margin that gets cut off when printing, drawn in red) and rounded corners, and can lower the preview resolution if previews feel slow.
 
 ## The command palette

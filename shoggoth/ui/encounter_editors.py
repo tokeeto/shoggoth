@@ -1,9 +1,10 @@
 """
-Encounter card editors for Shoggoth (enemy, treachery, location)
+Encounter card editors for Shoggoth (enemy, treachery, location, concealed)
 """
 from PySide6.QtWidgets import QLabel
 
 from shoggoth.ui.face_editor import FaceEditor
+from shoggoth.ui.tag_buttons import TREACHERY_TAG_BUTTONS
 from shoggoth.ui.compact_widgets import ConnectionSymbolField, ENCOUNTER_CLASSES
 from shoggoth.files import overlay_dir
 from shoggoth.i18n import tr
@@ -50,7 +51,7 @@ class TreacheryEditor(FaceEditor):
         self.add_class_field(default_classes=ENCOUNTER_CLASSES)
 
         self.start_band(tr("BAND_RULES_TEXT"))
-        self.add_rules_text_row()
+        self.add_rules_text_row(tag_buttons=TREACHERY_TAG_BUTTONS)
 
         self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
@@ -154,4 +155,28 @@ class EnemyLocationEditor(FaceEditor):
         self.start_band(tr("BAND_PRINT_CREDITS"))
         self.add_illustration_widget()
         self.add_footer_row()
+        self.main_layout.addStretch()
+
+
+class ConcealedEditor(FaceEditor):
+    """Editor for concealed mini cards (front) and decoys (via card_type "concealed")"""
+
+    def setup_ui(self):
+        self.start_band(tr("BAND_IDENTITY"))
+        # Plain line edit: the concealed template has no unique-symbol slot.
+        self.add_labeled_line(tr("FIELD_NAME"), "name")
+
+        self.start_band(tr("BAND_PRINT_CREDITS"))
+        self.add_illustration_widget()
+        self.add_footer_row()
+        self.main_layout.addStretch()
+
+
+class ConcealedBackEditor(FaceEditor):
+    """Editor for the generic concealed back: its text comes from the project
+    language, so only the additional text fields are offered (shown unfolded)."""
+
+    def setup_ui(self):
+        self.start_band(tr("BAND_PRINT_CREDITS"))
+        self.add_footer_row(expanded=True)
         self.main_layout.addStretch()

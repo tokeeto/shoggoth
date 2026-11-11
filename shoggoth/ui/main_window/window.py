@@ -303,6 +303,7 @@ class ShoggothMainWindow(QMainWindow):
         """Project change-listener. Only the card being shown needs a
         re-render, and only when it actually changed -- so editing (or
         bulk-changing) other cards doesn't trigger a render at all."""
+        self.preview.on_element_changed(project, kind, element_id, changed)
         if kind == 'encounter_sets':
             # Set-level data (e.g. card_amount, the "n/total" on each card)
             # is drawn on the shown card if it belongs to that set.
@@ -336,6 +337,7 @@ class ShoggothMainWindow(QMainWindow):
         self.card_renderer.clear_asset_caches()
         self.card_renderer.clear_illustration_caches()
         invalidate_defaults()
+        self.preview.clear_caches()
         self.preview.rerender_now()
 
     def on_location_connections_changed(self, affected_cards):
@@ -540,12 +542,12 @@ class ShoggothMainWindow(QMainWindow):
                 return
         # Read via self: the renderer is replaced on language change
         self.card_renderer.invalidate_files(paths)
+        self.preview.invalidate_files(paths)
         if any(str(p).lower().endswith('.json') for p in paths):
             # template/defaults changes: every card, not just the shown one
             # (the tree holds Card objects with their fallback already built)
             invalidate_defaults()
-        if self.current_card:
-            self.preview.rerender_now()
+        self.preview.rerender_now()  # no-op for the dock without a card; pinned windows too
 
     def _check_for_updates_startup(self):
         """Check for updates after startup (deferred to avoid blocking)"""

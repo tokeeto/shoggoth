@@ -25,6 +25,7 @@ A few things are worth knowing:
 - **Leave a field empty** to use the template's default. You rarely need to fill everything in.
 - **Text fields** support formatting and icons, like `<b>Fight.</b>` or `<action>`. See [Writing card text](writing-text.md).
 - **Additional text fields**, a folded section at the bottom of some sides, holds the copyright line and any extra text fields the card type has.
+- **Concealed cards** (the mini cards for the concealed keyword) only have a name and an illustration on the front; the *concealed_decoy* type uses the same editor. The back is a generic card back whose title and reminder text come from the project's language, so its editor only shows the additional text fields, unfolded, for when you want to change that text.
 
 ### Classes
 
