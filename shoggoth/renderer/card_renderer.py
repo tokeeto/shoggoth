@@ -523,7 +523,7 @@ class CardRenderer:
                     else:
                         face_letter = 'a' if name == 'front' else 'b'
                         file_path = Path(folder) / base.format(face=name, order=(number + index), format=format, face_letter=face_letter, index=index)
-                    
+
                     outputs.append(str(file_path))
 
                     if file_path not in exported_paths:
@@ -531,7 +531,7 @@ class CardRenderer:
                         exported_paths.add(file_path)
 
             return outputs
-            
+
         except Exception as e:
             print('failed to export card', card)
             print(e)
@@ -1180,8 +1180,13 @@ class CardRenderer:
             return
 
         if '<class>' in template_value:
-            side_class = side.get('classes', ['neutral'])
-            card_class = side_class[0] if len(side_class) == 1 else 'multi'
+            side_class = side.get('classes', [])
+            if len(side_class) > 1:
+                card_class = 'multi'
+            elif len(side_class) == 0:
+                card_class = ''
+            else:
+                card_class = side_class[0]
             template_value = template_value.replace('<class>', card_class)
         if '<class_length>' in template_value:
             side_class = side.get('classes', [])
