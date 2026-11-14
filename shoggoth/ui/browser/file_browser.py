@@ -2,10 +2,13 @@
 File browser widget showing the open projects' cards, encounter sets,
 and guides, in a grouped tree view, a folder view, or a flat sortable list.
 """
+from contextlib import contextmanager
+
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QItemSelectionModel
 from PySide6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QLineEdit, QStackedWidget, QTreeWidget,
-    QTreeWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QComboBox, QHBoxLayout, QLabel, QLineEdit, QStackedWidget,
+    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from shoggoth.card import natural_sort_key
@@ -169,8 +172,81 @@ class FileBrowser(QWidget):
                 return project
         return None
 
+    @staticmethod
+    def _node_id(item):
+        data = item.data(0, Qt.UserRole) if item is not None else None
+        return data.get('node_id') if data else None
+
+    def _find_node(self, widget, node_id):
+        if widget is self.tree:
+            item = self.sync.node_map.get(node_id)
+            # the map can hold an item that was taken out of the tree
+            if item is not None and item.treeWidget() is self.tree:
+                return item
+            return None
+        for item in self._iterate_items(widget.invisibleRootItem()):
+            if self._node_id(item) == node_id:
+                return item
+        return None
+
+    @contextmanager
+    def _keeping_selection(self):
+        """Rebuilding or re-sorting the tree takes items out and puts them
+        back. When the current item is taken out, Qt silently makes a
+        neighbour current, which would open that neighbour in the editor
+        (e.g. after renaming and saving a card). Suppress that, then put the
+        current item and selection back by node id."""
+        state = []
+        for widget in (self.tree, self.list_tree):
+            state.append((
+                widget,
+                self._node_id(widget.currentItem()),
+                [n for n in map(self._node_id, widget.selectedItems()) if n],
+                widget.verticalScrollBar().value(),
+            ))
+        was_programmatic = self._programmatic_select
+        was_propagating = self._propagating_selection
+        self._programmatic_select = True
+        self._propagating_selection = True
+        try:
+            yield
+        finally:
+            try:
+                for widget, current_id, selected_ids, scroll in state:
+                    self._restore_selection(widget, current_id, selected_ids, scroll)
+            finally:
+                self._programmatic_select = was_programmatic
+                self._propagating_selection = was_propagating
+            self._selected_node_ids = {
+                n for n in map(self._node_id, self.tree.selectedItems()) if n}
+
+    def _restore_selection(self, widget, current_id, selected_ids, scroll):
+        widget.verticalScrollBar().setValue(scroll)
+        current = self._find_node(widget, current_id) if current_id else None
+        if current_id and self._node_id(widget.currentItem()) == current_id \
+                and set(selected_ids) == {self._node_id(i) for i in widget.selectedItems()}:
+            return  # nothing moved
+        widget.clearSelection()
+        if current is not None:
+            self._expand_to_item(current)
+            widget.setCurrentItem(current, 0, QItemSelectionModel.NoUpdate)
+            widget.scrollToItem(current, QAbstractItemView.EnsureVisible)
+        else:
+            # the current element is gone (or there was none): don't leave
+            # a stand-in highlighted that isn't what the editor shows
+            widget.setCurrentItem(None)
+        for node_id in selected_ids:
+            item = self._find_node(widget, node_id)
+            if item is not None:
+                item.setSelected(True)
+
     def refresh(self):
-        """Smart refresh - only update what has changed"""
+        """Smart refresh - only update what has changed. Never changes the
+        current item (and so never navigates away from the open card)."""
+        with self._keeping_selection():
+            self._refresh()
+
+    def _refresh(self):
         if self._view_mode == 'list':
             self._build_card_list()
             return
@@ -218,6 +294,10 @@ class FileBrowser(QWidget):
 
     def _full_rebuild(self):
         """Do a complete tree rebuild (used for initial load or project change)"""
+        with self._keeping_selection():
+            self._rebuild_items()
+
+    def _rebuild_items(self):
         self.tree.clear()
         self.sync.clear()
 
@@ -426,6 +506,10 @@ class FileBrowser(QWidget):
 
     def _build_card_list(self):
         """Populate the flat card list view, one section per project."""
+        with self._keeping_selection():
+            self._build_list_items()
+
+    def _build_list_items(self):
         self.list_tree.clear()
         sort_order = self.sort_combo.currentData()
         name_filter = self.name_filter_edit.text().strip().lower()

@@ -107,8 +107,10 @@ def ensure_project(base_url: str, token: str, project) -> tuple[str, str | None]
     it. File URLs come from the upload responses, not from this.
 
     Reuses `project.get_meta('cloud_project_id')` if it still resolves (exists
-    and is owned by this token); otherwise mints a new server-side project and
-    stores its id back onto the local project.
+    and is owned by this token); otherwise mints a new server-side project.
+    Never stores or saves anything: the caller decides which Project object
+    gets the id (see CelaenoProvider.run -- the one the user has open, so
+    their next save keeps it).
     """
     payload = _project_payload(project)
     existing_id = project.get_meta("cloud_project_id")
@@ -139,10 +141,7 @@ def ensure_project(base_url: str, token: str, project) -> tuple[str, str | None]
         raise PublishError(f"Could not reach {base_url}: {exc}") from exc
     _raise_for_status(resp, "Create project")
     data = _json(resp, "Create project")
-    new_id = data["id"]
-    project.set_meta("cloud_project_id", new_id)
-    project.save_all()
-    return new_id, data.get("public_url")
+    return data["id"], data.get("public_url")
 
 
 def ensure_artifact_target(

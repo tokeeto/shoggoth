@@ -18,6 +18,8 @@ The sidebar has three modes, which you can switch under **View → Sidebar View*
 - **Folder View** starts out looking exactly like the tree, but lets you put cards in folders of your own. See [Your own folders](#your-own-folders) below.
 - **Card List** is a flat list of every card. You can **sort** it by collection number or name, **filter** it by card type, and **search** by name. It's useful for questions like "show me all the treacheries" or "which card is number 147?"
 
+In the tree and folders, acts and agendas are labelled with their index, like *Act 1a: Trapped* and *Agenda 2a: Rise of the Ghouls*. That keeps acts and agendas sorted in order and easy to match up.
+
 Toggle the sidebar with **Ctrl+K** when you need the space.
 
 When you have several projects open, the **active** project is the one that menu commands like *New Card* and *Export* act on. Clicking anything in a project makes it active, and you can also right-click a project and choose **Set as Active**.

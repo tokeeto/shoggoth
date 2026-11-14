@@ -81,6 +81,8 @@ The [Library of Celaeno](https://celaeno.cards) is a community library of fan-ma
 3. Add a **Submit to cloud** entry *last*. It uploads what the entries above it produced.
 4. Fill in the project's **Meta** tab (author, description, banner image) in the project editor. It's shown on your project's page.
 
+The first time you upload a project, Shoggoth tells you it's creating a cloud project for it and gives the project an id. **Save the project afterwards.** The id is stored in the project file, and without it your next upload creates another new project on the website instead of updating this one.
+
 Your submission is reviewed before it appears in the public catalogue. Anyone with an account can see it in the meantime. To update it, run the same setup again. The TTS object is automatically changed to use the uploaded images, so it works for everyone.
 
 Translations are published the same way. They're added to the original project's page, which must already be published (see [Translating a project](translating.md)).

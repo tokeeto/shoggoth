@@ -75,6 +75,7 @@ class PublishProgressDialog(QDialog):
         self.card_manifest = card_manifest
         self._cancel_event = threading.Event()
         self._summary = ""
+        self.project_id = None  # the cloud project id resolved by _run
 
         self._progress_signal.connect(self._on_progress)
         self._log_signal.connect(self._on_log)
@@ -137,11 +138,13 @@ class PublishProgressDialog(QDialog):
             # happens to be attached to this dialog. Two Project objects can
             # easily be open on the same underlying file at once (e.g. the
             # plain project in one tab, and a modification's own load of it
-            # as its parent in another) -- publishing one persists cloud_project_id to disk, but does
-            # nothing to update the *other* Python object's already-loaded
-            # `.data`. Resolving from a fresh read is the only way to see a
-            # sibling view's already-saved id, and it's what avoids minting a
-            # second, duplicate cloud project out from under the first one.
+            # as its parent in another) -- saving one stores its cloud_project_id on
+            # disk, but does nothing to update the *other* Python object's
+            # already-loaded `.data`. Resolving from a fresh read is the only
+            # way to see a sibling view's already-saved id, and it's what
+            # avoids minting a second, duplicate cloud project out from under
+            # the first one. Nothing is saved here: the resolved id goes onto
+            # the open project (CelaenoProvider.run) for the user to save.
             from shoggoth.project import Project
             if self.translation is not None:
                 # A modification never writes to its parent: the parent has
@@ -153,10 +156,17 @@ class PublishProgressDialog(QDialog):
                     raise publish_client.PublishError(tr("ERR_PUBLISH_PARENT_NOT_PUBLISHED"))
             else:
                 base_project = Project.load(self.project.file_path)
+                # An id an earlier upload gave the open project, not saved yet
+                unsaved_id = self.project.get_meta("cloud_project_id")
+                if unsaved_id and not base_project.get_meta("cloud_project_id"):
+                    base_project.set_meta("cloud_project_id", unsaved_id)
             self._log_signal.emit(tr("MSG_PUBLISH_ENSURING_PROJECT"))
             project_id, _ = publish_client.ensure_project(
                 self.base_url, self.token, base_project
             )
+            # Read on the main thread after exec() -- CelaenoProvider.run puts
+            # it on the open project (never the parent of a translation)
+            self.project_id = project_id
 
             if self.translation is not None:
                 self._log_signal.emit(tr("MSG_PUBLISH_ENSURING_TRANSLATION"))

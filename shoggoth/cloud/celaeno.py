@@ -5,6 +5,7 @@ admin marks a project "Published" (catalogue/frontpage visibility) from the
 website once it's been vetted -- this provider no longer publishes anything
 itself. See CLOUD.md for the full desktop<->backend contract this wraps.
 """
+import json
 from pathlib import Path
 
 from shoggoth.cloud.provider import CloudProvider
@@ -58,6 +59,32 @@ def _build_card_manifest(cards, card_faces):
             'sort_key': str(card.project_number),
         }
     return list(manifest.values())
+
+
+def _saved_cloud_project_id(project):
+    """The cloud_project_id in the project file on disk -- another open view
+    of the same file may have saved one this in-memory Project doesn't
+    have."""
+    try:
+        with open(project.file_path, encoding='utf-8') as fh:
+            return (json.load(fh).get('meta') or {}).get('cloud_project_id')
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _confirm_new_cloud_project(parent, project):
+    """Tell the user a cloud project is about to be created for a project
+    that has no id yet, and that they need to save afterwards to keep it.
+    Returns False if they cancelled."""
+    from PySide6.QtWidgets import QMessageBox
+
+    if project.get_meta('cloud_project_id') or _saved_cloud_project_id(project):
+        return True
+    answer = QMessageBox.information(
+        parent, tr("DLG_PUBLISH_NEW_CLOUD_PROJECT"), tr("MSG_PUBLISH_NEW_CLOUD_PROJECT"),
+        QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Ok,
+    )
+    return answer == QMessageBox.Ok
 
 
 class CelaenoProvider(CloudProvider):
@@ -117,6 +144,11 @@ class CelaenoProvider(CloudProvider):
         # see PublishProgressDialog's docstring.
         translation = project if project.is_modification else None
 
+        # A modification uploads under its parent's id, which it never
+        # creates or stores (see PublishProgressDialog._run)
+        if translation is None and not _confirm_new_cloud_project(parent, project):
+            return None
+
         dialog = PublishProgressDialog(
             project, base_url, token, unique_files,
             tts_result if settings.get('tts') else None, parent,
@@ -125,4 +157,8 @@ class CelaenoProvider(CloudProvider):
         )
         dialog.start()
         dialog.exec()
+        # Kept on the open project (unsaved, so it shows as a change), so the
+        # user's next save stores it and later uploads reuse this cloud project
+        if translation is None and dialog.project_id and project.get_meta('cloud_project_id') != dialog.project_id:
+            project.set_meta('cloud_project_id', dialog.project_id)
         return dialog.summary()
