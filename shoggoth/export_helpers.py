@@ -256,7 +256,7 @@ def build_gm_notes(card):
 
     # uses data (Note: this assumes english and does not support multiple uses)
     try:
-        match = re.match(r"Uses \((\d+) ([^)]+)\)\.", front_text)
+        match = re.search(r"Uses \((\d+) ([^)]+)\)\.", front_text)
         if match:
             count = int(match.group(1))
             raw_type = match.group(2)
