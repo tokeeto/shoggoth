@@ -20,6 +20,33 @@ The sidebar has three modes, which you can switch under **View → Sidebar View*
 
 In the tree and folders, acts and agendas are labelled with their index, like *Act 1a: Trapped* and *Agenda 2a: Rise of the Ghouls*. That keeps acts and agendas sorted in order and easy to match up.
 
+### Reading through a scenario: the story view
+
+Click an encounter set's **Story** group (in the Tree View or the Folder View) to see all its story cards at once, so you can read the scenario from start to finish:
+
+- **Agenda** and **Act** columns show each agenda and act with its front directly above its back, in order, with a gap before the next card.
+- Scenarios with **several agenda or act lines** (1a/1b → 2a/2b next to 1c/1d → 2c/2d, or a split into 3a, 3d and 3e) are shown side by side: every agenda (or act) with the same number goes in one row, ordered by letter, and a lone card is centered. This is decided by the **index** number alone, so cards without an index each get their own row at the end. How the lines connect differs from scenario to scenario, so check the layout against your own scenario. With several lines, the doom and clue totals still add up every card, so they won't match a single path through the scenario.
+- Under the **Agenda** and **Act** headers you'll see the total doom and clue thresholds, like *15 doom* or *6 + 7<per> clues*. The color tells you how the scenario's length compares to a standard one, counting each <per> as 3 (a three-player game):
+  - **Doom**: white at exactly 15, yellow at 16–18, red at anything else.
+  - **Clues**, compared with the total doom: white at 0.6–0.75<per> clues per doom (15 doom = 9<per> clues), yellow up to 1<per> per doom, red above or below that.
+- **Other** shows the rest of the Story group (scenario reference cards, story cards and so on), front side up. Press **F** to flip the card under the mouse, or **Shift+F** to flip them all.
+
+Zoom with the mouse wheel and drag to pan. **Double-click** a card to open it in the editor. The story view is for reading: cards can't be moved or edited there.
+
+### Balancing the encounter deck: the encounter view
+
+Click an encounter set's **Encounter** group to see its encounter deck laid out like the story view, in **Enemies**, **Treacheries** and **Other** columns. Every copy of an enemy or treachery is dealt out separately, overlapping the previous copy like a hand of playing cards, so you can see at a glance how many copies there are.
+
+Above the columns, everything is counted per copy:
+
+- **Enemies**: the total health of all enemy copies (like *14 + 5<per>*), how much of the encounter deck is enemies (enemies divided by enemies plus treacheries), and bar charts of the **Combat** and **Evade** values, from *X* (anything that isn't a plain number, like *X*, *?* or a dash) through *1* to *6+*, with their median and mean. A value of 0 is counted as 1.
+- **Treacheries**: a chart of the skill tests in the treacheries' text by difficulty, colored by skill, and how many tests of each skill there are, like *Willpower: 16 (44%)*. The percentage is out of all treachery copies. Tests are found by looking for text like `Test <willpower> (3)`, so a test written differently (for example *Test <willpower> or <agility> (3)*) isn't counted.
+  - Under **Deals**, how many treachery copies deal **damage** and how many deal **horror**, with their percentage of all treachery copies. A treachery counts when its text has a number right before the word, like *take 2 horror*, so *heal all damage* or *the enemy with the most damage* don't count. When the player gets to choose, as in *take 1 damage or horror* or *take 1 damage or 1 horror*, it counts under **Damage or horror** instead. A treachery that deals several kinds counts for each, but only once for each, however many times it mentions them. Wordings like *take X damage* aren't counted either.
+
+The view works the same way as the story view: zoom, pan, double-click to open a card, and **F** / **Shift+F** to flip cards in the *Other* column.
+
+If an encounter set only has encounter cards, the tree shows them directly under the set without an *Encounter* group, so there's nothing to click. Add a story or location card to get the groups.
+
 Toggle the sidebar with **Ctrl+K** when you need the space.
 
 When you have several projects open, the **active** project is the one that menu commands like *New Card* and *Export* act on. Clicking anything in a project makes it active, and you can also right-click a project and choose **Set as Active**.

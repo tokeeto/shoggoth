@@ -83,5 +83,13 @@ class NavigationHistory:
                 encounter = window.active_project.get_encounter_set(nav_id)
                 if encounter:
                     window.show_locations(encounter)
+            elif nav_type == 'story':
+                encounter = window.active_project.get_encounter_set(nav_id)
+                if encounter:
+                    window.show_story(encounter)
+            elif nav_type == 'encounter_view':
+                encounter = window.active_project.get_encounter_set(nav_id)
+                if encounter:
+                    window.show_encounter_view(encounter)
         finally:
             self._navigating = False

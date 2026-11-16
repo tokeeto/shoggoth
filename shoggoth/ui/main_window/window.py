@@ -131,6 +131,8 @@ class ShoggothMainWindow(QMainWindow):
         self.file_browser.project_selected.connect(self.show_project)
         self.file_browser.guide_selected.connect(self.show_guide)
         self.file_browser.locations_selected.connect(self.show_locations)
+        self.file_browser.story_selected.connect(self.show_story)
+        self.file_browser.encounter_cards_selected.connect(self.show_encounter_view)
         self.file_browser.active_project_changed.connect(self._on_active_project_changed)
         self.main_splitter.addWidget(self.file_browser)
 
@@ -243,6 +245,12 @@ class ShoggothMainWindow(QMainWindow):
 
     def show_locations(self, encounter_set):
         views.show_locations(self, encounter_set)
+
+    def show_story(self, encounter_set):
+        views.show_story(self, encounter_set)
+
+    def show_encounter_view(self, encounter_set):
+        views.show_encounter_view(self, encounter_set)
 
     def clear_editor(self):
         views.clear_editor(self)

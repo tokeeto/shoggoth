@@ -337,27 +337,31 @@ class LocationNode(QGraphicsItem):
         self._generate_thumbnail()
         self._load_connection_icon()
 
-    # Render resolution for thumbnails - same low-res size CardRenderer.get_thumbnail()
-    # uses elsewhere (browser tree). The location view can have dozens of
-    # nodes on screen at once, so rendering each at full card resolution
-    # (the renderer's default) risked exhausting memory; this keeps
-    # thumbnails legible while cutting render + buffer cost substantially.
-    THUMBNAIL_RENDER_WIDTH = 375
-    THUMBNAIL_RENDER_HEIGHT = 519
+    # Render resolution for thumbnails: one step above the low-res size
+    # CardRenderer.get_thumbnail() uses (375 wide), so nodes stay sharp when
+    # zoomed in. The pixmap is kept at this size and scaled into the node's
+    # CARD_WIDTH x CARD_HEIGHT rect when painted. Only the width matters to
+    # the renderer (height follows the card size), but keep the pair 5:7.
+    THUMBNAIL_RENDER_WIDTH = 750
+    THUMBNAIL_RENDER_HEIGHT = 1050
+    THUMBNAIL_RENDER_BLEED = 36
+
+    # Corner radius in node (scene) units, matching the renderer's rounded
+    # corners (72px at 1500 wide) scaled to CARD_WIDTH.
+    CORNER_RADIUS = 72 * CARD_WIDTH / 1500
 
     def _generate_thumbnail(self):
         """Generate a thumbnail of the location card"""
         try:
             image = renderer_for_card(self.renderer, self.card).render_card_side(
                 self.card, self.face, include_bleed=False,
-                width=self.THUMBNAIL_RENDER_WIDTH, height=self.THUMBNAIL_RENDER_HEIGHT, bleed=18,
+                width=self.THUMBNAIL_RENDER_WIDTH, height=self.THUMBNAIL_RENDER_HEIGHT,
+                bleed=self.THUMBNAIL_RENDER_BLEED, rounded=True,
             )
-            image = image.resize((self.CARD_WIDTH, self.CARD_HEIGHT))
 
-            # Convert to QPixmap
+            # Convert to QPixmap (PNG keeps the transparent rounded corners)
             buffer = BytesIO()
-            image.save(buffer, format='JPEG', quality=90)
-            buffer.seek(0)
+            image.save(buffer, format='PNG', compress_level=1)
 
             pixmap = QPixmap()
             pixmap.loadFromData(buffer.getvalue())
@@ -444,7 +448,10 @@ class LocationNode(QGraphicsItem):
         rect = self.boundingRect()
         painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(QColor(20, 20, 20, 140)))
-        painter.drawRect(rect)
+        if self._icon_mode:
+            painter.drawRect(rect)
+        else:
+            painter.drawRoundedRect(rect, self.CORNER_RADIUS, self.CORNER_RADIUS)
 
         badge_size = 22
         bx = rect.width() - badge_size - 4
@@ -463,17 +470,19 @@ class LocationNode(QGraphicsItem):
     def _paint_card_mode(self, painter):
         """Paint in card thumbnail mode"""
         # Draw thumbnail or placeholder
+        rect = QRectF(0, 0, self.CARD_WIDTH, self.CARD_HEIGHT)
+        radius = self.CORNER_RADIUS
         if self.thumbnail:
-            painter.drawPixmap(0, 0, self.thumbnail)
+            painter.drawPixmap(rect, self.thumbnail, QRectF(self.thumbnail.rect()))
         else:
             painter.setBrush(QBrush(QColor(200, 200, 200)))
-            painter.drawRect(0, 0, self.CARD_WIDTH, self.CARD_HEIGHT)
+            painter.drawRoundedRect(rect, radius, radius)
 
         # Draw selection highlight
         if self.isSelected():
             painter.setPen(QPen(QColor(0, 120, 255), 3))
             painter.setBrush(Qt.NoBrush)
-            painter.drawRect(0, 0, self.CARD_WIDTH, self.CARD_HEIGHT)
+            painter.drawRoundedRect(rect, radius, radius)
 
     def _paint_icon_mode(self, painter):
         """Paint in icon mode - just show connection symbol"""
@@ -1458,6 +1467,60 @@ class LocationView(QGraphicsView):
     def snap_enabled(self, value):
         self.active_layout['snap_enabled'] = bool(value)
         self.encounter_set.dirty = True
+        self.viewport().update()  # show/hide the snap points
+
+    # Below this on-screen spacing (pixels) the minor snap points are skipped,
+    # so zooming far out doesn't turn the background into a solid haze.
+    _MIN_SNAP_DOT_SPACING = 8
+
+    def drawBackground(self, painter, rect):
+        """Background plus, with Snap to Grid on, a dot at every snap point.
+
+        Drawn by the view, not the scene: export_image() uses scene.render(),
+        which never calls the view's drawBackground, so the dots stay out of
+        exported images.
+        """
+        super().drawBackground(painter, rect)
+        if not self.snap_enabled:
+            return
+
+        scale = self.transform().m11() or 1.0
+        # Card-footprint points: every 3rd column / 5th row of snap points
+        major_x, major_y = SNAP_STEP_X * 3, SNAP_STEP_Y * 5
+        show_minor = min(SNAP_STEP_X, SNAP_STEP_Y) * scale >= self._MIN_SNAP_DOT_SPACING
+        step_x, step_y = (SNAP_STEP_X, SNAP_STEP_Y) if show_minor else (major_x, major_y)
+        if min(step_x, step_y) * scale < self._MIN_SNAP_DOT_SPACING:
+            return
+
+        minor_pen = QPen(QColor(255, 255, 255, 45))
+        major_pen = QPen(QColor(255, 255, 255, 90))
+        for pen, width in ((minor_pen, 2.0), (major_pen, 3.0)):
+            pen.setWidthF(width)
+            pen.setCosmetic(True)  # constant on-screen size at any zoom
+            pen.setCapStyle(Qt.RoundCap)
+
+        first_col = math.floor(rect.left() / step_x)
+        last_col = math.ceil(rect.right() / step_x)
+        first_row = math.floor(rect.top() / step_y)
+        last_row = math.ceil(rect.bottom() / step_y)
+        per_x = round(major_x / step_x)
+        per_y = round(major_y / step_y)
+
+        minor, major = [], []
+        for col in range(first_col, last_col + 1):
+            x = col * step_x
+            for row in range(first_row, last_row + 1):
+                point = QPointF(x, row * step_y)
+                (major if col % per_x == 0 and row % per_y == 0 else minor).append(point)
+
+        painter.save()
+        if minor:
+            painter.setPen(minor_pen)
+            painter.drawPoints(minor)
+        if major:
+            painter.setPen(major_pen)
+            painter.drawPoints(major)
+        painter.restore()
 
     @property
     def show_arrows(self):
@@ -1566,6 +1629,7 @@ class LocationView(QGraphicsView):
         self._build_arrows()
         self._build_manual_arrows()
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-50, -50, 50, 50))
+        self.viewport().update()  # the new layout may have snap on/off
         self.hidden_locations_changed.emit()
         self.layouts_changed.emit()
 

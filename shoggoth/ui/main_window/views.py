@@ -195,3 +195,39 @@ def show_locations(window, encounter_set):
     _mount(window, window.location_view, scroll=False)
 
     window.status_bar.showMessage(tr("STATUS_EDITING_LOCATIONS").format(name=encounter_set.name))
+
+
+def show_story(window, encounter_set):
+    """Display the story view (agendas, acts and other story cards) of an encounter set"""
+    _begin_view(window, encounter_set.project, 'story', encounter_set.id)
+
+    # Hide preview for non-card views
+    window.preview_dock.hide()
+    window.guide_preview_dock.hide()
+
+    from shoggoth.ui.story_view import StoryViewWidget
+    view = StoryViewWidget(encounter_set, window.card_renderer)
+    view.card_selected.connect(
+        lambda card: (window.show_card(card), window.select_item_in_tree(card.id))
+    )
+    _mount(window, view, scroll=False)
+
+    window.status_bar.showMessage(tr("Story: {name}").format(name=encounter_set.name))
+
+
+def show_encounter_view(window, encounter_set):
+    """Display the encounter view (enemies, treacheries and their stats) of an encounter set"""
+    _begin_view(window, encounter_set.project, 'encounter_view', encounter_set.id)
+
+    # Hide preview for non-card views
+    window.preview_dock.hide()
+    window.guide_preview_dock.hide()
+
+    from shoggoth.ui.encounter_view import EncounterViewWidget
+    view = EncounterViewWidget(encounter_set, window.card_renderer)
+    view.card_selected.connect(
+        lambda card: (window.show_card(card), window.select_item_in_tree(card.id))
+    )
+    _mount(window, view, scroll=False)
+
+    window.status_bar.showMessage(tr("Encounter cards: {name}").format(name=encounter_set.name))

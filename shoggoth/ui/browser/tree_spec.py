@@ -229,6 +229,7 @@ def build_tree_spec(project):
             'node_id': f'category:{encounter_set.name}:story{scope}',
             'text': tr('TREE_STORY'),
             'type': 'category',
+            'group': 'story',  # clicking it opens the story view
             'data': encounter_set,
             'icon': None,
             'children': []
@@ -245,6 +246,7 @@ def build_tree_spec(project):
             'node_id': f'category:{encounter_set.name}:encounter{scope}',
             'text': tr('TREE_ENCOUNTER'),
             'type': 'category',
+            'group': 'encounter',  # clicking it opens the encounter view
             'data': encounter_set,
             'icon': None,
             'children': []

@@ -12,7 +12,7 @@ Each encounter set has a **Locations** entry in the tree. Click it to see all th
 
 | To... | Do this |
 |---|---|
-| Move a location | Drag it (turn on **Snap to Grid** for neat rows) |
+| Move a location | Drag it (turn on **Snap to Grid** for neat rows; the snap points show as dots, which are left out of exported images) |
 | Zoom | Mouse wheel |
 | Connect two locations | Right-drag from one to the other. Shoggoth updates both cards, and asks for a connection symbol if one of them has none yet. |
 | Remove a connection | Right-click the arrow and choose *Remove Connection* |

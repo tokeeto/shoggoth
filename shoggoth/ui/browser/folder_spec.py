@@ -191,6 +191,8 @@ def _set_group_folder(token, encounter_set):
     if encounter_set:
         folder.type = 'locations' if token == 'locations' else 'category'
         folder.data = encounter_set
+        if token in ('story', 'encounter'):
+            folder.extra['group'] = token  # clicking it opens the story / encounter view
     return folder
 
 

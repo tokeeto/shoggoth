@@ -27,6 +27,8 @@ class FileBrowser(QWidget):
     project_selected = Signal(object)  # Emits project object
     guide_selected = Signal(object)  # Emits guide object
     locations_selected = Signal(object)  # Emits encounter set for location view
+    story_selected = Signal(object)  # Emits encounter set for story view
+    encounter_cards_selected = Signal(object)  # Emits encounter set for encounter view
     active_project_changed = Signal(object)  # Emits project when active project changes
 
     def __init__(self):
@@ -597,6 +599,10 @@ class FileBrowser(QWidget):
             self.guide_selected.emit(item_data)
         elif item_type == 'locations':
             self.locations_selected.emit(item_data)
+        elif item_type == 'category' and data.get('group') == 'story':
+            self.story_selected.emit(item_data)
+        elif item_type == 'category' and data.get('group') == 'encounter':
+            self.encounter_cards_selected.emit(item_data)
 
     def on_context_menu(self, position):
         """Handle context menu request"""

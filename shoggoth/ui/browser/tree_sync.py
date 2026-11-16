@@ -20,8 +20,9 @@ class TreeSync:
     @staticmethod
     def _user_data(spec):
         user_data = {'type': spec['type'], 'data': spec['data'], 'node_id': spec['node_id']}
-        # optional extras: class/investigator groups, folder view placement
-        for key in ('class', 'investigator', 'folder', 'context'):
+        # optional extras: class/investigator groups, folder view placement,
+        # which encounter set group (story/...) a category node is
+        for key in ('class', 'investigator', 'folder', 'context', 'group'):
             if key in spec:
                 user_data[key] = spec[key]
         return user_data

@@ -49,6 +49,14 @@ On macOS, use **Cmd** where this page says **Ctrl**.
 | H / Shift+H | Hide the location under the mouse / toggle whether hidden locations are shown |
 | Delete | Delete the selected free-standing arrows |
 
+## In the story and encounter views
+
+| Shortcut | Action |
+|---|---|
+| Drag / mouse wheel | Pan / zoom |
+| F / Shift+F | Flip the card under the mouse / all cards in the Other column |
+| Double-click | Open the card |
+
 ## Command line
 
 | Command | Action |

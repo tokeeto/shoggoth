@@ -490,6 +490,7 @@ class ArkhamTextEdit(_LiveTextEditMixin, QTextEdit):
             '<combat>', '<com>', '[combat]',
             '<intellect>', '<int>', '[intellect]',
             '<willpower>', '[willpower]',
+            '<wild>', '[wild]',
 
             # Icon tags - actions
             '<action>', '[action]',

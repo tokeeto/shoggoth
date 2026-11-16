@@ -182,6 +182,14 @@ class SessionManager:
             element = project.get_encounter_set(element_id)
             if element:
                 window.show_locations(element)
+        elif element_type == 'story':
+            element = project.get_encounter_set(element_id)
+            if element:
+                window.show_story(element)
+        elif element_type == 'encounter_view':
+            element = project.get_encounter_set(element_id)
+            if element:
+                window.show_encounter_view(element)
 
         # Select in tree if element was found
         if element:
