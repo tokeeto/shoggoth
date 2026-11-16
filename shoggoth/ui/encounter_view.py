@@ -274,7 +274,7 @@ class EncounterView(CardBoardView):
             bottoms.append(bottom)
         top = max(bottoms) + 32
 
-        for (title, cards, fanned, _), x, width in zip(columns, xs, widths):
+        for (_, cards, fanned, _), x, width in zip(columns, xs, widths):
             y = top
             for card in cards:
                 if fanned:
