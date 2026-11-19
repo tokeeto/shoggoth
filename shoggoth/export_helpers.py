@@ -56,6 +56,7 @@ _SLOT_TO_SCED = {
     'accessory': 'Accessory',
     'tarot': 'Tarot',
     'head': 'Head',
+    'hat': 'Head',
 }
 
 # Shoggoth icon key → SCED icon count field

@@ -92,6 +92,7 @@ _WEAKNESS_LABELS = {"%:WEAKNESS", "%:BASIC WEAKNESS"}
 _SLOT_MAP = {
     "hands": "Hand x2",
     "arcanes": "Arcane x2",
+    "hat": "Head",
 }
 
 

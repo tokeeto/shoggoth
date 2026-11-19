@@ -133,6 +133,16 @@ def test_player_asset(export, snapshot):
     snapshot(export(_project(cards=[card]))["data"]["cards"])
 
 
+def test_hat_slot_is_head(export):
+    # Shoggoth's slot icon is named "hat"; arkham.build calls the slot "Head".
+    card = _card("hat-01", "Thinking Cap")
+    card["front"]["slots"] = ["hat"]
+
+    exported = export(_project(cards=[card]))["data"]["cards"]
+
+    assert exported[0]["slot"] == "Head"
+
+
 def test_enemy_special_values(export, snapshot):
     card = {
         "id": "enemy-01",
