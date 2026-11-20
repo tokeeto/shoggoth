@@ -298,6 +298,8 @@
   "FIELD_TRAITS": "Traços",
   "FIELD_CLASSES": "Classes",
   "FIELD_COST": "Custo",
+  "FIELD_DREAMING": "Onírico",
+  "TOOLTIP_DREAMING": "Mostrar o nível como nível onírico",
   "FIELD_LEVEL": "Nível",
   "FIELD_HEALTH": "Vida",
   "FIELD_SANITY": "Sanidade",

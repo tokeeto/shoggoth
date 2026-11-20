@@ -1331,10 +1331,16 @@ class CardRenderer:
         if not level_overlay_format:
             return
 
+        card_class=side.get_class()
+        if side.get('dreaming'):
+            card_class = 'dreaming'
+            region = Region(side.get('level_dream_region'), s)
+
         level_overlay_path = level_overlay_format.format(
-            card_class=side.get_class(),
+            card_class=card_class,
             level=level
         )
+
         path = side.card.project.find_file(level_overlay_path)
         if not path:
             path = overlay_dir / 'levels' / level_overlay_path

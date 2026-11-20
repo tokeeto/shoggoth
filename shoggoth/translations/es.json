@@ -294,6 +294,8 @@
   "FIELD_TRAITS": "Rasgos",
   "FIELD_CLASSES": "Clases",
   "FIELD_COST": "Coste",
+  "FIELD_DREAMING": "Onírico",
+  "TOOLTIP_DREAMING": "Mostrar el nivel como nivel onírico",
   "FIELD_LEVEL": "Nivel",
   "FIELD_HEALTH": "Salud",
   "FIELD_SANITY": "Cordura",

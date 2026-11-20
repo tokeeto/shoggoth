@@ -322,6 +322,8 @@
   "FIELD_TRAITS": "Черты",
   "FIELD_CLASSES": "Классы",
   "FIELD_COST": "Стоимость",
+  "FIELD_DREAMING": "Сновидение",
+  "TOOLTIP_DREAMING": "Показывать уровень как уровень сновидения",
   "FIELD_LEVEL": "Уровень",
   "FIELD_HEALTH": "Здоровье",
   "FIELD_SANITY": "Рассудок",

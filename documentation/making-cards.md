@@ -38,6 +38,10 @@ The **Classes** row decides the card's color and frame.
 
 A weakness treachery or enemy is simply the normal treachery or enemy type with the *Weakness* or *Basic Weakness* class. The frame, the "WEAKNESS" label and the player card back follow automatically.
 
+### Level and Dreaming
+
+Assets, events and skills have a **Level** row beside the classes: *–* for no level, *0*–*5*, or *C* for a custom level. Ticking **Dreaming** under it draws the level as a Dreaming level, whatever the card's class, and blanks the cost, since Dreaming cards are paid for with alternative costs. Unticking it brings the default cost back, unless you've typed a cost in the meantime. Skills keep their normal level pips, since the skill frame's level doesn't depend on the class.
+
 ### Changing a side's type
 
 Each side has a **type** selector at the top. Change it to turn a side into something else: make an enemy's back a location, or put a story text on the back of an agenda. Any front works with any back.

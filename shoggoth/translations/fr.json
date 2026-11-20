@@ -294,6 +294,8 @@
   "FIELD_TRAITS": "Traits",
   "FIELD_CLASSES": "Classes",
   "FIELD_COST": "Coût",
+  "FIELD_DREAMING": "Rêve",
+  "TOOLTIP_DREAMING": "Afficher le niveau comme un niveau de rêve",
   "FIELD_LEVEL": "Niveau",
   "FIELD_HEALTH": "Vie",
   "FIELD_SANITY": "Santé mentale",

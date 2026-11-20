@@ -479,7 +479,7 @@ class FaceEditor(QWidget):
     FLOAT_FIELDS = {'illustration_scale', 'illustration_pan_x', 'illustration_pan_y'}
     LIST_FIELDS = set()  # Fields stored as lists but displayed as comma-separated
     # Fields stored as True when set, and removed (None) rather than False when unset
-    BOOL_FIELDS = {'illustration_mirror', 'illustration_shape_overflow', 'illustration_class_icon'}
+    BOOL_FIELDS = {'illustration_mirror', 'illustration_shape_overflow', 'illustration_class_icon', 'dreaming'}
 
     def on_field_changed(self, field_name):
         """Handle field change"""
@@ -821,12 +821,40 @@ class FaceEditor(QWidget):
         level_toggle.valueChanged.connect(lambda: self.on_field_changed(level_field))
         self.fields[level_field] = level_toggle
         level_layout.addWidget(level_toggle)
+
+        # Dreaming swaps the level overlay for the dreaming variant (render_level).
+        dreaming = QCheckBox(tr("FIELD_DREAMING"))
+        dreaming.setToolTip(tr("TOOLTIP_DREAMING"))
+        dreaming.toggled.connect(self._on_dreaming_toggled)
+        self.fields['dreaming'] = dreaming
+        level_layout.addWidget(dreaming)
         row.addWidget(level_col)
 
         row_widget = QWidget()
         row_widget.setLayout(row)
         self._target_layout().addWidget(row_widget)
         return row_widget
+
+    # Dreaming cards are paid for with alternative costs, so no cost is printed. A
+    # blank (not None, which would fall back to the default "---") hides it.
+    DREAMING_COST = ' '
+
+    def _on_dreaming_toggled(self, checked):
+        if self.updating:
+            return
+        if checked:
+            self.face.set('cost', self.DREAMING_COST)
+        elif self.face.data.get('cost') == self.DREAMING_COST:
+            # Only undo our own blank; a cost typed in since then stays.
+            self.face.set('cost', None)
+        cost_widget = self.fields.get('cost')
+        if cost_widget is not None:
+            self.updating = True
+            try:
+                self.set_widget_value(cost_widget, self.face.get('cost', ''))
+            finally:
+                self.updating = False
+        self.on_field_changed('dreaming')
 
     def add_labeled_text(self, label, field_name, use_arkham=False):
         """Helper to add a labeled text edit"""

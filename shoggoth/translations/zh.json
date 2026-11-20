@@ -294,6 +294,8 @@
   "FIELD_TRAITS": "特征",
   "FIELD_CLASSES": "职业",
   "FIELD_COST": "费用",
+  "FIELD_DREAMING": "梦境",
+  "TOOLTIP_DREAMING": "将等级显示为梦境等级",
   "FIELD_LEVEL": "等级",
   "FIELD_HEALTH": "生命值",
   "FIELD_SANITY": "理智值",

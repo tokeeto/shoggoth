@@ -331,6 +331,8 @@
   "FIELD_TRAITS": "Traits",
   "FIELD_CLASSES": "Classes",
   "FIELD_COST": "Cost",
+  "FIELD_DREAMING": "Dreaming",
+  "TOOLTIP_DREAMING": "Show the level as a Dreaming level",
   "FIELD_LEVEL": "Level",
   "FIELD_HEALTH": "Health",
   "FIELD_SANITY": "Sanity",
