@@ -330,5 +330,5 @@ def build_token_data(data):
 
 
 def build_gm_notes_string(card):
-    """Return build_gm_notes(card) serialised as a compact JSON string."""
-    return json.dumps(build_gm_notes(card))
+    """Return build_gm_notes(card) as a formatted JSON string."""
+    return json.dumps(build_gm_notes(card), indent=2)
